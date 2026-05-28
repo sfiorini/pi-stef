@@ -1,3 +1,4 @@
+import { copyFile, mkdir } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -23,10 +24,29 @@ export async function loadConfig(repoRoot: string, opts: { homeDir?: string } = 
   const globalPath = path.join(homeDir, ".pi", "sf-team", "config.json");
   const projectPath = path.join(repoRoot, PROJECT_CONFIG_BASENAME);
 
+  await migrateLegacyGlobalConfig(homeDir, globalPath);
+
   const global = await loadFile(globalPath);
   const project = await loadFile(projectPath);
 
   return deepMerge(global, project);
+}
+
+async function migrateLegacyGlobalConfig(homeDir: string, newPath: string): Promise<void> {
+  const legacyPath = path.join(homeDir, ".pi", "fh-team", "config.json");
+  try {
+    await readFile(legacyPath, "utf8");
+  } catch {
+    return;
+  }
+  try {
+    await readFile(newPath, "utf8");
+    return;
+  } catch {
+    // new path doesn't exist — safe to migrate
+  }
+  await mkdir(path.dirname(newPath), { recursive: true });
+  await copyFile(legacyPath, newPath);
 }
 
 async function loadFile(filePath: string): Promise<SfTeamConfig> {
