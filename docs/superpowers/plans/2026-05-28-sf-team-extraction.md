@@ -628,11 +628,16 @@ done
 
 ```bash
 # Replace bare `typebox` imports with `@sinclair/typebox` (both single and double quotes)
+# Handle both direct imports ("typebox") and sub-path imports ("typebox/value")
 find packages/sf-team packages/atlassian packages/web-access packages/figma -name '*.ts' -exec sed -i '' \
+  -e 's/from "typebox\//from "@sinclair\/typebox\//g' \
+  -e "s/from 'typebox\//from '@sinclair\/typebox\//g" \
   -e 's/from "typebox"/from "@sinclair\/typebox"/g' \
   -e "s/from 'typebox'/from '@sinclair\/typebox'/g" \
   {} +
 ```
+
+Note: agent-workflows has no typebox dependency and is excluded from this step.
 
 - [ ] **Step 3: Verify the typebox imports resolve**
 
@@ -915,3 +920,7 @@ Expected: 6 package rows.
 "noUnusedParameters": false
 ```
 This preserves strict checking for superpowers-adapter while allowing the extracted code to typecheck cleanly. These can be tightened incrementally later.
+
+**Note on test timeouts:** The sf-team `package.json` sets `--test-timeout=60000` (60s) but the root `vitest.config.ts` has no timeout override. When running `pnpm test` from root, vitest uses its default 5s timeout. If integration/e2e tests time out, either update `vitest.config.ts` to set a global `testTimeout: 60000` or run sf-team tests separately via `pnpm --filter @pi-stef/sf-team test`.
+
+**Note on pnpm-lock.yaml:** After `pnpm install` in M7-S1, the lock file will be updated. It should be committed together with any M7 fixes.
