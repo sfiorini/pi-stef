@@ -49,7 +49,7 @@ export function registerTaskTool(pi: ExtensionAPI): void {
             },
           ],
           isError: true,
-          details: {},
+          details: { availableTools: activeTools },
         };
       }
 
@@ -60,7 +60,7 @@ export function registerTaskTool(pi: ExtensionAPI): void {
             text: `Task tool is an alias for the Agent tool. Please use the Agent tool directly with the same parameters:\n\nAgent({\n  subagent_type: "${params.subagent_type}",\n  prompt: "${params.prompt}",\n  description: "${params.description}"\n  ...\n})`,
           },
         ],
-        details: {},
+        details: { availableTools: activeTools },
       };
     },
   });
