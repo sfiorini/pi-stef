@@ -39,7 +39,7 @@ export interface AttachmentDownloadResult {
   attachments: DownloadedAttachment[];
 }
 
-const DEFAULT_ATTACHMENT_OUTPUT_DIR = fileURLToPath(new URL("../../.fh-agent-runtime/atlassian/attachments", import.meta.url));
+const DEFAULT_ATTACHMENT_OUTPUT_DIR = fileURLToPath(new URL("../../.sf-runtime/atlassian/attachments", import.meta.url));
 const JIRA_WORKLOG_STARTED_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{4}$/;
 
 export class JiraPlatformClient {

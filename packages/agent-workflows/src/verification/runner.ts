@@ -115,7 +115,7 @@ interface PersistentVerificationCache {
 }
 
 function persistentCachePath(cwd: string, configuredPath: string | undefined): string {
-  const rel = configuredPath ?? path.join(".fh-workflow", "verification-cache.json");
+  const rel = configuredPath ?? path.join(".sf-workflow", "verification-cache.json");
   return path.isAbsolute(rel) ? rel : path.join(cwd, rel);
 }
 

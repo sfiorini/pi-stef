@@ -29,7 +29,7 @@ export async function loadWebAccessConfig(
   homeDir = process.env.HOME ?? process.cwd(),
 ): Promise<WebAccessConfig> {
   const defaults = defaultConfig(homeDir);
-  const fileConfig = await readConfigFile(env.FH_WEB_CONFIG ?? path.join(homeDir, ".fh-agent", "web-access", "config.json"));
+  const fileConfig = await readConfigFile(env.FH_WEB_CONFIG ?? path.join(homeDir, ".pi", "web-access", "config.json"));
   const envConfig = configFromEnv(env);
   const paramConfig = sanitizeConfig(params);
   const merged = mergeConfig(defaults, fileConfig, envConfig, paramConfig);
@@ -53,8 +53,8 @@ export function defaultConfig(homeDir = process.env.HOME ?? process.cwd()): WebA
     maxBytes: 50 * 1024,
     maxLines: 2000,
     maxResults: 10,
-    outputDir: path.join(tmpdir(), "fh-agent-web-access"),
-    profilesDir: path.join(homeDir, ".fh-agent", "web-access", "profiles"),
+    outputDir: path.join(tmpdir(), "sf-web-access"),
+    profilesDir: path.join(homeDir, ".pi", "web-access", "profiles"),
     searchProviders: DEFAULT_SEARCH_PROVIDERS,
     sensitiveQueryKeys: DEFAULT_SENSITIVE_QUERY_KEYS,
     userAgent:

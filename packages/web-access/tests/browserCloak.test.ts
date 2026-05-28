@@ -37,7 +37,7 @@ beforeEach(async () => {
     profilesDir: path.join(root, "profiles"),
     searchProviders: ["duckduckgo"],
     sensitiveQueryKeys: [],
-    userAgent: "fh-agent-fast-fetch-test",
+    userAgent: "sf-fast-fetch-test",
   };
   fakeContext = {
     close: vi.fn(async () => undefined),

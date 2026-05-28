@@ -74,7 +74,7 @@ describe("verification runner", () => {
     const { root, dispose } = tempCwd();
     try {
       const executor = vi.fn(async () => ({ status: 0, stdout: "", stderr: "" }));
-      const cachePath = path.join(root, ".fh-workflow", "verification-cache.json");
+      const cachePath = path.join(root, ".sf-workflow", "verification-cache.json");
       const request = {
         toolName: "sf_team_implement",
         cwd: root,

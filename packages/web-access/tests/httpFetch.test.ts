@@ -18,11 +18,11 @@ const TEST_CONFIG: WebAccessConfig = {
   maxBytes: 128,
   maxLines: 100,
   maxResults: 5,
-  outputDir: "/tmp/fh-agent-web-access-tests",
-  profilesDir: "/tmp/fh-agent-web-access-profiles",
+  outputDir: "/tmp/sf-web-access-tests",
+  profilesDir: "/tmp/sf-web-access-profiles",
   searchProviders: ["duckduckgo"],
   sensitiveQueryKeys: ["token"],
-  userAgent: "fh-agent-test",
+  userAgent: "sf-test",
 };
 
 describe("guarded HTTP request primitive", () => {

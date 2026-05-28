@@ -124,7 +124,7 @@ maybeDescribe("web-access registered tools e2e", () => {
     expect(inspectOutput).toContain('"name": "login-profile"');
 
     const locateOutput = await executeText(pi, "fh_web_session", { action: "locate", profile: "login-profile" });
-    expect(await readFile(path.join(locateOutput.trim(), "fh-agent-session.json"), "utf8")).toContain(`${baseUrl}/login`);
+    expect(await readFile(path.join(locateOutput.trim(), "sf-session.json"), "utf8")).toContain(`${baseUrl}/login`);
 
     const clearOutput = await executeText(pi, "fh_web_session", { action: "clear", profile: "login-profile", yes: true });
     expect(clearOutput).toContain("Session login-profile removed");

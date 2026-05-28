@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 /* ─────────────────────────── validators ─────────────────────────── */
 
-const LAUNCHER_SESSION_RE = /^fh-agent-[A-Za-z0-9_-]{1,64}$/;
+const LAUNCHER_SESSION_RE = /^(?:fh-agent|sf-team)-[A-Za-z0-9_-]{1,64}$/;
 const TMUX_SESSION_RE = /^[A-Za-z0-9._\-]{1,64}$/;
 const LOG_PATH_RE = /^[A-Za-z0-9/_.\-]+$/;
 const RUN_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;

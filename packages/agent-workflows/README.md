@@ -16,7 +16,7 @@ If a local Pi environment installed `agent-workflows` while a development branch
 
 | Area | Module | Responsibility |
 | --- | --- | --- |
-| Artifact paths | `src/artifacts/paths.ts` | Canonical `ai_plan/<slug>/.fh-workflow` paths. |
+| Artifact paths | `src/artifacts/paths.ts` | Canonical `ai_plan/<slug>/.sf-workflow` paths. |
 | Atomic writes | `src/artifacts/atomic-write.ts` | Safe text/JSON writes for workflow metadata and artifacts. |
 | Plan locks | `src/lock/plan-lock.ts` | Atomic plan-folder lock acquisition, stale lock takeover, and release. |
 | Metadata | `src/state/workflow-metadata.ts` | Durable owner tool, current tool, status, phase, branch/worktree, checkpoints, and commit intents. |
@@ -33,7 +33,7 @@ Consumers store workflow state under the existing plan folder:
 ```text
 ai_plan/<slug>/
   .sf-team.lock/                  # transient lockdir while a run owns the folder
-  .fh-workflow/
+  .sf-workflow/
     workflow.json                 # owner/status/phase/worktree/branch metadata
     checkpoints.json              # step records and fingerprints
     verification-cache.json       # persistent verification cache when opted in
@@ -48,7 +48,7 @@ Exact resume is same-tool only. A consumer should call `analyzeResumeTarget({ re
 
 Rules enforced by the shared policy:
 
-- Existing `.fh-workflow/workflow.json` metadata must have `ownerTool === invokedTool`.
+- Existing `.sf-workflow/workflow.json` metadata must have `ownerTool === invokedTool`.
 - Metadata parse failures are hard errors.
 - Missing metadata is allowed for `sf_team_implement` against a legacy five-file plan folder.
 - Missing metadata is also allowed for `sf_team_auto` only when a five-file plan folder has both plan-phase checkpoints (`spawnText:planner:<n>`) and milestone implementation checkpoints (`spawnText:developer-M...:<n>` or `spawnText:reviewer-M...:<n>`). This recovers auto folders created before metadata persistence was fixed. Once the resumed run enters `runWorkflow`, it writes `workflow.json`; later resumes use the normal metadata path.
@@ -56,7 +56,7 @@ Rules enforced by the shared policy:
 
 Checkpoint reuse is also conservative. Only `status: "completed"` checkpoints with the same input fingerprint are skipped. In-progress and failed checkpoints rerun.
 
-`runWorkflow` writes `.fh-workflow/workflow.json` after acquiring the folder lock. `ownerTool` defaults to `toolName`; wrappers may pass `ownerTool` when a parent workflow owns nested phases. `sf_team_auto` uses `ownerTool: "sf_team_auto"` while its nested plan and implement phases set `currentTool` to `sf_team_plan` and `sf_team_implement`. Each nested phase may mark metadata `completed` when it exits; the next phase reopens the same owner record and sets `status` back to `running`.
+`runWorkflow` writes `.sf-workflow/workflow.json` after acquiring the folder lock. `ownerTool` defaults to `toolName`; wrappers may pass `ownerTool` when a parent workflow owns nested phases. `sf_team_auto` uses `ownerTool: "sf_team_auto"` while its nested plan and implement phases set `currentTool` to `sf_team_plan` and `sf_team_implement`. Each nested phase may mark metadata `completed` when it exits; the next phase reopens the same owner record and sets `status` back to `running`.
 
 Normal handoff flows can opt in to a narrow owner claim with `allowOwnerTakeoverFrom`. `sf_team_implement slug=<plan>` uses this to claim a completed `sf_team_plan` folder for implementation while still rejecting auto/task/followup-owned folders.
 

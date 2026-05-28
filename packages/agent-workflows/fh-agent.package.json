@@ -1,7 +1,0 @@
-{
-  "catalogVisibility": "internal",
-  "documentation": {
-    "readme": "packages/agent-workflows/README.md"
-  },
-  "packageType": "package"
-}

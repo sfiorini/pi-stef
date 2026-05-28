@@ -78,8 +78,8 @@ describe("plan-index", () => {
     const slug = "my-slug";
     const planRoot1 = path.join(testHome, "plans/one");
     const planRoot2 = path.join(testHome, "plans/two");
-    const wf1 = path.join(planRoot1, slug, ".fh-workflow", "workflow.json");
-    const wf2 = path.join(planRoot2, slug, ".fh-workflow", "workflow.json");
+    const wf1 = path.join(planRoot1, slug, ".sf-workflow", "workflow.json");
+    const wf2 = path.join(planRoot2, slug, ".sf-workflow", "workflow.json");
     fs.mkdirSync(path.dirname(wf1), { recursive: true });
     fs.mkdirSync(path.dirname(wf2), { recursive: true });
     fs.writeFileSync(wf1, "{}", "utf8");

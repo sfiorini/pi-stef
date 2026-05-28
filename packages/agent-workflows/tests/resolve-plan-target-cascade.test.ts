@@ -11,7 +11,7 @@ let originalHome: string;
 const testHome = path.join(os.tmpdir(), `cascade-test-${process.pid}-${Date.now()}`);
 
 function makeWorkflowJson(planRoot: string, slug: string): void {
-  const dir = path.join(planRoot, slug, ".fh-workflow");
+  const dir = path.join(planRoot, slug, ".sf-workflow");
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, "workflow.json"), "{}", "utf8");
 }

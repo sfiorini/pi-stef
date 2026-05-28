@@ -331,7 +331,7 @@ export async function runOrchestrator<T>(
     // provided; otherwise default to a fixed test-friendly name so the
     // wiring path is exercised regardless of `$TMUX`.
     tmuxManager = ctx.tmuxManager;
-    tmuxSessionName = ctx.tmuxSessionName ?? "fh-agent-test";
+    tmuxSessionName = ctx.tmuxSessionName ?? "sf-team-default";
     tmuxLauncherSession = isValidLauncherSessionName(tmuxSessionName);
   } else {
     // Production auto-detect via getActiveSession().

@@ -10,17 +10,8 @@ describe("figma package metadata", () => {
       name: string;
       pi?: { extensions?: string[] };
     };
-    const metadata = JSON.parse(
-      fs.readFileSync(path.join(packageRoot, "fh-agent.package.json"), "utf8"),
-    ) as {
-      configuration?: { summary?: string; files?: Array<{ path: string }> };
-      documentation?: { readme?: string };
-    };
 
     expect(manifest.name).toBe("@pi-stef/figma");
     expect(manifest.pi?.extensions).toEqual(["./extensions"]);
-    expect(metadata.documentation?.readme).toBe("packages/figma/README.md");
-    expect(metadata.configuration?.summary).toContain("~/.pi/figma/config.json");
-    expect(metadata.configuration?.files?.map((file) => file.path)).toContain("~/.pi/figma/config.json");
   });
 });

@@ -8,7 +8,7 @@ import { loadWebAccessConfig } from "../src/config";
 describe("web-access config", () => {
   it("loads defaults, config file, env, and params in precedence order", async () => {
     const homeDir = await mkdtemp(path.join(tmpdir(), "fh-web-config-"));
-    const configDir = path.join(homeDir, ".fh-agent", "web-access");
+    const configDir = path.join(homeDir, ".pi", "web-access");
     await mkdir(configDir, { recursive: true });
     await writeFile(
       path.join(configDir, "config.json"),
@@ -62,7 +62,7 @@ describe("web-access config", () => {
       maxResults: 8,
       searxngUrl: "https://param-search.example.com",
     });
-    expect(config.profilesDir).toBe(path.join(homeDir, ".fh-agent", "web-access", "profiles"));
+    expect(config.profilesDir).toBe(path.join(homeDir, ".pi", "web-access", "profiles"));
     expect(config.sensitiveQueryKeys).toEqual(expect.arrayContaining(["token", "ticket", "session_id", "private_key"]));
   });
 

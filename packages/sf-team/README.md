@@ -82,8 +82,8 @@ Each tool carries a flat single-mode `Type.Object({...}, { additionalProperties:
 Use natural language when you want the agent to pick the right sf-team workflow for the job:
 
 ```text
-fh-agent "Use sf_team_auto to plan and implement adding per-org rate limiting. Use Claude Opus as reviewer and stop before pushing."
-fh-agent "Use sf_team_task for a small bug fix: reproduce the cache eviction race, add a regression test, fix it, get review, and commit locally."
+pi "Use sf_team_auto to plan and implement adding per-org rate limiting. Use Claude Opus as reviewer and stop before pushing."
+pi "Use sf_team_task for a small bug fix: reproduce the cache eviction race, add a regression test, fix it, get review, and commit locally."
 ```
 
 Use exact tool calls when you already know the workflow and inputs. Each workflow has a start tool at the bare base name and a resume tool with a `_resume` suffix:
@@ -162,8 +162,8 @@ Cost and context warning: steering may spawn an additional steering-decider role
 If a workflow was interrupted, ask for exact resume and provide the same plan slug or plan-folder path:
 
 ```text
-fh-agent "Resume the interrupted sf_team_auto workflow from 2026-05-06-refactor-auth and continue from its saved checkpoints."
-fh-agent "Resume the sf_team_task workflow at ./ai_plan/2026-05-06-fix-cache-race; do not start a new task."
+pi "Resume the interrupted sf_team_auto workflow from 2026-05-06-refactor-auth and continue from its saved checkpoints."
+pi "Resume the sf_team_task workflow at ./ai_plan/2026-05-06-fix-cache-race; do not start a new task."
 ```
 
 Technical exact-resume calls use the dedicated `_resume` tool with a `resume` input. The target can be a slug, a relative `ai_plan/<slug>` path, or an absolute plan-folder path:
@@ -176,7 +176,7 @@ sf_team_auto_resume resume=2026-05-06-refactor-auth
 sf_team_followup_resume resume=2026-05-08-followup-add-cache-metric
 ```
 
-The historical `sf_team_<base> resume=...` form (a single tool with an `anyOf` start/resume schema) is gone. Use `<base>_resume` for resume calls. Natural-language phrasing like `fh-agent "Resume the interrupted sf_team_auto workflow ..."` still works because the agent routes through the right tool when interpreting the request.
+The historical `sf_team_<base> resume=...` form (a single tool with an `anyOf` start/resume schema) is gone. Use `<base>_resume` for resume calls. Natural-language phrasing like `pi "Resume the interrupted sf_team_auto workflow ..."` still works because the agent routes through the right tool when interpreting the request.
 
 Exact resume normally requires `.fh-workflow/workflow.json` to prove the same owner tool started the folder. Older metadata-less auto folders can be recovered only when they already contain both plan checkpoints and milestone implementation checkpoints; the resumed run writes metadata for future resumes. After ownership is accepted, `sf_team_auto_resume resume=<target>` skips researcher/planner whenever it finds an existing implementable five-file plan folder and resumes the implementation phase directly.
 
@@ -233,7 +233,7 @@ Layered global + project config, with project winning at field level:
 
 Resolution chain (locked): `prompt args → project config → global config → DEFAULT_CONFIG`. The first non-`undefined` value wins.
 
-`scripts/fh-agent install sf-team` creates the global file at `~/.pi/sf-team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.sf-team.json` should contain only sparse overrides that belong in that repository.
+`scripts/pi install sf-team` creates the global file at `~/.pi/sf-team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.sf-team.json` should contain only sparse overrides that belong in that repository.
 
 The generated file is copied from [`packages/sf-team/config/defaults.json`](config/defaults.json) and includes every built-in default. That includes reserved keys accepted by the schema but not honored yet, and advanced operational keys such as `heartbeatMs`; see the reference table below before changing those.
 
@@ -307,7 +307,7 @@ Message behavior:
 - Warning messages expire after 15 seconds.
 - Error messages stay until explicitly cleared unless a TTL is supplied.
 - Timers are cleared when the orchestrator exits.
-- Without a mounted widget, warnings/errors fall back to stderr; info messages are printed only with `FH_AGENT_WORKFLOW_VERBOSE=1`.
+- Without a mounted widget, warnings/errors fall back to stderr; info messages are printed only with `SF_TEAM_WORKFLOW_VERBOSE=1`.
 
 ### Verification policy
 
@@ -700,7 +700,7 @@ The `shouldContinue` callback on `SfTeamImplementInput` is a TEST-ONLY override:
 
 ```bash
 # Install
-scripts/fh-agent install sf-team --scope project
+scripts/pi install sf-team --scope project
 
 # In a pi session, ask the researcher → planner → reviewer pipeline to draft a plan:
 sf_team_plan title="Add per-org rate limiting" brief="..."
@@ -927,10 +927,10 @@ Layout (ASCII):
 Pane content is rendered through `packages/sf-team/scripts/pretty-pane.mjs`. The default theme is `codex`, which groups command/tool output, muted logs, and diff-like lines into a transcript-style view. Overrides:
 
 ```bash
-SF_TEAM_PANE_THEME=plain fh-agent
-PRETTY_PANE_THEME=plain fh-agent
-PRETTY_PANE_COLOR=never fh-agent
-NO_COLOR=1 fh-agent
+SF_TEAM_PANE_THEME=plain pi
+PRETTY_PANE_THEME=plain pi
+PRETTY_PANE_COLOR=never pi
+NO_COLOR=1 pi
 ```
 
 `SF_TEAM_PANE_THEME` and `PRETTY_PANE_THEME` accept `codex` or `plain`; `plain` preserves the legacy renderer. `NO_COLOR=1` and `PRETTY_PANE_COLOR=never` disable renderer-owned ANSI color.
@@ -938,28 +938,28 @@ NO_COLOR=1 fh-agent
 ### Install / update / remove
 
 ```bash
-# Install (brew on macOS, apt on Debian/Ubuntu) and record the install in ~/.fh-agent/tmux.installed.
-scripts/fh-agent install tmux
+# Install (brew on macOS, apt on Debian/Ubuntu) and record the install in ~/.pi/tmux.installed.
+scripts/pi install tmux
 
 # Already have tmux? Just record it (no system install runs).
-scripts/fh-agent install tmux --manual-mark
+scripts/pi install tmux --manual-mark
 
 # Upgrade (brew upgrade / apt-get install --only-upgrade).
-scripts/fh-agent update tmux
+scripts/pi update tmux
 
 # Uninstall + clear state file. manager=manual deletes ONLY the marker (system tmux untouched).
-scripts/fh-agent remove tmux
+scripts/pi remove tmux
 ```
 
 The Linux apt path runs `sudo -n true` first; if sudo would prompt for a password, the command aborts with a manual-fallback message rather than silently hanging (`RealCommandRunner` captures stdio).
 
 ### Per-invocation session id
 
-When the launcher decides to enter tmux, it generates a fresh session name `fh-agent-<8 hex chars>` from `/dev/urandom` and exports it as `FH_AGENT_TMUX_SESSION`. Two terminals running `fh-agent` simultaneously get separate sessions and never collide. The launcher OWNS that name — it doesn't imply any specific extension; the user may go on to invoke a sf-team `sf_team_*` tool (which renames the session to a tool-derived alias) OR a different extension entirely inside the same session.
+When the launcher decides to enter tmux, it generates a fresh session name `sf-team-<8 hex chars>` from `/dev/urandom` and exports it as `SF_TEAM_TMUX_SESSION`. Two terminals running `pi` simultaneously get separate sessions and never collide. The launcher OWNS that name — it doesn't imply any specific extension; the user may go on to invoke a sf-team `sf_team_*` tool (which renames the session to a tool-derived alias) OR a different extension entirely inside the same session.
 
 ### Escape hatches
 
-- `FH_AGENT_NO_TMUX=1` — env var that disables the launcher gate.
+- `SF_TEAM_NO_TMUX=1` — env var that disables the launcher gate.
 - `--no-tmux` — argv flag (launcher-only; stripped before reaching pi) that does the same.
 - `$TMUX` already set — the launcher does NOT re-exec; the TS pane manager detects you are already in a session and uses `tmux display-message -p '#S'` to find the active session name (permissive validator accepts user sessions like `work` or `0`).
 - tmux not installed — `should_use_tmux` returns false, the launcher proceeds without tmux, and the pane manager is a no-op.

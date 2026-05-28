@@ -23,7 +23,7 @@ beforeEach(async () => {
     profilesDir: path.join(root, "profiles"),
     searchProviders: ["duckduckgo"],
     sensitiveQueryKeys: [],
-    userAgent: "fh-agent-test",
+    userAgent: "sf-test",
   };
 });
 
@@ -44,7 +44,7 @@ describe("browser session profiles", () => {
     await writeSessionMetadata(config, "default", { finalUrl: "https://example.com", updatedAt: "2026-04-30T00:00:00.000Z" });
 
     expect(profilePath(config, "default")).toBe(dir);
-    await expect(readFile(path.join(dir, "fh-agent-session.json"), "utf8")).resolves.toContain("example.com");
+    await expect(readFile(path.join(dir, "sf-session.json"), "utf8")).resolves.toContain("example.com");
 
     const sessions = await listSessions(config);
     expect(sessions).toMatchObject([{ name: "default", path: dir }]);

@@ -12,7 +12,7 @@ export interface ResolvePlanTargetInput {
   target: string;
   cwd?: string;
   /**
-   * Ordered list of planRoot directories to check for `<root>/<slug>/.fh-workflow/workflow.json`
+   * Ordered list of planRoot directories to check for `<root>/<slug>/.sf-workflow/workflow.json`
    * before falling through to the global plan-index. When omitted, falls back to the legacy
    * `<repoRoot>/ai_plan/<slug>/` behavior for back-compat.
    */
@@ -58,7 +58,7 @@ export async function resolvePlanTarget(input: ResolvePlanTargetInput): Promise<
     // New cascade: check each explicit candidate for workflow.json
     for (const planRoot of input.candidatePlanRoots) {
       const folderPath = planFolderPathFromRoot(planRoot, slug);
-      const workflowJson = path.join(folderPath, ".fh-workflow", "workflow.json");
+      const workflowJson = path.join(folderPath, ".sf-workflow", "workflow.json");
       if (await fileExists(workflowJson)) {
         return { slug, folderPath, target, targetKind };
       }

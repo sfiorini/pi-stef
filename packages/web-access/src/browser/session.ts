@@ -3,7 +3,7 @@ import path from "node:path";
 
 import type { WebAccessConfig } from "../types";
 
-const SESSION_METADATA = "fh-agent-session.json";
+const SESSION_METADATA = "sf-session.json";
 
 export interface SessionInfo {
   metadata?: Record<string, unknown>;

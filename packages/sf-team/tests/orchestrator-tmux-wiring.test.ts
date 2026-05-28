@@ -158,7 +158,7 @@ describe("S-602 + S-604 orchestrator wires TmuxManager when injected", () => {
       },
     );
     // Session decoration happens lazily on first subscribe — exactly once.
-    // The default tmuxSessionName is `fh-agent-test` (a launcher
+    // The default tmuxSessionName is `sf-team-default` (a launcher
     // session per the validator), so prepareSession runs.
     expect(stub.calls.filter((c) => c.startsWith("prepareSession"))).toHaveLength(1);
     expect(stub.calls.filter((c) => c.startsWith("nextSessionAlias"))).toHaveLength(1);

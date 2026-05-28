@@ -4,7 +4,7 @@ import path from "node:path";
 /** Root for plan folders relative to repoRoot. Convention: ai_plan/<slug>/ */
 export const PLAN_FOLDER_ROOT = "ai_plan" as const;
 
-export const WORKFLOW_FOLDER_NAME = ".fh-workflow" as const;
+export const WORKFLOW_FOLDER_NAME = ".sf-workflow" as const;
 export const WORKFLOW_ARTIFACTS_FOLDER_NAME = "artifacts" as const;
 export const WORKFLOW_METADATA_FILE = "workflow.json" as const;
 export const CHECKPOINTS_FILE = "checkpoints.json" as const;
