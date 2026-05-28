@@ -55,7 +55,7 @@
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "install:all:global": "./scripts/install-all.sh",
     "install:all:project": "./scripts/install-all.sh --project"
   },
@@ -177,6 +177,9 @@ export default defineConfig({
 ```json
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true
+  },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules"]
 }
