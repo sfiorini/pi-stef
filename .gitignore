@@ -3,5 +3,6 @@ dist/
 *.js
 *.d.ts
 *.js.map
+*.log
 .DS_Store
 /ai_plan/
