@@ -1,6 +1,6 @@
 /**
  * Integration test for the verification gate fix-loop wired into
- * `fh_team_task`. Exercises:
+ * `sf_team_task`. Exercises:
  *
  *   - The dev/reviewer pair completes impl-review (round 1 APPROVED).
  *   - The configured `verifyCommand` exits 1 on the FIRST call (no
@@ -20,7 +20,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamTask } from "../src/tools/task";
+import { createSfTeamTask } from "../src/tools/task";
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
@@ -67,7 +67,7 @@ function fakeRun(finalText: string): AgentRun {
   };
 }
 
-describe("verification gate fix-loop wired into fh_team_task (integration)", () => {
+describe("verification gate fix-loop wired into sf_team_task (integration)", () => {
   it("first verify-command exits 1; dev's fix writes counter; second verify-command exits 0; workflow commits and approves", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -119,7 +119,7 @@ describe("verification gate fix-loop wired into fh_team_task (integration)", () 
       });
 
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Add Foo",

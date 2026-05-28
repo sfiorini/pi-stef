@@ -13,13 +13,13 @@ import path from "node:path";
  * (and presumably gitignored them). On collision, appends -2 / -3 / … to the
  * slug until a free path is found.
  *
- * Honors a repo-local override via `git config fh-team.worktreeRoot <abs-path>`,
+ * Honors a repo-local override via `git config sf-team.worktreeRoot <abs-path>`,
  * which jumps to the front of the priority list when set.
  */
 export function pickWorktreeDir(repoRoot: string, slug: string): string {
   const repoBase = path.basename(repoRoot);
   const candidates: string[] = [];
-  const override = readGitConfigValue(repoRoot, "fh-team.worktreeRoot");
+  const override = readGitConfigValue(repoRoot, "sf-team.worktreeRoot");
   if (override) candidates.push(override);
   // Default = sibling. Worktrees live OUTSIDE repoRoot so they can't dirty
   // the parent.

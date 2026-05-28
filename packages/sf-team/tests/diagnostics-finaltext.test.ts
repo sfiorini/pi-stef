@@ -30,7 +30,7 @@ describe("audit fix: writeDiagnostics includes per-run finalText", () => {
     try {
       const out = await writeDiagnostics(repoRoot, {
         slug: "x",
-        toolName: "fh_team_plan",
+        toolName: "sf_team_plan",
         agentRuns: [
           fakeRun("planner draft body here"),
           fakeRun("reviewer ## Verdict\nVERDICT: REVISE"),
@@ -52,7 +52,7 @@ describe("audit fix: writeDiagnostics includes per-run finalText", () => {
       const huge = "x".repeat(8000);
       const out = await writeDiagnostics(repoRoot, {
         slug: "x",
-        toolName: "fh_team_plan",
+        toolName: "sf_team_plan",
         agentRuns: [fakeRun(huge)],
       });
       const body = readFileSync(out!, "utf8");

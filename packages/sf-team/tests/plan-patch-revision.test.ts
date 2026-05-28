@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { applyPlanPatch, PlanPatchError } from "../src/plan/patch";
 import { resolveDefaults } from "../src/config/load";
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { slugify } from "../src/plan/slug";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
@@ -230,7 +230,7 @@ describe("plan patch application", () => {
   });
 });
 
-describe("fh_team_plan patch revisions", () => {
+describe("sf_team_plan patch revisions", () => {
   it("planner returns a patch, TypeScript applies it, and reviewer round 2 sees the full applied plan", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -255,7 +255,7 @@ describe("fh_team_plan patch revisions", () => {
         return fakeRun(reviewerCalls === 1 ? REVISE_TEXT : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Patch Plan", brief: "Acceptance Criteria:\n- [ ] Patch only.", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "patch", researcher: "never" } } as never) },
@@ -287,7 +287,7 @@ describe("fh_team_plan patch revisions", () => {
         return fakeRun(plannerIdx < 2 ? REVISE_TEXT : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Fallback Plan", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "patch", researcher: "never" } } as never) },
@@ -315,7 +315,7 @@ describe("fh_team_plan patch revisions", () => {
         return fakeRun(plannerIdx < 2 ? REVISE_TEXT : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Missing Target Plan", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "patch", researcher: "never" } } as never) },
@@ -340,7 +340,7 @@ describe("fh_team_plan patch revisions", () => {
         return fakeRun(plannerIdx < 2 ? REVISE_TEXT : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Full Revision Plan", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "full", researcher: "never" } } as never) },

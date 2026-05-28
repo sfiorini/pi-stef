@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamFollowup } from "../src/tools/followup";
+import { createSfTeamFollowup } from "../src/tools/followup";
 import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -101,7 +101,7 @@ function fakeRun(finalText: string): AgentRun {
   };
 }
 
-describe("M12 fh_team_followup plan-revise-forwarding (S-C05)", () => {
+describe("M12 sf_team_followup plan-revise-forwarding (S-C05)", () => {
   it("planner re-spawned on plan-review REVISE; second reviewer call sees revised followup plan", async () => {
     const { root, parentSlug, dispose } = makeRepoWithParentPlan();
     try {
@@ -123,7 +123,7 @@ describe("M12 fh_team_followup plan-revise-forwarding (S-C05)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Fix Edge Case",
@@ -184,7 +184,7 @@ describe("M12 fh_team_followup plan-revise-forwarding (S-C05)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Patch Followup Plan",
@@ -208,7 +208,7 @@ describe("M12 fh_team_followup plan-revise-forwarding (S-C05)", () => {
   });
 });
 
-describe("M12 fh_team_followup impl-revise-forwarding (S-C05)", () => {
+describe("M12 sf_team_followup impl-revise-forwarding (S-C05)", () => {
   it("developer re-spawned on impl-review REVISE; second reviewer call sees the new staged diff", async () => {
     const { root, parentSlug, dispose } = makeRepoWithParentPlan();
     try {
@@ -231,7 +231,7 @@ describe("M12 fh_team_followup impl-revise-forwarding (S-C05)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Add Coverage",
@@ -270,7 +270,7 @@ describe("M12 fh_team_followup impl-revise-forwarding (S-C05)", () => {
   });
 });
 
-describe("M12 fh_team_followup writes its own plan folder (post-overlay refactor)", () => {
+describe("M12 sf_team_followup writes its own plan folder (post-overlay refactor)", () => {
   it("creates ai_plan/<date>-followup-<slug>/task-plan.md and does NOT mutate the parent's pr-description", async () => {
     const { root, parentSlug, dispose } = makeRepoWithParentPlan();
     try {
@@ -285,7 +285,7 @@ describe("M12 fh_team_followup writes its own plan folder (post-overlay refactor
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Polish UX",

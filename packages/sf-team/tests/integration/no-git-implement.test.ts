@@ -1,5 +1,5 @@
 /**
- * S-503: Integration test — fh_team_implement in a non-git tmpdir with gitMode='off'.
+ * S-503: Integration test — sf_team_implement in a non-git tmpdir with gitMode='off'.
  *
  * Verifies:
  *   - Call succeeds without throwing (no assertIsGitRepo error)
@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamImplement } from "../../src/tools/implement";
+import { createSfTeamImplement } from "../../src/tools/implement";
 import { planFolderPath } from "../../src/plan/paths";
 import type { AgentRun } from "../../src/runtime/types";
 
@@ -105,7 +105,7 @@ function makePlanFolder(repoRoot: string, slug: string): void {
   );
 }
 
-describe("fh_team_implement — no-git tmpdir with gitMode='off'", () => {
+describe("sf_team_implement — no-git tmpdir with gitMode='off'", () => {
   it("succeeds without throwing; all milestones approved; commitSha undefined; prDescriptionPath undefined", async () => {
     // tmpdir that is NOT a git repository
     const repoRoot = mkdtempSync(path.join(tmpdir(), "ct-impl-no-git-"));
@@ -118,7 +118,7 @@ describe("fh_team_implement — no-git tmpdir with gitMode='off'", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await tool(
         {

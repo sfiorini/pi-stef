@@ -185,7 +185,7 @@ const TaskSchema = Type.Object(
     use_worktree: Type.Optional(
       Type.Boolean({
         description:
-          "RESERVED — fh_team_task does not yet create a worktree. Setting this to true has no effect today; do not rely on it for isolation.",
+          "RESERVED — sf_team_task does not yet create a worktree. Setting this to true has no effect today; do not rely on it for isolation.",
       }),
     ),
     /** RESERVED — not yet honored by `createWorktree`. Reading this field is safe; setting it has no effect today. Track follow-up before relying on it. */
@@ -230,7 +230,7 @@ const PerformanceSchema = Type.Object(
      * Set to 0 to render immediately on every widget-affecting event.
      */
     widget_update_interval_ms: Type.Optional(Type.Integer({ minimum: 0, maximum: 5_000 })),
-    /** Researcher subprocess policy for fh_team_plan. Config-only in v1. */
+    /** Researcher subprocess policy for sf_team_plan. Config-only in v1. */
     researcher: Type.Optional(ResearcherPolicySchema),
     /** Planner revision strategy. Wired in M4; config-only in v1. */
     plan_revision: Type.Optional(PlanRevisionModeSchema),
@@ -261,7 +261,7 @@ const ParallelSchema = Type.Object(
 
 const SteeringSchema = Type.Object(
   {
-    /** Master switch for fh-team steering control-plane features. */
+    /** Master switch for sf-team steering control-plane features. */
     enabled: Type.Optional(Type.Boolean()),
     /** Maximum user-authored steering instruction length accepted by durable ingress. */
     max_instruction_chars: Type.Optional(Type.Integer({ minimum: 1, maximum: 100_000 })),
@@ -316,7 +316,7 @@ export const ConfigSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export type FhTeamConfig = Static<typeof ConfigSchema>;
+export type SfTeamConfig = Static<typeof ConfigSchema>;
 
 /**
  * Resolved defaults — every knob the orchestrator might consult resolves to a

@@ -109,7 +109,7 @@ export function setMessages(state: WidgetState, messages: WorkflowMessage[]): Wi
 
 /**
  * Drop all agent cards from the widget. Used at milestone boundaries (and
- * at the plan→implement phase boundary in `fh_team_auto`) so the panel
+ * at the plan→implement phase boundary in `sf_team_auto`) so the panel
  * shows only the agents working on the current milestone — completed
  * cards from prior milestones are recorded in transcript files anyway,
  * and keeping them in the widget pushes the active cards off-screen.

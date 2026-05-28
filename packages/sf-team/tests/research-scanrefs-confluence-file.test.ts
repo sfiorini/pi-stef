@@ -11,7 +11,7 @@ describe("scanRefs: confluence refs (P2 fix) + file refs no longer scanned (Plan
   });
 
   it("does NOT scan local file paths anymore (Plan B: researcher has --tools read,grep,find,ls and can read files itself)", () => {
-    const refs = scanRefs("look at packages/fh-team/src/research/run.ts and ./README.md and review/page.tsx");
+    const refs = scanRefs("look at packages/sf-team/src/research/run.ts and ./README.md and review/page.tsx");
     // No `kind="file"` ref produced. Whole result is empty for this input
     // because the string contains no URL / Jira / Confluence either.
     expect(refs.filter((r) => r.kind === "file")).toEqual([]);

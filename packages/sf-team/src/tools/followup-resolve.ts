@@ -42,14 +42,14 @@ export async function resolveParentPlan(
       : path.join(resolvedPlanRoot, opts.plan);
     const s = await stat(folder).catch(() => undefined);
     if (!s?.isDirectory()) {
-      throw new Error(`fh_team_followup: --plan '${opts.plan}' not found at ${folder}`);
+      throw new Error(`sf_team_followup: --plan '${opts.plan}' not found at ${folder}`);
     }
     return { slug: path.basename(folder), folder };
   }
   const entries = await readdir(resolvedPlanRoot, { withFileTypes: true }).catch(() => []);
   const candidates = entries.filter((e) => e.isDirectory()).map((e) => e.name).sort();
   if (candidates.length === 0) {
-    throw new Error(`fh_team_followup: no plan folders found under ${resolvedPlanRoot}`);
+    throw new Error(`sf_team_followup: no plan folders found under ${resolvedPlanRoot}`);
   }
   if (candidates.length === 1) {
     return { slug: candidates[0], folder: path.join(resolvedPlanRoot, candidates[0]) };

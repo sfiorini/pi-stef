@@ -1,4 +1,4 @@
-import { FhTeamToolError } from "../errors";
+import { SfTeamToolError } from "../errors";
 
 interface CloneOverrides {
   toolName: string;
@@ -8,14 +8,14 @@ interface CloneOverrides {
 }
 
 /**
- * Thrown by `fh_team_plan` when the reviewer-approved plan body fails any of
+ * Thrown by `sf_team_plan` when the reviewer-approved plan body fails any of
  * the three structural validators (length, real milestones, real stories).
  *
  * Carries the raw planner output so diagnostics can replay what was rejected.
  * `reason` enumerates which validator failed first; multiple failures still
  * surface a single reason because we report the first miss.
  *
- * Extends `FhTeamToolError` so its `Error.message` is composed as
+ * Extends `SfTeamToolError` so its `Error.message` is composed as
  * `FAILED: <toolName> empty_plan: <reason>. RESUME: ...` — calling LLMs
  * see the structured envelope through the Pi runtime even though typed
  * fields are dropped (`agent-loop.js:367,390,418`).
@@ -26,22 +26,22 @@ export interface EmptyPlanErrorOptions {
   rawPayload: string;
   reason: EmptyPlanReason;
   diagnosticsPath?: string;
-  /** Pi tool surface name (`fh_team_plan` / `fh_team_auto` / …). */
+  /** Pi tool surface name (`sf_team_plan` / `sf_team_auto` / …). */
   toolName?: string;
   /** Slug used for the `RESUME: invoke <resumeTool> { resume: '...' }` hint. */
   slug?: string;
-  /** `_resume` tool to recommend; defaults to `fh_team_plan_resume`. */
+  /** `_resume` tool to recommend; defaults to `sf_team_plan_resume`. */
   resumeTool?: string;
 }
 
-export class EmptyPlanError extends FhTeamToolError {
+export class EmptyPlanError extends SfTeamToolError {
   readonly rawPayload: string;
   readonly reason: EmptyPlanReason;
   readonly diagnosticsPath?: string;
 
   constructor(opts: EmptyPlanErrorOptions) {
-    const toolName = opts.toolName ?? "fh_team_plan";
-    const resumeTool = opts.resumeTool ?? "fh_team_plan_resume";
+    const toolName = opts.toolName ?? "sf_team_plan";
+    const resumeTool = opts.resumeTool ?? "sf_team_plan_resume";
     const slug = opts.slug;
     const description = `Planner output failed plan-shape validation: ${opts.reason}`;
     const resumeHint = slug

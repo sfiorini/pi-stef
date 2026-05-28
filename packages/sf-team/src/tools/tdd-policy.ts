@@ -1,5 +1,5 @@
 /**
- * Canonical strict-TDD policy text shared across every fh_team_*
+ * Canonical strict-TDD policy text shared across every sf_team_*
  * developer/reviewer/planner prompt. Centralized so prompts cannot drift
  * across task, followup, implement, auto, and plan tools.
  */

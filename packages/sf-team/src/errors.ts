@@ -1,5 +1,5 @@
 /**
- * Typed errors for the fh-team extension. The Pi runtime
+ * Typed errors for the sf-team extension. The Pi runtime
  * (`@earendil-works/pi-agent-core@0.74.0`, `dist/agent-loop.js:367,390,418`)
  * builds a tool-result event from a thrown error by calling
  * `createErrorToolResult(error.message)` with `details: {}` BEFORE any
@@ -7,7 +7,7 @@
  * typed-error fields do NOT survive the throw — `Error.message` is the
  * sole user-facing channel.
  *
- * Therefore `FhTeamToolError`'s constructor composes the FULL user-facing
+ * Therefore `SfTeamToolError`'s constructor composes the FULL user-facing
  * payload into `Error.message`:
  *   `FAILED: <toolName> <kind>: <description>. RESUME: <resumeHint>.`
  * The runtime's tool-result content text is exactly that message, so
@@ -19,14 +19,14 @@
  * an already-thrown error; the new instance's message is recomposed by
  * the subclass constructor with the new fields). Used by `auto.ts` to
  * reframe an `EmptyDiffError` thrown from `implement` as one originating
- * from `fh_team_auto`.
+ * from `sf_team_auto`.
  *
  * For internal logging where typed details DO survive (i.e., before the
  * throw crosses the runtime boundary), each error site records its full
  * structured details to the transcript via `ctx.transcript.record(...)`.
  */
 
-export interface FhTeamToolErrorOptions {
+export interface SfTeamToolErrorOptions {
   toolName: string;
   kind: string;
   description: string;
@@ -39,7 +39,7 @@ export interface FhTeamToolErrorOptions {
    * Override the default `FAILED: <toolName> <kind>: <description>. RESUME:
    * <resumeHint>.` format. Reserved for subclasses that need a different
    * leading phrase. (Historical user: `LegacyAliasError`, removed once
-   * the deprecated `fh_team_<base>` aliases were dropped from the
+   * the deprecated `sf_team_<base>` aliases were dropped from the
    * registration surface.)
    */
   messageOverride?: string;
@@ -52,7 +52,7 @@ interface CloneOverrides {
   resumeHint: string;
 }
 
-export class FhTeamToolError extends Error {
+export class SfTeamToolError extends Error {
   readonly toolName: string;
   readonly kind: string;
   readonly description: string;
@@ -60,8 +60,8 @@ export class FhTeamToolError extends Error {
   readonly resumeHint: string;
   readonly resumeTool?: string;
 
-  constructor(opts: FhTeamToolErrorOptions) {
-    super(opts.messageOverride ?? composeFhTeamMessage(opts));
+  constructor(opts: SfTeamToolErrorOptions) {
+    super(opts.messageOverride ?? composeSfTeamMessage(opts));
     this.name = this.constructor.name;
     this.toolName = opts.toolName;
     this.kind = opts.kind;
@@ -84,13 +84,13 @@ export class FhTeamToolError extends Error {
    *
    * Subclasses must override `cloneWithOverrides` to construct their own
    * subclass; the default implementation in this base class returns a
-   * base `FhTeamToolError`, which is correct for subclasses that have no
+   * base `SfTeamToolError`, which is correct for subclasses that have no
    * additional state of their own (e.g. `WorkflowStateError`).
    *
    * The original instance is unchanged. (R3 P2 fix: `Error.message` is
    * built in the constructor and cannot be mutated post-throw.)
    */
-  withTool(toolName: string, resumeTool?: string, extraDetails: Record<string, unknown> = {}): FhTeamToolError {
+  withTool(toolName: string, resumeTool?: string, extraDetails: Record<string, unknown> = {}): SfTeamToolError {
     const newDetails = { ...this.details, ...extraDetails };
     const newResumeTool = resumeTool ?? this.resumeTool;
     const newResumeHint = newResumeTool ? this.composeResumeHintWith(newResumeTool, newDetails) : this.resumeHint;
@@ -107,11 +107,11 @@ export class FhTeamToolError extends Error {
    * concrete subclass. Subclasses with required constructor fields
    * (EmptyDiffError, MergeFailedError, EmptyPlanError, …) override to
    * call their own constructor with the merged details. The base
-   * implementation returns a fresh `FhTeamToolError` — correct for
+   * implementation returns a fresh `SfTeamToolError` — correct for
    * subclasses with no extra state (`WorkflowStateError`).
    */
-  protected cloneWithOverrides(overrides: CloneOverrides): FhTeamToolError {
-    return new FhTeamToolError({
+  protected cloneWithOverrides(overrides: CloneOverrides): SfTeamToolError {
+    return new SfTeamToolError({
       toolName: overrides.toolName,
       kind: this.kind,
       description: this.description,
@@ -136,8 +136,8 @@ export class FhTeamToolError extends Error {
   }
 }
 
-function composeFhTeamMessage(
-  opts: Pick<FhTeamToolErrorOptions, "toolName" | "kind" | "description" | "resumeHint">,
+function composeSfTeamMessage(
+  opts: Pick<SfTeamToolErrorOptions, "toolName" | "kind" | "description" | "resumeHint">,
 ): string {
   return `FAILED: ${opts.toolName} ${opts.kind}: ${opts.description}. RESUME: ${opts.resumeHint}.`;
 }
@@ -150,7 +150,7 @@ function composeFhTeamMessage(
  * instance, preserving the contract that `withTool` returns a clone with
  * "all the same details plus the supplied overrides" (S-M21 / S-M26).
  */
-function overwriteDetails(target: FhTeamToolError, details: Record<string, unknown>): void {
+function overwriteDetails(target: SfTeamToolError, details: Record<string, unknown>): void {
   Object.defineProperty(target, "details", {
     value: details,
     writable: false,
@@ -170,7 +170,7 @@ export interface EmptyDiffErrorOptions {
   attempts: number;
   slug: string;
   worktreePath?: string;
-  /** Tool to invoke to resume — `fh_team_implement_resume` or `fh_team_auto_resume`. */
+  /** Tool to invoke to resume — `sf_team_implement_resume` or `sf_team_auto_resume`. */
   resumeTool: string;
   cause?: unknown;
 }
@@ -182,7 +182,7 @@ export interface EmptyDiffErrorOptions {
  * and points at the right `_resume` tool plus the configurable model
  * bump knob.
  */
-export class EmptyDiffError extends FhTeamToolError {
+export class EmptyDiffError extends SfTeamToolError {
   constructor(opts: EmptyDiffErrorOptions) {
     const description = formatEmptyDiffDescription({
       milestoneId: opts.milestoneId,
@@ -221,7 +221,7 @@ export class EmptyDiffError extends FhTeamToolError {
       attempts: typeof d.attempts === "number" ? d.attempts : 1,
       slug: typeof d.slug === "string" ? d.slug : "<slug>",
       worktreePath: typeof d.worktreePath === "string" ? d.worktreePath : undefined,
-      resumeTool: overrides.resumeTool ?? this.resumeTool ?? "fh_team_implement_resume",
+      resumeTool: overrides.resumeTool ?? this.resumeTool ?? "sf_team_implement_resume",
       cause: (this as Error & { cause?: unknown }).cause,
     });
     // Constructor only seeds canonical fields into `details`; preserve any
@@ -245,7 +245,7 @@ function formatEmptyDiffDescription(opts: {
 function formatEmptyDiffResumeHint(resumeTool: string, slug: string): string {
   return (
     `invoke ${resumeTool} { resume: '${slug}' } and consider setting ` +
-    "`implement.empty_diff_retry_model` to a stronger model in ~/.pi/fh-team/config.json"
+    "`implement.empty_diff_retry_model` to a stronger model in ~/.pi/sf-team/config.json"
   );
 }
 
@@ -266,7 +266,7 @@ export interface MergeFailedErrorOptions {
  * Thrown by parallel rollup when `git merge` of a lane branch into its
  * parent target fails. Carries enough context to retry manually.
  */
-export class MergeFailedError extends FhTeamToolError {
+export class MergeFailedError extends SfTeamToolError {
   constructor(opts: MergeFailedErrorOptions) {
     const description =
       `merge of ${opts.lane} (${opts.branch}) into ${opts.mergeTarget} reported status=${opts.status}`;
@@ -326,13 +326,13 @@ export interface WorkflowStateErrorOptions {
  * convert legacy `throw new Error(...)` sites whose semantics don't fit
  * a more specific subclass.
  */
-export class WorkflowStateError extends FhTeamToolError {
+export class WorkflowStateError extends SfTeamToolError {
   constructor(opts: WorkflowStateErrorOptions) {
     super({
       toolName: opts.toolName,
       kind: "workflow_state",
       description: opts.description,
-      resumeHint: opts.resumeHint ?? "Consult the fh-team transcript under ai_plan/<slug>/ for details",
+      resumeHint: opts.resumeHint ?? "Consult the sf-team transcript under ai_plan/<slug>/ for details",
       details: opts.details,
       resumeTool: opts.resumeTool,
       cause: opts.cause,
@@ -370,7 +370,7 @@ export interface ConfigLoadErrorOptions {
  * and falls back to defaults, but a fatal config-load path can throw
  * this class.
  */
-export class ConfigLoadError extends FhTeamToolError {
+export class ConfigLoadError extends SfTeamToolError {
   readonly configPath: string;
   readonly reason: string;
 
@@ -416,7 +416,7 @@ export interface LaneCleanupErrorOptions {
  * cases where cleanup must abort the run rather than degrade to a
  * warning.
  */
-export class LaneCleanupError extends FhTeamToolError {
+export class LaneCleanupError extends SfTeamToolError {
   readonly lane: string;
   readonly branch: string;
   readonly reason: string;
@@ -454,28 +454,28 @@ export class LaneCleanupError extends FhTeamToolError {
 // ---------------------------------------------------------------------------
 
 /** Thrown when the aiPlanPath / paths.ai_plan_root cannot be resolved to an absolute path. */
-export class PlanRootResolutionError extends FhTeamToolError {}
+export class PlanRootResolutionError extends SfTeamToolError {}
 
 /** Thrown when recursive mkdir of the plan root directory fails (e.g., EACCES). */
-export class PlanRootCreationError extends FhTeamToolError {}
+export class PlanRootCreationError extends SfTeamToolError {}
 
 /** Thrown when a prompt arg (aiPlanPath / gitMode / tddMode) conflicts with the persisted workflow.json value on resume. */
-export class WorkflowMetadataConflictError extends FhTeamToolError {}
+export class WorkflowMetadataConflictError extends SfTeamToolError {}
 
 /** Thrown when mutually exclusive options are supplied (e.g., useWorktree=true + gitMode='off'). */
-export class IncompatibleModeError extends FhTeamToolError {}
+export class IncompatibleModeError extends SfTeamToolError {}
 
 // ---------------------------------------------------------------------------
 // Boundary helper: typed-error converter
 // ---------------------------------------------------------------------------
 
 /**
- * Pi-style `execute` signature that fh-team tools expose to the runtime:
+ * Pi-style `execute` signature that sf-team tools expose to the runtime:
  * `(id, params, signal, onUpdate, ctx) => Promise<TResult>`. `wrapExecute`
  * preserves this signature exactly so the wrapped function can be
  * registered directly with `pi.registerTool({ execute })`.
  */
-export type FhTeamExecuteFn<TParams, TResult> = (
+export type SfTeamExecuteFn<TParams, TResult> = (
   id: string,
   params: TParams,
   signal: AbortSignal | undefined,
@@ -484,21 +484,21 @@ export type FhTeamExecuteFn<TParams, TResult> = (
 ) => Promise<TResult>;
 
 /**
- * Map a registered Pi tool name (`fh_team_auto`, `fh_team_auto_resume`,
+ * Map a registered Pi tool name (`sf_team_auto`, `sf_team_auto_resume`,
  * etc.) to the matching `_resume` tool name. Used by `wrapExecute` to
  * compose a resume hint that names the recovery tool directly instead of
  * the generic transcript-only copy. Returns `undefined` for unrecognized
  * names so callers can fall back to the generic hint without conjuring
- * fake tool names. Both `fh_team_<base>` (start) and
- * `fh_team_<base>_resume` map to `fh_team_<base>_resume`.
+ * fake tool names. Both `sf_team_<base>` (start) and
+ * `sf_team_<base>_resume` map to `sf_team_<base>_resume`.
  */
 function resolveResumeToolForBoundary(toolName: string): string | undefined {
   const KNOWN_BASES = [
-    "fh_team_plan",
-    "fh_team_implement",
-    "fh_team_task",
-    "fh_team_auto",
-    "fh_team_followup",
+    "sf_team_plan",
+    "sf_team_implement",
+    "sf_team_task",
+    "sf_team_auto",
+    "sf_team_followup",
   ] as const;
   for (const base of KNOWN_BASES) {
     if (toolName === base || toolName === `${base}_resume`) {
@@ -509,16 +509,16 @@ function resolveResumeToolForBoundary(toolName: string): string | undefined {
 }
 
 /**
- * Wraps a tool-execute body so any non-`FhTeamToolError` throw is
- * converted to `FhTeamToolError({ kind: "internal", ... })` whose
+ * Wraps a tool-execute body so any non-`SfTeamToolError` throw is
+ * converted to `SfTeamToolError({ kind: "internal", ... })` whose
  * `Error.message` carries the `FAILED: <toolName> internal: ...` envelope.
- * Already-typed errors (`FhTeamToolError` and its subclasses) pass through
+ * Already-typed errors (`SfTeamToolError` and its subclasses) pass through
  * unchanged.
  *
  * This is NOT a swallow — every throw becomes another throw. The wrapper's
  * sole job is to guarantee the outgoing `Error.message` is structured.
  *
- * Resume hint: when `toolName` is a recognized fh-team base or `_resume`
+ * Resume hint: when `toolName` is a recognized sf-team base or `_resume`
  * tool, the hint names the matching `_resume` tool directly (with a
  * `<slug-or-path>` placeholder, since the real slug is set inside the
  * inner handler and is not available at the boundary). Unknown tool
@@ -526,24 +526,24 @@ function resolveResumeToolForBoundary(toolName: string): string | undefined {
  * had to infer the resume tool from context now get an explicit pointer
  * in the failure envelope.
  *
- * Streaming `_onUpdate` callbacks are NOT wrapped — no fh-team tool
+ * Streaming `_onUpdate` callbacks are NOT wrapped — no sf-team tool
  * currently emits partial updates (R2 P3).
  */
 export function wrapExecute<TParams, TResult>(
   toolName: string,
-  fn: FhTeamExecuteFn<TParams, TResult>,
-): FhTeamExecuteFn<TParams, TResult> {
+  fn: SfTeamExecuteFn<TParams, TResult>,
+): SfTeamExecuteFn<TParams, TResult> {
   return async (id, params, signal, onUpdate, ctx) => {
     try {
       return await fn(id, params, signal, onUpdate, ctx);
     } catch (err) {
-      if (err instanceof FhTeamToolError) throw err;
+      if (err instanceof SfTeamToolError) throw err;
       const stringifiedCause = err instanceof Error ? err.message : String(err);
       const resumeTool = resolveResumeToolForBoundary(toolName);
       const resumeHint = resumeTool
-        ? `invoke ${resumeTool} { resume: '<slug-or-path>' } to retry from saved state, or consult the fh-team transcript under ai_plan/<slug>/ for details`
-        : "Consult the fh-team transcript under ai_plan/<slug>/ for details";
-      throw new FhTeamToolError({
+        ? `invoke ${resumeTool} { resume: '<slug-or-path>' } to retry from saved state, or consult the sf-team transcript under ai_plan/<slug>/ for details`
+        : "Consult the sf-team transcript under ai_plan/<slug>/ for details";
+      throw new SfTeamToolError({
         toolName,
         kind: "internal",
         description: stringifiedCause,

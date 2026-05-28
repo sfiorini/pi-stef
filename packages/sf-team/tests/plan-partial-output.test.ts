@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import { MaxReviewRoundsError, ReviewerEmptyVerdictError, RevisionUnchangedError } from "../src/review/loop";
 import { runLoopWithPartialOutput } from "../src/tools/shared";
@@ -68,7 +68,7 @@ describe("audit fix #1: max-rounds writes last-draft.md + last-review.md", () =>
         return fakeRun(REVISE_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       let caught: unknown;
       try {
         await tool(
@@ -261,7 +261,7 @@ describe("audit fix #1: max-rounds writes last-draft.md + last-review.md", () =>
         return fakeRun(member.role === "planner" ? validPlanText("happy") : APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "Happy", maxRounds: 5 }, { repoRoot: root });
       expect(result.approved).toBe(true);
       const folder = path.join(root, "ai_plan", slugify("Happy"));

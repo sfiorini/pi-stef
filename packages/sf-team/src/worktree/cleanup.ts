@@ -95,7 +95,7 @@ function safeForceRemove(repoRoot: string, worktreePath: string): boolean {
 /**
  * Discriminated union of outcomes from `tryDeleteBranch` that did NOT
  * actually delete the branch. The struct shape is consumed by
- * `FhTeamImplementResult.warnings` so tool callers can see exactly why
+ * `SfTeamImplementResult.warnings` so tool callers can see exactly why
  * cleanup chose to leave a branch in place.
  *
  * `lane_branch_already_deleted` is distinct from `lane_branch_kept`
@@ -138,7 +138,7 @@ export interface TryDeleteBranchOptions {
  * removal. NEVER throws — every failure mode (missing branch, ref-moved,
  * not-ancestor, git-error) returns a `BranchCleanupWarning` describing
  * what happened. Callers append the warning to
- * `FhTeamImplementResult.warnings` and continue.
+ * `SfTeamImplementResult.warnings` and continue.
  *
  * Four guards before any destructive `git branch -d/-D`:
  *   1. `validateWorktreeBranchName` — same validator used at lane

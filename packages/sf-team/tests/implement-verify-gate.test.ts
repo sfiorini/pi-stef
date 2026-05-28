@@ -184,7 +184,7 @@ describe("runVerification: skips missing default pnpm scripts (don't fail when s
 });
 
 describe("detectPackageManager", () => {
-  // The previous fh-team verification gate hardcoded `pnpm typecheck` /
+  // The previous sf-team verification gate hardcoded `pnpm typecheck` /
   // `pnpm test`. Repos with npm-flavored layouts (root `workspaces`
   // field, package-lock.json) failed the gate even when the project
   // was healthy because pnpm couldn't resolve workspace deps. This
@@ -266,7 +266,7 @@ describe("detectPackageManager", () => {
     }
   });
 
-  it("package-lock.json → npm (the original fh-team bug — npm-flavored repos hit the verification gate)", () => {
+  it("package-lock.json → npm (the original sf-team bug — npm-flavored repos hit the verification gate)", () => {
     const { root, dispose } = tmpRepo({ "package-lock.json": '{"lockfileVersion":3}' });
     try {
       expect(detectPackageManager(root)).toBe("npm");
@@ -475,7 +475,7 @@ describe("detectPackageManager", () => {
   // --- Stale-pnpm-lock-in-an-npm-workspaces-repo guard ----------------------
   //
   // Live failure 2026-05-08: a followup run produced a worktree with BOTH
-  // `pnpm-lock.yaml` (stale, written by an earlier fh-team run that ran
+  // `pnpm-lock.yaml` (stale, written by an earlier sf-team run that ran
   // `pnpm install` against an npm-style project) AND `package-lock.json`,
   // alongside `package.json#workspaces: [...]` and NO `pnpm-workspace.yaml`.
   // The detector returned `pnpm` because pnpm-lock.yaml beat the workspaces

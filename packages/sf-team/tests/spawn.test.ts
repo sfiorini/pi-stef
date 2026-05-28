@@ -108,7 +108,7 @@ describe("M4 spawnAgent: lifecycle", () => {
   }, 30_000);
 
   it("stderr activity beats the watchdog — long-thinking reviewer is NOT killed mid-thought", async () => {
-    // Regression for the bug surfaced by a real fh_team_plan run: pi was
+    // Regression for the bug surfaced by a real sf_team_plan run: pi was
     // emitting stderr during a long reasoning pass while stdout stayed
     // silent, and the 60s heartbeat fired despite the subprocess being
     // alive and working. Fix: stderr beats the watchdog too.
@@ -140,7 +140,7 @@ describe("M4 spawnAgent: lifecycle", () => {
   }, 30_000);
 
   it("multi-signal liveness: a child whose stdout is silent but whose process stays alive emits stall-warning events; the run is killed only by absoluteTimeoutMs, not by heartbeatMs alone", async () => {
-    // Regression for runs #2 and #3 of the user's fh_team_auto attempts:
+    // Regression for runs #2 and #3 of the user's sf_team_auto attempts:
     // pi went silent on stdout for several minutes during a long inference
     // call (Anthropic SSE pings consumed inside pi's HTTP layer never
     // reached pi's stdout). The old single-signal watchdog killed pi

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import { slugify } from "../src/plan/slug";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -35,8 +35,8 @@ function conflictPlanText(label: string): string {
           "stories": ["S-001", "S-002"],
           "maxParallel": 2,
           "writeSets": {
-            "S-001": ["packages/fh-team/src/${label}-shared.ts"],
-            "S-002": ["packages/fh-team/src/${label}-shared.ts"]
+            "S-001": ["packages/sf-team/src/${label}-shared.ts"],
+            "S-002": ["packages/sf-team/src/${label}-shared.ts"]
           }
         }
       ]
@@ -47,7 +47,7 @@ function conflictPlanText(label: string): string {
           "id": "M1-W1",
           "stories": ["S-101"],
           "writeSets": {
-            "S-101": ["packages/fh-team/src/${label}-core.ts"]
+            "S-101": ["packages/sf-team/src/${label}-core.ts"]
           }
         }
       ]
@@ -115,7 +115,7 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("fh_team_plan deterministic mid-review gate", () => {
+describe("sf_team_plan deterministic mid-review gate", () => {
   it("success path: gate fires after a reviewer-driven revision, planner self-revises once, gate-passed plan reaches the next reviewer round", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -151,7 +151,7 @@ describe("fh_team_plan deterministic mid-review gate", () => {
         return fakeRun(reviewerIdx === 1 ? REVISE_BODY : APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Gate Success", brief: "go", analysisOverride: null, answersOverride: {}, maxRounds: 2 },
         {
@@ -229,7 +229,7 @@ describe("fh_team_plan deterministic mid-review gate", () => {
         return fakeRun(reviewerIdx === 1 ? REVISE_BODY : APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       // With maxRounds=2:
       //   - round 1: reviewer REVISE → revise() called → spawn 2 → gate
       //     fires → spawn 3 (still conflict) → gate records still-failing

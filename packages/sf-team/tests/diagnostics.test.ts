@@ -10,7 +10,7 @@ describe("M9 writeDiagnostics (S-904)", () => {
   it("returns undefined when no slug is provided (caller logs to console instead)", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-diag-"));
     try {
-      const r = await writeDiagnostics(root, { toolName: "fh_team_task" });
+      const r = await writeDiagnostics(root, { toolName: "sf_team_task" });
       expect(r).toBeUndefined();
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -26,7 +26,7 @@ describe("M9 writeDiagnostics (S-904)", () => {
         root,
         {
           slug,
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           notes: "ran out of patience",
           error: new Error("boom"),
           agentRuns: [
@@ -67,7 +67,7 @@ describe("M9 writeDiagnostics (S-904)", () => {
       expect(file).toBeDefined();
       expect(file).toMatch(/[/\\]diagnostics[/\\]diagnostics-2026-05-01T08-00-00-000Z\.log$/);
       const body = readFileSync(file as string, "utf8");
-      expect(body).toContain("# fh-team diagnostics — fh_team_task");
+      expect(body).toContain("# sf-team diagnostics — sf_team_task");
       expect(body).toContain("ran out of patience");
       expect(body).toContain("name: Error");
       expect(body).toContain("message: boom");

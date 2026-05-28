@@ -10,7 +10,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamImplement } from "../../src/tools/implement";
+import { createSfTeamImplement } from "../../src/tools/implement";
 import { planFolderPath } from "../../src/plan/paths";
 import { IncompatibleModeError } from "../../src/errors";
 
@@ -71,7 +71,7 @@ describe("incompatible mode: useWorktree=true + gitMode='off'", () => {
 
       const spawnAgent = vi.fn(async () => ({ state: "completed", finalText: "ok" }));
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       await expect(
         tool(
@@ -105,7 +105,7 @@ describe("incompatible mode: useWorktree=true + gitMode='off'", () => {
         stderrTail: "",
       }));
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       // Should not throw IncompatibleModeError
       const result = await tool(

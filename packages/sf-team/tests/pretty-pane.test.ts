@@ -216,7 +216,7 @@ describe("pretty-pane codex theme", () => {
     const stdin = [
       JSON.stringify({ type: "tool_execution_start", toolCallId: "B1", toolName: "bash", args: { command: "grep -rn customer accounts src/pages" } }),
       JSON.stringify({ type: "tool_execution_end", toolCallId: "B1", toolName: "bash", isError: false, result: { content: [] } }),
-      JSON.stringify({ type: "tool_execution_start", toolCallId: "R1", toolName: "read", args: { path: "/repo/packages/fh-team/tests/pretty-pane.test.ts" } }),
+      JSON.stringify({ type: "tool_execution_start", toolCallId: "R1", toolName: "read", args: { path: "/repo/packages/sf-team/tests/pretty-pane.test.ts" } }),
       JSON.stringify({ type: "tool_execution_end", toolCallId: "R1", toolName: "read", isError: false, result: { content: [{ type: "text", text: "large file body that should not be dumped" }] } }),
     ].join("\n") + "\n";
     const { stdout } = await runPretty(stdin, {
@@ -330,7 +330,7 @@ describe("pretty-pane codex theme", () => {
   it("uses codex as the default theme when no theme env is set", async () => {
     const { stdout } = await runPretty(`${JSON.stringify({ type: "agent_end" })}\n`, {
       PRETTY_PANE_THEME: "",
-      FH_TEAM_PANE_THEME: "",
+      SF_TEAM_PANE_THEME: "",
       PRETTY_PANE_COLOR: "never",
     });
     expect(stdout).toBe("────────────────────────────────────────\n▌ Completed\n");

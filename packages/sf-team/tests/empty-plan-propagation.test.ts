@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamAuto } from "../src/tools/auto";
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamAuto } from "../src/tools/auto";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { EmptyPlanError } from "../src/orchestrator/empty-plan-error";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
@@ -41,7 +41,7 @@ ok
 VERDICT: APPROVED`;
 
 const REFUSAL_PROSE =
-  "The fh-team plan-folder lock is currently held by another live `pi` process (PID 40957) on this machine, so I can't draft a new plan into `ai_plan/` right now without colliding with it.\n\nWhich would you like?";
+  "The sf-team plan-folder lock is currently held by another live `pi` process (PID 40957) on this machine, so I can't draft a new plan into `ai_plan/` right now without colliding with it.\n\nWhich would you like?";
 
 function makeRepo(): { root: string; dispose: () => void } {
   const root = mkdtempSync(path.join(tmpdir(), "auto-empty-prop-"));
@@ -51,29 +51,29 @@ function makeRepo(): { root: string; dispose: () => void } {
   return { root, dispose: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-describe("S-105: fh_team_auto propagates EmptyPlanError from fh_team_plan", () => {
-  it("EmptyPlanError thrown by fh_team_plan is NOT swallowed by fh_team_auto; it reaches the caller", async () => {
+describe("S-105: sf_team_auto propagates EmptyPlanError from sf_team_plan", () => {
+  it("EmptyPlanError thrown by sf_team_plan is NOT swallowed by sf_team_auto; it reaches the caller", async () => {
     const { root, dispose } = makeRepo();
     try {
       // Mock planner returns refusal prose; reviewer (an LLM) format-approves
-      // it. fh_team_plan's structural validators must reject post-approval
-      // and throw EmptyPlanError; fh_team_auto must propagate.
+      // it. sf_team_plan's structural validators must reject post-approval
+      // and throw EmptyPlanError; sf_team_auto must propagate.
       const spawnAgent = vi.fn(async (member: TeamMember, _task: AgentTask) =>
         fakeRun(member.role === "planner" ? REFUSAL_PROSE : APPROVED),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const planTool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const planTool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const implementTool = vi.fn(async () => ({
         slug: "x",
         mode: "all-milestones" as const,
         milestones: [],
       }));
 
-      // Build an auto tool that uses our captured plan tool. createFhTeamAuto's
+      // Build an auto tool that uses our captured plan tool. createSfTeamAuto's
       // factory wires its own internal tools; for this test we use the
       // factory-default and inject our spawnAgent dependency. The plan tool
       // will throw inside the auto wrapper.
-      const auto = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const auto = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       let caught: unknown;
       try {
@@ -91,14 +91,14 @@ describe("S-105: fh_team_auto propagates EmptyPlanError from fh_team_plan", () =
     }
   });
 
-  it("fh_team_plan calls ctx.ui.notify with an error before throwing (S-104)", async () => {
+  it("sf_team_plan calls ctx.ui.notify with an error before throwing (S-104)", async () => {
     const { root, dispose } = makeRepo();
     try {
       const spawnAgent = vi.fn(async (member: TeamMember) =>
         fakeRun(member.role === "planner" ? REFUSAL_PROSE : APPROVED),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const planTool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const planTool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const ui = {
         notify: vi.fn(),
         confirm: async () => true,
@@ -134,7 +134,7 @@ describe("S-105: fh_team_auto propagates EmptyPlanError from fh_team_plan", () =
         fakeRun(member.role === "planner" ? REFUSAL_PROSE : APPROVED),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const planTool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const planTool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       let err: unknown;
       try {
         await planTool(
@@ -168,7 +168,7 @@ describe("S-105: fh_team_auto propagates EmptyPlanError from fh_team_plan", () =
         fakeRun(member.role === "planner" ? tooShort : APPROVED),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const planTool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const planTool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       let err: unknown;
       try {
         await planTool({ title: "Short", brief: "go", analysisOverride: null, answersOverride: {} }, { repoRoot: root });

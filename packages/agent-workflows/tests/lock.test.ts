@@ -16,10 +16,10 @@ describe("plan-folder lock", () => {
     const { root, dispose } = tmp();
     try {
       const slug = "2026-05-06-lock";
-      const meta = await acquireLock(root, slug, "fh_team_plan");
+      const meta = await acquireLock(root, slug, "sf_team_plan");
 
-      expect(meta).toMatchObject({ pid: process.pid, slug, command: "fh_team_plan" });
-      await expect(acquireLock(root, slug, "fh_team_implement")).rejects.toBeInstanceOf(LockHeldError);
+      expect(meta).toMatchObject({ pid: process.pid, slug, command: "sf_team_plan" });
+      await expect(acquireLock(root, slug, "sf_team_implement")).rejects.toBeInstanceOf(LockHeldError);
       expect(await readLockMetadata(root, slug)).toMatchObject({ pid: process.pid, slug });
 
       await releaseLock(root, slug);
@@ -33,7 +33,7 @@ describe("plan-folder lock", () => {
     const { root, dispose } = tmp();
     try {
       const slug = "2026-05-06-stale";
-      const lockDir = path.join(planFolderPath(root, slug), ".fh-team.lock");
+      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
       mkdirSync(lockDir, { recursive: true });
       writeFileSync(
         path.join(lockDir, "metadata.json"),
@@ -47,9 +47,9 @@ describe("plan-folder lock", () => {
         }),
       );
 
-      const meta = await acquireLock(root, slug, "fh_team_plan");
+      const meta = await acquireLock(root, slug, "sf_team_plan");
       expect(meta.pid).toBe(process.pid);
-      expect(meta.command).toBe("fh_team_plan");
+      expect(meta.command).toBe("sf_team_plan");
     } finally {
       dispose();
     }
@@ -58,7 +58,7 @@ describe("plan-folder lock", () => {
   it("sweeps stale sibling lock directories older than 24 hours", async () => {
     const { root, dispose } = tmp();
     try {
-      const staleSibling = path.join(root, "ai_plan", "old-plan", ".fh-team.lock");
+      const staleSibling = path.join(root, "ai_plan", "old-plan", ".sf-team.lock");
       mkdirSync(staleSibling, { recursive: true });
       const past = (Date.now() - 30 * 60 * 60 * 1000) / 1000;
       utimesSync(staleSibling, past, past);
@@ -78,7 +78,7 @@ describe("plan-folder lock", () => {
         startedAt: new Date().toISOString(),
         processStartedAt: "",
         hostname: hostname(),
-        command: "fh_team_plan",
+        command: "sf_team_plan",
         slug: "live",
       }),
     ).toBe(false);

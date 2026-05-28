@@ -1,5 +1,5 @@
 /**
- * S-507: Integration test — fh_team_followup in a non-git tmpdir with gitMode='off'.
+ * S-507: Integration test — sf_team_followup in a non-git tmpdir with gitMode='off'.
  *
  * Verifies that followup with gitMode='off' doesn't throw assertIsGitRepo.
  * followup.ts calls runTaskWorkflow which already has the gitMode guard.
@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamFollowup } from "../../src/tools/followup";
+import { createSfTeamFollowup } from "../../src/tools/followup";
 import { planFolderPath } from "../../src/plan/paths";
 import type { AgentRun } from "../../src/runtime/types";
 
@@ -64,7 +64,7 @@ function makeParentPlanFolder(repoRoot: string, parentSlug: string): string {
   return folder;
 }
 
-describe("fh_team_followup — no-git tmpdir with gitMode='off'", () => {
+describe("sf_team_followup — no-git tmpdir with gitMode='off'", () => {
   it("succeeds without throwing; commitSha and prDescriptionPath are undefined", async () => {
     // tmpdir that is NOT a git repository
     const repoRoot = mkdtempSync(path.join(tmpdir(), "ct-followup-no-git-"));
@@ -95,7 +95,7 @@ Test brief.
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await tool(
         {

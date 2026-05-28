@@ -11,7 +11,7 @@ describe("VerificationGateFailure — typed-error propagation through runConfigu
     let caught: unknown;
     try {
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: process.cwd(),
         phase: "after",
         legacyVerifyCommand: {
@@ -24,7 +24,7 @@ describe("VerificationGateFailure — typed-error propagation through runConfigu
     }
     expect(caught).toBeInstanceOf(VerificationGateFailure);
     const f = caught as VerificationGateFailure;
-    expect(f.toolName).toBe("fh_team_task");
+    expect(f.toolName).toBe("sf_team_task");
     expect(f.phase).toBe("after");
     expect(f.stageLabel).toBe("custom"); // legacyVerifyCommandToConfig labels as "custom"
     expect(f.command.cmd).toBe(process.execPath);
@@ -42,7 +42,7 @@ describe("VerificationGateFailure — typed-error propagation through runConfigu
     let caught: unknown;
     try {
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: process.cwd(),
         phase: "after",
         verification: {
@@ -62,7 +62,7 @@ describe("VerificationGateFailure — typed-error propagation through runConfigu
     }
     expect(caught).toBeInstanceOf(VerificationGateFailure);
     const f = caught as VerificationGateFailure;
-    expect(f.toolName).toBe("fh_team_task");
+    expect(f.toolName).toBe("sf_team_task");
     expect(f.phase).toBe("after");
     expect(f.stageLabel).toBe("verifier-agent");
     expect(f.command.cmd).toBe("verifier-agent");
@@ -73,7 +73,7 @@ describe("VerificationGateFailure — typed-error propagation through runConfigu
     let caught: unknown;
     try {
       runVerificationStage(
-        "fh_team_task",
+        "sf_team_task",
         process.cwd(),
         {
           cmd: process.execPath,

@@ -62,7 +62,7 @@ describe("runOrchestrator cost aggregation", () => {
         {
           repoRoot: root,
           slug: "2026-05-12-cost-live",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           ui: { setFooter, notify: vi.fn(), confirm: vi.fn() } as never,
         },
@@ -107,7 +107,7 @@ describe("runOrchestrator cost aggregation", () => {
     const { root, dispose } = makeRepo();
     try {
       const out = await runOrchestrator(
-        { repoRoot: root, slug: "2026-05-12-cost-late", toolName: "fh_team_task", useWorktree: true },
+        { repoRoot: root, slug: "2026-05-12-cost-late", toolName: "sf_team_task", useWorktree: true },
         async (ctx) => {
           const sub = ctx.subscribeAgent({ role: "developer", model: "m" }, "developer");
           ctx.recordRun(
@@ -134,7 +134,7 @@ describe("runOrchestrator cost aggregation", () => {
     const { root, dispose } = makeRepo();
     try {
       const out = await runOrchestrator(
-        { repoRoot: root, slug: "2026-05-12-cost-terminal-late", toolName: "fh_team_task", useWorktree: true },
+        { repoRoot: root, slug: "2026-05-12-cost-terminal-late", toolName: "sf_team_task", useWorktree: true },
         async (ctx) => {
           const sub = ctx.subscribeAgent({ role: "developer", model: "m" }, "developer");
           sub.onEvent({
@@ -166,9 +166,9 @@ describe("runOrchestrator cost aggregation", () => {
   it("plan resume includes exact-owner prior reports plus current cost", async () => {
     const { root, dispose } = makeRepo();
     try {
-      writeSidecar(root, "2026-05-12-cost-plan-resume", "plan", "fh_team_plan", "fh_team_plan", 1);
+      writeSidecar(root, "2026-05-12-cost-plan-resume", "plan", "sf_team_plan", "sf_team_plan", 1);
       const out = await runOrchestrator(
-        { repoRoot: root, slug: "2026-05-12-cost-plan-resume", toolName: "fh_team_plan", useWorktree: true, resumeMode: true },
+        { repoRoot: root, slug: "2026-05-12-cost-plan-resume", toolName: "sf_team_plan", useWorktree: true, resumeMode: true },
         async (ctx) => {
           ctx.recordRun(fakeRun({ input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, costTotal: 0.25 }));
           return "ok";
@@ -185,10 +185,10 @@ describe("runOrchestrator cost aggregation", () => {
   it("implement resume excludes prior plan reports for the same slug", async () => {
     const { root, dispose } = makeRepo();
     try {
-      writeSidecar(root, "2026-05-12-cost-implement-resume", "plan", "fh_team_plan", "fh_team_plan", 1);
-      writeSidecar(root, "2026-05-12-cost-implement-resume", "implement", "fh_team_implement", "fh_team_implement", 2);
+      writeSidecar(root, "2026-05-12-cost-implement-resume", "plan", "sf_team_plan", "sf_team_plan", 1);
+      writeSidecar(root, "2026-05-12-cost-implement-resume", "implement", "sf_team_implement", "sf_team_implement", 2);
       const out = await runOrchestrator(
-        { repoRoot: root, slug: "2026-05-12-cost-implement-resume", toolName: "fh_team_implement", useWorktree: true, resumeMode: true },
+        { repoRoot: root, slug: "2026-05-12-cost-implement-resume", toolName: "sf_team_implement", useWorktree: true, resumeMode: true },
         async (ctx) => {
           ctx.recordRun(fakeRun({ input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, costTotal: 0.25 }));
           return "ok";
@@ -206,9 +206,9 @@ describe("runOrchestrator cost aggregation", () => {
   it("fresh auto implement phase includes the auto-owned plan report as prior baseline", async () => {
     const { root, dispose } = makeRepo();
     try {
-      writeSidecar(root, "2026-05-12-cost-auto", "plan", "fh_team_plan", "fh_team_auto", 1);
+      writeSidecar(root, "2026-05-12-cost-auto", "plan", "sf_team_plan", "sf_team_auto", 1);
       const out = await runOrchestrator(
-        { repoRoot: root, slug: "2026-05-12-cost-auto", toolName: "fh_team_implement", ownerTool: "fh_team_auto", useWorktree: true },
+        { repoRoot: root, slug: "2026-05-12-cost-auto", toolName: "sf_team_implement", ownerTool: "sf_team_auto", useWorktree: true },
         async (ctx) => {
           ctx.recordRun(fakeRun({ input: 1, output: 1, cacheRead: 0, cacheWrite: 0, totalTokens: 2, costTotal: 0.25 }));
           return "ok";

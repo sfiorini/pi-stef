@@ -86,8 +86,8 @@ export interface BuildArgvOptions {
    * Resolve the on-disk path to the `cursor-provider` extension entry,
    * or `undefined` when not installed. Only consulted when
    * `member.model` starts with `cursor/`. The default checks
-   * `FH_TEAM_CURSOR_PROVIDER_PATH` first, then probes the workspace
-   * sibling directory `<fh-team>/../cursor-provider/extensions/cursor-provider.ts`.
+   * `SF_TEAM_CURSOR_PROVIDER_PATH` first, then probes the workspace
+   * sibling directory `<sf-team>/../cursor-provider/extensions/cursor-provider.ts`.
    *
    * Tests inject a stub here to exercise both the present + absent paths
    * without relying on workspace layout.
@@ -98,18 +98,18 @@ export interface BuildArgvOptions {
    * entry, or `undefined` when not installed. Consulted only when the
    * model prefix matches one of the configured Azure deployment IDs
    * (see {@link resolveAzureFoundryDeploymentIds}). The default checks
-   * `FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH` first, then probes the
+   * `SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH` first, then probes the
    * workspace sibling
-   * `<fh-team>/../azure-foundry-provider/extensions/azure-foundry-provider.ts`.
+   * `<sf-team>/../azure-foundry-provider/extensions/azure-foundry-provider.ts`.
    *
    * **Trust boundary**: loading the extension via explicit
    * `--extension <path>` executes that extension's registration code in
    * the spawned pi subprocess. The reviewer's read-only tool allowlist,
    * `--no-skills`, `--no-prompt-templates`, and `--no-context-files`
    * remain in force; the extension can register providers but cannot
-   * widen the tool surface. The `FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH`
+   * widen the tool surface. The `SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH`
    * override carries the same "user-controlled file path is executed"
-   * implication that the existing `FH_TEAM_CURSOR_PROVIDER_PATH`
+   * implication that the existing `SF_TEAM_CURSOR_PROVIDER_PATH`
    * override already carries.
    *
    * **Cursor reservation**: `cursor/*` models are handled exclusively by
@@ -151,30 +151,30 @@ export interface BuildArgvOptions {
 /**
  * Default resolver for the cursor-provider extension. We probe two
  * sources in order:
- *   1. `FH_TEAM_CURSOR_PROVIDER_PATH` env override (absolute path). The
+ *   1. `SF_TEAM_CURSOR_PROVIDER_PATH` env override (absolute path). The
  *      override is required to point at a path that EXISTS on disk; if
  *      the env var is set but the path does not exist, we fall through
  *      to the workspace probe (rather than crash, which would block
  *      every spawn). This is intentional — a typo in the env var should
  *      degrade to the same behavior as the env var being unset.
- *   2. Workspace-sibling probe — `<fh-team>/../cursor-provider/extensions/cursor-provider.ts`.
+ *   2. Workspace-sibling probe — `<sf-team>/../cursor-provider/extensions/cursor-provider.ts`.
  *
  * Returns `undefined` when neither path exists, so callers can decide
  * to fall back to the original `--no-extensions`-only behavior (pi
  * will surface the original "Model not found" error in that case).
  */
 export function defaultResolveCursorProvider(): string | undefined {
-  const envOverride = process.env.FH_TEAM_CURSOR_PROVIDER_PATH;
+  const envOverride = process.env.SF_TEAM_CURSOR_PROVIDER_PATH;
   if (envOverride && envOverride.length > 0 && existsSync(envOverride)) {
     return envOverride;
   }
   // import.meta.url points at this file under either the source tree or
-  // the compiled output. Both resolve to <fh-team>/src/runtime or
-  // <fh-team>/dist/runtime; the cursor-provider sibling lives at
+  // the compiled output. Both resolve to <sf-team>/src/runtime or
+  // <sf-team>/dist/runtime; the cursor-provider sibling lives at
   // <workspace>/packages/cursor-provider/extensions/cursor-provider.ts,
   // so we walk up to the workspace `packages` dir then across.
   const here = fileURLToPath(new URL(".", import.meta.url));
-  // <fh-team>/src/runtime  → ../../..  → <workspace>/packages
+  // <sf-team>/src/runtime  → ../../..  → <workspace>/packages
   const candidate = path.resolve(here, "..", "..", "..", "cursor-provider", "extensions", "cursor-provider.ts");
   if (existsSync(candidate)) return candidate;
   return undefined;
@@ -187,14 +187,14 @@ export function defaultResolveCursorProvider(): string | undefined {
  * callers degrade gracefully (pi will surface "Model not found" on its
  * own).
  *
- * Env override: `FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH`. A set-but-missing
+ * Env override: `SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH`. A set-but-missing
  * value falls through to the workspace probe (same documented
  * degradation as the cursor variant). See
  * {@link BuildArgvOptions.resolveAzureFoundryProvider} for the trust
  * boundary notes.
  */
 export function defaultResolveAzureFoundryProvider(): string | undefined {
-  const envOverride = process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
+  const envOverride = process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
   if (envOverride && envOverride.length > 0 && existsSync(envOverride)) {
     return envOverride;
   }
@@ -219,7 +219,7 @@ export function defaultResolveAzureFoundryProvider(): string | undefined {
  * error message stay stable.
  *
  * Inlined rather than imported from `@pi-stef/azure-foundry-provider`
- * to avoid making `fh-team` depend on a specific provider package;
+ * to avoid making `sf-team` depend on a specific provider package;
  * the algorithm matches `packages/azure-foundry-provider/src/jsonc.ts`.
  */
 function stripJsonc(input: string): string {
@@ -283,7 +283,7 @@ function stripJsonc(input: string): string {
  *
  * Reads the SAME path the `azure-foundry-provider` package reads —
  * env override `PI_AZURE_FOUNDRY_CONFIG` first, then
- * `~/.pi/azure-foundry/config.json`. We do not introduce a fh-team-
+ * `~/.pi/azure-foundry/config.json`. We do not introduce a sf-team-
  * specific env var so the two cannot drift.
  *
  * The file is parsed as JSONC (comments stripped) to match the

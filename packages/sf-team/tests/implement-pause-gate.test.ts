@@ -6,8 +6,8 @@ import { describe, expect, it, vi, afterEach, beforeEach } from "vitest";
 
 import { Value } from "typebox/value";
 import { ConfigSchema, DEFAULT_CONFIG, type ResolvedDefaults } from "../src/config/schema";
-import { createFhTeamImplement } from "../src/tools/implement";
-import { createFhTeamAuto } from "../src/tools/auto";
+import { createSfTeamImplement } from "../src/tools/implement";
+import { createSfTeamAuto } from "../src/tools/auto";
 import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";
 import { slugify } from "../src/plan/slug";
@@ -199,7 +199,7 @@ describe("S-203: implement-tool inter-milestone confirm gate", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const configDefaults = resolveDefaults({}) satisfies ResolvedDefaults;
       const result = await tool(
         {
@@ -286,7 +286,7 @@ describe("S-204: headless safety", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -310,7 +310,7 @@ describe("S-204: headless safety", () => {
   });
 });
 
-describe("S-205: fh_team_auto wires pauseBetweenMilestones to implement", () => {
+describe("S-205: sf_team_auto wires pauseBetweenMilestones to implement", () => {
   it("auto.pause_between_milestones=true in config makes the auto run prompt between milestones", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -369,7 +369,7 @@ Two milestones for the harness; both are tiny.
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Pause Auto", brief: "go", analysisOverride: null, answersOverride: {} } as never,
         {
@@ -405,7 +405,7 @@ describe("S-206: shouldContinue (when explicitly provided) overrides config", ()
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const cbCalls: string[] = [];
       const ui = {
         select: async () => undefined,

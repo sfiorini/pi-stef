@@ -24,9 +24,9 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("fh-team verification agent mode", () => {
+describe("sf-team verification agent mode", () => {
   it("dispatches a read-only verifier agent instead of command stages", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-verification-agent-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-verification-agent-"));
     try {
       writeFileSync(path.join(root, "package.json"), JSON.stringify({
         packageManager: "npm@10.0.0",
@@ -40,7 +40,7 @@ describe("fh-team verification agent mode", () => {
       });
 
       await runConfiguredVerification({
-        toolName: "fh_team_followup",
+        toolName: "sf_team_followup",
         cwd: root,
         phase: "after",
         verification: { timing: "after", mode: "agent", stages: "test" },
@@ -57,7 +57,7 @@ describe("fh-team verification agent mode", () => {
   });
 
   it("deduplicates agent verifier runs through the shared run cache", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-verification-agent-cache-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-verification-agent-cache-"));
     try {
       writeFileSync(path.join(root, "package.json"), JSON.stringify({
         packageManager: "npm@10.0.0",
@@ -67,7 +67,7 @@ describe("fh-team verification agent mode", () => {
       const spawnAgent = vi.fn(async () => fakeRun("VERIFICATION: PASS\nEvidence: npm test passed."));
       const cache = createVerificationRunCache();
       const request = {
-        toolName: "fh_team_followup" as const,
+        toolName: "sf_team_followup" as const,
         cwd: root,
         phase: "after" as const,
         verification: { timing: "after" as const, mode: "agent" as const, stages: "test" as const },
@@ -85,7 +85,7 @@ describe("fh-team verification agent mode", () => {
   });
 
   it("fails closed when verifier output contains conflicting status lines", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-verification-agent-conflict-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-verification-agent-conflict-"));
     try {
       writeFileSync(path.join(root, "package.json"), JSON.stringify({
         packageManager: "npm@10.0.0",
@@ -95,7 +95,7 @@ describe("fh-team verification agent mode", () => {
       const spawnAgent = vi.fn(async () => fakeRun("VERIFICATION: PASS\nEvidence...\nVERIFICATION: FAIL\nActually failed."));
 
       await expect(runConfiguredVerification({
-        toolName: "fh_team_followup",
+        toolName: "sf_team_followup",
         cwd: root,
         phase: "after",
         verification: { timing: "after", mode: "agent", stages: "test" },

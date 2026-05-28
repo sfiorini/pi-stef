@@ -4,13 +4,13 @@ import { describe, expect, it } from "vitest";
 
 /**
  * S-M211 spawn-site audit. Every `deps.spawnAgent`-using call site in
- * packages/fh-team/src/ should route through `makeSpawnHelper`, where the
+ * packages/sf-team/src/ should route through `makeSpawnHelper`, where the
  * helper auto-injects steering guidance for non-decider spawns. The
  * runtime-layer `spawnAgent` import in shared.ts is the single legitimate
  * direct consumer.
  *
  * This test snapshots the list of `from "../runtime/spawn"` imports under
- * `packages/fh-team/src/`. A new direct consumer would fail the snapshot
+ * `packages/sf-team/src/`. A new direct consumer would fail the snapshot
  * and force the contributor to either route through makeSpawnHelper or
  * document the exemption here.
  */
@@ -43,7 +43,7 @@ function statSync(p: string): { isDirectory(): boolean } {
 describe("steering spawn-site audit", () => {
   const ALLOWED_DIRECT_SPAWN_AGENT_IMPORTS: ReadonlySet<string> = new Set([
     // The spawn helper itself is the canonical consumer.
-    path.normalize("packages/fh-team/src/tools/shared.ts"),
+    path.normalize("packages/sf-team/src/tools/shared.ts"),
   ]);
 
   it("no new direct imports of runtime/spawn outside makeSpawnHelper", () => {

@@ -220,7 +220,7 @@ describe("buildPiArgv: cursor-provider conditional --extension load", () => {
     expect(resolved).toMatch(/cursor-provider[\\/]extensions[\\/]cursor-provider\.ts$/);
   });
 
-  it("FH_TEAM_CURSOR_PROVIDER_PATH env override wins over the workspace probe (genuinely different path)", () => {
+  it("SF_TEAM_CURSOR_PROVIDER_PATH env override wins over the workspace probe (genuinely different path)", () => {
     // Real precedence test: point the env var at a DIFFERENT existing file
     // (a temp file) and assert the resolver returns the env value, not the
     // workspace probe value. Asserting "env value !== probe value" is the
@@ -229,26 +229,26 @@ describe("buildPiArgv: cursor-provider conditional --extension load", () => {
     const tmpDir = mkdtempSync(path.join(tmpdir(), "argv-test-"));
     const fakePath = path.join(tmpDir, "fake-cursor-provider.ts");
     writeFileSync(fakePath, "// stand-in for the real extension\n");
-    const prev = process.env.FH_TEAM_CURSOR_PROVIDER_PATH;
-    process.env.FH_TEAM_CURSOR_PROVIDER_PATH = fakePath;
+    const prev = process.env.SF_TEAM_CURSOR_PROVIDER_PATH;
+    process.env.SF_TEAM_CURSOR_PROVIDER_PATH = fakePath;
     try {
       const resolved = defaultResolveCursorProvider();
       expect(resolved).toBe(fakePath);
       // Sanity: the env value really IS different from the workspace probe.
       if (probed) expect(resolved).not.toBe(probed);
     } finally {
-      if (prev === undefined) delete process.env.FH_TEAM_CURSOR_PROVIDER_PATH;
-      else process.env.FH_TEAM_CURSOR_PROVIDER_PATH = prev;
+      if (prev === undefined) delete process.env.SF_TEAM_CURSOR_PROVIDER_PATH;
+      else process.env.SF_TEAM_CURSOR_PROVIDER_PATH = prev;
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it("FH_TEAM_CURSOR_PROVIDER_PATH points at a missing path: silently falls through to workspace probe", () => {
+  it("SF_TEAM_CURSOR_PROVIDER_PATH points at a missing path: silently falls through to workspace probe", () => {
     // Documented degradation: a typo in the env var should not break
     // every spawn. We fall back to the workspace probe (which the
     // monorepo always satisfies). This locks in the JSDoc'd contract.
-    const prev = process.env.FH_TEAM_CURSOR_PROVIDER_PATH;
-    process.env.FH_TEAM_CURSOR_PROVIDER_PATH = "/definitely/does/not/exist/cursor-provider.ts";
+    const prev = process.env.SF_TEAM_CURSOR_PROVIDER_PATH;
+    process.env.SF_TEAM_CURSOR_PROVIDER_PATH = "/definitely/does/not/exist/cursor-provider.ts";
     try {
       const resolved = defaultResolveCursorProvider();
       // In the monorepo the workspace probe finds the real file; outside
@@ -256,8 +256,8 @@ describe("buildPiArgv: cursor-provider conditional --extension load", () => {
       // missing path MUST NOT be returned.
       expect(resolved).not.toBe("/definitely/does/not/exist/cursor-provider.ts");
     } finally {
-      if (prev === undefined) delete process.env.FH_TEAM_CURSOR_PROVIDER_PATH;
-      else process.env.FH_TEAM_CURSOR_PROVIDER_PATH = prev;
+      if (prev === undefined) delete process.env.SF_TEAM_CURSOR_PROVIDER_PATH;
+      else process.env.SF_TEAM_CURSOR_PROVIDER_PATH = prev;
     }
   });
 });
@@ -505,7 +505,7 @@ describe("buildPiArgv: azure-foundry-provider conditional --extension load", () 
   describe("explicit-collision: user intentionally names a deployment after a built-in", () => {
     // Documented trade-off (Assumption #8): if a user names an azure
     // deployment after a built-in pi provider prefix (other than `cursor`,
-    // which is structurally reserved), they explicitly want fh-team to
+    // which is structurally reserved), they explicitly want sf-team to
     // route that prefix through the azure-foundry extension. Tests lock
     // this in so it cannot regress silently.
 
@@ -537,33 +537,33 @@ describe("buildPiArgv: azure-foundry-provider conditional --extension load", () 
       expect(resolved).toMatch(/azure-foundry-provider[\\/]extensions[\\/]azure-foundry-provider\.ts$/);
     });
 
-    it("FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH env override wins over workspace probe when the path exists", () => {
+    it("SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH env override wins over workspace probe when the path exists", () => {
       const probed = defaultResolveAzureFoundryProvider();
       const tmpDir = mkdtempSync(path.join(tmpdir(), "argv-azure-test-"));
       const fakePath = path.join(tmpDir, "fake-azure-foundry-provider.ts");
       writeFileSync(fakePath, "// stand-in for the real extension\n");
-      const prev = process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
-      process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = fakePath;
+      const prev = process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
+      process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = fakePath;
       try {
         const resolved = defaultResolveAzureFoundryProvider();
         expect(resolved).toBe(fakePath);
         if (probed) expect(resolved).not.toBe(probed);
       } finally {
-        if (prev === undefined) delete process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
-        else process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = prev;
+        if (prev === undefined) delete process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
+        else process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = prev;
         rmSync(tmpDir, { recursive: true, force: true });
       }
     });
 
-    it("FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH points at a missing path: silently falls through to workspace probe", () => {
-      const prev = process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
-      process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = "/definitely/does/not/exist/azure-foundry-provider.ts";
+    it("SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH points at a missing path: silently falls through to workspace probe", () => {
+      const prev = process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
+      process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = "/definitely/does/not/exist/azure-foundry-provider.ts";
       try {
         const resolved = defaultResolveAzureFoundryProvider();
         expect(resolved).not.toBe("/definitely/does/not/exist/azure-foundry-provider.ts");
       } finally {
-        if (prev === undefined) delete process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
-        else process.env.FH_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = prev;
+        if (prev === undefined) delete process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH;
+        else process.env.SF_TEAM_AZURE_FOUNDRY_PROVIDER_PATH = prev;
       }
     });
   });

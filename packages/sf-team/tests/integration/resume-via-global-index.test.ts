@@ -1,7 +1,7 @@
 /**
  * S-511b: Integration test — slug-only resume via global plan-index.
  *
- * When a workflow was registered in the global plan-index (~/.fh-team/plan-index.json),
+ * When a workflow was registered in the global plan-index (~/.sf-team/plan-index.json),
  * a slug-only resume from ANY cwd must find it via the index cascade.
  */
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -30,8 +30,8 @@ describe("resume-via-global-index — slug-only resume from unrelated cwd finds 
       const metadata = createWorkflowMetadata({
         slug,
         folderPath: planFolder,
-        ownerTool: "fh_team_task",
-        currentTool: "fh_team_task",
+        ownerTool: "sf_team_task",
+        currentTool: "sf_team_task",
         phase: "implementation",
         planRootPath: planRoot,
         gitMode: "off",
@@ -40,13 +40,13 @@ describe("resume-via-global-index — slug-only resume from unrelated cwd finds 
       await writeWorkflowMetadata(otherCwd, metadata, planRoot);
 
       // Register in the global index
-      upsertEntry(slug, { planRoot, tool: "fh_team_task" });
+      upsertEntry(slug, { planRoot, tool: "sf_team_task" });
 
       // Resume from otherCwd with empty candidatePlanRoots to fall through to index
       const analysis = await analyzeResumeTarget({
         repoRoot: otherCwd,
         target: slug,
-        invokedTool: "fh_team_task",
+        invokedTool: "sf_team_task",
         candidatePlanRoots: [],
       });
 

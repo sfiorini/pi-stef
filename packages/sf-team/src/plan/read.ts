@@ -16,7 +16,7 @@ export interface PlanFolderRead {
 /**
  * Read a plan folder. Files that don't exist yet are silently absent.
  *
- * Note: `fh_team_followup` no longer writes overlay files into a parent's
+ * Note: `sf_team_followup` no longer writes overlay files into a parent's
  * plan folder; it creates its own `ai_plan/<date>-followup-<slug>/`
  * sibling instead. We don't surface a `followups` field anymore — old
  * plans that still have overlay files just have extra entries on disk

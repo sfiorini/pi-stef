@@ -24,13 +24,13 @@ describe("verification fingerprinting", () => {
     try {
       const base = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });
       const commandChanged = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         phase: "after",
         commands: [{ label: "typecheck", cmd: "pnpm", args: ["run", "typecheck"] }],
       });
@@ -40,7 +40,7 @@ describe("verification fingerprinting", () => {
       spawnSync("git", ["add", "test.js"], { cwd: root });
       const stagedChanged = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });
@@ -55,7 +55,7 @@ describe("verification fingerprinting", () => {
     try {
       const before = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });
@@ -64,7 +64,7 @@ describe("verification fingerprinting", () => {
       writeFileSync(path.join(root, "node_modules", ".modules.yaml"), "layoutVersion: 5\n");
       const after = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });
@@ -80,14 +80,14 @@ describe("verification fingerprinting", () => {
       writeFileSync(path.join(root, "generated.txt"), "first\n");
       const before = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });
       writeFileSync(path.join(root, "generated.txt"), "second\n");
       const after = fingerprintVerificationInputs({
         cwd: root,
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         phase: "after",
         commands: [{ label: "test", cmd: "pnpm", args: ["run", "test"] }],
       });

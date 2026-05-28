@@ -13,7 +13,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { validPlanText } from "./helpers/valid-plan";
 
 const APPROVED = `## Summary
@@ -68,7 +68,7 @@ describe("plan tool aiPlanPath wiring", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await tool(
         { title: "AI Plan Path Test", aiPlanPath: plansRoot },

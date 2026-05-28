@@ -11,7 +11,7 @@ export interface ReapplyPlanNotesInput {
 }
 
 /**
- * After a workflow writes the plan folder wholesale (e.g. fh_team_plan's
+ * After a workflow writes the plan folder wholesale (e.g. sf_team_plan's
  * final writePlanFolder), any steering plan notes that the drain appended
  * mid-workflow are clobbered. This reapplies them: for every currently
  * active guidance row, call appendSteeringPlanNote — which is idempotent

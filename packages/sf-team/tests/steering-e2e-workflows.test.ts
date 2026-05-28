@@ -7,8 +7,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { writePlanFolder } from "../src/plan/write";
 import { followupSlug, slugify } from "../src/plan/slug";
-import { createFhTeamFollowup } from "../src/tools/followup";
-import { createFhTeamTask } from "../src/tools/task";
+import { createSfTeamFollowup } from "../src/tools/followup";
+import { createSfTeamTask } from "../src/tools/task";
 import { resolvePlanSteeringRoot } from "../src/steering/path-safety";
 import { createSteeringStore } from "../src/steering/store";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -39,7 +39,7 @@ const PARENT_PLAN = `# Plan
 `;
 
 function makeRepo(): { root: string; dispose: () => void } {
-  const root = mkdtempSync(path.join(tmpdir(), "fh-team-steering-e2e-"));
+  const root = mkdtempSync(path.join(tmpdir(), "sf-team-steering-e2e-"));
   spawnSync("git", ["init", "-q", "-b", "main"], { cwd: root });
   spawnSync("git", ["config", "user.email", "a@b"], { cwd: root });
   spawnSync("git", ["config", "user.name", "tester"], { cwd: root });
@@ -127,14 +127,14 @@ async function seedInstruction(root: string, slug: string) {
 }
 
 describe("steering e2e workflow drains", () => {
-  it("fh_team_task drains queued steering at workflow start and records applied instructions", async () => {
+  it("sf_team_task drains queued steering at workflow start and records applied instructions", async () => {
     const { root, dispose } = makeRepo();
     try {
       const slug = slugify("Steered Task");
       const { store, instruction } = await seedInstruction(root, slug);
       const spawnAgent = makeSpawnAgent(root, instruction.id);
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const task = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const task = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await task(
         { title: "Steered Task", brief: "Make a tiny change.", verifyCommand: false, allowDirty: true },
@@ -152,7 +152,7 @@ describe("steering e2e workflow drains", () => {
     }
   });
 
-  it("fh_team_followup uses the same steering drain path as task workflows", async () => {
+  it("sf_team_followup uses the same steering drain path as task workflows", async () => {
     const { root, dispose } = makeRepo();
     try {
       const parentSlug = slugify("Parent Plan");
@@ -171,7 +171,7 @@ describe("steering e2e workflow drains", () => {
       const { store, instruction } = await seedInstruction(root, slug);
       const spawnAgent = makeSpawnAgent(root, instruction.id);
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const followup = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const followup = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await followup(
         {

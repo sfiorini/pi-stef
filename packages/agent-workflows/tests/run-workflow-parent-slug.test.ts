@@ -25,7 +25,7 @@ describe("runWorkflow parentSlug threading", () => {
         {
           repoRoot: root,
           slug: "child-slug",
-          toolName: "fh_team_followup",
+          toolName: "sf_team_followup",
           useWorktree: false,
           parentSlug: "parent-slug",
           promptForResume: async () => ({ resume: true }),
@@ -35,7 +35,7 @@ describe("runWorkflow parentSlug threading", () => {
       );
       const meta = await readWorkflowMetadata(root, "child-slug");
       expect(meta?.parentSlug).toBe("parent-slug");
-      expect(meta?.ownerTool).toBe("fh_team_followup");
+      expect(meta?.ownerTool).toBe("sf_team_followup");
       expect(meta?.slug).toBe("child-slug");
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -49,7 +49,7 @@ describe("runWorkflow parentSlug threading", () => {
         {
           repoRoot: root,
           slug: "stand-alone",
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           useWorktree: false,
           promptForResume: async () => ({ resume: true }),
           createReporter: noopReporter,
@@ -71,7 +71,7 @@ describe("runWorkflow parentSlug threading", () => {
         {
           repoRoot: root,
           slug: "child-slug",
-          toolName: "fh_team_followup",
+          toolName: "sf_team_followup",
           useWorktree: false,
           parentSlug: "parent-A",
           promptForResume: async () => ({ resume: true }),
@@ -85,7 +85,7 @@ describe("runWorkflow parentSlug threading", () => {
         {
           repoRoot: root,
           slug: "child-slug",
-          toolName: "fh_team_followup",
+          toolName: "sf_team_followup",
           useWorktree: false,
           parentSlug: "parent-B",
           resumeMode: true,
@@ -107,8 +107,8 @@ describe("runWorkflow parentSlug threading", () => {
       const meta = createWorkflowMetadata({
         slug: "child",
         folderPath: planFolderPath(root, "child"),
-        ownerTool: "fh_team_followup",
-        currentTool: "fh_team_followup",
+        ownerTool: "sf_team_followup",
+        currentTool: "sf_team_followup",
         phase: "running",
         parentSlug: "parent",
       });

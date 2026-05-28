@@ -4,20 +4,20 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { MaxReviewRoundsError, RevisionUnchangedError } from "../src/review/loop";
 import { defaultDeps } from "../src/tools/shared";
 
 /**
  * PI_INTEGRATION live-pi-real: spawns a TRUE `pi --mode json -p` subprocess
- * end-to-end for `fh_team_plan` with a deterministic short brief. Asserts a
+ * end-to-end for `sf_team_plan` with a deterministic short brief. Asserts a
  * non-empty finalPlan, folder written, no last-draft.md (because the loop
  * approved). This proves the installed-pi end-to-end path works for at least
  * one tool. The other four tools share the same orchestrator/spawn machinery.
  *
  * Gated by PI_INTEGRATION=1 AND pi binary availability.
  */
-describe("live-tool-pi-real: fh_team_plan against real pi subprocess", () => {
+describe("live-tool-pi-real: sf_team_plan against real pi subprocess", () => {
   const integrationEnabled = process.env.PI_INTEGRATION === "1";
   const piAvailable = (() => {
     if (!integrationEnabled) return false;
@@ -26,7 +26,7 @@ describe("live-tool-pi-real: fh_team_plan against real pi subprocess", () => {
   })();
 
   it.skipIf(!piAvailable)(
-    "fh_team_plan against real pi: end-to-end either approves with a 5-file folder OR persists partial output",
+    "sf_team_plan against real pi: end-to-end either approves with a 5-file folder OR persists partial output",
     async () => {
       const root = mkdtempSync(path.join(tmpdir(), "ct-livepi-"));
       try {
@@ -47,7 +47,7 @@ describe("live-tool-pi-real: fh_team_plan against real pi subprocess", () => {
         // Override planner+reviewer to a fast model with low thinking so the
         // test finishes inside vitest's 5-minute window. The default xhigh
         // thinking level on opus is 1-3 min/turn and will time out the test.
-        const tool = createFhTeamPlan(defaultDeps);
+        const tool = createSfTeamPlan(defaultDeps);
         const fastPlanner = { role: "planner" as const, model: "claude-haiku-4-5", thinking: "low" as const, skills: [] };
         const fastReviewer = { role: "reviewer" as const, model: "claude-haiku-4-5", thinking: "low" as const };
         let result: Awaited<ReturnType<typeof tool>> | undefined;

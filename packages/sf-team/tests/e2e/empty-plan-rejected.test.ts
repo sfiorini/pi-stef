@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../../src/tools/plan";
+import { createSfTeamPlan } from "../../src/tools/plan";
 import { EmptyPlanError } from "../../src/orchestrator/empty-plan-error";
 import { slugify } from "../../src/plan/slug";
 import { planFolderPath } from "../../src/plan/paths";
@@ -73,7 +73,7 @@ describe("S-802 empty-plan rejection (S-107 fixture, end-to-end)", () => {
       fakeRun(member.role === "planner" ? refusalText : APPROVED),
     );
     const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-    const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+    const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
     const ui = {
       notify: vi.fn(),
       confirm: async () => true,

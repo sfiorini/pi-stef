@@ -47,12 +47,12 @@ export class GitRepoMissingError extends Error {
 
 /**
  * Lightweight preflight: throw {@link GitRepoMissingError} when `cwd`
- * is not inside a git work tree. Used at the entry of every fh-team
+ * is not inside a git work tree. Used at the entry of every sf-team
  * workflow that performs git operations (implement, auto, task,
  * followup) so the user gets a fast, friendly error BEFORE any agent
  * is spawned and BEFORE any planner / reviewer tokens are spent.
  *
- * Plan-only workflows (`fh_team_plan`) skip this — they're read-only
+ * Plan-only workflows (`sf_team_plan`) skip this — they're read-only
  * and don't need a git repo to produce a plan.
  *
  * Does NOT check dirty state. Dirty checks are config-driven and run

@@ -10,7 +10,7 @@ import { createSteeringStore } from "../src/steering/store";
 
 describe("steering resume reconciliation", () => {
   it("marks persisted running agents as failed when no live process remains", async () => {
-    const planRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-resume-"));
+    const planRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-resume-"));
     const store = createSteeringStore({ rootDir: resolvePlanSteeringRoot(planRoot), expectedRoot: planRoot });
     await store.upsertActiveAgents([
       {
@@ -34,7 +34,7 @@ describe("steering resume reconciliation", () => {
   });
 
   it("requeues orphaned analyzing and partially-applied instructions without an applied ledger entry", async () => {
-    const planRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-resume-"));
+    const planRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-resume-"));
     const store = createSteeringStore({ rootDir: resolvePlanSteeringRoot(planRoot), expectedRoot: planRoot });
     const analyzing = await store.appendInstruction({
       workflowId: "workflow-1",
@@ -60,7 +60,7 @@ describe("steering resume reconciliation", () => {
   });
 
   it("marks interrupted instructions applied when the applied ledger already contains them", async () => {
-    const planRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-resume-"));
+    const planRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-resume-"));
     const store = createSteeringStore({ rootDir: resolvePlanSteeringRoot(planRoot), expectedRoot: planRoot });
     const partial = await store.appendInstruction({
       workflowId: "workflow-1",

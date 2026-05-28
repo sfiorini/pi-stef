@@ -73,13 +73,13 @@ export function mountCostFooter(
 }
 
 function renderCostSummary(summary: CostSummary): string {
-  if (summary.total.knownCostCount === 0) return "fh-team cost pending";
+  if (summary.total.knownCostCount === 0) return "sf-team cost pending";
   const total = formatCost(summary.total.costTotal);
-  if (summary.total.unknownCostCount > 0) return `fh-team cost >=${total} (partial)`;
+  if (summary.total.unknownCostCount > 0) return `sf-team cost >=${total} (partial)`;
   if (summary.priorRunCount > 0 && summary.prior.knownCostCount > 0) {
-    return `fh-team cost ${total} (prior ${formatCost(summary.prior.costTotal)} + current ${formatCost(summary.current.costTotal)})`;
+    return `sf-team cost ${total} (prior ${formatCost(summary.prior.costTotal)} + current ${formatCost(summary.current.costTotal)})`;
   }
-  return `fh-team cost ${total}`;
+  return `sf-team cost ${total}`;
 }
 
 function truncateToWidth(value: string, width: number): string {

@@ -4,7 +4,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { Value } from "typebox/value";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { TEAM_BASE_TOOL_NAMES, TEAM_TOOL_NAMES } from "../src/register";
 
 class FakePi {
@@ -19,13 +19,13 @@ class FakePi {
 describe("final boundary test (post-collapse): 11-tool surface, real schemas, no legacy aliases", () => {
   it("registers all 11 tool names in the canonical order", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     expect(pi.tools.map((t) => t.name)).toEqual([...TEAM_TOOL_NAMES]);
   });
 
   it("none of the registered tools have STUB / 'not yet implemented' descriptions", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     for (const t of pi.tools) {
       expect(t.description).not.toMatch(/STUB/i);
       expect(t.description).not.toMatch(/not yet implemented/i);
@@ -34,13 +34,13 @@ describe("final boundary test (post-collapse): 11-tool surface, real schemas, no
 
   it("each `<base>` (start) schema exposes the expected required key (no empty placeholders)", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     const expected: Record<string, string> = {
-      fh_team_plan: "title",
-      fh_team_implement: "slug",
-      fh_team_task: "title",
-      fh_team_auto: "title",
-      fh_team_followup: "title",
+      sf_team_plan: "title",
+      sf_team_implement: "slug",
+      sf_team_task: "title",
+      sf_team_auto: "title",
+      sf_team_followup: "title",
     };
     for (const [name, key] of Object.entries(expected)) {
       const t = pi.tools.find((x) => x.name === name);
@@ -52,13 +52,13 @@ describe("final boundary test (post-collapse): 11-tool surface, real schemas, no
 
   it("`<base>` and `<base>_resume` schemas are flat single-objects, not anyOf unions", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     const startInputs: Record<string, Record<string, unknown>> = {
-      fh_team_plan: { title: "New plan" },
-      fh_team_implement: { slug: "2026-05-06-plan" },
-      fh_team_task: { title: "Single task" },
-      fh_team_auto: { title: "Auto plan" },
-      fh_team_followup: { title: "Followup" },
+      sf_team_plan: { title: "New plan" },
+      sf_team_implement: { slug: "2026-05-06-plan" },
+      sf_team_task: { title: "Single task" },
+      sf_team_auto: { title: "Auto plan" },
+      sf_team_followup: { title: "Followup" },
     };
     for (const [name, normal] of Object.entries(startInputs)) {
       const t = pi.tools.find((x) => x.name === name)!;
@@ -92,7 +92,7 @@ describe("final boundary test (post-collapse): 11-tool surface, real schemas, no
     process.chdir(isolatedRoot);
     try {
       const pi = new FakePi();
-      fhTeamExtension(pi as never);
+      sfTeamExtension(pi as never);
       const ctrl = new AbortController();
       const fakeCtx = {
         hasUI: false,

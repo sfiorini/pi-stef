@@ -88,7 +88,7 @@ describe("S-803 e2e tmux pane lifecycle (prepareSession → openAgentPane × N �
       {
         repoRoot: repo.root,
         slug: "tmux-e2e-lifecycle",
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         useWorktree: true,
         tmuxManager: stub.mgr,
       },

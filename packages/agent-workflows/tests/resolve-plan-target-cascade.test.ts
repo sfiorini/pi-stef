@@ -20,7 +20,7 @@ beforeEach(() => {
   tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "cascade-"));
   originalHome = os.homedir();
   Object.defineProperty(os, "homedir", { value: () => testHome, configurable: true });
-  fs.mkdirSync(path.join(testHome, ".fh-team"), { recursive: true });
+  fs.mkdirSync(path.join(testHome, ".sf-team"), { recursive: true });
 });
 
 afterEach(() => {
@@ -66,7 +66,7 @@ describe("resolvePlanTarget slug cascade", () => {
   it("falls through to global plan-index when all explicit candidates miss", async () => {
     const indexRoot = path.join(tmpDir, "index-plans");
     makeWorkflowJson(indexRoot, slug);
-    upsertEntry(slug, { planRoot: indexRoot, tool: "fh_team_plan" });
+    upsertEntry(slug, { planRoot: indexRoot, tool: "sf_team_plan" });
 
     const result = await resolvePlanTarget({
       repoRoot: tmpDir,
@@ -82,8 +82,8 @@ describe("resolvePlanTarget slug cascade", () => {
     const root2 = path.join(tmpDir, "plans-two");
     makeWorkflowJson(root1, slug);
     makeWorkflowJson(root2, slug);
-    upsertEntry(slug, { planRoot: root1, tool: "fh_team_plan" });
-    upsertEntry(slug, { planRoot: root2, tool: "fh_team_plan" });
+    upsertEntry(slug, { planRoot: root1, tool: "sf_team_plan" });
+    upsertEntry(slug, { planRoot: root2, tool: "sf_team_plan" });
 
     await expect(
       resolvePlanTarget({ repoRoot: tmpDir, target: slug, candidatePlanRoots: [] }),

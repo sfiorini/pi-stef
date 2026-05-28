@@ -18,7 +18,7 @@ describe("planner.yaml metadata (S-106 — documentation surface)", () => {
   const yaml = readFileSync(PLANNER_YAML, "utf8");
 
   it("documents the lockfile-tolerant clause in the YAML", () => {
-    expect(yaml).toMatch(/fh-team-locks\/\*\.lock/);
+    expect(yaml).toMatch(/sf-team-locks\/\*\.lock/);
     expect(yaml).toMatch(/Do NOT refuse to draft/);
   });
 
@@ -40,13 +40,13 @@ describe("composePlannerBrief delivers the lockfile + Stories clauses to the run
   // is loaded by the orchestrator but NEVER passed to the pi child as
   // an --append-system-prompt argument; only the listed `skills` reach
   // the runtime. The lockfile and Stories-format clauses must therefore
-  // live in the actual task brief that fh_team_plan sends to the
+  // live in the actual task brief that sf_team_plan sends to the
   // planner, which is what composePlannerBrief produces.
   const brief = __testing__.composePlannerBrief("Sample Title", "(no extra brief)");
 
   it("contains the lockfile-tolerant clause", () => {
     expect(brief).toMatch(/LOCKFILE NOTE/);
-    expect(brief).toMatch(/fh-team-locks\/\*\.lock/);
+    expect(brief).toMatch(/sf-team-locks\/\*\.lock/);
     expect(brief).toMatch(/Do NOT refuse to draft/);
     expect(brief).toMatch(/orchestrator that spawned you holds the lock/i);
   });
@@ -110,7 +110,7 @@ describe("composeReviseBrief ALSO carries the lockfile + Stories clauses (round 
   const reviseBrief = __testing__.composeReviseBrief();
 
   it("contains the lockfile-tolerant clause", () => {
-    expect(reviseBrief).toMatch(/fh-team-locks\/\*\.lock/);
+    expect(reviseBrief).toMatch(/sf-team-locks\/\*\.lock/);
     expect(reviseBrief).toMatch(/Do NOT refuse to draft/);
   });
 
@@ -151,7 +151,7 @@ describe("composeReviseBrief ALSO carries the lockfile + Stories clauses (round 
 });
 
 describe("plan reviewer runtime prompts carry execution-strategy review criteria", () => {
-  it("initial fh_team_plan reviewer prompt embeds the strategy safety clauses", () => {
+  it("initial sf_team_plan reviewer prompt embeds the strategy safety clauses", () => {
     const prompt = __testing__.composeInitialPlanReviewPrompt("## Execution Strategy\n```json\n{}\n```");
     expect(prompt).toContain(PLAN_REVIEW_EXECUTION_STRATEGY_GUIDANCE);
     expect(prompt).toMatch(/writeSets/);

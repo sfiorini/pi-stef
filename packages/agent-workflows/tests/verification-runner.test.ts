@@ -24,7 +24,7 @@ describe("verification runner", () => {
         return { status: 0, stdout: "", stderr: "" };
       });
       await runVerificationPolicy({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "before",
         config: { timing: "after", mode: "commands", stages: [], commands: [], cache: { mode: "off" }, maxAttempts: 1 },
@@ -32,7 +32,7 @@ describe("verification runner", () => {
         executor,
       });
       await runVerificationPolicy({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "after",
         config: { timing: "after", mode: "commands", stages: [], commands: [], cache: { mode: "off" }, maxAttempts: 1 },
@@ -52,7 +52,7 @@ describe("verification runner", () => {
       const messages: string[] = [];
       const cache = createVerificationRunCache();
       const request = {
-        toolName: "fh_team_followup",
+        toolName: "sf_team_followup",
         cwd: root,
         phase: "after" as const,
         config: { timing: "after" as const, mode: "commands" as const, stages: [], commands: [], cache: { mode: "run" as const }, maxAttempts: 1 },
@@ -76,7 +76,7 @@ describe("verification runner", () => {
       const executor = vi.fn(async () => ({ status: 0, stdout: "", stderr: "" }));
       const cachePath = path.join(root, ".fh-workflow", "verification-cache.json");
       const request = {
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         cwd: root,
         phase: "after" as const,
         config: {

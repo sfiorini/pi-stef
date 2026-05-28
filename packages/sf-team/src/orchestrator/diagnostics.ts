@@ -8,7 +8,7 @@ import type { AgentRun } from "../runtime/types";
 export interface DiagnosticsBundle {
   /** Slug of the active plan folder, if any. */
   slug?: string;
-  /** Tool that was running (e.g. fh_team_implement). */
+  /** Tool that was running (e.g. sf_team_implement). */
   toolName: string;
   /** Last-known agent runs at failure time. */
   agentRuns?: AgentRun[];
@@ -40,7 +40,7 @@ export async function writeDiagnostics(
   const stamp = now.toISOString().replace(/[:.]/g, "-");
   const filePath = path.join(folder, `diagnostics-${stamp}.log`);
   const lines: string[] = [];
-  lines.push(`# fh-team diagnostics — ${bundle.toolName} @ ${now.toISOString()}`);
+  lines.push(`# sf-team diagnostics — ${bundle.toolName} @ ${now.toISOString()}`);
   if (bundle.notes) lines.push("", "## notes", bundle.notes);
   const details = bundle.details ?? errorDetails(bundle.error);
   if (details) {

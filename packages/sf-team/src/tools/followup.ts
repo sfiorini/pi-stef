@@ -19,10 +19,10 @@ import { resolveParentPlan } from "./followup-resolve";
 import { resolveToolResume } from "./resume";
 import { defaultDeps, type ToolDeps } from "./shared";
 import { followupSlug } from "../plan/slug";
-import type { FhTeamTaskInput, FhTeamTaskResult } from "./task-types";
+import type { SfTeamTaskInput, SfTeamTaskResult } from "./task-types";
 import {
   runLegacyVerificationSync,
-  type FhTeamVerificationConfigInput,
+  type SfTeamVerificationConfigInput,
 } from "./verification-stage";
 import type {
   WorkflowCheckpointRuntime,
@@ -31,10 +31,10 @@ import type {
 
 // Re-exports so existing callers (tests, downstream tools) stay green
 // without chasing the consolidated workflow file.
-export type { FhTeamTaskResult } from "./task-types";
+export type { SfTeamTaskResult } from "./task-types";
 export { composeDeveloperBrief, composeDevRevise } from "./run-task-workflow";
 
-export interface FhTeamFollowupInput {
+export interface SfTeamFollowupInput {
   /** Followup title; combined with date and `followup-` to form the slug. */
   title?: string;
   /** Resume hint (slug or path). Mutually exclusive with `title`. */
@@ -50,7 +50,7 @@ export interface FhTeamFollowupInput {
   maxRounds?: number;
   /** Verification command override (false skips). */
   verifyCommand?: { cmd: string; args: string[] } | false;
-  verification?: FhTeamVerificationConfigInput;
+  verification?: SfTeamVerificationConfigInput;
   /** Push decision callback. Default = skip. */
   shouldPush?: () => Promise<boolean> | boolean;
   /** When auto-detect would be ambiguous, let the caller pick. */
@@ -58,7 +58,7 @@ export interface FhTeamFollowupInput {
 }
 
 /**
- * fh_team_followup: addresses follow-up issues against a completed plan.
+ * sf_team_followup: addresses follow-up issues against a completed plan.
  *
  * Architecture: a followup runs the SAME end-to-end lifecycle as a task
  * (plan-review → developer-impl → impl-review → verification → commit
@@ -78,11 +78,11 @@ export interface FhTeamFollowupInput {
  *     (NOT from input), which `runWorkflow` persisted on the original
  *     start (see agent-workflows S-302).
  */
-export function createFhTeamFollowup(rawDeps: Partial<ToolDeps> = {}) {
+export function createSfTeamFollowup(rawDeps: Partial<ToolDeps> = {}) {
   const deps: ToolDeps = { ...defaultDeps, ...rawDeps };
 
-  return async function fhTeamFollowup(
-    input: FhTeamFollowupInput,
+  return async function sfTeamFollowup(
+    input: SfTeamFollowupInput,
     ctx: {
       repoRoot: string;
       signal?: AbortSignal;
@@ -96,12 +96,12 @@ export function createFhTeamFollowup(rawDeps: Partial<ToolDeps> = {}) {
       rawGitMode?: "auto" | "on" | "off";
       rawTddMode?: "auto" | "on" | "off";
     },
-  ): Promise<FhTeamTaskResult> {
+  ): Promise<SfTeamTaskResult> {
     // Resume resolution first: input.resume can be a slug, a relative
     // path, or an absolute path; resolveToolResume normalizes all three.
     const resume = await resolveToolResume({
       repoRoot: ctx.repoRoot,
-      toolName: "fh_team_followup",
+      toolName: "sf_team_followup",
       input,
       normalField: "title",
       candidatePlanRoots: ctx.planRoot ? [ctx.planRoot] : undefined,
@@ -130,27 +130,27 @@ export function createFhTeamFollowup(rawDeps: Partial<ToolDeps> = {}) {
 
 async function runFollowupResume(
   deps: ToolDeps,
-  input: FhTeamFollowupInput,
+  input: SfTeamFollowupInput,
   ctx: RunTaskWorkflowCtx & {
     selectFromAmbiguous?: (candidates: string[]) => Promise<string | undefined>;
   },
   resume: ResumeAnalysis,
-): Promise<FhTeamTaskResult> {
+): Promise<SfTeamTaskResult> {
   const followupSlugValue = resume.target.slug;
   const effectivePlanRoot = resume.metadata?.planRootPath ?? ctx.planRoot;
   const meta = await readWorkflowMetadata(ctx.repoRoot, followupSlugValue, effectivePlanRoot);
   if (!meta) {
-    throw new Error(`fh_team_followup: no workflow metadata for "${followupSlugValue}".`);
+    throw new Error(`sf_team_followup: no workflow metadata for "${followupSlugValue}".`);
   }
-  if (meta.ownerTool !== "fh_team_followup") {
+  if (meta.ownerTool !== "sf_team_followup") {
     throw new Error(
-      `fh_team_followup: slug "${followupSlugValue}" is owned by ${meta.ownerTool}, not fh_team_followup.`,
+      `sf_team_followup: slug "${followupSlugValue}" is owned by ${meta.ownerTool}, not sf_team_followup.`,
     );
   }
   const parentSlug = meta.parentSlug;
   if (!parentSlug) {
     throw new Error(
-      `fh_team_followup: workflow metadata for "${followupSlugValue}" is missing parentSlug. The original start may have failed before metadata was written.`,
+      `sf_team_followup: workflow metadata for "${followupSlugValue}" is missing parentSlug. The original start may have failed before metadata was written.`,
     );
   }
   const resolvedPlanRoot = effectivePlanRoot ?? path.join(ctx.repoRoot, PLAN_FOLDER_ROOT); // migration-allowed: legacy
@@ -171,12 +171,12 @@ async function loadParentMilestonePlan(parentFolder: string): Promise<string> {
     const code = (err as NodeJS.ErrnoException).code;
     if (code === "ENOENT") {
       throw new Error(
-        `fh_team_followup: parent milestone-plan.md not found at ${file}. ` +
-          `Either pass --parentPlan to point at a folder that contains one, or fall back to fh_team_task for a stand-alone change.`,
+        `sf_team_followup: parent milestone-plan.md not found at ${file}. ` +
+          `Either pass --parentPlan to point at a folder that contains one, or fall back to sf_team_task for a stand-alone change.`,
       );
     }
     throw new Error(
-      `fh_team_followup: failed to read parent milestone-plan.md at ${file}: ${(err as Error).message}`,
+      `sf_team_followup: failed to read parent milestone-plan.md at ${file}: ${(err as Error).message}`,
     );
   }
 }
@@ -187,7 +187,7 @@ async function loadParentMilestonePlan(parentFolder: string): Promise<string> {
  * `selectFromAmbiguous` on top of the task input; both are consumed
  * before the workflow body runs and don't need to flow further.
  */
-function asTaskInput(input: FhTeamFollowupInput): FhTeamTaskInput {
+function asTaskInput(input: SfTeamFollowupInput): SfTeamTaskInput {
   const {
     parentPlan: _parentPlan,
     selectFromAmbiguous: _selectFromAmbiguous,
@@ -204,9 +204,9 @@ function asTaskInput(input: FhTeamFollowupInput): FhTeamTaskInput {
  */
 export function runVerification(
   cwd: string,
-  verifyCommand: FhTeamFollowupInput["verifyCommand"],
+  verifyCommand: SfTeamFollowupInput["verifyCommand"],
   reporter?: WorkflowReporter,
   checkpoints?: WorkflowCheckpointRuntime,
 ): void {
-  runLegacyVerificationSync("fh_team_followup", cwd, verifyCommand, reporter, checkpoints);
+  runLegacyVerificationSync("sf_team_followup", cwd, verifyCommand, reporter, checkpoints);
 }

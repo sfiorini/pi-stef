@@ -32,7 +32,7 @@ const mockedGate = vi.mocked(runConfiguredVerification);
 
 function makeFailure(stderr = "AssertionError: expected x to equal y"): VerificationGateFailure {
   return new VerificationGateFailure("verification gate failed", {
-    toolName: "fh_team_task",
+    toolName: "sf_team_task",
     phase: "after",
     stageLabel: "test",
     command: { cmd: "pnpm", args: ["test"] },
@@ -76,7 +76,7 @@ function makeTranscript(): TranscriptHandle {
 }
 
 const FAKE_GATE: RunConfiguredVerificationOptions = {
-  toolName: "fh_team_task",
+  toolName: "sf_team_task",
   cwd: "/tmp",
   phase: "after",
 };
@@ -216,7 +216,7 @@ describe("runVerificationGateWithFixLoop", () => {
     // `API_KEY=...` (or embedded newlines) must be redacted/sanitized
     // before it lands in transcript/.../verification-gate-failed*.md.
     const failure = new VerificationGateFailure("verification gate failed", {
-      toolName: "fh_team_task",
+      toolName: "sf_team_task",
       phase: "after",
       stageLabel: "Authorization: Bearer header-secret-123",
       command: { cmd: "pnpm", args: ["test"] },

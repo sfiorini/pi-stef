@@ -1,8 +1,8 @@
 /**
- * Live failure 2026-05-08: a successful end-to-end `fh_team_auto` run
- * returned `fh_team_auto: plan 1 rounds; 5 milestone(s); performance=...`
+ * Live failure 2026-05-08: a successful end-to-end `sf_team_auto` run
+ * returned `sf_team_auto: plan 1 rounds; 5 milestone(s); performance=...`
  * and the calling LLM (Cursor) misread "5 milestone(s)" as "5 still
- * pending" — then issued follow-up `fh_team_implement` calls that
+ * pending" — then issued follow-up `sf_team_implement` calls that
  * the M1/M2 ownership-mismatch guard correctly rejected.
  *
  * Fix: prefix the result text with `SUCCESS` / `PARTIAL` / `NO-OP`
@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { planFolderPath } from "../src/plan/paths";
 import { emptyUsageTotal, type CostSummary, type CostUsageTotal } from "../src/orchestrator/cost";
 import * as autoModule from "../src/tools/auto";
@@ -36,9 +36,9 @@ class FakePi {
 
 function loadAutoTool(): RegisteredTool {
   const pi = new FakePi();
-  fhTeamExtension(pi as never);
-  const auto = pi.tools.find((t) => t.name === "fh_team_auto")!;
-  expect(auto, "fh_team_auto must be registered").toBeDefined();
+  sfTeamExtension(pi as never);
+  const auto = pi.tools.find((t) => t.name === "sf_team_auto")!;
+  expect(auto, "sf_team_auto must be registered").toBeDefined();
   return auto;
 }
 
@@ -121,7 +121,7 @@ function exactCostSummary(cost: number): CostSummary {
   };
 }
 
-describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
+describe("sf_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
   it("SUCCESS — fresh run that approves every milestone names the count and the branch and shows 0 pending", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-auto-text-success-"));
     const slug = "demo-success";
@@ -140,7 +140,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
           ],
         },
       }));
-      const factorySpy = vi.spyOn(autoModule, "createFhTeamAuto").mockReturnValue(fakeAuto as never);
+      const factorySpy = vi.spyOn(autoModule, "createSfTeamAuto").mockReturnValue(fakeAuto as never);
       try {
         const tool = loadAutoTool();
         const prevCwd = process.cwd();
@@ -148,7 +148,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
         try {
           const response = await tool.execute("call-1", { title: "demo" }, undefined, undefined, { hasUI: false } as never);
           const text = response.content[0].text;
-          expect(text).toContain("fh_team_auto: SUCCESS");
+          expect(text).toContain("sf_team_auto: SUCCESS");
           expect(text).toContain("plan reviewed in 1 round(s)");
           expect(text).toContain("2/2 milestone(s) approved this run on branch auto/demo-success");
           expect(text).toContain("Plan status: 2/2 milestone(s) approved; 0 pending.");
@@ -165,7 +165,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
     }
   });
 
-  it("PARTIAL — run approves some but plan still has pending milestones, includes a Next: hint with the pending milestone id and a `fh_team_auto_resume` invocation example", async () => {
+  it("PARTIAL — run approves some but plan still has pending milestones, includes a Next: hint with the pending milestone id and a `sf_team_auto_resume` invocation example", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-auto-text-partial-"));
     const slug = "demo-partial";
     try {
@@ -182,7 +182,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
           ],
         },
       }));
-      const factorySpy = vi.spyOn(autoModule, "createFhTeamAuto").mockReturnValue(fakeAuto as never);
+      const factorySpy = vi.spyOn(autoModule, "createSfTeamAuto").mockReturnValue(fakeAuto as never);
       try {
         const tool = loadAutoTool();
         const prevCwd = process.cwd();
@@ -190,10 +190,10 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
         try {
           const response = await tool.execute("call-1", { resume: slug }, undefined, undefined, { hasUI: false } as never);
           const text = response.content[0].text;
-          expect(text).toContain("fh_team_auto: PARTIAL");
+          expect(text).toContain("sf_team_auto: PARTIAL");
           expect(text).toContain("1/1 milestone(s) approved this run on branch auto/demo-partial");
           expect(text).toContain("Plan status: 1/3 milestone(s) approved; 2 pending (M2, M3).");
-          expect(text).toContain("Next: invoke fh_team_auto_resume { resume: 'demo-partial' } to continue with M2.");
+          expect(text).toContain("Next: invoke sf_team_auto_resume { resume: 'demo-partial' } to continue with M2.");
         } finally {
           process.chdir(prevCwd);
         }
@@ -220,7 +220,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
           milestones: [],
         },
       }));
-      const factorySpy = vi.spyOn(autoModule, "createFhTeamAuto").mockReturnValue(fakeAuto as never);
+      const factorySpy = vi.spyOn(autoModule, "createSfTeamAuto").mockReturnValue(fakeAuto as never);
       try {
         const tool = loadAutoTool();
         const prevCwd = process.cwd();
@@ -228,7 +228,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
         try {
           const response = await tool.execute("call-1", { resume: slug }, undefined, undefined, { hasUI: false } as never);
           const text = response.content[0].text;
-          expect(text).toContain("fh_team_auto: NO-OP");
+          expect(text).toContain("sf_team_auto: NO-OP");
           expect(text).toContain("nothing to do this run; plan already at 2/2 approved.");
           expect(text).toContain("Plan status: 2/2 milestone(s) approved; 0 pending.");
           // NO-OP branch must NOT include a "Next:" hint — nothing left to do.
@@ -264,7 +264,7 @@ describe("fh_team_auto result text: SUCCESS / PARTIAL / NO-OP prefix", () => {
         },
         costSummary,
       }));
-      const factorySpy = vi.spyOn(autoModule, "createFhTeamAuto").mockReturnValue(fakeAuto as never);
+      const factorySpy = vi.spyOn(autoModule, "createSfTeamAuto").mockReturnValue(fakeAuto as never);
       try {
         const tool = loadAutoTool();
         const prevCwd = process.cwd();

@@ -14,7 +14,7 @@ import { DEFAULT_CONFIG } from "../src/config/schema";
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const TEMPLATE_PATH = path.join(PACKAGE_ROOT, "config", "defaults.json");
 
-describe("fh-team default config template", () => {
+describe("sf-team default config template", () => {
   it("matches DEFAULT_CONFIG exactly and uses canonical JSON formatting", async () => {
     const raw = await readFile(TEMPLATE_PATH, "utf8");
 

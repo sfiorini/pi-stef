@@ -35,7 +35,7 @@ describe("runVerificationStage retry policy", () => {
         .mockReturnValueOnce({ status: 0, signal: null, stdout: "second stdout", stderr: "" });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 }),
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 }),
       ).not.toThrow();
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(2);
@@ -62,7 +62,7 @@ describe("runVerificationStage retry policy", () => {
 
       expect(() =>
         runVerificationStage(
-          "fh_team_test",
+          "sf_team_test",
           root,
           { cmd: "npm", args: ["run", "test"] },
           { maxAttempts: 2, reporter },
@@ -90,7 +90,7 @@ describe("runVerificationStage retry policy", () => {
 
       let thrown: Error | null = null;
       try {
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 });
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 });
       } catch (e) {
         thrown = e instanceof Error ? e : new Error(String(e));
       }
@@ -119,7 +119,7 @@ describe("runVerificationStage retry policy", () => {
       });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "missing-command", args: [] }),
+        runVerificationStage("sf_team_test", root, { cmd: "missing-command", args: [] }),
       ).toThrow(/spawn error/);
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);
@@ -137,7 +137,7 @@ describe("runVerificationStage retry policy", () => {
       spawnSyncMock.mockReturnValueOnce({ status: 1, signal: null, stdout: "stdout", stderr: "stderr" });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }),
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }),
       ).toThrow(/attempt 1\/1/);
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);
@@ -158,7 +158,7 @@ describe("runVerificationStage retry policy", () => {
         .mockReturnValueOnce({ status: 0, signal: null, stdout: "three", stderr: "" });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 3 }),
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 3 }),
       ).not.toThrow();
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(3);
@@ -176,7 +176,7 @@ describe("runVerificationStage retry policy", () => {
       spawnSyncMock.mockReturnValueOnce({ status: null, signal: "SIGTERM", stdout: "", stderr: "" });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 }),
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: 2 }),
       ).toThrow(/signal SIGTERM/);
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);
@@ -194,7 +194,7 @@ describe("runVerificationStage retry policy", () => {
       spawnSyncMock.mockReturnValueOnce({ status: 1, signal: null, stdout: "", stderr: "failed" });
 
       expect(() =>
-        runVerificationStage("fh_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: Number.NaN }),
+        runVerificationStage("sf_team_test", root, { cmd: "npm", args: ["run", "test"] }, { maxAttempts: Number.NaN }),
       ).toThrow(/attempt 1\/1/);
 
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);

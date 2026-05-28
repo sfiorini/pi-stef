@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
-import { createFhTeamTask } from "../src/tools/task";
+import { createSfTeamPlan } from "../src/tools/plan";
+import { createSfTeamTask } from "../src/tools/task";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
 
@@ -52,7 +52,7 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.ui is present", () => {
+describe("audit fix #3: sf_team_plan asks the user when brief is empty AND ctx.ui is present", () => {
   it("calls ctx.ui.input twice (Brief + Constraints) and concatenates the answers into the planner brief", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -74,7 +74,7 @@ describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.u
         return fakeRun(member.role === "planner" ? validPlanText("qa-empty") : APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "SSO" }, { repoRoot: root, ui });
       expect(result.approved).toBe(true);
       expect(inputCalls).toHaveLength(2);
@@ -100,7 +100,7 @@ describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.u
       } as never;
       const spawnAgent = vi.fn(async (member: TeamMember) => fakeRun(member.role === "planner" ? validPlanText("qa-draft") : APPROVED));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "SSO", brief: "Replace cookie auth with SAML SSO and audit-log every login event" }, { repoRoot: root, ui });
       expect(result.approved).toBe(true);
       expect(inputCalls).toHaveLength(0);
@@ -114,7 +114,7 @@ describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.u
     try {
       const spawnAgent = vi.fn(async (member: TeamMember) => fakeRun(member.role === "planner" ? validPlanText("qa-draft") : APPROVED));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "SSO" }, { repoRoot: root });
       expect(result.approved).toBe(true);
     } finally {
@@ -122,7 +122,7 @@ describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.u
     }
   });
 
-  it("fh_team_task also asks via ctx.ui.input when brief is empty", async () => {
+  it("sf_team_task also asks via ctx.ui.input when brief is empty", async () => {
     const { root, dispose } = makeRepo();
     try {
       const inputCalls: string[] = [];
@@ -154,7 +154,7 @@ describe("audit fix #3: fh_team_plan asks the user when brief is empty AND ctx.u
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Healthz", verifyCommand: false, allowDirty: true },
         { repoRoot: root, ui },

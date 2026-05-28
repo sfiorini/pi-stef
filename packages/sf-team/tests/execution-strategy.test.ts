@@ -59,8 +59,8 @@ function validStrategy(overrides: Partial<ExecutionStrategy> = {}): ExecutionStr
             stories: ["S-101", "S-102"],
             maxParallel: 2,
             writeSets: {
-              "S-101": ["packages/fh-team/src/pane-theme.ts"],
-              "S-102": ["packages/fh-team/tests/pane-theme.test.ts"],
+              "S-101": ["packages/sf-team/src/pane-theme.ts"],
+              "S-102": ["packages/sf-team/tests/pane-theme.test.ts"],
             },
           },
         ],
@@ -71,7 +71,7 @@ function validStrategy(overrides: Partial<ExecutionStrategy> = {}): ExecutionStr
             id: "M2-W1",
             stories: ["S-201"],
             writeSets: {
-              "S-201": ["packages/fh-team/src/plan/execution-strategy.ts"],
+              "S-201": ["packages/sf-team/src/plan/execution-strategy.ts"],
             },
           },
         ],
@@ -126,7 +126,7 @@ ${JSON.stringify(validStrategy(), null, 2)}
     "M1": {
       "dependsOn": [],
       "stories": [
-        { "wave": 1, "ids": ["S-101"], "writeSets": ["packages/fh-team/src/a.ts"] }
+        { "wave": 1, "ids": ["S-101"], "writeSets": ["packages/sf-team/src/a.ts"] }
       ]
     }
   }
@@ -263,8 +263,8 @@ describe("execution strategy validation", () => {
                 stories: ["S-101", "S-102"],
                 maxParallel: 2,
                 writeSets: {
-                  "S-101": ["packages/fh-team/src/shared.ts"],
-                  "S-102": ["packages/fh-team/src/shared.ts"],
+                  "S-101": ["packages/sf-team/src/shared.ts"],
+                  "S-102": ["packages/sf-team/src/shared.ts"],
                 },
               },
             ],
@@ -282,13 +282,13 @@ describe("execution strategy validation", () => {
               {
                 id: "M1-W1",
                 stories: ["S-101"],
-                writeSets: { "S-101": ["packages/fh-team/src/shared.ts"] },
+                writeSets: { "S-101": ["packages/sf-team/src/shared.ts"] },
               },
               {
                 id: "M1-W2",
                 stories: ["S-102"],
                 dependsOn: ["M1-W1"],
-                writeSets: { "S-102": ["packages/fh-team/src/pane-theme.ts"] },
+                writeSets: { "S-102": ["packages/sf-team/src/pane-theme.ts"] },
               },
             ],
           },
@@ -297,7 +297,7 @@ describe("execution strategy validation", () => {
               {
                 id: "M2-W1",
                 stories: ["S-201"],
-                writeSets: { "S-201": ["packages/fh-team/src/shared.ts"] },
+                writeSets: { "S-201": ["packages/sf-team/src/shared.ts"] },
               },
             ],
           },
@@ -382,7 +382,7 @@ describe("writeSet path safety (normalizeWritePath via validateExecutionStrategy
               maxParallel: 1,
               writeSets: {
                 "S-101": paths,
-                "S-102": ["packages/fh-team/tests/pane-theme.test.ts"],
+                "S-102": ["packages/sf-team/tests/pane-theme.test.ts"],
               },
             },
           ],
@@ -392,7 +392,7 @@ describe("writeSet path safety (normalizeWritePath via validateExecutionStrategy
             {
               id: "M2-W1",
               stories: ["S-201"],
-              writeSets: { "S-201": ["packages/fh-team/src/plan/execution-strategy.ts"] },
+              writeSets: { "S-201": ["packages/sf-team/src/plan/execution-strategy.ts"] },
             },
           ],
         },

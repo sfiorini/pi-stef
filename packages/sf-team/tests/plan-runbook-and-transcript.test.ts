@@ -175,13 +175,13 @@ describe("deriveStoryTracker pipe-safety (codex P2)", () => {
   });
 });
 
-describe("plan-folder integration: createFhTeamPlan writes the rich runbook", () => {
+describe("plan-folder integration: createSfTeamPlan writes the rich runbook", () => {
   it("end-to-end: 5-file folder contains a real continuation-runbook.md (no stub)", async () => {
     const { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } = await import("node:fs");
     const { spawnSync } = await import("node:child_process");
     const { tmpdir } = await import("node:os");
     const path = await import("node:path");
-    const { createFhTeamPlan } = await import("../src/tools/plan");
+    const { createSfTeamPlan } = await import("../src/tools/plan");
     const { slugify } = await import("../src/plan/slug");
     const { vi } = await import("vitest");
 
@@ -215,7 +215,7 @@ describe("plan-folder integration: createFhTeamPlan writes the rich runbook", ()
         stderrTail: "",
       }));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Make Healthz", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root },

@@ -39,7 +39,7 @@ export function listExistingWorktrees(repoRoot: string): ExistingWorktree[] {
 
 /**
  * Find an existing git worktree whose branch matches `branch`. Used by
- * fh_team_followup to reuse the parent's worktree when still alive.
+ * sf_team_followup to reuse the parent's worktree when still alive.
  */
 export function findExistingWorktree(repoRoot: string, branch: string): ExistingWorktree | undefined {
   return listExistingWorktrees(repoRoot).find((w) => w.branch === branch);

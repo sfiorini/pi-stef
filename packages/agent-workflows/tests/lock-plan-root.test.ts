@@ -23,11 +23,11 @@ describe("acquireLock with explicit planRoot", () => {
 
     await acquireLock({ planRoot, repoRoot }, slug, "test");
 
-    const lockDir = path.join(planRoot, slug, ".fh-team.lock");
+    const lockDir = path.join(planRoot, slug, ".sf-team.lock");
     expect(fs.existsSync(lockDir)).toBe(true);
 
     // The old path (under repoRoot/ai_plan) must NOT be created
-    const oldPath = path.join(repoRoot, "ai_plan", slug, ".fh-team.lock");
+    const oldPath = path.join(repoRoot, "ai_plan", slug, ".sf-team.lock");
     expect(fs.existsSync(oldPath)).toBe(false);
 
     await releaseLock({ planRoot, repoRoot }, slug);
@@ -39,7 +39,7 @@ describe("acquireLock with explicit planRoot", () => {
     fs.mkdirSync(planRoot, { recursive: true });
 
     await acquireLock({ planRoot, repoRoot: tmpDir }, slug, "test");
-    const lockDir = path.join(planRoot, slug, ".fh-team.lock");
+    const lockDir = path.join(planRoot, slug, ".sf-team.lock");
     expect(fs.existsSync(lockDir)).toBe(true);
 
     await releaseLock({ planRoot, repoRoot: tmpDir }, slug);
@@ -64,7 +64,7 @@ describe("acquireLock back-compat (string repoRoot only)", () => {
   it("still works with legacy string signature (defaults planRoot to repoRoot/ai_plan)", async () => {
     const slug = "2026-05-26-legacy";
     await acquireLock(tmpDir, slug, "legacy-test");
-    const defaultLock = path.join(tmpDir, "ai_plan", slug, ".fh-team.lock");
+    const defaultLock = path.join(tmpDir, "ai_plan", slug, ".sf-team.lock");
     expect(fs.existsSync(defaultLock)).toBe(true);
     await releaseLock(tmpDir, slug);
   });

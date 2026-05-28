@@ -150,7 +150,7 @@ export async function decideSteeringInstructions(
 
 function composeSteeringBatchDeciderPrompt(input: SteeringBatchDeciderInput): string {
   return [
-    "You are the fh-team steering-decider. The user submitted multiple steering instructions concurrently. Return ONE JSON object of shape:",
+    "You are the sf-team steering-decider. The user submitted multiple steering instructions concurrently. Return ONE JSON object of shape:",
     "  { \"decisions\": [<SteeringDecision>, ...] }",
     "with EXACTLY one SteeringDecision per input instruction, in the same order. Each decision's `instructionId` MUST match one of the input instructionIds; no duplicates, no extras, no missing.",
     "",
@@ -458,7 +458,7 @@ function makeDecision(input: {
 
 function composeSteeringDeciderPrompt(input: SteeringDeciderInput): string {
   return [
-    "You are the fh-team steering-decider. Return only one JSON object matching the SteeringDecision contract.",
+    "You are the sf-team steering-decider. Return only one JSON object matching the SteeringDecision contract.",
     "",
     "Instruction:",
     JSON.stringify(input.instruction, null, 2),

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createActiveWorkflowRegistry } from "../src/steering/active-workflows";
 import { resolvePlanSteeringRoot } from "../src/steering/path-safety";
-import { registerFhTeam, TEAM_STEER_TOOL_NAME, TEAM_TOOL_NAMES } from "../src/register";
+import { registerSfTeam, TEAM_STEER_TOOL_NAME, TEAM_TOOL_NAMES } from "../src/register";
 
 class FakePi {
   tools: Array<{ name: string; parameters: unknown; execute: (...args: any[]) => Promise<any> }> = [];
@@ -27,7 +27,7 @@ class FakePi {
 }
 
 async function mkRepo(): Promise<string> {
-  return await mkdtemp(path.join(os.tmpdir(), "fh-team-register-steer-"));
+  return await mkdtemp(path.join(os.tmpdir(), "sf-team-register-steer-"));
 }
 
 async function registerWorkflow(repoRoot: string, id: string, planSlug: string): Promise<void> {
@@ -40,7 +40,7 @@ async function registerWorkflow(repoRoot: string, id: string, planSlug: string):
   await registry.register({
     workflowId: id,
     workflowKind: "implement",
-    toolName: "fh_team_implement",
+    toolName: "sf_team_implement",
     planSlug,
     repoRoot,
     steeringRoot: resolvePlanSteeringRoot(planFolder),
@@ -52,21 +52,21 @@ async function inboxEntries(repoRoot: string, planSlug: string): Promise<Array<{
   return raw.trim().split(/\r?\n/).map((line) => JSON.parse(line) as { text: string; workflowId: string });
 }
 
-describe("fh_team_steer registration", () => {
-  it("registers fh_team_steer once without an unintended _resume variant", () => {
+describe("sf_team_steer registration", () => {
+  it("registers sf_team_steer once without an unintended _resume variant", () => {
     const pi = new FakePi();
-    registerFhTeam(pi as never);
+    registerSfTeam(pi as never);
 
     expect(pi.tools.map((tool) => tool.name)).toEqual([...TEAM_TOOL_NAMES]);
-    expect(pi.tools.map((tool) => tool.name)).not.toContain("fh_team_steer_resume");
+    expect(pi.tools.map((tool) => tool.name)).not.toContain("sf_team_steer_resume");
   });
 
   it("registers a slash command that queues busy-session input directly", async () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
     const pi = new FakePi();
-    registerFhTeam(pi as never);
-    const command = pi.commands.find((entry) => entry.name === "fh_team_steer");
+    registerSfTeam(pi as never);
+    const command = pi.commands.find((entry) => entry.name === "sf_team_steer");
     const notify = vi.fn();
     const originalCwd = process.cwd();
 
@@ -90,7 +90,7 @@ describe("fh_team_steer registration", () => {
 
   it("routes to external aiPlanPath registry when aiPlanPath= is supplied", async () => {
     const repoRoot = await mkRepo();
-    const externalPlanRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-register-steer-ext-"));
+    const externalPlanRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-register-steer-ext-"));
     // Register the workflow under a DIFFERENT root (not repoRoot)
     const registry = createActiveWorkflowRegistry(externalPlanRoot);
     const planRoot = path.join(externalPlanRoot, "plan-b");
@@ -98,15 +98,15 @@ describe("fh_team_steer registration", () => {
     await registry.register({
       workflowId: "workflow-ext",
       workflowKind: "implement",
-      toolName: "fh_team_implement",
+      toolName: "sf_team_implement",
       planSlug: "plan-b",
       repoRoot: externalPlanRoot,
       steeringRoot: resolvePlanSteeringRoot(planRoot),
     });
 
     const pi = new FakePi();
-    registerFhTeam(pi as never);
-    const command = pi.commands.find((entry) => entry.name === "fh_team_steer");
+    registerSfTeam(pi as never);
+    const command = pi.commands.find((entry) => entry.name === "sf_team_steer");
     const notify = vi.fn();
     const originalCwd = process.cwd();
 
@@ -135,8 +135,8 @@ describe("fh_team_steer registration", () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
     const pi = new FakePi();
-    registerFhTeam(pi as never);
-    const command = pi.commands.find((entry) => entry.name === "fh_team_steer");
+    registerSfTeam(pi as never);
+    const command = pi.commands.find((entry) => entry.name === "sf_team_steer");
     const notify = vi.fn();
     const originalCwd = process.cwd();
 
@@ -159,15 +159,15 @@ describe("fh_team_steer registration", () => {
 
   it("keeps an empty steering slash command as an agent prompt for missing args", async () => {
     const pi = new FakePi();
-    registerFhTeam(pi as never);
-    const command = pi.commands.find((entry) => entry.name === "fh_team_steer");
+    registerSfTeam(pi as never);
+    const command = pi.commands.find((entry) => entry.name === "sf_team_steer");
 
     expect(command).toBeDefined();
     await command!.handler("", { isIdle: () => true });
 
     expect(pi.sent).toEqual([
       {
-        content: "Invoke the fh_team_steer tool. Ask me first for the instruction and, if needed, the workflowId or planSlug.",
+        content: "Invoke the sf_team_steer tool. Ask me first for the instruction and, if needed, the workflowId or planSlug.",
       },
     ]);
   });

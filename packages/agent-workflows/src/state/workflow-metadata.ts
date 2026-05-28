@@ -10,11 +10,11 @@ import {
 } from "../artifacts/paths";
 
 export type WorkflowToolName =
-  | "fh_team_plan"
-  | "fh_team_implement"
-  | "fh_team_task"
-  | "fh_team_auto"
-  | "fh_team_followup";
+  | "sf_team_plan"
+  | "sf_team_implement"
+  | "sf_team_task"
+  | "sf_team_auto"
+  | "sf_team_followup";
 
 export type WorkflowStatus = "running" | "paused" | "completed" | "failed" | "aborted";
 

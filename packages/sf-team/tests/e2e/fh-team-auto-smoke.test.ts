@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createFhTeamAuto } from "../../src/tools/auto";
+import { createSfTeamAuto } from "../../src/tools/auto";
 import { resolveDefaults } from "../../src/config/load";
 import { validPlanText } from "../helpers/valid-plan";
 import type { AgentRun, AgentTask, TeamMember } from "../../src/runtime/types";
 
-/* M8 S-801: full happy-path fh_team_auto run in a tmpdir repo with
+/* M8 S-801: full happy-path sf_team_auto run in a tmpdir repo with
  * canned planner/reviewer/developer responses. Asserts the 5-file plan
  * folder is populated and pr-description.md is generated. */
 
@@ -52,7 +52,7 @@ function makeRepo(): { root: string; dispose: () => void } {
   return { root, dispose: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-describe("S-801 fh_team_auto smoke (full happy path)", () => {
+describe("S-801 sf_team_auto smoke (full happy path)", () => {
   let repo: ReturnType<typeof makeRepo>;
   beforeEach(() => {
     repo = makeRepo();
@@ -77,7 +77,7 @@ describe("S-801 fh_team_auto smoke (full happy path)", () => {
       return fakeRun(APPROVED);
     });
     const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-    const auto = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+    const auto = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
 
     const result = await auto(
       { title: "Smoke Test", brief: "go", analysisOverride: null, answersOverride: {} } as never,
@@ -125,7 +125,7 @@ describe("S-801 fh_team_auto smoke (full happy path)", () => {
     expect(existsSync(result.implement.prDescriptionPath!)).toBe(true);
 
     // BOTH milestones (M0 + M1) ran to completion via the all-milestones
-    // mode + pause_between_milestones=false defaults of fh_team_auto.
+    // mode + pause_between_milestones=false defaults of sf_team_auto.
     expect(result.implement.milestones).toHaveLength(2);
     expect(result.implement.milestones.every((m) => m.approved)).toBe(true);
     expect(result.implement.milestones.map((m) => m.id)).toEqual(["M0", "M1"]);

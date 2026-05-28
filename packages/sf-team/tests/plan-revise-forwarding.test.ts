@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import { parseReviewerVerdict } from "../src/review/parse";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -67,7 +67,7 @@ function fakeRun(finalText: string): AgentRun {
   };
 }
 
-describe("M10 fh_team_plan plan-revise-forwarding (S-A01)", () => {
+describe("M10 sf_team_plan plan-revise-forwarding (S-A01)", () => {
   it("the planner is re-spawned on REVISE; the second reviewer call sees the revised plan", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -89,7 +89,7 @@ describe("M10 fh_team_plan plan-revise-forwarding (S-A01)", () => {
         return fakeRun(reviewerOutputs[Math.min(reviewerCallIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Test Plan", brief: "do thing", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "full", researcher: "never" } } as never) },
@@ -138,7 +138,7 @@ describe("M10 fh_team_plan plan-revise-forwarding (S-A01)", () => {
         return fakeRun(REVISE_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(
         tool(
           { title: "Noop Patch Plan", brief: "do thing", analysisOverride: null, answersOverride: {} },
@@ -160,7 +160,7 @@ describe("M10 fh_team_plan plan-revise-forwarding (S-A01)", () => {
         return fakeRun(member.role === "planner" ? validPlanText("shipping") : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Quick Plan", analysisOverride: null, answersOverride: {} },
         { repoRoot: root },
@@ -187,7 +187,7 @@ describe("M10 fh_team_plan plan-revise-forwarding (S-A01)", () => {
         return fakeRun(member.role === "planner" ? validPlanText("hb-default") : APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool({ title: "Hb Default" }, { repoRoot: root });
       // Reviewer's heartbeatMs reaches the production runtime — fixes the
       // dead-code regression codex flagged in round 1 of this patch.

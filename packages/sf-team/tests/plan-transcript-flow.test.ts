@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import { EXECUTION_STRATEGY_FILE } from "../src/plan/paths";
 import { slugify } from "../src/plan/slug";
@@ -67,13 +67,13 @@ function legacyArrayStrategyPlan(label: string): string {
           "wave": 1,
           "ids": ["S-001"],
           "dependsOn": [],
-          "writeSets": ["packages/fh-team/src/${label}-bootstrap.ts"]
+          "writeSets": ["packages/sf-team/src/${label}-bootstrap.ts"]
         },
         {
           "wave": 2,
           "ids": ["S-002"],
           "dependsOn": ["S-001"],
-          "writeSets": ["packages/fh-team/tests/${label}-bootstrap.test.ts"]
+          "writeSets": ["packages/sf-team/tests/${label}-bootstrap.test.ts"]
         }
       ]
     },
@@ -84,7 +84,7 @@ function legacyArrayStrategyPlan(label: string): string {
           "wave": 1,
           "ids": ["S-101"],
           "dependsOn": [],
-          "writeSets": ["packages/fh-team/src/${label}-core.ts"]
+          "writeSets": ["packages/sf-team/src/${label}-core.ts"]
         }
       ]
     }
@@ -123,7 +123,7 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("fh_team_plan transcript: every agent handoff is persisted", () => {
+describe("sf_team_plan transcript: every agent handoff is persisted", () => {
   it("two-round revise loop: transcript files cover researcher → draft → review-1-REVISE → revision-1 → review-2-APPROVED", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -146,7 +146,7 @@ describe("fh_team_plan transcript: every agent handoff is persisted", () => {
         return fakeRun(reviewerIdx === 1 ? REVISE_BODY : APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Healthz", brief: "Add a healthz endpoint" },
         { repoRoot: root, ui, configDefaults: resolveDefaults({ performance: { plan_revision: "full" } } as never) },
@@ -195,7 +195,7 @@ describe("fh_team_plan transcript: every agent handoff is persisted", () => {
         return fakeRun(APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool({ title: "Quick", brief: "go" }, { repoRoot: root, ui });
       const files = readdirSync(path.join(root, "ai_plan", slugify("Quick"), "transcript", "planning")).sort();
       expect(files).toEqual([
@@ -228,7 +228,7 @@ describe("fh_team_plan transcript: every agent handoff is persisted", () => {
         return fakeRun(APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Invalid Strategy Revision", brief: "Use the mocked planner output.", analysisOverride: null, answersOverride: {} },
         {
@@ -271,7 +271,7 @@ describe("fh_team_plan transcript: every agent handoff is persisted", () => {
         return fakeRun(APPROVED_BODY);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "Invalid Strategy", brief: "Use the mocked planner output.", analysisOverride: null, answersOverride: {}, maxRounds: 1 },
         {
@@ -312,7 +312,7 @@ describe("fh_team_plan transcript: every agent handoff is persisted", () => {
         return fakeRun(APPROVED_WITH_P3);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "P3", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "full", researcher: "never" } } as never) },

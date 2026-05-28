@@ -24,7 +24,7 @@ import { resolveDefaults } from "../src/config/load";
 import { EmptyDiffError } from "../src/errors";
 import { planFolderPath } from "../src/plan/paths";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 
 const APPROVED = `## Summary
 ok
@@ -169,7 +169,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -227,7 +227,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -267,7 +267,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       let caught: unknown;
       try {
         await tool(
@@ -282,7 +282,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
           {
             repoRoot: root,
             configDefaults: resolveDefaults({ parallel: { enabled: false }, implement: { empty_diff_retries: 2 } }),
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
           },
         );
       } catch (err) {
@@ -293,9 +293,9 @@ describe("S-M36 milestone empty-diff retry policy", () => {
       // 1 initial + 2 retries = 3 attempts.
       expect(e.details.attempts).toBe(3);
       expect(e.details.slug).toBe(slug);
-      expect(e.resumeTool).toBe("fh_team_implement_resume");
-      expect(e.message.startsWith("FAILED: fh_team_implement empty_diff:")).toBe(true);
-      expect(e.message).toContain("RESUME: invoke fh_team_implement_resume { resume: '" + slug + "' }");
+      expect(e.resumeTool).toBe("sf_team_implement_resume");
+      expect(e.message.startsWith("FAILED: sf_team_implement empty_diff:")).toBe(true);
+      expect(e.message).toContain("RESUME: invoke sf_team_implement_resume { resume: '" + slug + "' }");
       expect(developerCalls.length).toBe(3);
     } finally {
       dispose();
@@ -314,7 +314,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       try {
         await tool(
           {
@@ -331,7 +331,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
               parallel: { enabled: false },
               implement: { empty_diff_retries: 2, empty_diff_retry_model: "claude-opus-4-7" },
             }),
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
           },
         );
       } catch {
@@ -371,7 +371,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -381,7 +381,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
           verifyCommand: false,
           pauseBetweenMilestones: false,
         },
-        { repoRoot: root, configDefaults: resolveDefaults({ parallel: { enabled: false } }), toolName: "fh_team_implement" },
+        { repoRoot: root, configDefaults: resolveDefaults({ parallel: { enabled: false } }), toolName: "sf_team_implement" },
       );
       expect(result.milestones[0].approved).toBe(true);
       // The reviewer is called with composeImplSummary(finalText: activeDeveloperOutput).
@@ -410,7 +410,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -420,7 +420,7 @@ describe("S-M36 milestone empty-diff retry policy", () => {
           verifyCommand: false,
           pauseBetweenMilestones: false,
         },
-        { repoRoot: root, configDefaults: resolveDefaults({ parallel: { enabled: false } }), toolName: "fh_team_implement" },
+        { repoRoot: root, configDefaults: resolveDefaults({ parallel: { enabled: false } }), toolName: "sf_team_implement" },
       );
       expect(result.milestones[0].approved).toBe(true);
       // Read the transcript folder; it lives under ai_plan/<slug>/transcript-* by orchestrator convention.
@@ -465,7 +465,7 @@ describe("S-M36 parallel-story empty-diff retry", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       let caught: unknown;
       try {
         await tool(
@@ -480,7 +480,7 @@ describe("S-M36 parallel-story empty-diff retry", () => {
           {
             repoRoot: root,
             configDefaults: resolveDefaults({ parallel: { max_milestones: 1, max_stories_per_milestone: 2 }, implement: { empty_diff_retries: 1 } }),
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
           },
         );
       } catch (err) {

@@ -30,7 +30,7 @@ describe("M9 notifyTelegram (S-907/S-908)", () => {
     }
   });
 
-  it("bundled helper is shipped at packages/fh-team/bin/notify-telegram.sh", () => {
+  it("bundled helper is shipped at packages/sf-team/bin/notify-telegram.sh", () => {
     expect(existsSync(_internal.BUNDLED_HELPER)).toBe(true);
   });
 });

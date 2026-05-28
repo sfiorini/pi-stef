@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { loadAndResolveDefaults, resolveDefaults } from "../src/config/load";
 import { DEFAULT_CONFIG } from "../src/config/schema";
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
 
@@ -181,7 +181,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
   it("on broken JSON, notifies the user and falls back to defaults", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-bad-"));
     try {
-      const cfgDir = path.join(home, ".pi", "fh-team");
+      const cfgDir = path.join(home, ".pi", "sf-team");
       mkdirSync(cfgDir, { recursive: true });
       // EXACT shape from the user's actual broken file: missing closing quote on key.
       writeFileSync(
@@ -193,7 +193,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
       expect(out).toEqual(DEFAULT_CONFIG);
       expect(notify).toHaveBeenCalledOnce();
       const [msg, level] = notify.mock.calls[0];
-      expect(msg).toMatch(/fh-team config:.*falling back to built-in defaults/i);
+      expect(msg).toMatch(/sf-team config:.*falling back to built-in defaults/i);
       expect(msg).toMatch(/invalid JSON/i);
       expect(level).toBe("warning");
     } finally {
@@ -205,13 +205,13 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-perf-"));
     const { root, dispose } = makeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "fh-team");
+      const globalDir = path.join(home, ".pi", "sf-team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
         JSON.stringify({ performance: { researcher: "always", plan_revision: "full", widget_update_interval_ms: 10 } }),
       );
-      writeFileSync(path.join(root, ".fh-team.json"), JSON.stringify({ performance: { researcher: "never" } }));
+      writeFileSync(path.join(root, ".sf-team.json"), JSON.stringify({ performance: { researcher: "never" } }));
       const out = await loadAndResolveDefaults(root, { homeDir: home });
       expect(out.performance).toEqual({
         researcher: "never",
@@ -228,7 +228,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
   it("on valid config, applies it without notify", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-good-"));
     try {
-      const cfgDir = path.join(home, ".pi", "fh-team");
+      const cfgDir = path.join(home, ".pi", "sf-team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(
         path.join(cfgDir, "config.json"),
@@ -250,11 +250,11 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
     }
   });
 
-  it("project config (<repo>/.fh-team.json) is loaded and wins over global on field conflicts", async () => {
+  it("project config (<repo>/.sf-team.json) is loaded and wins over global on field conflicts", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-proj-"));
     const { root, dispose } = makeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "fh-team");
+      const globalDir = path.join(home, ".pi", "sf-team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
@@ -267,7 +267,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
         }),
       );
       writeFileSync(
-        path.join(root, ".fh-team.json"),
+        path.join(root, ".sf-team.json"),
         JSON.stringify({
           agents: { planner: { model: "project-planner", thinking: "xhigh" } },
           review: { max_rounds: 3 },
@@ -299,7 +299,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const overrideDefaults = resolveDefaults({
         agents: {
@@ -325,7 +325,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   it("buggy notify hook does NOT propagate as a rejection from loadAndResolveDefaults", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-throw-"));
     try {
-      const cfgDir = path.join(home, ".pi", "fh-team");
+      const cfgDir = path.join(home, ".pi", "sf-team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(path.join(cfgDir, "config.json"), '{ "garbage": ');
       const notify = vi.fn(() => {
@@ -342,13 +342,13 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   it("warning message uses ~ for home and <repo> for repo-root paths (no absolute paths leaked)", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-path-"));
     try {
-      const cfgDir = path.join(home, ".pi", "fh-team");
+      const cfgDir = path.join(home, ".pi", "sf-team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(path.join(cfgDir, "config.json"), "{ broken json");
       const messages: string[] = [];
       await loadAndResolveDefaults("/x", { homeDir: home, notify: (m) => messages.push(m) });
       expect(messages).toHaveLength(1);
-      expect(messages[0]).toMatch(/~\/\.pi\/fh-team\/config\.json/);
+      expect(messages[0]).toMatch(/~\/\.pi\/sf-team\/config\.json/);
       expect(messages[0]).not.toContain(home); // raw home path absent
     } finally {
       rmSync(home, { recursive: true, force: true });
@@ -356,7 +356,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   });
 
   it("non-agent knob END-TO-END: configured task.allow_dirty=true skips the dirty-worktree guard", async () => {
-    const { createFhTeamTask } = await import("../src/tools/task");
+    const { createSfTeamTask } = await import("../src/tools/task");
     const { root, dispose } = makeRepo();
     try {
       // Make the worktree dirty.
@@ -374,7 +374,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       // 1) WITHOUT the config override → throws.
       await expect(
@@ -397,9 +397,9 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
     // Regression test for the 5min → 10min bump. A multi-file milestone
     // turn was getting killed during a legitimately-slow inference call
     // because the developer's previous default was 5min while the model
-    // was still reasoning. See packages/fh-team/src/config/schema.ts
+    // was still reasoning. See packages/sf-team/src/config/schema.ts
     // DEFAULT_CONFIG.agents.developer.heartbeatMs.
-    const { createFhTeamTask } = await import("../src/tools/task");
+    const { createSfTeamTask } = await import("../src/tools/task");
     const { root, dispose } = makeRepo();
     try {
       const observed: TeamMember[] = [];
@@ -414,7 +414,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       // No agent overrides — exercise the DEFAULT_CONFIG fallback path for
       // agents.developer.heartbeatMs. allow_dirty=true is needed because the
       // tool's pre-flight clean-worktree check fires before the developer
@@ -434,8 +434,8 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   });
 
   it("non-agent knobs are correctly resolved (shape-level test, complements the e2e above)", async () => {
-    const { createFhTeamImplement } = await import("../src/tools/implement");
-    const { createFhTeamAuto } = await import("../src/tools/auto");
+    const { createSfTeamImplement } = await import("../src/tools/implement");
+    const { createSfTeamAuto } = await import("../src/tools/auto");
     // No real run — just verify resolveDefaults' shape is what tools read.
     const r = resolveDefaults({
       implement: { mode: "all-milestones", branch_prefix: "feature/" },
@@ -453,8 +453,8 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
     // now runs in cwd (mirrors task), so the field has nothing to gate.
     expect((r.followup as Record<string, unknown>).reuse_parent_worktree).toBeUndefined();
     // (factories are imported just to confirm they compile against the resolved types)
-    expect(typeof createFhTeamImplement).toBe("function");
-    expect(typeof createFhTeamAuto).toBe("function");
+    expect(typeof createSfTeamImplement).toBe("function");
+    expect(typeof createSfTeamAuto).toBe("function");
   });
 
   it("when ctx.configDefaults is omitted, falls back to DEFAULT_CONFIG (claude-opus-4-7)", async () => {
@@ -467,7 +467,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "x", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root },
@@ -479,12 +479,12 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
     }
   });
 
-  it("project config (<repo>/.fh-team.json) reaches the spawned agents (parallel to the global-only e2e above)", async () => {
+  it("project config (<repo>/.sf-team.json) reaches the spawned agents (parallel to the global-only e2e above)", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-proj-e2e-"));
     const { root, dispose } = makeRepo();
     try {
       writeFileSync(
-        path.join(root, ".fh-team.json"),
+        path.join(root, ".sf-team.json"),
         JSON.stringify({
           agents: {
             planner: { model: "openai-codex/gpt-5.3-codex" },
@@ -499,7 +499,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const configDefaults = await loadAndResolveDefaults(root, { homeDir: home });
       await tool(
         { title: "x", brief: "go", analysisOverride: null, answersOverride: {} },

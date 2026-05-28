@@ -162,7 +162,7 @@ describe("S-M42 / S-M44: keep_lane_branches=true skips cleanup; lane survives", 
    * `warnings` collects DELETE FAILURES — opt-in retention is NOT a
    * failure, so no warning is emitted.
    *
-   * Approach: spawn a real fh_team_implement run in parallel mode against
+   * Approach: spawn a real sf_team_implement run in parallel mode against
    * a 2-story fixture, with `parallel.keep_lane_branches=true`. Drive the
    * developer/reviewer agents via stub spawnAgent. After rollup, assert:
    *   1. all lane branches still exist
@@ -182,7 +182,7 @@ describe("S-M42 / S-M44: keep_lane_branches=true skips cleanup; lane survives", 
   }> {
     const { resolveDefaults } = await import("../src/config/load");
     const { planFolderPath } = await import("../src/plan/paths");
-    const { createFhTeamImplement } = await import("../src/tools/implement");
+    const { createSfTeamImplement } = await import("../src/tools/implement");
     const root = mkdtempSync(path.join(tmpdir(), `ct-keep-lane-${keep ? "on" : "off"}-`));
     const dispose = () => rmSync(root, { recursive: true, force: true });
     git(["init", "-q", "-b", "main"], root);
@@ -254,7 +254,7 @@ describe("S-M42 / S-M44: keep_lane_branches=true skips cleanup; lane survives", 
       return fakeRun(APPROVED_RESPONSE);
     });
     const { runReviewLoop } = await import("../src/review/loop");
-    const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+    const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
 
     const result = await tool(
       { slug, mode: "all-milestones", useWorktree: true, branchPrefix: "impl/", verifyCommand: false, pauseBetweenMilestones: false },
@@ -263,7 +263,7 @@ describe("S-M42 / S-M44: keep_lane_branches=true skips cleanup; lane survives", 
         configDefaults: resolveDefaults({
           parallel: { max_milestones: 1, max_stories_per_milestone: 2, keep_lane_branches: keep },
         }),
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
       },
     );
 

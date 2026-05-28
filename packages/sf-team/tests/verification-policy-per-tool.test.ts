@@ -8,7 +8,7 @@ import {
   verificationDefaultsForPlanPhase,
 } from "../src/tools/verification-stage";
 
-describe("fh-team verification policy resolution", () => {
+describe("sf-team verification policy resolution", () => {
   it("adds an explicit plan section and nested per-tool verification defaults", () => {
     const defaults = resolveDefaults({});
     expect(defaults.plan.verification?.timing).toBe("off");
@@ -22,11 +22,11 @@ describe("fh-team verification policy resolution", () => {
     const defaults = resolveDefaults({
       task: { verification: { timing: "both", stages: "lint" } },
     } as never);
-    const fromConfig = resolveToolVerificationConfig("fh_team_task", defaults.task.verification);
+    const fromConfig = resolveToolVerificationConfig("sf_team_task", defaults.task.verification);
     expect(fromConfig.timing).toBe("both");
     expect(fromConfig.stages).toEqual(["lint"]);
 
-    const fromInput = resolveToolVerificationConfig("fh_team_task", defaults.task.verification, {
+    const fromInput = resolveToolVerificationConfig("sf_team_task", defaults.task.verification, {
       timing: "off",
     });
     expect(fromInput.timing).toBe("off");

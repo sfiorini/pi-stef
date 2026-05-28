@@ -58,7 +58,7 @@ describe("S-503 validators", () => {
   });
 
   it("isValidLogPath rejects spaces, quotes, semicolons, etc.", () => {
-    expect(isValidLogPath("/tmp/fh-team-abc/dev.log")).toBe(true);
+    expect(isValidLogPath("/tmp/sf-team-abc/dev.log")).toBe(true);
     expect(isValidLogPath("/tmp/dir with space/x.log")).toBe(false);
     expect(isValidLogPath("/tmp/a;b")).toBe(false);
     expect(isValidLogPath("/tmp/a\"b")).toBe(false);
@@ -88,15 +88,15 @@ describe("S-501 getActiveSession + inTmux", () => {
 
   it("env var differs from `#S` BUT the current session carries our identity marker → isLauncherSession=true (auto plan→implement chain)", () => {
     const runner = new SpyRunner();
-    // Current session has been renamed to fh_team_auto-1 by a prior call.
+    // Current session has been renamed to sf_team_auto-1 by a prior call.
     runner.responses.push({
       match: (a) => a[0] === "display-message",
-      result: { code: 0, stdout: "fh_team_auto-1\n", stderr: "" },
+      result: { code: 0, stdout: "sf_team_auto-1\n", stderr: "" },
     });
-    // Marker on fh_team_auto-1 reports our env value as the original
+    // Marker on sf_team_auto-1 reports our env value as the original
     // launcher → continuity confirmed.
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of") && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of") && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "fh-agent-deadbeef\n", stderr: "" },
     });
     const result = getActiveSession({
@@ -129,11 +129,11 @@ describe("S-501 getActiveSession + inTmux", () => {
     const runner = new SpyRunner();
     runner.responses.push({
       match: (a) => a[0] === "display-message",
-      result: { code: 0, stdout: "fh_team_auto-1\n", stderr: "" },
+      result: { code: 0, stdout: "sf_team_auto-1\n", stderr: "" },
     });
     // Marker reports a different launcher's identity.
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of"),
       result: { code: 0, stdout: "fh-agent-aabbccdd\n", stderr: "" },
     });
     const result = getActiveSession({
@@ -142,7 +142,7 @@ describe("S-501 getActiveSession + inTmux", () => {
     });
     // We do NOT claim launcher status. Treat current session as user
     // session — orchestrator will skip decoration entirely.
-    expect(result).toEqual({ sessionName: "fh_team_auto-1", isLauncherSession: false });
+    expect(result).toEqual({ sessionName: "sf_team_auto-1", isLauncherSession: false });
   });
 
   it("invalid env var → permissive fallback used (strips trailing newline only)", () => {
@@ -197,7 +197,7 @@ describe("S-501 getActiveSession + inTmux", () => {
     // the tmux session, but FH_AGENT_TMUX_SESSION did not propagate
     // through to pi (intermediate shell wrapper, IDE-integrated
     // terminal, etc.). The session name is the only signal we have,
-    // and `fh-team-<hex>` is a shape only the launcher generates.
+    // and `sf-team-<hex>` is a shape only the launcher generates.
     const runner = new SpyRunner();
     runner.responses.push({
       match: (a) => a[0] === "display-message",
@@ -211,22 +211,22 @@ describe("S-501 getActiveSession + inTmux", () => {
 
   it("env var missing BUT current session carries our owner marker → isLauncherSession=true (subsequent run after rename)", () => {
     // Reproduces the case where `prepareSession` previously renamed
-    // the launcher session to a tool alias (e.g. `fh_team_auto-1`),
+    // the launcher session to a tool alias (e.g. `sf_team_auto-1`),
     // and a follow-up run loses the env var. The name no longer
     // matches the launcher pattern, but the marker proves we own
     // the session. Marker presence alone is sufficient because ONLY
-    // this codebase ever sets the `@fh-team-owner-of` user-option.
+    // this codebase ever sets the `@sf-team-owner-of` user-option.
     const runner = new SpyRunner();
     runner.responses.push({
       match: (a) => a[0] === "display-message",
-      result: { code: 0, stdout: "fh_team_auto-1\n", stderr: "" },
+      result: { code: 0, stdout: "sf_team_auto-1\n", stderr: "" },
     });
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of"),
       result: { code: 0, stdout: "fh-agent-deadbeef\n", stderr: "" },
     });
     const result = getActiveSession({ env: { TMUX: "/tmp/x" }, runner });
-    expect(result).toEqual({ sessionName: "fh_team_auto-1", isLauncherSession: true });
+    expect(result).toEqual({ sessionName: "sf_team_auto-1", isLauncherSession: true });
   });
 
   it("env var missing AND current session has no marker AND name is generic → isLauncherSession=false", () => {
@@ -257,7 +257,7 @@ describe("S-501 getActiveSession + inTmux", () => {
       result: { code: 0, stdout: "shared-alias-1\n", stderr: "" },
     });
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of"),
       result: { code: 0, stdout: "fh-agent-aabbccdd\n", stderr: "" },
     });
     const result = getActiveSession({
@@ -328,9 +328,9 @@ describe("S-505 ensureLogDir", () => {
       const out = ensureLogDir("fh-agent-deadbeef", "0123-4567-89ab-cdef", { tmpDir: tmp });
       expect(existsSync(out)).toBe(true);
       expect(out.startsWith(tmp)).toBe(true);
-      // Shape: fh-team-<8 hex>-<safe runId>.
+      // Shape: sf-team-<8 hex>-<safe runId>.
       const base = path.basename(out);
-      expect(base).toMatch(/^fh-team-[a-f0-9]{8}-0123-4567-89ab-cdef$/);
+      expect(base).toMatch(/^sf-team-[a-f0-9]{8}-0123-4567-89ab-cdef$/);
     } finally {
       cleanup();
     }
@@ -341,7 +341,7 @@ describe("S-505 ensureLogDir", () => {
       const tmp = tmpDir();
       const out = ensureLogDir("work", "abc-def", { tmpDir: tmp });
       const base = path.basename(out);
-      expect(base).toMatch(/^fh-team-[a-f0-9]{8}-abc-def$/);
+      expect(base).toMatch(/^sf-team-[a-f0-9]{8}-abc-def$/);
       expect(existsSync(out)).toBe(true);
     } finally {
       cleanup();
@@ -373,7 +373,7 @@ describe("S-505 ensureLogDir", () => {
       const out = ensureLogDir("fh-agent-aabbccdd", "abc;injected", { tmpDir: tmp });
       const base = path.basename(out);
       // Semicolon was stripped — `abcinjected` remains.
-      expect(base).toMatch(/^fh-team-[a-f0-9]{8}-abcinjected$/);
+      expect(base).toMatch(/^sf-team-[a-f0-9]{8}-abcinjected$/);
     } finally {
       cleanup();
     }
@@ -422,18 +422,18 @@ describe("nextSessionAlias (Issue 3)", () => {
       result: { code: 0, stdout: "main\nwork\nfh-agent-deadbeef\n", stderr: "" },
     });
     const mgr = new TmuxManager({ runner });
-    expect(mgr.nextSessionAlias("fh_team_auto")).toBe("fh_team_auto-1");
+    expect(mgr.nextSessionAlias("sf_team_auto")).toBe("sf_team_auto-1");
   });
 
   it("returns the smallest unused N when sessions for the prefix exist", () => {
     const runner = new SpyRunner();
     runner.responses.push({
       match: (a) => a[0] === "list-sessions",
-      result: { code: 0, stdout: "fh_team_auto-1\nfh_team_auto-3\nother\n", stderr: "" },
+      result: { code: 0, stdout: "sf_team_auto-1\nsf_team_auto-3\nother\n", stderr: "" },
     });
     const mgr = new TmuxManager({ runner });
     // 1 and 3 are taken; smallest unused is 2.
-    expect(mgr.nextSessionAlias("fh_team_auto")).toBe("fh_team_auto-2");
+    expect(mgr.nextSessionAlias("sf_team_auto")).toBe("sf_team_auto-2");
   });
 
   it("rejects malformed toolName before any tmux call", () => {
@@ -445,11 +445,11 @@ describe("nextSessionAlias (Issue 3)", () => {
 });
 
 describe("prepareSession (Issue 3)", () => {
-  it("renames `fh-team-<hex>` → `<toolName>-<N>` + titles main pane + sets pane-border-status", () => {
+  it("renames `sf-team-<hex>` → `<toolName>-<N>` + titles main pane + sets pane-border-status", () => {
     const runner = new SpyRunner();
     // has-session: target alias does NOT exist (rename will succeed).
     runner.responses.push({
-      match: (a) => a[0] === "has-session" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "has-session" && a.includes("sf_team_auto-1"),
       result: { code: 1, stdout: "", stderr: "no such session" },
     });
     runner.responses.push({
@@ -465,14 +465,14 @@ describe("prepareSession (Issue 3)", () => {
       result: { code: 0, stdout: "%1 0\n", stderr: "" }, // pane_id=%1, pane_index=0
     });
     const mgr = new TmuxManager({ runner });
-    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "fh_team_auto-1" });
-    expect(r.sessionName).toBe("fh_team_auto-1");
+    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "sf_team_auto-1" });
+    expect(r.sessionName).toBe("sf_team_auto-1");
     expect(r.mainPaneId).toBe("%1");
     expect(r.windowId).toBe("@7");
     // rename-session was called targeting the original.
-    expect(runner.calls.some((c) => c[0] === "rename-session" && c.includes("fh-agent-deadbeef") && c.includes("fh_team_auto-1"))).toBe(true);
+    expect(runner.calls.some((c) => c[0] === "rename-session" && c.includes("fh-agent-deadbeef") && c.includes("sf_team_auto-1"))).toBe(true);
     // Window renamed to the alias.
-    expect(runner.calls.some((c) => c[0] === "rename-window" && c.includes("@7") && c.includes("fh_team_auto-1"))).toBe(true);
+    expect(runner.calls.some((c) => c[0] === "rename-window" && c.includes("@7") && c.includes("sf_team_auto-1"))).toBe(true);
     // Main pane titled `Main`, shown as `[Main]` by pane-border-format.
     expect(runner.calls.some((c) => c[0] === "select-pane" && c.includes("%1") && c.includes("Main"))).toBe(true);
     // pane-border-status enabled.
@@ -483,9 +483,9 @@ describe("prepareSession (Issue 3)", () => {
     // the SAME logical launcher chain can adopt this session.
     expect(runner.calls.some((c) =>
       c[0] === "set-option"
-      && c.includes("@fh-team-owner-of")
+      && c.includes("@sf-team-owner-of")
       && c.includes("fh-agent-deadbeef")
-      && c.includes("fh_team_auto-1"),
+      && c.includes("sf_team_auto-1"),
     )).toBe(true);
   });
 
@@ -515,12 +515,12 @@ describe("prepareSession (Issue 3)", () => {
   it("does NOT hijack a user's unrelated session when alias collides (ownership marker absent on alias)", () => {
     const runner = new SpyRunner();
     runner.responses.push({
-      match: (a) => a[0] === "has-session" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "has-session" && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     // Ownership marker: absent on the user's alias → not ours → don't adopt.
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of") && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of") && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     runner.responses.push({
@@ -532,37 +532,37 @@ describe("prepareSession (Issue 3)", () => {
       result: { code: 0, stdout: "%1 0", stderr: "" },
     });
     const mgr = new TmuxManager({ runner });
-    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "fh_team_auto-1" });
+    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "sf_team_auto-1" });
     expect(r.sessionName).toBe("fh-agent-deadbeef");
     expect(runner.calls.filter((c) => c[0] === "rename-session")).toHaveLength(0);
     // Marker stamped on the original session (value = original session
     // name) — never touched the user's alias.
     expect(runner.calls.some((c) =>
       c[0] === "set-option"
-      && c.includes("@fh-team-owner-of")
+      && c.includes("@sf-team-owner-of")
       && c.includes("fh-agent-deadbeef")
-      && !c.includes("fh_team_auto-1"),
+      && !c.includes("sf_team_auto-1"),
     )).toBe(true);
     expect(runner.calls.some((c) =>
-      c[0] === "set-option" && c.includes("@fh-team-owner-of") && c.includes("fh_team_auto-1"),
+      c[0] === "set-option" && c.includes("@sf-team-owner-of") && c.includes("sf_team_auto-1"),
     )).toBe(false);
   });
 
   it("does NOT adopt an alias session when the marker belongs to a DIFFERENT launcher (round-3 race scenario)", () => {
     // Adversarial scenario from round-3 review: a different
-    // fh-team launcher (with its own `fh-team-<hex>`) already
-    // renamed its session to `fh_team_auto-1` and stamped the marker
+    // sf-team launcher (with its own `sf-team-<hex>`) already
+    // renamed its session to `sf_team_auto-1` and stamped the marker
     // with ITS OWN identity. Our launcher is `fh-agent-deadbeef`.
     // The identity-specific marker means we MUST NOT adopt the other
     // launcher's session.
     const runner = new SpyRunner();
     runner.responses.push({
-      match: (a) => a[0] === "has-session" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "has-session" && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     // Marker on the alias session reports a DIFFERENT launcher's id.
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of") && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of") && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "fh-agent-aabbccdd\n", stderr: "" },
     });
     runner.responses.push({
@@ -571,19 +571,19 @@ describe("prepareSession (Issue 3)", () => {
     });
     const mgr = new TmuxManager({ runner });
     expect(() =>
-      mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "fh_team_auto-1" }),
+      mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "sf_team_auto-1" }),
     ).toThrow(/display-message failed/);
     // Never targeted the OTHER launcher's session.
-    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("fh_team_auto-1"))).toBe(false);
+    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("sf_team_auto-1"))).toBe(false);
     expect(runner.calls.filter((c) => c[0] === "rename-session")).toHaveLength(0);
     expect(runner.calls.some((c) =>
-      c[0] === "set-option" && c.includes("@fh-team-owner-of") && c.includes("fh_team_auto-1"),
+      c[0] === "set-option" && c.includes("@sf-team-owner-of") && c.includes("sf_team_auto-1"),
     )).toBe(false);
   });
 
   it("ADOPTS the alias as sessionName when the alias carries OUR identity-specific marker", () => {
-    // Scenario: fh_team_auto's plan phase already renamed
-    // `fh-agent-deadbeef` → `fh_team_auto-1` AND stamped the
+    // Scenario: sf_team_auto's plan phase already renamed
+    // `fh-agent-deadbeef` → `sf_team_auto-1` AND stamped the
     // identity-specific marker (value = our launcher session name).
     // Now the implement phase calls prepareSession with the stale
     // `fh-agent-deadbeef` and the same alias. The manager reads
@@ -591,16 +591,16 @@ describe("prepareSession (Issue 3)", () => {
     // and adopts the alias.
     const runner = new SpyRunner();
     runner.responses.push({
-      match: (a) => a[0] === "has-session" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "has-session" && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     // Identity-specific marker: equals OUR original session name → adopt.
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner-of") && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner-of") && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "fh-agent-deadbeef\n", stderr: "" },
     });
     runner.responses.push({
-      match: (a) => a[0] === "display-message" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "display-message" && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "@7", stderr: "" },
     });
     runner.responses.push({
@@ -608,34 +608,34 @@ describe("prepareSession (Issue 3)", () => {
       result: { code: 0, stdout: "%1 0", stderr: "" },
     });
     const mgr = new TmuxManager({ runner });
-    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "fh_team_auto-1" });
-    expect(r.sessionName).toBe("fh_team_auto-1");
+    const r = mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "sf_team_auto-1" });
+    expect(r.sessionName).toBe("sf_team_auto-1");
     expect(runner.calls.filter((c) => c[0] === "rename-session")).toHaveLength(0);
-    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("fh_team_auto-1"))).toBe(true);
+    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("sf_team_auto-1"))).toBe(true);
     // Marker re-stamped on the adopted session (idempotent — same identity).
     expect(runner.calls.some((c) =>
       c[0] === "set-option"
-      && c.includes("@fh-team-owner-of")
+      && c.includes("@sf-team-owner-of")
       && c.includes("fh-agent-deadbeef")
-      && c.includes("fh_team_auto-1"),
+      && c.includes("sf_team_auto-1"),
     )).toBe(true);
   });
 
   it("does NOT adopt an alias session when the ownership marker is missing (alias is user-owned, original was killed for unrelated reasons)", () => {
     // Adversarial scenario the round-2 reviewer flagged: our launcher
     // session was killed (not by our rename); user happens to have a
-    // pre-existing `fh_team_auto-1` session. The marker is absent on
+    // pre-existing `sf_team_auto-1` session. The marker is absent on
     // that session, so we MUST NOT touch it. We fall through with the
     // original sessionName; the subsequent display-message will fail
     // and prepareSessionOnce will surface a graceful error.
     const runner = new SpyRunner();
     runner.responses.push({
-      match: (a) => a[0] === "has-session" && a.includes("fh_team_auto-1"),
+      match: (a) => a[0] === "has-session" && a.includes("sf_team_auto-1"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     // Ownership marker: ABSENT (show-option returns empty stdout, exit 0).
     runner.responses.push({
-      match: (a) => a[0] === "show-option" && a.includes("@fh-team-owner"),
+      match: (a) => a[0] === "show-option" && a.includes("@sf-team-owner"),
       result: { code: 0, stdout: "", stderr: "" },
     });
     // display-message against the (gone) original fails — surfaces error.
@@ -645,20 +645,20 @@ describe("prepareSession (Issue 3)", () => {
     });
     const mgr = new TmuxManager({ runner });
     expect(() =>
-      mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "fh_team_auto-1" }),
+      mgr.prepareSession({ sessionName: "fh-agent-deadbeef", sessionAlias: "sf_team_auto-1" }),
     ).toThrow(/display-message failed/);
     // No display-message targeting the user-owned alias (hijack guard).
-    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("fh_team_auto-1"))).toBe(false);
+    expect(runner.calls.some((c) => c[0] === "display-message" && c.includes("sf_team_auto-1"))).toBe(false);
     // No rename-session, no set-option on the user-owned alias.
     expect(runner.calls.filter((c) => c[0] === "rename-session")).toHaveLength(0);
-    expect(runner.calls.some((c) => c[0] === "set-option" && c.includes("fh_team_auto-1"))).toBe(false);
+    expect(runner.calls.some((c) => c[0] === "set-option" && c.includes("sf_team_auto-1"))).toBe(false);
   });
 
   it("rejects invalid session name AND invalid alias", () => {
     const runner = new SpyRunner();
     const mgr = new TmuxManager({ runner });
     expect(() =>
-      mgr.prepareSession({ sessionName: "with space", sessionAlias: "fh_team_auto-1" }),
+      mgr.prepareSession({ sessionName: "with space", sessionAlias: "sf_team_auto-1" }),
     ).toThrow(InvalidSessionNameError);
     expect(() =>
       mgr.prepareSession({ sessionName: "fh-agent-aabbccdd", sessionAlias: "bad alias" }),
@@ -680,12 +680,12 @@ describe("S-506 openAgentPane (caller-owned logPath)", () => {
       sessionName: "fh-agent-aabbccdd",
       agentId: "developer-M1",
       paneTitle: "developer-M1",
-      logPath: "/tmp/fh-team-abc/dev.log",
+      logPath: "/tmp/sf-team-abc/dev.log",
       // Skip pretty-pane filter so the tail command is exactly `tail -F <path>`.
       pretty: false,
     });
     expect(r.paneId).toBe("%9");
-    expect(r.logPath).toBe("/tmp/fh-team-abc/dev.log");
+    expect(r.logPath).toBe("/tmp/sf-team-abc/dev.log");
     const split = runner.calls.find((c) => c[0] === "split-window")!;
     // First openAgentPane in the session: split the active window
     // horizontally (-h) targeting sessionName. No -t <prevPaneId> yet.
@@ -697,7 +697,7 @@ describe("S-506 openAgentPane (caller-owned logPath)", () => {
       "-P",
       "-F",
       "#{pane_id}",
-      "tail -F /tmp/fh-team-abc/dev.log",
+      "tail -F /tmp/sf-team-abc/dev.log",
     ]);
     const title = runner.calls.find((c) => c[0] === "select-pane")!;
     expect(title).toEqual(["select-pane", "-t", "%9", "-T", "developer-M1"]);
@@ -814,9 +814,9 @@ describe("S-506 openAgentPane (caller-owned logPath)", () => {
     expect(cmd).toMatch(/^tail -F \/tmp\/r\.log \| PRETTY_PANE_THEME=codex node .+\/pretty-pane\.mjs$/);
   });
 
-  it("uses FH_TEAM_PANE_THEME as the pretty-pane theme override when set", () => {
-    const original = process.env.FH_TEAM_PANE_THEME;
-    process.env.FH_TEAM_PANE_THEME = "plain";
+  it("uses SF_TEAM_PANE_THEME as the pretty-pane theme override when set", () => {
+    const original = process.env.SF_TEAM_PANE_THEME;
+    process.env.SF_TEAM_PANE_THEME = "plain";
     try {
       const runner = new SpyRunner();
       runner.responses.push({
@@ -833,8 +833,8 @@ describe("S-506 openAgentPane (caller-owned logPath)", () => {
       const split = runner.calls.find((c) => c[0] === "split-window")!;
       expect(split[split.length - 1]).toMatch(/^tail -F \/tmp\/r\.log \| PRETTY_PANE_THEME=plain node /);
     } finally {
-      if (original === undefined) delete process.env.FH_TEAM_PANE_THEME;
-      else process.env.FH_TEAM_PANE_THEME = original;
+      if (original === undefined) delete process.env.SF_TEAM_PANE_THEME;
+      else process.env.SF_TEAM_PANE_THEME = original;
     }
   });
 
@@ -952,7 +952,7 @@ describe("S-506 openAgentPane (caller-owned logPath)", () => {
       result: { code: 0, get stdout() { n += 1; return `%${10 + n}`; }, stderr: "" },
     });
     const mgr = new TmuxManager({ runner });
-    const prepared = mgr.prepareSession({ sessionName: "fh-agent-aabbccdd", sessionAlias: "fh_team_auto-1" });
+    const prepared = mgr.prepareSession({ sessionName: "fh-agent-aabbccdd", sessionAlias: "sf_team_auto-1" });
     mgr.openAgentPane({
       sessionName: prepared.sessionName,
       agentId: "developer-M1",
@@ -1090,8 +1090,8 @@ describe("S-506 openAgentPane (manager-owned runId — log dir creation)", () =>
       paneTitle: "title",
       runId: "run-uuid-1",
     });
-    // The manager-derived path lives under os.tmpdir/fh-team-<8hex>-<runId>/<agentId>.log
-    expect(r.logPath).toMatch(/fh-team-[a-f0-9]{8}-run-uuid-1\/developer-M1\.log$/);
+    // The manager-derived path lives under os.tmpdir/sf-team-<8hex>-<runId>/<agentId>.log
+    expect(r.logPath).toMatch(/sf-team-[a-f0-9]{8}-run-uuid-1\/developer-M1\.log$/);
     // The dir must exist on disk now (ensureLogDir creates it).
     expect(existsSync(path.dirname(r.logPath))).toBe(true);
   });

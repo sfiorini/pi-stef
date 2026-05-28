@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { TEAM_TOOL_NAMES } from "../src/register";
 
 class FakePi {
@@ -42,15 +42,15 @@ class FakePiNoSendUserMessage {
 }
 
 describe("M1 smoke: extension entry registers the production tool surface", () => {
-  it("registers all 10 fh_team_* tools (5 base + 5 _resume)", () => {
+  it("registers all 10 sf_team_* tools (5 base + 5 _resume)", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     expect(pi.tools.map((t) => t.name)).toEqual([...TEAM_TOOL_NAMES]);
   });
 
-  it("after M12 wiring: NO fh_team_* tool returns 'not yet implemented' (final boundary)", async () => {
+  it("after M12 wiring: NO sf_team_* tool returns 'not yet implemented' (final boundary)", async () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     for (const tool of pi.tools) {
       // Don't actually invoke (would require real spawn). The boundary
       // contract is that the tool's description+schema is real, which the
@@ -60,16 +60,16 @@ describe("M1 smoke: extension entry registers the production tool surface", () =
     }
   });
 
-  it("registers /fh_team_* slash commands so the tools surface in pi's `/` menu", async () => {
+  it("registers /sf_team_* slash commands so the tools surface in pi's `/` menu", async () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     expect(pi.commands.map((c) => c.name)).toEqual([...TEAM_TOOL_NAMES]);
 
     // Handler with args + idle agent delegates via sendUserMessage with no
     // delivery mode — same path as natural-language typing.
-    const planCmd = pi.commands.find((c) => c.name === "fh_team_plan")!;
+    const planCmd = pi.commands.find((c) => c.name === "sf_team_plan")!;
     await planCmd.handler("Add OAuth login", { isIdle: () => true });
-    expect(pi.sentMessages.at(-1)?.content).toMatch(/fh_team_plan/);
+    expect(pi.sentMessages.at(-1)?.content).toMatch(/sf_team_plan/);
     expect(pi.sentMessages.at(-1)?.content).toMatch(/Add OAuth login/);
     expect(pi.sentMessages.at(-1)?.options).toBeUndefined();
 
@@ -85,15 +85,15 @@ describe("M1 smoke: extension entry registers the production tool surface", () =
 
   it("survives older pi runtimes that don't have registerCommand", () => {
     const pi = new FakePiNoCommand();
-    expect(() => fhTeamExtension(pi as never)).not.toThrow();
+    expect(() => sfTeamExtension(pi as never)).not.toThrow();
     expect(pi.tools.map((t) => t.name)).toEqual([...TEAM_TOOL_NAMES]);
   });
 
   it("falls back to ctx.ui.notify when sendUserMessage is missing", async () => {
     const pi = new FakePiNoSendUserMessage();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     expect(pi.commands.map((c) => c.name)).toEqual([...TEAM_TOOL_NAMES]);
-    const planCmd = pi.commands.find((c) => c.name === "fh_team_plan")!;
+    const planCmd = pi.commands.find((c) => c.name === "sf_team_plan")!;
     const notifications: Array<{ msg: string; level: string }> = [];
     await planCmd.handler("Add OAuth", {
       ui: { notify: (msg: string, level: string) => notifications.push({ msg, level }) },

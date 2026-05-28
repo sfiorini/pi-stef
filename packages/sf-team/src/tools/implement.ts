@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import type { WorkflowCheckpointRuntime, WorkflowReporter, WorkflowToolName } from "@pi-stef/agent-workflows";
 
-import { EmptyDiffError, FhTeamToolError, IncompatibleModeError, MergeFailedError, WorkflowStateError } from "../errors";
+import { EmptyDiffError, SfTeamToolError, IncompatibleModeError, MergeFailedError, WorkflowStateError } from "../errors";
 import { runOrchestrator } from "../orchestrator/run";
 import { generatePrDescription } from "../orchestrator/pr-description";
 import { createWorktree, ensureLaneWorktree } from "../worktree/create";
@@ -19,7 +19,7 @@ import { composeDeveloperSystemPreamble, defaultDeps, makeReviewer, makeRunStrin
 import { pendingMilestones, readImplementPlanFolder } from "./implement-reader";
 import { planExecutionWaves, type ExecutionSchedule, type ScheduledMilestoneBatch, type ScheduledMilestoneLane, type ScheduledStoryLane } from "./execution-scheduler";
 import { REVIEWER_TDD_POLICY, composeTddContract } from "./tdd-policy";
-import { runConfiguredVerification, runLegacyVerificationSync, type FhTeamVerificationConfigInput } from "./verification-stage";
+import { runConfiguredVerification, runLegacyVerificationSync, type SfTeamVerificationConfigInput } from "./verification-stage";
 import type { CostSummary } from "../orchestrator/cost";
 import { runVerificationGateWithFixLoop } from "./verification-gate-loop";
 import { decideSteeringInstruction, decideSteeringInstructions } from "../steering/decider";
@@ -30,14 +30,14 @@ export { detectPackageManager, packageScriptsAt } from "../runtime/package-manag
 
 export type ImplementMode = "single-milestone" | "all-milestones";
 
-export interface FhTeamImplementInput {
+export interface SfTeamImplementInput {
   /** Slug under ai_plan/ that holds the 5-file plan folder. */
   slug?: string;
   resume?: string;
   developer?: TeamMember;
   reviewer?: TeamMember;
   maxRounds?: number;
-  /** D1 (single-milestone) is default; D2 (all-milestones) for fh_team_auto. */
+  /** D1 (single-milestone) is default; D2 (all-milestones) for sf_team_auto. */
   mode?: ImplementMode;
   /** When true (default), create a worktree at start. */
   useWorktree?: boolean;
@@ -47,14 +47,14 @@ export interface FhTeamImplementInput {
   repoRoot?: string;
   /** Optional verifyCommand override (false = skip). */
   verifyCommand?: { cmd: string; args: string[] } | false;
-  verification?: FhTeamVerificationConfigInput;
+  verification?: SfTeamVerificationConfigInput;
   /**
    * Inter-milestone pause. When `true` and `ctx.ui` is present, the
    * orchestrator calls `ctx.ui.confirm(title, message)` between milestones
    * and stops the loop on a `false` response. When `false`, milestones run
    * end-to-end. When omitted, falls through to
    * `ctx.configDefaults?.implement.pause_between_milestones` (default `true`
-   * for `fh_team_implement`, `false` for `fh_team_auto`). Headless runs
+   * for `sf_team_implement`, `false` for `sf_team_auto`). Headless runs
    * (`!ctx.ui`) treat `true` as `false` with a `console.warn`.
    */
   pauseBetweenMilestones?: boolean;
@@ -78,7 +78,7 @@ export interface MilestoneOutcome {
   commitSha?: string;
 }
 
-export interface FhTeamImplementResult {
+export interface SfTeamImplementResult {
   slug: string;
   mode: ImplementMode;
   worktreePath?: string;
@@ -100,7 +100,7 @@ export interface FhTeamImplementResult {
 export type { BranchCleanupWarning } from "../worktree/cleanup";
 
 /**
- * fh_team_implement: read plan folder -> optional worktree -> for each
+ * sf_team_implement: read plan folder -> optional worktree -> for each
  * pending milestone: developer-impl -> impl-review loop -> configured
  * verification hook -> commit -> inter-milestone gate -> next; final
  * pr-description.
@@ -116,35 +116,35 @@ export type { BranchCleanupWarning } from "../worktree/cleanup";
  *   prompt arg → `ctx.configDefaults?.implement.pause_between_milestones`
  *   → `DEFAULT_CONFIG.implement.pause_between_milestones` (true).
  *
- * `fh_team_auto` calls this same path with the `auto.*` config (default
+ * `sf_team_auto` calls this same path with the `auto.*` config (default
  * `false`) so the auto wrapper runs end-to-end unless the user explicitly
  * opts in.
  *
  * Mode (`single-milestone`/`all-milestones`) currently selects the
  * developer-spawn cardinality but does NOT affect the gate.
  */
-export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
+export function createSfTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
   const deps: ToolDeps = { ...defaultDeps, ...rawDeps };
   const runLoop = makeRunStringReviewLoop(deps);
 
-  return async function fhTeamImplement(
-    input: FhTeamImplementInput,
+  return async function sfTeamImplement(
+    input: SfTeamImplementInput,
     ctx: {
       repoRoot: string;
       signal?: AbortSignal;
       ui?: import("@earendil-works/pi-coding-agent").ExtensionUIContext;
       configDefaults?: ResolvedDefaults;
-      /** Forwarded to runOrchestrator; set by `fh_team_auto` so plan + implement decorate the same tmux session. */
+      /** Forwarded to runOrchestrator; set by `sf_team_auto` so plan + implement decorate the same tmux session. */
       tmuxSessionAliasOverride?: string;
       resumeOwnerTool?: WorkflowToolName;
       tmuxManager?: import("../tmux/manager").TmuxManager | null;
       tmuxSessionName?: string;
       /**
-       * Pi tool name that fronts this run (`fh_team_implement`,
-       * `fh_team_implement_resume`, `fh_team_auto`, …). Used by typed
+       * Pi tool name that fronts this run (`sf_team_implement`,
+       * `sf_team_implement_resume`, `sf_team_auto`, …). Used by typed
        * errors so `Error.message` carries the right `FAILED: <toolName>`
-       * surface. When called by `fh_team_auto`, this is set to the
-       * implement-side surface (`fh_team_implement`); auto's outer
+       * surface. When called by `sf_team_auto`, this is set to the
+       * implement-side surface (`sf_team_implement`); auto's outer
        * try/catch then `withTool(...)` rewraps for the auto tool name.
        */
       toolName?: string;
@@ -157,7 +157,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
       /** Raw prompt value for tddMode before runtime resolution; used for resume precedence. */
       rawTddMode?: "auto" | "on" | "off";
     },
-  ): Promise<FhTeamImplementResult> {
+  ): Promise<SfTeamImplementResult> {
     const repoRoot = input.repoRoot ?? ctx.repoRoot;
     // Preflight: this workflow always does git operations (worktree create
     // and/or commit/diff) in git mode. Fail fast with a friendly message
@@ -168,7 +168,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
     // immediately. If gitMode='off' (or auto-resolved off), it skips.
     const resume = await resolveToolResume({
       repoRoot,
-      toolName: ctx.resumeOwnerTool ?? "fh_team_implement",
+      toolName: ctx.resumeOwnerTool ?? "sf_team_implement",
       input,
       normalField: "slug",
       candidatePlanRoots: ctx.planRoot ? [ctx.planRoot] : undefined,
@@ -188,7 +188,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
     const effectivePlanRoot = resume?.metadata?.planRootPath ?? ctx.planRoot;
     // Preflight git check uses the effective mode (which may come from persisted workflow.json)
     // so a slug-only resume from a non-git cwd of a no-git workflow doesn't fail here.
-    requireGitOrSkip({ repoRoot, gitMode: effectiveGitMode }, "fh_team_implement");
+    requireGitOrSkip({ repoRoot, gitMode: effectiveGitMode }, "sf_team_implement");
     const slug = normalOrResumeValue(input, "slug", resume);
     const agents = ctx.configDefaults?.agents ?? DEFAULT_CONFIG.agents;
     const developer = input.developer ?? defaultDev(agents);
@@ -202,7 +202,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
     const mode: ImplementMode = input.mode ?? ctx.configDefaults?.implement.mode ?? "single-milestone";
     if (effectiveGitMode === "off" && input.useWorktree === true) {
       throw new IncompatibleModeError({
-        toolName: ctx.toolName ?? "fh_team_implement",
+        toolName: ctx.toolName ?? "sf_team_implement",
         kind: "incompatible_mode",
         description: "useWorktree: true is incompatible with gitMode: off",
         resumeHint: "set useWorktree: false or remove gitMode: off",
@@ -222,9 +222,9 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
         repoRoot,
         slug,
         planRoot: effectivePlanRoot,
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         ownerTool: ctx.resumeOwnerTool,
-        allowOwnerTakeoverFrom: resume ? undefined : ["fh_team_plan"],
+        allowOwnerTakeoverFrom: resume ? undefined : ["sf_team_plan"],
         useWorktree,
         gitMode: effectiveGitMode,
         tddMode: effectiveTddMode,
@@ -244,7 +244,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
           ?? DEFAULT_CONFIG.performance.widget_update_interval_ms,
       },
       async (bodyCtx) => {
-        // fh_team_implement starts directly in the implementation phase
+        // sf_team_implement starts directly in the implementation phase
         // (no planner stage). Switch the transcript handle so every entry
         // — including resume system notes — lands under
         // transcript/implementation/.
@@ -287,7 +287,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
             // steering/backtrack module still exposes ownership-aware revert
             // planning for tests and future ledger integration.
             confirmCompletedWork: ui
-              ? async (summary) => await ui.confirm("Backtrack completed fh-team work?", summary.message, { signal: bodyCtx.signal }) === true
+              ? async (summary) => await ui.confirm("Backtrack completed sf-team work?", summary.message, { signal: bodyCtx.signal }) === true
               : undefined,
           })
         );
@@ -355,7 +355,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
             mode,
             signal: bodyCtx.signal,
           });
-          const piToolName = ctx.toolName ?? "fh_team_implement";
+          const piToolName = ctx.toolName ?? "sf_team_implement";
           const resumeTool = resolveResumeTool(piToolName);
           const emptyDiffRetries = resolveEmptyDiffRetries(piToolName, ctx.configDefaults);
           const emptyDiffRetryModel = resolveEmptyDiffRetryModel(piToolName, ctx.configDefaults);
@@ -419,14 +419,14 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
             milestones: outcomes,
             prDescriptionPath,
             warnings: cleanupWarnings.length > 0 ? cleanupWarnings : undefined,
-          } satisfies FhTeamImplementResult;
+          } satisfies SfTeamImplementResult;
         }
 
         const outcomes: MilestoneOutcome[] = [];
 
         // S-B03 / S-B04: per-milestone or single-developer flow.
         // We use the same loop in both modes; D2 simply skips the gate.
-        const piToolName = ctx.toolName ?? "fh_team_implement";
+        const piToolName = ctx.toolName ?? "sf_team_implement";
         const resumeTool = resolveResumeTool(piToolName);
         const emptyDiffRetries = resolveEmptyDiffRetries(piToolName, ctx.configDefaults);
         const emptyDiffRetryModel = resolveEmptyDiffRetryModel(piToolName, ctx.configDefaults);
@@ -509,7 +509,7 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
                 if (!cont) break;
               } else {
                 console.warn(
-                  "[fh-team] pause_between_milestones=true but no UI; continuing without prompt",
+                  "[sf-team] pause_between_milestones=true but no UI; continuing without prompt",
                 );
               }
             }
@@ -535,11 +535,11 @@ export function createFhTeamImplement(rawDeps: Partial<ToolDeps> = {}) {
           branch,
           milestones: outcomes,
           prDescriptionPath,
-        } satisfies FhTeamImplementResult;
+        } satisfies SfTeamImplementResult;
       },
     );
 
-    const result: FhTeamImplementResult = (
+    const result: SfTeamImplementResult = (
       orchestrated.result ?? {
         slug,
         mode,
@@ -558,7 +558,7 @@ interface RunMilestoneCtx {
   gitMode?: "on" | "off";
   /** Pi tool name fronting this run, used by typed errors. */
   toolName: string;
-  /** Tool to suggest in `RESUME:` hints. Defaults to `fh_team_implement_resume`. */
+  /** Tool to suggest in `RESUME:` hints. Defaults to `sf_team_implement_resume`. */
   resumeTool: string;
   /** Slug of the plan folder; included in EmptyDiffError details. */
   slug: string;
@@ -575,8 +575,8 @@ interface RunMilestoneCtx {
   milestonePlan: string;
   sp: ReturnType<typeof makeSpawnHelper>;
   runLoop: ReturnType<typeof makeRunStringReviewLoop>;
-  verifyCommand: FhTeamImplementInput["verifyCommand"];
-  verification?: FhTeamVerificationConfigInput;
+  verifyCommand: SfTeamImplementInput["verifyCommand"];
+  verification?: SfTeamVerificationConfigInput;
   signal?: AbortSignal;
   /** Where to drop last-draft.md / last-review.md if the impl-review loop exhausts rounds. */
   partialOutputCtx: { repoRoot: string; slug: string; subfolder: string };
@@ -595,7 +595,7 @@ interface RunMilestoneCtx {
 }
 
 async function runMilestone(milestone: ParsedMilestone, ctx: RunMilestoneCtx): Promise<MilestoneOutcome> {
-  // Drop prior milestone's cards (and any plan-phase cards from fh_team_auto)
+  // Drop prior milestone's cards (and any plan-phase cards from sf_team_auto)
   // so the widget shows only this milestone's developer + reviewer. Past
   // results live in the transcript folder; the widget is for live activity.
   ctx.clearAgents?.();
@@ -605,7 +605,7 @@ async function runMilestone(milestone: ParsedMilestone, ctx: RunMilestoneCtx): P
   const reviewerCardId = `reviewer-${milestoneSlug}`;
   const widgetOpts = { milestoneId: milestone.id } as const;
   await runConfiguredVerification({
-    toolName: "fh_team_implement",
+    toolName: "sf_team_implement",
     cwd: ctx.cwd,
     phase: "before",
     verification: ctx.verification,
@@ -911,7 +911,7 @@ async function reviewMilestoneChanges(
   // `reviewerFn` which increments `round` per call).
   await runVerificationGateWithFixLoop({
     gate: {
-      toolName: "fh_team_implement",
+      toolName: "sf_team_implement",
       cwd: ctx.cwd,
       phase: "after",
       verification: ctx.verification,
@@ -984,8 +984,8 @@ interface RunParallelScheduleCtx {
   milestonePlan: string;
   sp: ReturnType<typeof makeSpawnHelper>;
   runLoop: ReturnType<typeof makeRunStringReviewLoop>;
-  verifyCommand: FhTeamImplementInput["verifyCommand"];
-  verification?: FhTeamVerificationConfigInput;
+  verifyCommand: SfTeamImplementInput["verifyCommand"];
+  verification?: SfTeamVerificationConfigInput;
   signal?: AbortSignal;
   transcript: import("../orchestrator/run").OrchestratorBodyContext["transcript"];
   clearAgents?: () => void;
@@ -999,7 +999,7 @@ interface RunParallelScheduleCtx {
   };
   steering?: import("../orchestrator/run").OrchestratorBodyContext["steering"];
   pauseBetweenMilestones: boolean;
-  shouldContinue?: FhTeamImplementInput["shouldContinue"];
+  shouldContinue?: SfTeamImplementInput["shouldContinue"];
   ui?: import("@earendil-works/pi-coding-agent").ExtensionUIContext;
   resumeMode: boolean;
   tddMode?: "on" | "off" | "auto";
@@ -1013,7 +1013,7 @@ async function runParallelSchedule(
   if (!schedule.enabled) return { outcomes: [], warnings: [] };
   const outcomes: MilestoneOutcome[] = [];
   // M4: collect branch-cleanup warnings from milestone AND story lanes so
-  // they all surface on FhTeamImplementResult.warnings. Story-lane warnings
+  // they all surface on SfTeamImplementResult.warnings. Story-lane warnings
   // are gathered inside `runParallelMilestoneLane` and merged here.
   const warnings: BranchCleanupWarning[] = [];
   for (let batchIndex = 0; batchIndex < schedule.milestoneBatches.length; batchIndex += 1) {
@@ -1067,7 +1067,7 @@ async function runParallelSchedule(
         expectedHead: laneResult.outcome.commitSha,
       }).catch(() => false);
       if (!removed) {
-        console.warn(`[fh-team] milestone lane worktree retained after rollup: ${laneResult.worktreePath}`);
+        console.warn(`[sf-team] milestone lane worktree retained after rollup: ${laneResult.worktreePath}`);
       }
       // M4 milestone-lane branch cleanup. mergeTarget=aggregateBranch (the
       // branch the milestone lane just merged INTO). expectedSha is the
@@ -1132,7 +1132,7 @@ async function runParallelMilestoneLane(
   });
   // M4: collect story-lane branch-cleanup warnings here and surface them
   // to the parent runParallelSchedule so they end up on
-  // FhTeamImplementResult.warnings.
+  // SfTeamImplementResult.warnings.
   const warnings: BranchCleanupWarning[] = [];
   for (const storyBatch of lane.storyBatches) {
     const storyBaseRef = revParseCommit(created.worktreePath, "HEAD");
@@ -1173,7 +1173,7 @@ async function runParallelMilestoneLane(
         expectedHead: storyResult.commitSha,
       }).catch(() => false);
       if (!removed) {
-        console.warn(`[fh-team] story lane worktree retained after rollup: ${storyResult.worktreePath}`);
+        console.warn(`[sf-team] story lane worktree retained after rollup: ${storyResult.worktreePath}`);
       }
       // M4 story-lane branch cleanup. mergeTarget is the MILESTONE
       // branch (NOT aggregateBranch) — story lanes merge into the
@@ -1269,7 +1269,7 @@ async function runStoryLane(
   };
   const cardId = `developer-${sanitizeMilestoneId(milestone.id)}-${sanitizeMilestoneId(story.id)}`;
   await runConfiguredVerification({
-    toolName: "fh_team_implement",
+    toolName: "sf_team_implement",
     cwd: created.worktreePath,
     phase: "before",
     verification: ctx.verification,
@@ -1383,7 +1383,7 @@ async function shouldContinueAfterParallelBatch(
       `Milestone(s) ${approvedIds} approved and merged. Proceed?`,
     );
   }
-  console.warn("[fh-team] pause_between_milestones=true but no UI; continuing without prompt");
+  console.warn("[sf-team] pause_between_milestones=true but no UI; continuing without prompt");
   return true;
 }
 
@@ -1794,7 +1794,7 @@ function defaultDev(agents: ResolvedDefaults["agents"] = DEFAULT_CONFIG.agents):
     // Intentionally NO `finishing-a-development-branch`: that skill instructs
     // the agent to run `git commit` when work is complete, which directly
     // contradicts the orchestrator's contract (orchestrator owns the commit
-    // after impl-review approves). Including it caused fh_team_implement to
+    // after impl-review approves). Including it caused sf_team_implement to
     // throw "developer staged nothing" because the dev had already committed
     // its own changes inside the worktree.
     // Also no `using-git-worktrees`: the worktree is created and `cwd`-set
@@ -1896,7 +1896,7 @@ function headCommitWithSubject(cwd: string, message: string): string | undefined
 function revParseCommit(cwd: string, ref: string): string {
   const r = spawnSync("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd, encoding: "utf8" });
   if (r.status !== 0) {
-    throw new Error(`fh_team_implement: cannot resolve git ref ${ref}: ${r.stderr.trim() || r.stdout.trim()}`);
+    throw new Error(`sf_team_implement: cannot resolve git ref ${ref}: ${r.stderr.trim() || r.stdout.trim()}`);
   }
   return r.stdout.trim();
 }
@@ -1913,12 +1913,12 @@ function laneBranchNamespace(aggregateBranch: string): string {
 }
 
 /**
- * Map an inbound Pi tool surface name (e.g. `fh_team_implement`) to
+ * Map an inbound Pi tool surface name (e.g. `sf_team_implement`) to
  * the corresponding `_resume` tool name. Used by typed-error composition
  * so `RESUME:` hints point at the right resume entry point regardless of
- * whether the run was driven by `fh_team_implement` or `fh_team_auto`.
+ * whether the run was driven by `sf_team_implement` or `sf_team_auto`.
  *
- * Falls back to `fh_team_implement_resume` when `toolName` is missing or
+ * Falls back to `sf_team_implement_resume` when `toolName` is missing or
  * unrecognized — implementing the implement-side default keeps existing
  * call sites that did not (yet) pass `toolName` working.
  */
@@ -1929,7 +1929,7 @@ function laneBranchNamespace(aggregateBranch: string): string {
  * Falls back to `DEFAULT_CONFIG.implement.empty_diff_retries` (=2).
  */
 function resolveEmptyDiffRetries(piToolName: string, configDefaults: ResolvedDefaults | undefined): number {
-  if (piToolName.startsWith("fh_team_auto")) {
+  if (piToolName.startsWith("sf_team_auto")) {
     return configDefaults?.auto.empty_diff_retries ?? DEFAULT_CONFIG.auto.empty_diff_retries;
   }
   return configDefaults?.implement.empty_diff_retries ?? DEFAULT_CONFIG.implement.empty_diff_retries;
@@ -1940,20 +1940,20 @@ function resolveEmptyDiffRetries(piToolName: string, configDefaults: ResolvedDef
  * — only LAST attempt uses it, and only when configured.
  */
 function resolveEmptyDiffRetryModel(piToolName: string, configDefaults: ResolvedDefaults | undefined): string | undefined {
-  if (piToolName.startsWith("fh_team_auto")) {
+  if (piToolName.startsWith("sf_team_auto")) {
     return configDefaults?.auto.empty_diff_retry_model;
   }
   return configDefaults?.implement.empty_diff_retry_model;
 }
 
 export function resolveResumeTool(toolName: string | undefined): string {
-  if (!toolName) return "fh_team_implement_resume";
-  if (toolName.startsWith("fh_team_auto")) return "fh_team_auto_resume";
-  if (toolName.startsWith("fh_team_implement")) return "fh_team_implement_resume";
-  if (toolName.startsWith("fh_team_followup")) return "fh_team_followup_resume";
-  if (toolName.startsWith("fh_team_task")) return "fh_team_task_resume";
-  if (toolName.startsWith("fh_team_plan")) return "fh_team_plan_resume";
-  return "fh_team_implement_resume";
+  if (!toolName) return "sf_team_implement_resume";
+  if (toolName.startsWith("sf_team_auto")) return "sf_team_auto_resume";
+  if (toolName.startsWith("sf_team_implement")) return "sf_team_implement_resume";
+  if (toolName.startsWith("sf_team_followup")) return "sf_team_followup_resume";
+  if (toolName.startsWith("sf_team_task")) return "sf_team_task_resume";
+  if (toolName.startsWith("sf_team_plan")) return "sf_team_plan_resume";
+  return "sf_team_implement_resume";
 }
 
 function commitTitle(text: string): string {
@@ -1962,9 +1962,9 @@ function commitTitle(text: string): string {
 
 export function runVerification(
   cwd: string,
-  verifyCommand: FhTeamImplementInput["verifyCommand"],
+  verifyCommand: SfTeamImplementInput["verifyCommand"],
   reporter?: WorkflowReporter,
   checkpoints?: WorkflowCheckpointRuntime,
 ): void {
-  runLegacyVerificationSync("fh_team_implement", cwd, verifyCommand, reporter, checkpoints);
+  runLegacyVerificationSync("sf_team_implement", cwd, verifyCommand, reporter, checkpoints);
 }

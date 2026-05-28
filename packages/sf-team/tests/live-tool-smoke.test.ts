@@ -4,17 +4,17 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
-import { createFhTeamImplement } from "../src/tools/implement";
-import { createFhTeamTask } from "../src/tools/task";
-import { createFhTeamAuto } from "../src/tools/auto";
-import { createFhTeamFollowup } from "../src/tools/followup";
+import { createSfTeamPlan } from "../src/tools/plan";
+import { createSfTeamImplement } from "../src/tools/implement";
+import { createSfTeamTask } from "../src/tools/task";
+import { createSfTeamAuto } from "../src/tools/auto";
+import { createSfTeamFollowup } from "../src/tools/followup";
 import { writePlanFolder } from "../src/plan/write";
 import { slugify } from "../src/plan/slug";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
 /**
- * Live tool smoke: exercises every fh_team_* tool through ALL production
+ * Live tool smoke: exercises every sf_team_* tool through ALL production
  * code paths short of the actual `pi --mode json` subprocess. Each tool is
  * invoked with a real tmp git repo, real lock acquisition, real plan-folder
  * write, real worktree (where applicable), real commit, real pr-description.
@@ -124,13 +124,13 @@ function makeSpawnAgent(opts: {
   });
 }
 
-describe("live-tool-smoke: all 5 fh_team_* tools through production code paths", () => {
-  it("fh_team_plan writes a 5-file plan folder and returns approved=true", async () => {
+describe("live-tool-smoke: all 5 sf_team_* tools through production code paths", () => {
+  it("sf_team_plan writes a 5-file plan folder and returns approved=true", async () => {
     const { root, dispose } = makeRepo();
     try {
       const spawnAgent = makeSpawnAgent();
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "Healthz Endpoint", brief: "Add a /healthz endpoint that returns ok=true" }, { repoRoot: root });
       expect(result.approved).toBe(true);
       expect(result.rounds).toBeGreaterThan(0);
@@ -146,12 +146,12 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
     }
   });
 
-  it("fh_team_task plans, implements, verifies (skipped), reviews, and commits", async () => {
+  it("sf_team_task plans, implements, verifies (skipped), reviews, and commits", async () => {
     const { root, dispose } = makeRepo();
     try {
       const spawnAgent = makeSpawnAgent({ cwdForDeveloper: () => root });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Add Healthz", brief: "Add a /healthz endpoint that returns ok=true", verifyCommand: false, allowDirty: true },
         { repoRoot: root },
@@ -167,7 +167,7 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
     }
   });
 
-  it("fh_team_implement reads a 5-file plan and implements the milestones (worktree off for the harness)", async () => {
+  it("sf_team_implement reads a 5-file plan and implements the milestones (worktree off for the harness)", async () => {
     const { root, dispose } = makeRepo();
     try {
       // Pre-write a 5-file plan folder with a single milestone.
@@ -186,7 +186,7 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
       const cwdRef = { cwd: root };
       const spawnAgent = makeSpawnAgent({ cwdForDeveloper: () => cwdRef.cwd });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { slug, useWorktree: false, verifyCommand: false, mode: "all-milestones" },
         { repoRoot: root },
@@ -200,14 +200,14 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
     }
   });
 
-  it("fh_team_auto chains plan + implement", async () => {
+  it("sf_team_auto chains plan + implement", async () => {
     const { root, dispose } = makeRepo();
     try {
       // No cwdForDeveloper override — implement spawns developer with task.cwd
       // set to the worktree path; makeSpawnAgent honors that.
       const spawnAgent = makeSpawnAgent();
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Auto Healthz", brief: "Add a /healthz endpoint that returns ok=true", verifyCommand: false },
         { repoRoot: root },
@@ -219,7 +219,7 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
     }
   });
 
-  it("fh_team_followup forks from an existing parent plan and adds an overlay", async () => {
+  it("sf_team_followup forks from an existing parent plan and adds an overlay", async () => {
     const { root, dispose } = makeRepo();
     try {
       // Pre-create a parent plan folder + commit so the followup can fork.
@@ -248,7 +248,7 @@ describe("live-tool-smoke: all 5 fh_team_* tools through production code paths",
         cwdForDeveloper: () => cwdRef.cwd,
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never, runReviewLoop });
       // Followup tool will create a new worktree and switch developer cwd into it.
       // We capture cwd via the developer task's `cwd` field since makeSpawnAgent
       // already supports task.cwd as the source of truth for staging.

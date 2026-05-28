@@ -99,7 +99,7 @@ export function detectPackageManager(cwd: string): "pnpm" | "npm" | "yarn" | "bu
  * - **Malformed package.json** (JSON parse error or non-string content):
  *   throws. A broken manifest is exactly the kind of regression the
  *   verification gate exists to catch; silently skipping would let
- *   fh_team_implement commit a corrupted file.
+ *   sf_team_implement commit a corrupted file.
  * - **No `scripts` field**: returns an empty set (valid manifest, just no
  *   scripts defined).
  */

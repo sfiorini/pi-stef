@@ -65,7 +65,7 @@ function decision(): SteeringDecision {
 
 describe("steering plan amendment", () => {
   it("uses the existing plan patch revision pipeline for steering amendments", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-plan-amend-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-plan-amend-"));
     const slug = "2026-05-17-amend";
     const folder = planFolderPath(root, slug);
     mkdirSync(folder, { recursive: true });

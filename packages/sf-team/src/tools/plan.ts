@@ -36,14 +36,14 @@ import { decideSteeringInstruction, decideSteeringInstructions } from "../steeri
 import { applySteeringBacktrack } from "../steering/backtrack";
 import { PLANNER_TDD_REMINDER } from "./tdd-policy";
 import { resolveRuntime } from "../config/resolve-runtime";
-import { runConfiguredVerification, type FhTeamVerificationConfigInput } from "./verification-stage";
+import { runConfiguredVerification, type SfTeamVerificationConfigInput } from "./verification-stage";
 import type { CostSummary } from "../orchestrator/cost";
 import type { GitMode, TddMode } from "../config/schema";
 
-export interface FhTeamPlanInput {
+export interface SfTeamPlanInput {
   /** Title used for both the slug and the planner's brief. */
   title?: string;
-  /** Resume an existing fh_team_plan workflow from a slug or plan-folder path. */
+  /** Resume an existing sf_team_plan workflow from a slug or plan-folder path. */
   resume?: string;
   /** Optional brief / requirements text passed to the planner. */
   brief?: string;
@@ -57,7 +57,7 @@ export interface FhTeamPlanInput {
   writeFolder?: boolean;
   /**
    * When provided, skip the researcher phase entirely and use this pre-computed
-   * analysis. fh_team_auto uses this so the chain runs the researcher exactly
+   * analysis. sf_team_auto uses this so the chain runs the researcher exactly
    * once and shares the result across plan + implement.
    */
   analysisOverride?: ResearchAnalysis | null;
@@ -65,14 +65,14 @@ export interface FhTeamPlanInput {
   answersOverride?: Record<string, string>;
   /** External-context fetcher; defaults to no-op (refs become openQuestions). */
   externalFetcher?: ExternalFetcher;
-  verification?: FhTeamVerificationConfigInput;
+  verification?: SfTeamVerificationConfigInput;
   /** Absolute or relative path for plan folders. Defaults to ./ai_plan/. */
   aiPlanPath?: string;
   gitMode?: GitMode;
   tddMode?: TddMode;
 }
 
-export interface FhTeamPlanResult {
+export interface SfTeamPlanResult {
   slug: string;
   approved: boolean;
   rounds: number;
@@ -116,29 +116,29 @@ export interface ResearcherDecision {
 }
 
 /**
- * fh_team_plan: explore -> Q&A -> planner-draft -> reviewer loop -> write folder.
+ * sf_team_plan: explore -> Q&A -> planner-draft -> reviewer loop -> write folder.
  *
  * The reviewer loop's `revise` callback re-spawns the planner with the
  * { prior_plan, findings } context and returns the planner's new plan as the
  * next payload. The plan-revise-forwarding test asserts the second reviewer
  * call sees the revised plan.
  */
-export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
+export function createSfTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
   const deps: ToolDeps = { ...defaultDeps, ...rawDeps };
   const runLoop = makeRunStringReviewLoop(deps);
 
-  return async function fhTeamPlan(
-    input: FhTeamPlanInput,
+  return async function sfTeamPlan(
+    input: SfTeamPlanInput,
     ctx: {
       repoRoot: string;
       signal?: AbortSignal;
       ui?: ExtensionUIContext;
       configDefaults?: ResolvedDefaults;
-      /** Forwarded to runOrchestrator; set by `fh_team_auto` so plan + implement decorate the same tmux session. */
+      /** Forwarded to runOrchestrator; set by `sf_team_auto` so plan + implement decorate the same tmux session. */
       tmuxSessionAliasOverride?: string;
       /** Owner tool used for nested auto resume ownership checks. */
       resumeOwnerTool?: WorkflowToolName;
-      /** Used by fh_team_auto so plan.verification does not run during the nested plan phase. */
+      /** Used by sf_team_auto so plan.verification does not run during the nested plan phase. */
       suppressPlanVerification?: boolean;
       /** Pi tool surface name fronting this run; used by typed errors. */
       toolName?: string;
@@ -147,7 +147,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
       gitMode?: "on" | "off";
       tddMode?: "on" | "off" | "auto";
     },
-  ): Promise<FhTeamPlanResult> {
+  ): Promise<SfTeamPlanResult> {
     // Resolve planRoot / gitMode / tddMode early so resume discovery can
     // search the correct plan root (candidatePlanRoots).
     const runtime = (ctx.planRoot !== undefined)
@@ -163,7 +163,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
 
     const resume = await resolveToolResume({
       repoRoot: ctx.repoRoot,
-      toolName: ctx.resumeOwnerTool ?? "fh_team_plan",
+      toolName: ctx.resumeOwnerTool ?? "sf_team_plan",
       input,
       normalField: "title",
       candidatePlanRoots: [planRoot],
@@ -174,7 +174,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
     const effectivePlanRoot = resume ? path.dirname(resume.target.folderPath) : planRoot;
     // Rehydrate gitMode/tddMode from persisted metadata when resuming and no
     // explicit prompt-level override was supplied. ctx.planRoot !== undefined
-    // means fh_team_auto already resolved modes — don't touch them.
+    // means sf_team_auto already resolved modes — don't touch them.
     const effectiveGitMode: "on" | "off" = (resume?.metadata?.gitMode != null && ctx.planRoot === undefined && (input.gitMode === undefined || input.gitMode === "auto"))
       ? resume.metadata.gitMode
       : gitMode;
@@ -182,7 +182,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
       ? resume.metadata.tddMode
       : tddMode;
     const title = normalOrResumeValue(input, "title", resume);
-    const normalizedInput: FhTeamPlanInput = { ...input, title };
+    const normalizedInput: SfTeamPlanInput = { ...input, title };
     const slug = resume?.target.slug ?? slugify(title);
     const agents = ctx.configDefaults?.agents ?? DEFAULT_CONFIG.agents;
     const planner = mergeMember(defaultPlanner(agents), input.planner);
@@ -211,7 +211,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
       {
         repoRoot: ctx.repoRoot,
         slug,
-        toolName: "fh_team_plan",
+        toolName: "sf_team_plan",
         ownerTool: ctx.resumeOwnerTool,
         useWorktree: false,
         planRoot: effectivePlanRoot,
@@ -268,7 +268,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
             // Planning-time steering has no implementation commit ledger, so
             // completed-work handling is forward-only plan/tracker rework.
             confirmCompletedWork: ui
-              ? async (summary) => await ui.confirm("Backtrack completed fh-team work?", summary.message, { signal: bodyCtx.signal }) === true
+              ? async (summary) => await ui.confirm("Backtrack completed sf-team work?", summary.message, { signal: bodyCtx.signal }) === true
               : undefined,
           })
         );
@@ -276,7 +276,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
         await enforcePauseAtSafeBoundary(bodyCtx.steering, { ui, signal: bodyCtx.signal });
 
         await runConfiguredVerification({
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           cwd: ctx.repoRoot,
           phase: "before",
           verification: ctx.suppressPlanVerification
@@ -434,7 +434,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
         // ALSO leaves a deterministic failure, the gate records a
         // `still-failing` transcript entry and returns the still-bad plan to
         // the reviewer for normal processing — the reviewer round counter is
-        // NOT inflated by gate trips. See task 2026-05-22-fh-team-strategy-
+        // NOT inflated by gate trips. See task 2026-05-22-sf-team-strategy-
         // validator-gate-hardening.
         async function runDeterministicPlanGate(
           plan: string,
@@ -658,9 +658,9 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
           throw new EmptyPlanError({
             rawPayload: review.finalPayload,
             reason: validationFailure.reason,
-            toolName: ctx.toolName ?? "fh_team_plan",
+            toolName: ctx.toolName ?? "sf_team_plan",
             slug,
-            resumeTool: ctx.toolName?.startsWith("fh_team_auto") ? "fh_team_auto_resume" : "fh_team_plan_resume",
+            resumeTool: ctx.toolName?.startsWith("sf_team_auto") ? "sf_team_auto_resume" : "sf_team_plan_resume",
           });
         }
 
@@ -731,7 +731,7 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
           });
         }
         await runConfiguredVerification({
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           cwd: ctx.repoRoot,
           phase: "after",
           verification: ctx.suppressPlanVerification
@@ -760,10 +760,10 @@ export function createFhTeamPlan(rawDeps: Partial<ToolDeps> = {}) {
           researcherDecision,
           revisionMetrics,
           jiraContext: jiraContextResult,
-        } satisfies FhTeamPlanResult;
+        } satisfies SfTeamPlanResult;
       },
     );
-    const result: FhTeamPlanResult = (
+    const result: SfTeamPlanResult = (
       orchestrated.result ?? {
         slug,
         approved: false,
@@ -1024,7 +1024,7 @@ function executionStrategyArtifactFromResolved(
   };
 }
 
-function composePromptForResearcher(input: FhTeamPlanInput): string {
+function composePromptForResearcher(input: SfTeamPlanInput): string {
   const parts: string[] = [`Title: ${input.title}`];
   if (input.brief && input.brief.trim().length > 0) {
     parts.push("");
@@ -1063,7 +1063,7 @@ const PLANNER_FORMAT_REMINDER = [
   EXECUTION_STRATEGY_JSON_EXAMPLE,
   "```",
   "",
-  "LOCKFILE NOTE: Do NOT refuse to draft based on the presence of `.fh-team-locks/*.lock` or `.fh-team.lock` files in the workspace. The orchestrator that spawned you holds the lock; you should draft normally regardless of any lockfile sighting. A refusal-prose response (instead of a real plan) will be REJECTED by the orchestrator's structural validator and counted as a failed run.",
+  "LOCKFILE NOTE: Do NOT refuse to draft based on the presence of `.sf-team-locks/*.lock` or `.sf-team.lock` files in the workspace. The orchestrator that spawned you holds the lock; you should draft normally regardless of any lockfile sighting. A refusal-prose response (instead of a real plan) will be REJECTED by the orchestrator's structural validator and counted as a failed run.",
 ].join("\n");
 
 function composePlannerBrief(title: string, enrichedBrief: string, tddMode: "on" | "off" | "auto" = "auto"): string {
@@ -1527,7 +1527,7 @@ export function extractMilestonesAndStories(plan: string): {
  * `M0: Initial milestone` fallback that `extractMilestones` emits when
  * NOTHING is detected does NOT count.
  *
- * Used by `fh_team_plan` to reject planner output that produces no real
+ * Used by `sf_team_plan` to reject planner output that produces no real
  * milestones (e.g. a refusal-prose response or a planner that drafted
  * structureless text).
  */
@@ -1624,7 +1624,7 @@ export function deriveStoryTracker(plan: string): string {
  * Build a continuation runbook from facts the orchestrator already knows
  * (slug, title, milestone list, plan-review round count). Replaces the
  * old 3-line stub. Mirrors the structure of the reference runbook the
- * user authored by hand for `2026-05-01-fh-team`.
+ * user authored by hand for `2026-05-01-sf-team`.
  */
 export function composeContinuationRunbook(opts: {
   slug: string;
@@ -1643,7 +1643,7 @@ export function composeContinuationRunbook(opts: {
   const lines: string[] = [];
   lines.push(`# Continuation Runbook: ${safeTitle}`);
   lines.push("");
-  lines.push(`> Generated by \`fh_team_plan\` on ${generatedAt}; approved by reviewer after ${opts.planReviewRounds} round(s).`);
+  lines.push(`> Generated by \`sf_team_plan\` on ${generatedAt}; approved by reviewer after ${opts.planReviewRounds} round(s).`);
   lines.push("");
   lines.push("## Reference Files (START HERE)");
   lines.push("");
@@ -1808,13 +1808,13 @@ async function maybeAskForBrief(
   if (!ctx.ui) return brief;
   const askUser = new AskUser(ctx.ui);
   const briefAnswer = await askUser.input({
-    key: "fh_team_plan.brief",
+    key: "sf_team_plan.brief",
     title: "What should this plan accomplish?",
     placeholder: "Short description of the goal",
     signal: ctx.signal,
   });
   const constraintsAnswer = await askUser.input({
-    key: "fh_team_plan.constraints",
+    key: "sf_team_plan.constraints",
     title: "Constraints (optional)",
     placeholder: "Tech stack, deadlines, must-haves — leave blank to skip",
     signal: ctx.signal,

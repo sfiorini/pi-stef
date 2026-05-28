@@ -12,12 +12,12 @@ function makeFailure(overrides: Partial<{
   exitCode: number | null;
 }> = {}): VerificationGateFailure {
   return new VerificationGateFailure(
-    "fh_team_task: verification gate failed",
+    "sf_team_task: verification gate failed",
     {
-      toolName: overrides.toolName ?? "fh_team_task",
+      toolName: overrides.toolName ?? "sf_team_task",
       phase: "after",
       stageLabel: overrides.stageLabel ?? "test",
-      command: { cmd: "pnpm", args: ["-F", "@pi-stef/fh-team", "test"] },
+      command: { cmd: "pnpm", args: ["-F", "@pi-stef/sf-team", "test"] },
       exitCode: overrides.exitCode ?? 1,
       signal: null,
       stdoutTail: overrides.stdoutTail ?? "",
@@ -192,7 +192,7 @@ describe("synthesizeGateFinding — stderr/stdout cap (≤4 KB) enforced at synt
 describe("synthesizeGateFinding — cmdLine + stageLabel are redacted and newline-sanitized", () => {
   it("redacts secrets in command args (e.g. an arg of `Authorization: Bearer abc.def`)", () => {
     const failure = new VerificationGateFailure("verification gate failed", {
-      toolName: "fh_team_task",
+      toolName: "sf_team_task",
       phase: "after",
       stageLabel: "test",
       command: { cmd: "curl", args: ["-H", "Authorization: Bearer abc.def123", "https://example.com"] },
@@ -210,7 +210,7 @@ describe("synthesizeGateFinding — cmdLine + stageLabel are redacted and newlin
 
   it("redacts an env-var-shaped command arg (e.g. `API_KEY=secret`)", () => {
     const failure = new VerificationGateFailure("verification gate failed", {
-      toolName: "fh_team_task",
+      toolName: "sf_team_task",
       phase: "after",
       stageLabel: "test",
       command: { cmd: "node", args: ["script.js", "API_KEY=sk-shouldnt-leak"] },
@@ -229,7 +229,7 @@ describe("synthesizeGateFinding — cmdLine + stageLabel are redacted and newlin
 
   it("collapses newlines in stageLabel into a single space so verdictText stays parser-stable", () => {
     const failure = new VerificationGateFailure("verification gate failed", {
-      toolName: "fh_team_task",
+      toolName: "sf_team_task",
       phase: "after",
       stageLabel: "weird\nlabel\nwith\nnewlines",
       command: { cmd: "pnpm", args: ["test"] },

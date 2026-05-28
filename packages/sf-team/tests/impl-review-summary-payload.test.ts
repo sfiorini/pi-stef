@@ -12,7 +12,7 @@ import {
   IMPL_DIFF_STAT_CAP_BYTES,
   IMPL_PRIOR_VERDICT_CAP_BYTES,
 } from "../src/tools/impl-summary";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
 const REVISE_TEXT = `## Summary
@@ -237,10 +237,10 @@ describe("composeImplSummary + truncateBytes", () => {
 });
 
 // ────────────────────────────────────────────────────────────────────────────
-// Integration: end-to-end through fh_team_implement
+// Integration: end-to-end through sf_team_implement
 // ────────────────────────────────────────────────────────────────────────────
 
-describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () => {
+describe("sf_team_implement: summary-based reviewer payloads (E2BIG fix)", () => {
   it("(6) Round-1 reviewer payload is the composed impl summary; does NOT contain raw diff lines; does contain the developer's finalText", async () => {
     const { root, slug, dispose } = makeRepoWithPlan();
     try {
@@ -259,7 +259,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
         { repoRoot: root },
@@ -298,7 +298,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]!);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
         { repoRoot: root },
@@ -349,7 +349,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]!);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
         { repoRoot: root },
@@ -410,7 +410,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]!);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(
         tool(
           { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
@@ -439,7 +439,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun("DEV-NARRATIVE");
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
         { repoRoot: root },
@@ -469,7 +469,7 @@ describe("fh_team_implement: summary-based reviewer payloads (E2BIG fix)", () =>
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue: () => false },
         { repoRoot: root },

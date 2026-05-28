@@ -6,8 +6,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createWorkflowMetadata, writeWorkflowMetadata } from "@pi-stef/agent-workflows";
 
-import { createFhTeamImplement } from "../src/tools/implement";
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamImplement } from "../src/tools/implement";
+import { createSfTeamPlan } from "../src/tools/plan";
 
 function makeRepo(): { root: string; dispose: () => void } {
   const root = mkdtempSync(path.join(tmpdir(), "resume-ownership-"));
@@ -35,12 +35,12 @@ describe("resume ownership", () => {
     const { root, dispose } = makeRepo();
     try {
       const slug = "2026-05-06-owned-by-task";
-      await writeOwner(root, slug, "fh_team_task");
+      await writeOwner(root, slug, "sf_team_task");
       const spawnAgent = vi.fn();
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never });
 
       await expect(tool({ resume: slug } as never, { repoRoot: root })).rejects.toThrow(
-        /owned by fh_team_task.*fh_team_plan/,
+        /owned by sf_team_task.*sf_team_plan/,
       );
       expect(spawnAgent).not.toHaveBeenCalled();
     } finally {
@@ -48,16 +48,16 @@ describe("resume ownership", () => {
     }
   });
 
-  it("rejects auto-owned plans through fh_team_implement resume before spawning", async () => {
+  it("rejects auto-owned plans through sf_team_implement resume before spawning", async () => {
     const { root, dispose } = makeRepo();
     try {
       const slug = "2026-05-06-owned-by-auto";
-      await writeOwner(root, slug, "fh_team_auto");
+      await writeOwner(root, slug, "sf_team_auto");
       const spawnAgent = vi.fn();
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never });
 
       await expect(tool({ resume: slug, verifyCommand: false } as never, { repoRoot: root })).rejects.toThrow(
-        /owned by fh_team_auto.*fh_team_implement/,
+        /owned by sf_team_auto.*sf_team_implement/,
       );
       expect(spawnAgent).not.toHaveBeenCalled();
     } finally {
@@ -69,7 +69,7 @@ describe("resume ownership", () => {
     const { root, dispose } = makeRepo();
     try {
       const spawnAgent = vi.fn();
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never });
 
       await expect(tool({} as never, { repoRoot: root })).rejects.toThrow(/provide either title or resume/);
       await expect(tool({ title: "New plan", resume: "old-plan" } as never, { repoRoot: root })).rejects.toThrow(

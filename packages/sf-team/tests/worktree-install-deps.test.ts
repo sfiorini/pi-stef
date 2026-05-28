@@ -46,12 +46,12 @@ function makeFixture(opts: {
 beforeEach(() => {
   spawnSyncMock.mockReset();
   spawnSyncMock.mockReturnValue({ status: 0, stdout: "", stderr: "", error: undefined, signal: null });
-  delete process.env.FH_TEAM_SKIP_AUTO_INSTALL;
+  delete process.env.SF_TEAM_SKIP_AUTO_INSTALL;
 });
 
 afterEach(() => {
   spawnSyncMock.mockReset();
-  delete process.env.FH_TEAM_SKIP_AUTO_INSTALL;
+  delete process.env.SF_TEAM_SKIP_AUTO_INSTALL;
 });
 
 describe("installDependenciesIfMissing — H.2: no package.json skips silently", () => {
@@ -157,7 +157,7 @@ describe("installDependenciesIfMissing — H.5: non-zero exit throws WorktreeCre
       expect(thrown).toBeInstanceOf(WorktreeCreationError);
       const err = thrown as InstanceType<typeof WorktreeCreationError>;
       expect(err.stage).toBe("install");
-      expect(err.message).toMatch(/^fh_team: npm install exited 1/);
+      expect(err.message).toMatch(/^sf_team: npm install exited 1/);
       expect(err.message).toContain("boom-err");
     } finally {
       errSpy.mockRestore();
@@ -240,7 +240,7 @@ describe("installDependenciesIfMissing — H.7: spawn failure (PM binary not fou
       expect(thrown).toBeInstanceOf(WorktreeCreationError);
       const err = thrown as InstanceType<typeof WorktreeCreationError>;
       expect(err.stage).toBe("install");
-      expect(err.message).toMatch(/^fh_team: failed to spawn npm install/);
+      expect(err.message).toMatch(/^sf_team: failed to spawn npm install/);
       expect(err.message).toContain("corepack");
     } finally {
       errSpy.mockRestore();
@@ -279,11 +279,11 @@ describe("installDependenciesIfMissing — H.8/H.9: per-PM lockfile coverage", (
   });
 });
 
-describe("installDependenciesIfMissing — H.1: FH_TEAM_SKIP_AUTO_INSTALL opt-out", () => {
+describe("installDependenciesIfMissing — H.1: SF_TEAM_SKIP_AUTO_INSTALL opt-out", () => {
   const truthy = ["1", "true", "yes", "on", "TRUE", " 1 "];
   for (const v of truthy) {
-    it(`skips with reason 'opted_out' when FH_TEAM_SKIP_AUTO_INSTALL=${JSON.stringify(v)}`, () => {
-      process.env.FH_TEAM_SKIP_AUTO_INSTALL = v;
+    it(`skips with reason 'opted_out' when SF_TEAM_SKIP_AUTO_INSTALL=${JSON.stringify(v)}`, () => {
+      process.env.SF_TEAM_SKIP_AUTO_INSTALL = v;
       const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const { root, dispose } = makeFixture({
         packageJson: { packageManager: "npm@10.2.0" },
@@ -294,7 +294,7 @@ describe("installDependenciesIfMissing — H.1: FH_TEAM_SKIP_AUTO_INSTALL opt-ou
         expect(result).toEqual({ kind: "skipped", reason: "opted_out" });
         expect(spawnSyncMock).not.toHaveBeenCalled();
         expect(errSpy).toHaveBeenCalledTimes(1);
-        expect(String(errSpy.mock.calls[0]?.[0])).toContain("FH_TEAM_SKIP_AUTO_INSTALL");
+        expect(String(errSpy.mock.calls[0]?.[0])).toContain("SF_TEAM_SKIP_AUTO_INSTALL");
       } finally {
         errSpy.mockRestore();
         dispose();
@@ -304,8 +304,8 @@ describe("installDependenciesIfMissing — H.1: FH_TEAM_SKIP_AUTO_INSTALL opt-ou
 
   const falsey = ["0", "false", "no", "off", "", "anything-else"];
   for (const v of falsey) {
-    it(`does NOT short-circuit on opt-out when FH_TEAM_SKIP_AUTO_INSTALL=${JSON.stringify(v)} (falls through to no_package_json)`, () => {
-      process.env.FH_TEAM_SKIP_AUTO_INSTALL = v;
+    it(`does NOT short-circuit on opt-out when SF_TEAM_SKIP_AUTO_INSTALL=${JSON.stringify(v)} (falls through to no_package_json)`, () => {
+      process.env.SF_TEAM_SKIP_AUTO_INSTALL = v;
       const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
       const { root, dispose } = makeFixture({}); // no package.json
       try {

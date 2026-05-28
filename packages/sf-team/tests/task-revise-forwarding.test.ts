@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamTask } from "../src/tools/task";
+import { createSfTeamTask } from "../src/tools/task";
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
@@ -79,7 +79,7 @@ function fakeRun(finalText: string): AgentRun {
   };
 }
 
-describe("M10 fh_team_task plan-revise-forwarding (S-A03)", () => {
+describe("M10 sf_team_task plan-revise-forwarding (S-A03)", () => {
   it("planner re-spawned on plan-review REVISE; second reviewer call sees revised plan", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -101,7 +101,7 @@ describe("M10 fh_team_task plan-revise-forwarding (S-A03)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Add Foo", brief: "add foo()", allowDirty: true, verifyCommand: false },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "full" } } as never) },
@@ -153,7 +153,7 @@ describe("M10 fh_team_task plan-revise-forwarding (S-A03)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Patch Task Plan", brief: "add foo()", allowDirty: true, verifyCommand: false },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "patch" } } as never) },
@@ -170,7 +170,7 @@ describe("M10 fh_team_task plan-revise-forwarding (S-A03)", () => {
   });
 });
 
-describe("M10 fh_team_task impl-revise-forwarding (S-A07)", () => {
+describe("M10 sf_team_task impl-revise-forwarding (S-A07)", () => {
   it("developer re-spawned on impl-review REVISE; second reviewer call sees the new diff", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -194,7 +194,7 @@ describe("M10 fh_team_task impl-revise-forwarding (S-A07)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "Add Bar", allowDirty: true, verifyCommand: false }, { repoRoot: root });
       expect(result.approved).toBe(true);
       expect(result.rounds.impl).toBe(2);
@@ -223,7 +223,7 @@ describe("M10 fh_team_task impl-revise-forwarding (S-A07)", () => {
   });
 });
 
-describe("M10 fh_team_task verification gate (S-A06)", () => {
+describe("M10 sf_team_task verification gate (S-A06)", () => {
   it("THROWS when verifyCommand exits non-zero — does NOT proceed to review/commit", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -234,7 +234,7 @@ describe("M10 fh_team_task verification gate (S-A06)", () => {
         return fakeRun(APPROVED_TEXT); // plan reviewer
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(
         tool(
           { title: "Verify Fail", allowDirty: true, verifyCommand: { cmd: "false", args: [] } },
@@ -247,7 +247,7 @@ describe("M10 fh_team_task verification gate (S-A06)", () => {
   });
 });
 
-describe("M10 fh_team_task impl-revise feeds REFRESHED git-diff to reviewer (S-A07)", () => {
+describe("M10 sf_team_task impl-revise feeds REFRESHED git-diff to reviewer (S-A07)", () => {
   it("after developer revision, the next reviewer call sees the new staged diff (not developer prose)", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -279,7 +279,7 @@ describe("M10 fh_team_task impl-revise feeds REFRESHED git-diff to reviewer (S-A
         return spawnAgent(member);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: wrapped as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: wrapped as never, runReviewLoop });
       const result = await tool(
         { title: "Refresh Diff", allowDirty: true, verifyCommand: false, shouldPush: () => false },
         { repoRoot: root },
@@ -317,7 +317,7 @@ describe("M10 fh_team_task impl-revise feeds REFRESHED git-diff to reviewer (S-A
   });
 });
 
-describe("M10 fh_team_task commit + push (S-A08)", () => {
+describe("M10 sf_team_task commit + push (S-A08)", () => {
   it("fails loudly when staged changes can't be committed", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -338,7 +338,7 @@ describe("M10 fh_team_task commit + push (S-A08)", () => {
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(
         tool({ title: "Commit Fail", allowDirty: true, verifyCommand: false }, { repoRoot: root }),
       ).rejects.toThrow(/git commit failed/);
@@ -360,7 +360,7 @@ describe("M10 fh_team_task commit + push (S-A08)", () => {
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const shouldPush = vi.fn(() => false);
       const result = await tool(
         { title: "Push Skip", allowDirty: true, verifyCommand: false, shouldPush },
@@ -375,7 +375,7 @@ describe("M10 fh_team_task commit + push (S-A08)", () => {
   });
 });
 
-describe("M10 fh_team_task dirty-worktree guard (S-A04)", () => {
+describe("M10 sf_team_task dirty-worktree guard (S-A04)", () => {
   it("rejects when the worktree is dirty and allowDirty is not set", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -383,7 +383,7 @@ describe("M10 fh_team_task dirty-worktree guard (S-A04)", () => {
       writeFileSync(path.join(root, "stray.txt"), "x");
       const spawnAgent = vi.fn(async () => fakeRun(""));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(tool({ title: "Dirty" }, { repoRoot: root })).rejects.toThrow(/dirty/);
     } finally {
       dispose();
@@ -404,7 +404,7 @@ describe("M10 fh_team_task dirty-worktree guard (S-A04)", () => {
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "Dirty OK", allowDirty: true, verifyCommand: false }, { repoRoot: root });
       expect(result.approved).toBe(true);
     } finally {
@@ -413,7 +413,7 @@ describe("M10 fh_team_task dirty-worktree guard (S-A04)", () => {
   });
 });
 
-describe("M10 fh_team_task refuses success without a commit (P2.2)", () => {
+describe("M10 sf_team_task refuses success without a commit (P2.2)", () => {
   it("throws when developer produces no staged changes (no silent success)", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -424,7 +424,7 @@ describe("M10 fh_team_task refuses success without a commit (P2.2)", () => {
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
       await expect(
         tool({ title: "Empty Dev", allowDirty: true, verifyCommand: false }, { repoRoot: root }),
       ).rejects.toThrow(/no staged changes/);

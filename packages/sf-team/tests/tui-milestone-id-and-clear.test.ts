@@ -127,7 +127,7 @@ describe("orchestrator end-to-end: bodyCtx.clearAgents() empties the widget; sub
         },
       } as never;
       await runOrchestrator(
-        { repoRoot: root, slug: "clear-test", toolName: "fh_team_implement", useWorktree: true, ui },
+        { repoRoot: root, slug: "clear-test", toolName: "sf_team_implement", useWorktree: true, ui },
         async (bodyCtx) => {
           // M1: dev + reviewer both stamped with milestoneId.
           bodyCtx.subscribeAgent({ role: "developer", model: "m" }, "developer-M1-S101", { milestoneId: "M1", storyId: "S-101" });

@@ -77,7 +77,7 @@ export function composePerformanceReport(input: PerformanceReportInput): string 
   const costSummary = input.costSummary ?? costSummaryFromRuns(input.agentRuns);
   const runUsage = costSummary.current;
   const lines: string[] = [
-    `# fh-team performance — ${input.toolName}`,
+    `# sf-team performance — ${input.toolName}`,
     "",
     `- **slug**: ${input.slug}`,
     `- **owner tool**: ${ownerTool}`,

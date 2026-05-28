@@ -1,23 +1,23 @@
 /**
  * S-509: Integration test — steer with external planRoot.
  *
- * Verifies that fh_team_steer works when the plan folder is registered
+ * Verifies that sf_team_steer works when the plan folder is registered
  * with repoRoot and correctly routes the steering instruction.
  *
- * For S-510 (impl), we also verify that FhTeamSteerContext accepts aiPlanPath.
+ * For S-510 (impl), we also verify that SfTeamSteerContext accepts aiPlanPath.
  */
 import { mkdir, mkdtemp } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { createFhTeamSteer, type FhTeamSteerParams, type FhTeamSteerContext } from "../../src/tools/steer";
+import { createSfTeamSteer, type SfTeamSteerParams, type SfTeamSteerContext } from "../../src/tools/steer";
 import { createActiveWorkflowRegistry } from "../../src/steering/active-workflows";
 import { resolvePlanSteeringRoot } from "../../src/steering/path-safety";
 import { PLAN_FOLDER_ROOT } from "../../src/plan/paths";
 
 async function mkDir(): Promise<string> {
-  return await mkdtemp(path.join(os.tmpdir(), "fh-team-steer-ngt-"));
+  return await mkdtemp(path.join(os.tmpdir(), "sf-team-steer-ngt-"));
 }
 
 async function registerWorkflow(
@@ -31,20 +31,20 @@ async function registerWorkflow(
   await registry.register({
     workflowId: id,
     workflowKind: "implement",
-    toolName: "fh_team_implement",
+    toolName: "sf_team_implement",
     planSlug,
     repoRoot,
     steeringRoot: resolvePlanSteeringRoot(planDir),
   });
 }
 
-describe("fh_team_steer — external planRoot support", () => {
+describe("sf_team_steer — external planRoot support", () => {
   it("routes steering instruction correctly with repoRoot-based registry", async () => {
     const repoRoot = await mkDir();
     await registerWorkflow(repoRoot, "workflow-steer-1", "2026-steer-test");
 
-    const steer = createFhTeamSteer();
-    const ctx: FhTeamSteerContext = { repoRoot };
+    const steer = createSfTeamSteer();
+    const ctx: SfTeamSteerContext = { repoRoot };
     const result = await steer({ instruction: "Use smaller batches.", workflowId: "workflow-steer-1" }, ctx);
 
     expect(result.ok).toBe(true);
@@ -54,20 +54,20 @@ describe("fh_team_steer — external planRoot support", () => {
     }
   });
 
-  it("FhTeamSteerContext can carry aiPlanPath without TypeScript error", () => {
+  it("SfTeamSteerContext can carry aiPlanPath without TypeScript error", () => {
     // This ensures the type accepts aiPlanPath after S-510 adds it.
     // For now the context type is extended here in test to verify the
     // direction of the change before S-510 impl.
-    const ctx: FhTeamSteerContext & { aiPlanPath?: string } = {
+    const ctx: SfTeamSteerContext & { aiPlanPath?: string } = {
       repoRoot: "/tmp/repo",
       aiPlanPath: "/tmp/plans",
     };
     expect(ctx.aiPlanPath).toBe("/tmp/plans");
   });
 
-  it("FhTeamSteerParams accepts aiPlanPath field", () => {
+  it("SfTeamSteerParams accepts aiPlanPath field", () => {
     // Verifies schema direction: steer should accept aiPlanPath after S-510.
-    const params: FhTeamSteerParams & { aiPlanPath?: string } = {
+    const params: SfTeamSteerParams & { aiPlanPath?: string } = {
       instruction: "Test instruction.",
       aiPlanPath: "/tmp/plans",
     };

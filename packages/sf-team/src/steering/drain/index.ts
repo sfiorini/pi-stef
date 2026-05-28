@@ -199,7 +199,7 @@ async function drainOnce(
   for (const instruction of pending) {
     await options.store.updateInstructionStatus(instruction.id, "analyzing");
     options.reporter?.message(
-      `fh-team steering: analyzing instruction ${instruction.id} (${reason})`,
+      `sf-team steering: analyzing instruction ${instruction.id} (${reason})`,
       { level: "info" },
     );
     await options.transcript?.record({
@@ -347,7 +347,7 @@ async function handleBatchDeciderFailure(
   const batchErrorId = err instanceof BatchValidationError ? randomUUID() : undefined;
   if (batchErrorId) {
     options.reporter?.message(
-      `fh-team steering: steering-batch-validation-failed (${batchErrorId}): ${message}`,
+      `sf-team steering: steering-batch-validation-failed (${batchErrorId}): ${message}`,
       { level: "error" },
     );
     await options.transcript?.record({
@@ -405,7 +405,7 @@ async function failInstruction(
   await options.store.updateInstructionStatus(instruction.id, "failed");
   result.errors.push({ instructionId: instruction.id, message });
   options.reporter?.message(
-    `fh-team steering: failed instruction ${instruction.id}: ${message}`,
+    `sf-team steering: failed instruction ${instruction.id}: ${message}`,
     { level: "error" },
   );
   await emitSteeringAuditEntry(options.transcript, {
@@ -542,7 +542,7 @@ async function applyDecisionPipeline(
         "skipped",
       );
       options.reporter?.message(
-        `fh-team steering: requeued stale decision ${decision.id}`,
+        `sf-team steering: requeued stale decision ${decision.id}`,
         { level: "warning" },
       );
       return false;
@@ -564,7 +564,7 @@ async function applyDecisionPipeline(
         "skipped",
       );
       options.reporter?.message(
-        `fh-team steering: waiting for plan confirmation for ${decision.id}`,
+        `sf-team steering: waiting for plan confirmation for ${decision.id}`,
         { level: "warning" },
       );
       await latchConfirmationPause(options, instruction, planApplication.summary);
@@ -581,7 +581,7 @@ async function applyDecisionPipeline(
         "skipped",
       );
       options.reporter?.message(
-        `fh-team steering: rejected plan decision ${decision.id}`,
+        `sf-team steering: rejected plan decision ${decision.id}`,
         { level: "warning" },
       );
       return false;
@@ -611,7 +611,7 @@ async function applyDecisionPipeline(
       await options.store.updateInstructionStatus(instruction.id, "requires-user-confirmation");
       result.pausedForConfirmation = true;
       options.reporter?.message(
-        `fh-team steering: waiting for confirmation for ${decision.id}`,
+        `sf-team steering: waiting for confirmation for ${decision.id}`,
         { level: "warning" },
       );
       await latchConfirmationPause(
@@ -624,7 +624,7 @@ async function applyDecisionPipeline(
     if (application.status === "rejected") {
       await options.store.updateInstructionStatus(instruction.id, "rejected");
       options.reporter?.message(
-        `fh-team steering: rejected decision ${decision.id}`,
+        `sf-team steering: rejected decision ${decision.id}`,
         { level: "warning" },
       );
       return false;
@@ -660,8 +660,8 @@ async function applyDecisionPipeline(
 
     result.appliedDecisionIds.push(decision.id);
 
-    // M2-followup: surface a fh_team_steer-prefixed notification on the
-    // applied transition. The original `fh_team_steer: queued instruction
+    // M2-followup: surface a sf_team_steer-prefixed notification on the
+    // applied transition. The original `sf_team_steer: queued instruction
     // <id> ...` receipt is emitted at ingestion (register.ts) and never
     // updated; without this line the user has no chat-side signal that
     // their instruction actually landed. Placement is AFTER the entire
@@ -671,7 +671,7 @@ async function applyDecisionPipeline(
     // outer catch routed through `failInstruction` (instruction ends
     // `failed`).
     options.reporter?.message(
-      `fh_team_steer: applied instruction ${instruction.id}`,
+      `sf_team_steer: applied instruction ${instruction.id}`,
       { level: "info" },
     );
 
@@ -685,7 +685,7 @@ async function applyDecisionPipeline(
       } catch (planNoteErr) {
         const msg = planNoteErr instanceof Error ? planNoteErr.message : String(planNoteErr);
         options.reporter?.message(
-          `fh-team steering: steering-plan-note-failed for ${instruction.id}: ${msg}`,
+          `sf-team steering: steering-plan-note-failed for ${instruction.id}: ${msg}`,
           { level: "warning" },
         );
         await options.transcript?.record({

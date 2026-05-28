@@ -147,7 +147,7 @@ describe("S-602 + S-604 orchestrator wires TmuxManager when injected", () => {
       {
         repoRoot: repo.root,
         slug: "tmux-wire",
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         useWorktree: true,
         tmuxManager: stub.mgr,
       },
@@ -174,7 +174,7 @@ describe("S-602 + S-604 orchestrator wires TmuxManager when injected", () => {
       {
         repoRoot: repo.root,
         slug: "tmux-wire-2",
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         useWorktree: true,
         tmuxManager: stub.mgr,
       },
@@ -192,7 +192,7 @@ describe("S-602 + S-604 orchestrator wires TmuxManager when injected", () => {
       {
         repoRoot: repo.root,
         slug: "tmux-wire-user-session",
-        toolName: "fh_team_plan",
+        toolName: "sf_team_plan",
         useWorktree: false,
         tmuxManager: stub.mgr,
         tmuxSessionName: "user-work",
@@ -214,7 +214,7 @@ describe("S-602 + S-604 orchestrator wires TmuxManager when injected", () => {
       {
         repoRoot: repo.root,
         slug: "tmux-wire-grouped",
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         useWorktree: true,
         tmuxManager: stub.mgr,
       },
@@ -248,7 +248,7 @@ describe("S-606 close pane on ANY terminal state", () => {
           {
             repoRoot: repo.root,
             slug: `tmux-${terminal}`,
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
             useWorktree: true,
             tmuxManager: stub.mgr,
           },
@@ -281,7 +281,7 @@ describe("S-607 clearAgents() closes every tracked pane BEFORE state mutation", 
         {
           repoRoot: repo.root,
           slug: "tmux-clear",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           tmuxManager: stub.mgr,
         },
@@ -320,7 +320,7 @@ describe("S-608 finally block calls closeAllPanes even on body error", () => {
           {
             repoRoot: repo.root,
             slug: "tmux-error",
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
             useWorktree: true,
             tmuxManager: stub.mgr,
           },
@@ -352,7 +352,7 @@ describe("round-guard pane lifecycle: superseded subscription's terminal event s
         {
           repoRoot: repo.root,
           slug: "tmux-round-guard",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           tmuxManager: stub.mgr,
         },
@@ -395,7 +395,7 @@ describe("S-610 end-to-end: subscribeAgent → manager.openAgentPane → spawn h
         {
           repoRoot: repo.root,
           slug: "tmux-e2e",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           tmuxManager: stub.mgr,
         },
@@ -477,7 +477,7 @@ describe("S-609 no-tmux path: tmuxManager=null → manager is never invoked", ()
         {
           repoRoot: repo.root,
           slug: "no-tmux",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           tmuxManager: null, // explicit disable
         },

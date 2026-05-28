@@ -7,7 +7,7 @@
  * `tool_result` hook fires).
  *
  * This is approach (b) in the milestone spec: a small fake that calls
- * the same code path as the real agent loop. We register one fh-team
+ * the same code path as the real agent loop. We register one sf-team
  * tool name with a synthetic `execute()` that throws a typed error,
  * drive a single tool call through the fake harness, and assert the
  * captured `tool_result` event has `isError === true`,
@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EmptyDiffError,
-  FhTeamToolError,
+  SfTeamToolError,
   WorkflowStateError,
   wrapExecute,
 } from "../src/errors";
@@ -59,17 +59,17 @@ async function runToolThroughFakeAgentLoop(
 describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
   it("EmptyDiffError yields { isError:true, content[0].text starts with FAILED: <toolName> empty_diff: } and names the resume tool", async () => {
     const synthetic = {
-      name: "fh_team_implement",
+      name: "sf_team_implement",
       execute: wrapExecute(
-        "fh_team_implement",
+        "sf_team_implement",
         async () => {
           throw new EmptyDiffError({
-            toolName: "fh_team_implement",
+            toolName: "sf_team_implement",
             milestoneId: "M5",
             attempts: 1,
             slug: "2026-05-06-feature-flags",
             worktreePath: "/tmp/wt",
-            resumeTool: "fh_team_implement_resume",
+            resumeTool: "sf_team_implement_resume",
           });
         },
       ),
@@ -78,17 +78,17 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
     expect(event.isError).toBe(true);
     expect(event.result.details).toEqual({}); // runtime drops typed fields
     const text = event.result.content[0].text;
-    expect(text.startsWith("FAILED: fh_team_implement empty_diff:")).toBe(true);
+    expect(text.startsWith("FAILED: sf_team_implement empty_diff:")).toBe(true);
     expect(text).toContain("M5");
-    expect(text).toContain("RESUME: invoke fh_team_implement_resume { resume: '2026-05-06-feature-flags' }");
+    expect(text).toContain("RESUME: invoke sf_team_implement_resume { resume: '2026-05-06-feature-flags' }");
     expect(text).toContain("implement.empty_diff_retry_model");
   });
 
   it("untyped Error thrown inside an execute body is converted by wrapExecute into FAILED: <toolName> internal: ...", async () => {
     const synthetic = {
-      name: "fh_team_implement",
+      name: "sf_team_implement",
       execute: wrapExecute(
-        "fh_team_implement",
+        "sf_team_implement",
         async () => {
           throw new Error("plain untyped failure");
         },
@@ -97,9 +97,9 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
     const event = await runToolThroughFakeAgentLoop(synthetic, {});
     expect(event.isError).toBe(true);
     const text = event.result.content[0].text;
-    expect(text.startsWith("FAILED: fh_team_implement internal:")).toBe(true);
+    expect(text.startsWith("FAILED: sf_team_implement internal:")).toBe(true);
     expect(text).toContain("plain untyped failure");
-    expect(text.toLowerCase()).toContain("consult the fh-team transcript");
+    expect(text.toLowerCase()).toContain("consult the sf-team transcript");
   });
 
   // Smarter resume hint: when wrapExecute's toolName resolves to a known
@@ -108,30 +108,30 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
   // "consult the transcript" generic copy.
   it("wrapExecute internal-error hint names the matching _resume tool when toolName is a recognized base name", async () => {
     const synthetic = {
-      name: "fh_team_auto",
-      execute: wrapExecute("fh_team_auto", async () => {
+      name: "sf_team_auto",
+      execute: wrapExecute("sf_team_auto", async () => {
         throw new Error("planner crashed");
       }),
     };
     const event = await runToolThroughFakeAgentLoop(synthetic, {});
     expect(event.isError).toBe(true);
     const text = event.result.content[0].text;
-    expect(text.startsWith("FAILED: fh_team_auto internal:")).toBe(true);
-    expect(text).toContain("RESUME: invoke fh_team_auto_resume { resume: '<slug-or-path>' }");
-    expect(text.toLowerCase()).toContain("consult the fh-team transcript");
+    expect(text.startsWith("FAILED: sf_team_auto internal:")).toBe(true);
+    expect(text).toContain("RESUME: invoke sf_team_auto_resume { resume: '<slug-or-path>' }");
+    expect(text.toLowerCase()).toContain("consult the sf-team transcript");
   });
 
   it("wrapExecute internal-error hint also resolves _resume tool when toolName is itself a _resume", async () => {
     const synthetic = {
-      name: "fh_team_implement_resume",
-      execute: wrapExecute("fh_team_implement_resume", async () => {
+      name: "sf_team_implement_resume",
+      execute: wrapExecute("sf_team_implement_resume", async () => {
         throw new Error("transient outage");
       }),
     };
     const event = await runToolThroughFakeAgentLoop(synthetic, {});
     const text = event.result.content[0].text;
-    expect(text.startsWith("FAILED: fh_team_implement_resume internal:")).toBe(true);
-    expect(text).toContain("RESUME: invoke fh_team_implement_resume { resume: '<slug-or-path>' }");
+    expect(text.startsWith("FAILED: sf_team_implement_resume internal:")).toBe(true);
+    expect(text).toContain("RESUME: invoke sf_team_implement_resume { resume: '<slug-or-path>' }");
   });
 
   it("wrapExecute falls back to the generic transcript-only hint for unknown tool names", async () => {
@@ -145,19 +145,19 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
     const text = event.result.content[0].text;
     expect(text.startsWith("FAILED: unknown_tool internal:")).toBe(true);
     expect(text).not.toMatch(/_resume \{ resume:/);
-    expect(text.toLowerCase()).toContain("consult the fh-team transcript");
+    expect(text.toLowerCase()).toContain("consult the sf-team transcript");
   });
 
   it("WorkflowStateError yields FAILED: <toolName> workflow_state: with the configured RESUME hint", async () => {
     const synthetic = {
-      name: "fh_team_task",
+      name: "sf_team_task",
       execute: wrapExecute(
-        "fh_team_task",
+        "sf_team_task",
         async () => {
           throw new WorkflowStateError({
-            toolName: "fh_team_task",
+            toolName: "sf_team_task",
             description: "developer produced no staged changes",
-            resumeHint: "invoke fh_team_task_resume { resume: 'demo' } after staging changes",
+            resumeHint: "invoke sf_team_task_resume { resume: 'demo' } after staging changes",
             details: { slug: "demo" },
           });
         },
@@ -166,9 +166,9 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
     const event = await runToolThroughFakeAgentLoop(synthetic, {});
     expect(event.isError).toBe(true);
     const text = event.result.content[0].text;
-    expect(text.startsWith("FAILED: fh_team_task workflow_state:")).toBe(true);
+    expect(text.startsWith("FAILED: sf_team_task workflow_state:")).toBe(true);
     expect(text).toContain("developer produced no staged changes");
-    expect(text).toContain("RESUME: invoke fh_team_task_resume { resume: 'demo' } after staging changes");
+    expect(text).toContain("RESUME: invoke sf_team_task_resume { resume: 'demo' } after staging changes");
   });
 });
 
@@ -178,13 +178,13 @@ describe("S-M27 typed-error pipeline (runtime-faithful)", () => {
 describe("S-M26 withTool: returns a NEW instance with recomposed Error.message", () => {
   it("withTool preserves merged details on the new instance (auto's autoSlug survives the rewrap)", () => {
     const original = new EmptyDiffError({
-      toolName: "fh_team_implement",
+      toolName: "sf_team_implement",
       milestoneId: "M5",
       attempts: 3,
       slug: "auto-slug",
-      resumeTool: "fh_team_implement_resume",
+      resumeTool: "sf_team_implement_resume",
     });
-    const reframed = original.withTool("fh_team_auto", "fh_team_auto_resume", {
+    const reframed = original.withTool("sf_team_auto", "sf_team_auto_resume", {
       autoSlug: "auto-slug",
       slug: "auto-slug",
     });
@@ -198,61 +198,61 @@ describe("S-M26 withTool: returns a NEW instance with recomposed Error.message",
     expect(original.details.autoSlug).toBeUndefined();
   });
 
-  it("withTool preserves subclass identity (returns EmptyDiffError, not base FhTeamToolError)", () => {
+  it("withTool preserves subclass identity (returns EmptyDiffError, not base SfTeamToolError)", () => {
     const original = new EmptyDiffError({
-      toolName: "fh_team_implement",
+      toolName: "sf_team_implement",
       milestoneId: "M3",
       attempts: 2,
       slug: "demo-slug",
-      resumeTool: "fh_team_implement_resume",
+      resumeTool: "sf_team_implement_resume",
     });
-    const reframed = original.withTool("fh_team_auto", "fh_team_auto_resume", { autoSlug: "auto-slug", slug: "auto-slug" });
+    const reframed = original.withTool("sf_team_auto", "sf_team_auto_resume", { autoSlug: "auto-slug", slug: "auto-slug" });
     expect(reframed).toBeInstanceOf(EmptyDiffError);
     expect(reframed).not.toBe(original);
-    // Subclass identity preserved; base FhTeamToolError instanceof still true via prototype chain.
-    expect(reframed).toBeInstanceOf(FhTeamToolError);
+    // Subclass identity preserved; base SfTeamToolError instanceof still true via prototype chain.
+    expect(reframed).toBeInstanceOf(SfTeamToolError);
     expect(reframed.kind).toBe("empty_diff");
   });
 
   it("withTool produces a new instance and leaves the original untouched", () => {
     const original = new EmptyDiffError({
-      toolName: "fh_team_implement",
+      toolName: "sf_team_implement",
       milestoneId: "M3",
       attempts: 2,
       slug: "demo-slug",
-      resumeTool: "fh_team_implement_resume",
+      resumeTool: "sf_team_implement_resume",
     });
-    const reframed = original.withTool("fh_team_auto", "fh_team_auto_resume", { autoSlug: "auto-slug", slug: "auto-slug" });
+    const reframed = original.withTool("sf_team_auto", "sf_team_auto_resume", { autoSlug: "auto-slug", slug: "auto-slug" });
 
     // Independent objects.
     expect(reframed).not.toBe(original);
-    expect(original.message.startsWith("FAILED: fh_team_implement ")).toBe(true);
-    expect(original.toolName).toBe("fh_team_implement");
+    expect(original.message.startsWith("FAILED: sf_team_implement ")).toBe(true);
+    expect(original.toolName).toBe("sf_team_implement");
 
     // New instance has the auto surface name.
-    expect(reframed.message.startsWith("FAILED: fh_team_auto empty_diff:")).toBe(true);
-    expect(reframed.toolName).toBe("fh_team_auto");
-    expect(reframed.resumeTool).toBe("fh_team_auto_resume");
+    expect(reframed.message.startsWith("FAILED: sf_team_auto empty_diff:")).toBe(true);
+    expect(reframed.toolName).toBe("sf_team_auto");
+    expect(reframed.resumeTool).toBe("sf_team_auto_resume");
     // Subclass-specific resume hint is preserved through composeResumeHintWith.
-    expect(reframed.message).toContain("RESUME: invoke fh_team_auto_resume { resume: 'auto-slug' }");
+    expect(reframed.message).toContain("RESUME: invoke sf_team_auto_resume { resume: 'auto-slug' }");
     expect(reframed.message).toContain("implement.empty_diff_retry_model");
   });
 
   it("the auto-wraps-implement test path matches the M2 spec (S-M27): rethrown error names the auto surface", async () => {
     // Simulate: implement throws EmptyDiffError; auto catches and rewraps via withTool.
-    let captured: FhTeamToolError | undefined;
+    let captured: SfTeamToolError | undefined;
     try {
       try {
         throw new EmptyDiffError({
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           milestoneId: "M5",
           attempts: 3,
           slug: "auto-slug",
-          resumeTool: "fh_team_implement_resume",
+          resumeTool: "sf_team_implement_resume",
         });
       } catch (err) {
-        if (err instanceof FhTeamToolError) {
-          throw err.withTool("fh_team_auto", "fh_team_auto_resume", {
+        if (err instanceof SfTeamToolError) {
+          throw err.withTool("sf_team_auto", "sf_team_auto_resume", {
             autoSlug: "auto-slug",
             slug: "auto-slug",
           });
@@ -260,11 +260,11 @@ describe("S-M26 withTool: returns a NEW instance with recomposed Error.message",
         throw err;
       }
     } catch (err) {
-      captured = err as FhTeamToolError;
+      captured = err as SfTeamToolError;
     }
-    expect(captured).toBeInstanceOf(FhTeamToolError);
+    expect(captured).toBeInstanceOf(SfTeamToolError);
     const m = captured!.message;
-    expect(m.startsWith("FAILED: fh_team_auto empty_diff:")).toBe(true);
-    expect(m).toContain("RESUME: invoke fh_team_auto_resume { resume: 'auto-slug' }");
+    expect(m.startsWith("FAILED: sf_team_auto empty_diff:")).toBe(true);
+    expect(m).toContain("RESUME: invoke sf_team_auto_resume { resume: 'auto-slug' }");
   });
 });

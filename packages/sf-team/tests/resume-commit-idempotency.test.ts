@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createWorkflowMetadata, writeWorkflowMetadata } from "@pi-stef/agent-workflows";
 
 import { planFolderPath } from "../src/plan/paths";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 
 const APPROVED = `## Summary
@@ -88,7 +88,7 @@ describe("resume commit idempotency", () => {
         return completed(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       await tool({ slug, useWorktree: false, verifyCommand: false }, { repoRoot: root });
       const firstCount = git(root, ["log", "--oneline", "--grep=feat(M1): One"]).split("\n").filter(Boolean).length;
@@ -98,8 +98,8 @@ describe("resume commit idempotency", () => {
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: planFolderPath(root, slug),
-        ownerTool: "fh_team_implement",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_implement",
+        currentTool: "sf_team_implement",
         phase: "commit",
       }));
 
@@ -112,7 +112,7 @@ describe("resume commit idempotency", () => {
   });
 
   // The "appendFollowupSection" idempotency case was removed alongside
-  // the helper itself: fh_team_followup now writes its own plan folder
+  // the helper itself: sf_team_followup now writes its own plan folder
   // (with its own pr-description.md) and never mutates the parent's
   // pr-description, so there is no append path to test.
 });

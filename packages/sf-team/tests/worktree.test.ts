@@ -110,7 +110,7 @@ describe("M7 validateRepoState", () => {
 
 describe("assertIsGitRepo (workflow-entry preflight)", () => {
   // The lightweight preflight used at the entry of every git-touching
-  // fh-team workflow (implement, auto, task, followup). It only checks
+  // sf-team workflow (implement, auto, task, followup). It only checks
   // for the presence of a git repo — dirty state is handled later by
   // validateRepoState at worktree-creation time. The friendly error
   // message must mention the tool name AND the cwd AND a `git init`
@@ -119,7 +119,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
   it("passes silently when cwd is inside a git repo", () => {
     const { root, dispose } = makeRepo();
     try {
-      expect(() => assertIsGitRepo("fh_team_implement", root)).not.toThrow();
+      expect(() => assertIsGitRepo("sf_team_implement", root)).not.toThrow();
     } finally {
       dispose();
     }
@@ -129,7 +129,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     const { root, dispose } = makeRepo();
     try {
       writeFileSync(path.join(root, "untracked.txt"), "hi");
-      expect(() => assertIsGitRepo("fh_team_implement", root)).not.toThrow();
+      expect(() => assertIsGitRepo("sf_team_implement", root)).not.toThrow();
     } finally {
       dispose();
     }
@@ -140,15 +140,15 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     try {
       let caught: Error | undefined;
       try {
-        assertIsGitRepo("fh_team_implement", tmpRoot);
+        assertIsGitRepo("sf_team_implement", tmpRoot);
       } catch (err) {
         caught = err as Error;
       }
       expect(caught).toBeInstanceOf(GitRepoMissingError);
       const err = caught as GitRepoMissingError;
-      expect(err.tool).toBe("fh_team_implement");
+      expect(err.tool).toBe("sf_team_implement");
       expect(err.cwd).toBe(tmpRoot);
-      expect(err.message).toContain("fh_team_implement");
+      expect(err.message).toContain("sf_team_implement");
       expect(err.message).toContain(tmpRoot);
       expect(err.message).toContain("git init");
       expect(err.message).toContain("not a git repository");
@@ -162,7 +162,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     try {
       let caught: Error | undefined;
       try {
-        assertIsGitRepo("fh_team_auto", tmpRoot);
+        assertIsGitRepo("sf_team_auto", tmpRoot);
       } catch (err) {
         caught = err as Error;
       }
@@ -175,7 +175,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
   it("each tool name flows into the error so the user knows which workflow tripped", () => {
     const tmpRoot = mkdtempSync(path.join(tmpdir(), "preflight-nogit-tools-"));
     try {
-      for (const tool of ["fh_team_implement", "fh_team_auto", "fh_team_task", "fh_team_followup"]) {
+      for (const tool of ["sf_team_implement", "sf_team_auto", "sf_team_task", "sf_team_followup"]) {
         let caught: Error | undefined;
         try {
           assertIsGitRepo(tool, tmpRoot);
@@ -196,7 +196,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     try {
       let caught: GitRepoMissingError | undefined;
       try {
-        assertIsGitRepo("fh_team_implement", tmpRoot);
+        assertIsGitRepo("sf_team_implement", tmpRoot);
       } catch (err) {
         caught = err as GitRepoMissingError;
       }
@@ -220,7 +220,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     try {
       let caught: GitRepoMissingError | undefined;
       try {
-        assertIsGitRepo("fh_team_implement", cwd);
+        assertIsGitRepo("sf_team_implement", cwd);
       } catch (err) {
         caught = err as GitRepoMissingError;
       }
@@ -248,7 +248,7 @@ describe("assertIsGitRepo (workflow-entry preflight)", () => {
     try {
       let caught: GitRepoMissingError | undefined;
       try {
-        assertIsGitRepo("fh_team_implement", otherCwd);
+        assertIsGitRepo("sf_team_implement", otherCwd);
       } catch (err) {
         caught = err as GitRepoMissingError;
       }
@@ -488,7 +488,7 @@ describe("M7 removeWorktreeIfEmpty + cleanupWorktreeAndLock", () => {
       // Acquire a lock; worktree absent.
       const slug = "2026-05-01-lockonly";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
-      await acquireLock(root, slug, "fh_team_test");
+      await acquireLock(root, slug, "sf_team_test");
       await expect(cleanupWorktreeAndLock({ repoRoot: root, slug })).resolves.toBeUndefined();
     } finally {
       dispose();

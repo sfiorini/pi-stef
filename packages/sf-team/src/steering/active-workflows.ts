@@ -4,11 +4,11 @@ import path from "node:path";
 import type { SteeringWorkflowKind } from "./path-safety";
 
 export type ActiveWorkflowToolName =
-  | "fh_team_plan"
-  | "fh_team_implement"
-  | "fh_team_auto"
-  | "fh_team_task"
-  | "fh_team_followup";
+  | "sf_team_plan"
+  | "sf_team_implement"
+  | "sf_team_auto"
+  | "sf_team_task"
+  | "sf_team_followup";
 
 export interface ActiveWorkflowRecord {
   workflowId: string;
@@ -75,7 +75,7 @@ class AsyncMutex {
 const REGISTRY_MUTEXES = new Map<string, AsyncMutex>();
 
 export function activeWorkflowRegistryPath(repoRoot: string): string {
-  return path.join(path.resolve(repoRoot), ".fh-team", "active-workflows.json");
+  return path.join(path.resolve(repoRoot), ".sf-team", "active-workflows.json");
 }
 
 export function createActiveWorkflowRegistry(repoRoot: string): ActiveWorkflowRegistry {
@@ -87,20 +87,20 @@ export function createActiveWorkflowRegistry(repoRoot: string): ActiveWorkflowRe
 
 export function workflowKindFromToolName(toolName: string): SteeringWorkflowKind | undefined {
   switch (toolName) {
-    case "fh_team_plan":
-    case "fh_team_plan_resume":
+    case "sf_team_plan":
+    case "sf_team_plan_resume":
       return "plan";
-    case "fh_team_implement":
-    case "fh_team_implement_resume":
+    case "sf_team_implement":
+    case "sf_team_implement_resume":
       return "implement";
-    case "fh_team_auto":
-    case "fh_team_auto_resume":
+    case "sf_team_auto":
+    case "sf_team_auto_resume":
       return "auto";
-    case "fh_team_task":
-    case "fh_team_task_resume":
+    case "sf_team_task":
+    case "sf_team_task_resume":
       return "task";
-    case "fh_team_followup":
-    case "fh_team_followup_resume":
+    case "sf_team_followup":
+    case "sf_team_followup_resume":
       return "followup";
     default:
       return undefined;
@@ -110,15 +110,15 @@ export function workflowKindFromToolName(toolName: string): SteeringWorkflowKind
 export function baseToolNameFromKind(kind: SteeringWorkflowKind): ActiveWorkflowToolName {
   switch (kind) {
     case "plan":
-      return "fh_team_plan";
+      return "sf_team_plan";
     case "implement":
-      return "fh_team_implement";
+      return "sf_team_implement";
     case "auto":
-      return "fh_team_auto";
+      return "sf_team_auto";
     case "task":
-      return "fh_team_task";
+      return "sf_team_task";
     case "followup":
-      return "fh_team_followup";
+      return "sf_team_followup";
   }
 }
 

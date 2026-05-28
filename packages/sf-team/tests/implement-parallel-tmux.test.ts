@@ -8,7 +8,7 @@ import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { TmuxManager } from "../src/tmux/manager";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 
 const APPROVED = `## Summary
 ok
@@ -127,7 +127,7 @@ function stubTmux(): { mgr: TmuxManager; calls: string[] } {
   return { mgr, calls };
 }
 
-describe("fh_team_implement parallel tmux panes", () => {
+describe("sf_team_implement parallel tmux panes", () => {
   it("passes story and reviewer layout metadata to tmux panes", async () => {
     const { root, slug, dispose } = makeRepo();
     const tmux = stubTmux();
@@ -143,7 +143,7 @@ describe("fh_team_implement parallel tmux panes", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         {
           slug,

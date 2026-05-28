@@ -43,7 +43,7 @@ describe("S-804 no-tmux path: zero manager calls + widget snapshot unchanged", (
         {
           repoRoot: repo.root,
           slug: "no-tmux-byte-identical",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           // Field omitted entirely — production "no $TMUX env" path.
           widget: {
@@ -80,10 +80,10 @@ describe("S-804 no-tmux path: zero manager calls + widget snapshot unchanged", (
     expect(lines[1]).toMatch(/reviewer.*\(r\)/);
     expect(lines[1]).toContain("✓");
     // No tmux artifacts in the snapshot — no per-run log dir prefix
-    // (`fh-team-<hash>-<runId>`), no launcher session name
+    // (`sf-team-<hash>-<runId>`), no launcher session name
     // (`fh-agent-<hex>`), no log file paths.
     for (const l of lines) {
-      expect(l).not.toMatch(/fh-team-/);
+      expect(l).not.toMatch(/sf-team-/);
       expect(l).not.toMatch(/fh-agent-/);
       expect(l).not.toMatch(/\.log/);
     }
@@ -101,7 +101,7 @@ describe("S-804 no-tmux path: zero manager calls + widget snapshot unchanged", (
       {
         repoRoot: repo.root,
         slug: "no-tmux-explicit",
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         useWorktree: true,
         tmuxManager: null,
       },
@@ -123,7 +123,7 @@ describe("S-804 no-tmux path: zero manager calls + widget snapshot unchanged", (
         {
           repoRoot: repo.root,
           slug: "no-tmux-throttle",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           widgetUpdateIntervalMs: 20,
           widget: {

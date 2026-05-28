@@ -126,8 +126,8 @@ describe("historical cost parsing", () => {
       writeFileSync(path.join(folder, "performance-2026-json.json"), JSON.stringify({
         schemaVersion: 1,
         slug: "slug-a",
-        toolName: "fh_team_plan",
-        ownerTool: "fh_team_auto",
+        toolName: "sf_team_plan",
+        ownerTool: "sf_team_auto",
         status: "completed",
         startedAt: "2026-05-12T00:00:00.000Z",
         finishedAt: "2026-05-12T00:00:01.000Z",
@@ -145,8 +145,8 @@ describe("historical cost parsing", () => {
       writeFileSync(path.join(folder, "performance-2026-other.json"), JSON.stringify({
         schemaVersion: 1,
         slug: "slug-a",
-        toolName: "fh_team_plan",
-        ownerTool: "fh_team_plan",
+        toolName: "sf_team_plan",
+        ownerTool: "sf_team_plan",
         status: "completed",
         startedAt: "2026-05-12T00:00:00.000Z",
         finishedAt: "2026-05-12T00:00:01.000Z",
@@ -154,8 +154,8 @@ describe("historical cost parsing", () => {
       }));
 
       const result = await readHistoricalCostSummary(root, "slug-a", {
-        logicalToolName: "fh_team_plan",
-        ownerTool: "fh_team_auto",
+        logicalToolName: "sf_team_plan",
+        ownerTool: "sf_team_auto",
       });
 
       expect(result.reportCount).toBe(1);
@@ -171,7 +171,7 @@ describe("historical cost parsing", () => {
       const folder = reportsFolderPath(root, "slug-b");
       mkdirSync(folder, { recursive: true });
       writeFileSync(path.join(folder, "performance-2026-md.md"), [
-        "# fh-team performance - fh_team_implement",
+        "# sf-team performance - sf_team_implement",
         "",
         "## Token Usage",
         "",
@@ -181,7 +181,7 @@ describe("historical cost parsing", () => {
       ].join("\n"));
 
       const result = await readHistoricalCostSummary(root, "slug-b", {
-        logicalToolName: "fh_team_implement",
+        logicalToolName: "sf_team_implement",
       });
 
       expect(result.reportCount).toBe(1);
@@ -198,9 +198,9 @@ describe("historical cost parsing", () => {
     try {
       const folder = reportsFolderPath(root, "slug-c");
       mkdirSync(folder, { recursive: true });
-      for (const [tool, cost] of [["fh_team_plan", "$1.00"], ["fh_team_implement", "$2.00"], ["fh_team_task", "$3.00"]] as const) {
+      for (const [tool, cost] of [["sf_team_plan", "$1.00"], ["sf_team_implement", "$2.00"], ["sf_team_task", "$3.00"]] as const) {
         writeFileSync(path.join(folder, `performance-${tool}.md`), [
-          `# fh-team performance — ${tool}`,
+          `# sf-team performance — ${tool}`,
           "",
           "## Token Usage",
           "",
@@ -211,12 +211,12 @@ describe("historical cost parsing", () => {
       }
 
       const auto = await readHistoricalCostSummary(root, "slug-c", {
-        logicalToolName: "fh_team_auto",
-        ownerTool: "fh_team_auto",
+        logicalToolName: "sf_team_auto",
+        ownerTool: "sf_team_auto",
         includeLegacyAutoReports: true,
       });
       const implement = await readHistoricalCostSummary(root, "slug-c", {
-        logicalToolName: "fh_team_implement",
+        logicalToolName: "sf_team_implement",
       });
 
       expect(auto.reportCount).toBe(2);
@@ -235,9 +235,9 @@ describe("historical cost parsing", () => {
       mkdirSync(folder, { recursive: true });
       writeFileSync(path.join(folder, "performance-bad.json"), "{not json");
       writeFileSync(path.join(folder, "performance-bad.md"), [
-        "# fh-team performance — fh_team_task",
+        "# sf-team performance — sf_team_task",
         "",
-        "- **owner tool**: fh_team_task",
+        "- **owner tool**: sf_team_task",
         "",
         "## Token Usage",
         "",
@@ -247,8 +247,8 @@ describe("historical cost parsing", () => {
       ].join("\n"));
 
       const result = await readHistoricalCostSummary(root, "slug-d", {
-        logicalToolName: "fh_team_task",
-        ownerTool: "fh_team_task",
+        logicalToolName: "sf_team_task",
+        ownerTool: "sf_team_task",
       });
 
       expect(result.reportCount).toBe(1);

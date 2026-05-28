@@ -5,7 +5,7 @@ import path from "node:path";
 
 import { Value } from "typebox/value";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { planFolderPath } from "../src/plan/paths";
 import * as autoModule from "../src/tools/auto";
 import * as implementModule from "../src/tools/implement";
@@ -28,11 +28,11 @@ class FakePi {
 
 function loadTools(): { implement: RegisteredTool; auto: RegisteredTool } {
   const pi = new FakePi();
-  fhTeamExtension(pi as never);
-  const implement = pi.tools.find((t) => t.name === "fh_team_implement")!;
-  const auto = pi.tools.find((t) => t.name === "fh_team_auto")!;
-  expect(implement, "fh_team_implement registration must exist").toBeDefined();
-  expect(auto, "fh_team_auto registration must exist").toBeDefined();
+  sfTeamExtension(pi as never);
+  const implement = pi.tools.find((t) => t.name === "sf_team_implement")!;
+  const auto = pi.tools.find((t) => t.name === "sf_team_auto")!;
+  expect(implement, "sf_team_implement registration must exist").toBeDefined();
+  expect(auto, "sf_team_auto registration must exist").toBeDefined();
   return { implement, auto };
 }
 
@@ -71,7 +71,7 @@ function seedPlanProgress(root: string, slug: string): void {
 }
 
 describe("S-207: registered tool input schemas accept pauseBetweenMilestones", () => {
-  it("fh_team_implement Value.Check passes WITH pauseBetweenMilestones=true|false|absent", () => {
+  it("sf_team_implement Value.Check passes WITH pauseBetweenMilestones=true|false|absent", () => {
     const { implement } = loadTools();
     const schema = implement.parameters;
     expect(Value.Check(schema as never, { slug: "x" })).toBe(true);
@@ -81,7 +81,7 @@ describe("S-207: registered tool input schemas accept pauseBetweenMilestones", (
     expect(Value.Check(schema as never, { slug: "x", pauseBetweenMilestones: "yes" })).toBe(false);
   });
 
-  it("fh_team_auto Value.Check passes WITH pauseBetweenMilestones=true|false|absent", () => {
+  it("sf_team_auto Value.Check passes WITH pauseBetweenMilestones=true|false|absent", () => {
     const { auto } = loadTools();
     const schema = auto.parameters;
     expect(Value.Check(schema as never, { title: "x" })).toBe(true);
@@ -92,7 +92,7 @@ describe("S-207: registered tool input schemas accept pauseBetweenMilestones", (
 });
 
 describe("S-207: registered handler forwards pauseBetweenMilestones to the underlying tool", () => {
-  it("fh_team_implement.execute passes params.pauseBetweenMilestones into createFhTeamImplement input", async () => {
+  it("sf_team_implement.execute passes params.pauseBetweenMilestones into createSfTeamImplement input", async () => {
     // Spy the factory: when the registered tool is invoked, the factory's
     // returned function is called with an input object — we capture that.
     const captured: Array<Record<string, unknown>> = [];
@@ -101,14 +101,14 @@ describe("S-207: registered handler forwards pauseBetweenMilestones to the under
       return { slug: input.slug, mode: "single-milestone", milestones: [] };
     });
     const factorySpy = vi
-      .spyOn(implementModule, "createFhTeamImplement")
+      .spyOn(implementModule, "createSfTeamImplement")
       .mockReturnValue(fakeHandler as never);
 
     try {
       // Re-register with the spy active.
       const pi = new FakePi();
-      fhTeamExtension(pi as never);
-      const tool = pi.tools.find((t) => t.name === "fh_team_implement")!;
+      sfTeamExtension(pi as never);
+      const tool = pi.tools.find((t) => t.name === "sf_team_implement")!;
       const fakeCtx = { hasUI: false, ui: undefined };
       // execute(id, params, signal, onUpdate, ctx)
       await tool.execute("test-id", { slug: "demo-slug", pauseBetweenMilestones: false }, undefined, undefined, fakeCtx);
@@ -125,7 +125,7 @@ describe("S-207: registered handler forwards pauseBetweenMilestones to the under
     }
   });
 
-  it("fh_team_implement output reports plan progress, not only this invocation count", async () => {
+  it("sf_team_implement output reports plan progress, not only this invocation count", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-registered-progress-"));
     const prevCwd = process.cwd();
     const slug = "demo-slug";
@@ -137,14 +137,14 @@ describe("S-207: registered handler forwards pauseBetweenMilestones to the under
       milestones: [{ id: "M2", approved: true, rounds: 1, commitSha: "def" }],
     }));
     const factorySpy = vi
-      .spyOn(implementModule, "createFhTeamImplement")
+      .spyOn(implementModule, "createSfTeamImplement")
       .mockReturnValue(fakeHandler as never);
 
     try {
       process.chdir(root);
       const pi = new FakePi();
-      fhTeamExtension(pi as never);
-      const tool = pi.tools.find((t) => t.name === "fh_team_implement")!;
+      sfTeamExtension(pi as never);
+      const tool = pi.tools.find((t) => t.name === "sf_team_implement")!;
       const fakeCtx = { hasUI: false, ui: undefined };
       const response = await tool.execute("test-id", { slug }, undefined, undefined, fakeCtx) as {
         content: Array<{ text: string }>;
@@ -161,20 +161,20 @@ describe("S-207: registered handler forwards pauseBetweenMilestones to the under
     }
   });
 
-  it("fh_team_auto.execute passes params.pauseBetweenMilestones into createFhTeamAuto input", async () => {
+  it("sf_team_auto.execute passes params.pauseBetweenMilestones into createSfTeamAuto input", async () => {
     const captured: Array<Record<string, unknown>> = [];
     const fakeHandler = vi.fn(async (input: Record<string, unknown>) => {
       captured.push(input);
       return { slug: "x", planRounds: 0, implement: { slug: "x", mode: "all-milestones", milestones: [] } };
     });
     const factorySpy = vi
-      .spyOn(autoModule, "createFhTeamAuto")
+      .spyOn(autoModule, "createSfTeamAuto")
       .mockReturnValue(fakeHandler as never);
 
     try {
       const pi = new FakePi();
-      fhTeamExtension(pi as never);
-      const tool = pi.tools.find((t) => t.name === "fh_team_auto")!;
+      sfTeamExtension(pi as never);
+      const tool = pi.tools.find((t) => t.name === "sf_team_auto")!;
       const fakeCtx = { hasUI: false, ui: undefined };
       await tool.execute("test-id", { title: "demo", pauseBetweenMilestones: true }, undefined, undefined, fakeCtx);
 
@@ -186,7 +186,7 @@ describe("S-207: registered handler forwards pauseBetweenMilestones to the under
     }
   });
 
-  it("fh_team_implement default registration omits shouldContinue (S-206)", () => {
+  it("sf_team_implement default registration omits shouldContinue (S-206)", () => {
     // Source-level guard: even WITHOUT spying, the registration body should
     // not contain a literal `shouldContinue:` assignment in the input it
     // forwards. Source is read directly to enforce the contract at PR time.

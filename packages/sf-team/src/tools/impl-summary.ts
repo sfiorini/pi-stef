@@ -6,7 +6,7 @@
  * + the revised diff (round 2+). For a multi-file milestone the prompt
  * could exceed macOS ARG_MAX (~1 MB) — the OS rejected the spawn with
  * `E2BIG` before the reviewer subprocess could start, killing the entire
- * `fh_team_auto` run mid-milestone (the user's M2 round 2 in particular).
+ * `sf_team_auto` run mid-milestone (the user's M2 round 2 in particular).
  *
  * The fix replaces full-diff payloads with bounded summaries:
  *   - Round 1: developer's narrative `finalText` + `git diff --staged --stat`.

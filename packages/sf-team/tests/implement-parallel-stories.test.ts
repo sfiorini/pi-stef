@@ -5,7 +5,7 @@ import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { planFolderPath } from "../src/plan/paths";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { resolveDefaults } from "../src/config/load";
 
@@ -100,7 +100,7 @@ function makeRepo(): { root: string; slug: string; dispose: () => void } {
   return { root, slug, dispose: () => rmSync(root, { recursive: true, force: true }) };
 }
 
-describe("fh_team_implement parallel stories", () => {
+describe("sf_team_implement parallel stories", () => {
   it("runs strategy story lanes in isolated worktrees, commits them, then reviews the combined milestone", async () => {
     const { root, slug, dispose } = makeRepo();
     try {
@@ -119,7 +119,7 @@ describe("fh_team_implement parallel stories", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,

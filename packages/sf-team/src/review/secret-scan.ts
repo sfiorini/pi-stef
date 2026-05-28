@@ -86,7 +86,7 @@ export class SecretsInPayloadError extends Error {
   readonly hits: SecretHit[];
   constructor(role: string, hits: SecretHit[]) {
     super(
-      `fh-team refused to spawn ${role} agent: ${hits.length} secret pattern(s) detected in payload (` +
+      `sf-team refused to spawn ${role} agent: ${hits.length} secret pattern(s) detected in payload (` +
         hits.map((h) => `${h.kind}=${h.preview}`).join(", ") +
         ")",
     );

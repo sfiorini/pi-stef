@@ -2,9 +2,9 @@ import { stat } from "node:fs/promises";
 import path from "node:path";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 
-import { FhTeamToolError, WorkflowStateError } from "../errors";
-import { createFhTeamPlan, type AgentSettingsDetails, type AgentSettingsSource, type FhTeamPlanInput, type FhTeamPlanResult, type ResearcherDecision } from "./plan";
-import { createFhTeamImplement, type FhTeamImplementInput, type FhTeamImplementResult } from "./implement";
+import { SfTeamToolError, WorkflowStateError } from "../errors";
+import { createSfTeamPlan, type AgentSettingsDetails, type AgentSettingsSource, type SfTeamPlanInput, type SfTeamPlanResult, type ResearcherDecision } from "./plan";
+import { createSfTeamImplement, type SfTeamImplementInput, type SfTeamImplementResult } from "./implement";
 import { DEFAULT_CONFIG } from "../config/schema";
 import { effectiveUi, isHeadlessWorkflow } from "../config/workflow";
 import { PLAN_FOLDER_ROOT, planFolderPathFromRoot } from "../plan/paths";
@@ -14,35 +14,35 @@ import { requireGitOrSkip } from "../worktree/validate";
 import { readImplementPlanFolder, type PlanFolderRead } from "./implement-reader";
 import { normalOrResumeValue, resolveToolResume } from "./resume";
 import { defaultDeps, type ToolDeps } from "./shared";
-import { verificationDefaultsForAutoImplement, verificationDefaultsForPlanPhase, type FhTeamVerificationConfigInput } from "./verification-stage";
+import { verificationDefaultsForAutoImplement, verificationDefaultsForPlanPhase, type SfTeamVerificationConfigInput } from "./verification-stage";
 import type { CostSummary } from "../orchestrator/cost";
 
 /**
- * Probe tmux ONCE for the next-available `fh_team_auto-N` alias. Used
- * by `fh_team_auto` so its plan + implement nested orchestrator runs
- * land on the same session instead of fighting over `fh_team_plan-1`
- * vs `fh_team_implement-1`. Returns `undefined` outside of tmux or
+ * Probe tmux ONCE for the next-available `sf_team_auto-N` alias. Used
+ * by `sf_team_auto` so its plan + implement nested orchestrator runs
+ * land on the same session instead of fighting over `sf_team_plan-1`
+ * vs `sf_team_implement-1`. Returns `undefined` outside of tmux or
  * when probing fails (the orchestrator will then fall back to its
  * per-tool default).
  */
 function resolveAutoSessionAlias(): string | undefined {
   try {
     if (!getActiveSession()) return undefined;
-    return new TmuxManager().nextSessionAlias("fh_team_auto");
+    return new TmuxManager().nextSessionAlias("sf_team_auto");
   } catch {
     return undefined;
   }
 }
 
-export interface FhTeamAutoInput {
+export interface SfTeamAutoInput {
   /** Title for the new plan + brief for the planner. */
   title?: string;
   resume?: string;
   brief?: string;
   maxRounds?: number;
   /** Override implement-phase verifyCommand (false skips). */
-  verifyCommand?: FhTeamImplementInput["verifyCommand"];
-  verification?: FhTeamVerificationConfigInput;
+  verifyCommand?: SfTeamImplementInput["verifyCommand"];
+  verification?: SfTeamVerificationConfigInput;
   /** Branch prefix for the new branch (default 'auto/'). */
   branchPrefix?: string;
   /**
@@ -53,10 +53,10 @@ export interface FhTeamAutoInput {
   pauseBetweenMilestones?: boolean;
 }
 
-export interface FhTeamAutoResult {
+export interface SfTeamAutoResult {
   slug: string;
   planRounds: number;
-  implement: FhTeamImplementResult;
+  implement: SfTeamImplementResult;
   agentSettings: AgentSettingsDetails;
   researcherDecision: ResearcherDecision;
   performanceReportPaths: string[];
@@ -64,24 +64,24 @@ export interface FhTeamAutoResult {
 }
 
 /**
- * fh_team_auto: chains fh_team_plan and fh_team_implement (D2 default).
+ * sf_team_auto: chains sf_team_plan and sf_team_implement (D2 default).
  * No human gates between — runs end-to-end. Still asks before push (the
  * implement tool's pr-description doesn't push).
  */
-export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
+export function createSfTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
   const deps: ToolDeps = { ...defaultDeps, ...rawDeps };
-  const planTool = createFhTeamPlan(deps);
-  const implementTool = createFhTeamImplement(deps);
+  const planTool = createSfTeamPlan(deps);
+  const implementTool = createSfTeamImplement(deps);
 
-  return async function fhTeamAuto(
-    input: FhTeamAutoInput,
+  return async function sfTeamAuto(
+    input: SfTeamAutoInput,
     ctx: {
       repoRoot: string;
       signal?: AbortSignal;
       ui?: ExtensionUIContext;
       configDefaults?: import("../config/schema").ResolvedDefaults;
       /**
-       * Pi tool name (`fh_team_auto` or `fh_team_auto_resume`) fronting
+       * Pi tool name (`sf_team_auto` or `sf_team_auto_resume`) fronting
        * this run. Used by typed errors so the `FAILED:` envelope names
        * the auto surface, not the inner implement surface, when
        * implement-side errors propagate up.
@@ -97,16 +97,16 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
       /** Raw prompt value for tddMode before runtime resolution; used for resume precedence. */
       rawTddMode?: "auto" | "on" | "off";
     },
-  ): Promise<FhTeamAutoResult> {
-    const autoToolName = ctx.toolName ?? "fh_team_auto";
-    const autoResumeTool = "fh_team_auto_resume";
+  ): Promise<SfTeamAutoResult> {
+    const autoToolName = ctx.toolName ?? "sf_team_auto";
+    const autoResumeTool = "sf_team_auto_resume";
     // Preflight: auto chains plan + implement; the implement phase WILL
     // create a worktree and commit in git mode. Fail fast here BEFORE
     // the planner runs so the user doesn't burn a full plan-review loop
     // against a non-git folder. In no-git mode, skip this check.
     const resume = await resolveToolResume({
       repoRoot: ctx.repoRoot,
-      toolName: "fh_team_auto",
+      toolName: "sf_team_auto",
       input,
       normalField: "title",
       candidatePlanRoots: ctx.planRoot ? [ctx.planRoot] : undefined,
@@ -125,12 +125,12 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
     const effectivePlanRoot = resume?.metadata?.planRootPath ?? ctx.planRoot;
     // Preflight git check after effective mode resolution so a slug-only resume
     // from a non-git cwd of a no-git workflow uses the persisted gitMode='off'.
-    requireGitOrSkip({ repoRoot: ctx.repoRoot, gitMode: effectiveGitMode }, "fh_team_auto");
+    requireGitOrSkip({ repoRoot: ctx.repoRoot, gitMode: effectiveGitMode }, "sf_team_auto");
     const title = normalOrResumeValue(input, "title", resume);
-    // Resolve a shared `fh_team_auto-N` alias up front so the plan and
+    // Resolve a shared `sf_team_auto-N` alias up front so the plan and
     // implement phases decorate the SAME tmux session. Without this,
     // each phase would alias the launcher session under its own
-    // toolName (`fh_team_plan-1`, `fh_team_implement-1`), and the
+    // toolName (`sf_team_plan-1`, `sf_team_implement-1`), and the
     // implement phase would fail to find the session it inherited
     // from the plan phase.
     const tmuxSessionAliasOverride = isHeadlessWorkflow(ctx.configDefaults) ? undefined : resolveAutoSessionAlias();
@@ -138,7 +138,7 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
       ...ctx,
       ui: effectiveUi(ctx.ui, ctx.configDefaults),
       tmuxSessionAliasOverride,
-      resumeOwnerTool: "fh_team_auto" as const,
+      resumeOwnerTool: "sf_team_auto" as const,
       gitMode: effectiveGitMode,
       tddMode: effectiveTddMode,
       planRoot: effectivePlanRoot,
@@ -149,7 +149,7 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
     const resumePlanFolder = resumeSlug
       ? await readResumeImplementPlanFolder(ctx.repoRoot, resumeSlug, resume.metadata?.currentTool, autoToolName, effectivePlanRoot)
       : undefined;
-    const planInput: FhTeamPlanInput = resume && !resumePlanFolder
+    const planInput: SfTeamPlanInput = resume && !resumePlanFolder
       ? { resume: resume.target.slug, maxRounds: input.maxRounds }
       : { title, brief: input.brief, maxRounds: input.maxRounds };
     const plan = resumePlanFolder
@@ -159,10 +159,10 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
         configDefaults: verificationDefaultsForPlanPhase(baseDefaults, { invokedByAuto: true }),
         suppressPlanVerification: true,
       });
-    const implementInput: Pick<FhTeamImplementInput, "resume" | "slug"> = resumePlanFolder
+    const implementInput: Pick<SfTeamImplementInput, "resume" | "slug"> = resumePlanFolder
       ? { resume: plan.slug }
       : { slug: plan.slug };
-    let implement: FhTeamImplementResult;
+    let implement: SfTeamImplementResult;
     try {
       implement = await implementTool(
         {
@@ -171,7 +171,7 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
           mode: ctx.configDefaults?.auto.mode ?? "all-milestones",
           branchPrefix: input.branchPrefix ?? ctx.configDefaults?.auto.branch_prefix ?? "auto/",
           useWorktree: ctx.configDefaults?.auto.use_worktree,
-          // For fh_team_auto we resolve from `auto.*` rather than `implement.*`.
+          // For sf_team_auto we resolve from `auto.*` rather than `implement.*`.
           // Falling through to `auto`'s default (false) keeps the headless
           // "run end-to-end" behavior unless the user explicitly opts in.
           // Explicit final fallback to DEFAULT_CONFIG.auto.* so that callers
@@ -187,18 +187,18 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
         {
           ...innerCtx,
           configDefaults: verificationDefaultsForAutoImplement(baseDefaults, input.verification),
-          // The implement surface is always `fh_team_implement` (the
+          // The implement surface is always `sf_team_implement` (the
           // bare base name; the historical `_start` suffix was dropped
           // in the M1-collapse follow-up). Auto's outer try/catch
-          // rewraps any FhTeamToolError via `withTool(...)` so the
+          // rewraps any SfTeamToolError via `withTool(...)` so the
           // user-facing FAILED:/RESUME: line names the auto surface and
-          // points at `fh_team_auto_resume`. (R3 P2: no post-throw
+          // points at `sf_team_auto_resume`. (R3 P2: no post-throw
           // mutation of `Error.message`.)
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
         },
       );
     } catch (err) {
-      if (err instanceof FhTeamToolError) {
+      if (err instanceof SfTeamToolError) {
         throw err.withTool(autoToolName, autoResumeTool, { autoSlug: plan.slug, slug: plan.slug });
       }
       throw err;
@@ -236,7 +236,7 @@ async function readResumeImplementPlanFolder(
       });
     }
   } catch (err) {
-    if (err instanceof FhTeamToolError) throw err;
+    if (err instanceof SfTeamToolError) throw err;
     if (errorCode(err) === "ENOENT") return undefined;
     throw new WorkflowStateError({
       toolName: autoToolName,
@@ -250,7 +250,7 @@ async function readResumeImplementPlanFolder(
   try {
     return await readImplementPlanFolder(repoRoot, slug, planRoot);
   } catch (err) {
-    if (errorCode(err) === "ENOENT" && currentTool === "fh_team_plan") {
+    if (errorCode(err) === "ENOENT" && currentTool === "sf_team_plan") {
       return undefined;
     }
     throw new WorkflowStateError({
@@ -267,7 +267,7 @@ function resumedPlanSummary(
   folder: PlanFolderRead,
   config: import("../config/schema").ResolvedDefaults,
   fromResolvedConfig: boolean,
-): FhTeamPlanResult {
+): SfTeamPlanResult {
   return {
     slug: folder.slug,
     approved: true,

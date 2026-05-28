@@ -24,7 +24,7 @@ export type WritePlanFolderInput =
  * (M9 detectResumeState).
  *
  * - five-file: writes all 5 canonical files into ai_plan/<slug>/
- * - task: writes a single task-plan.md (also used by fh_team_followup,
+ * - task: writes a single task-plan.md (also used by sf_team_followup,
  *   which gets its own plan folder under ai_plan/<date>-followup-<slug>/
  *   instead of an overlay file in the parent's folder)
  */
@@ -41,7 +41,7 @@ export async function writePlanFolder(repoRoot: string, input: WritePlanFolderIn
     if (input.executionStrategyJson !== undefined) {
       await atomicWriteFile(path.join(folder, EXECUTION_STRATEGY_FILE), input.executionStrategyJson);
     }
-    upsertEntry(input.slug, { planRoot: resolvedPlanRoot, tool: "fh_team_plan" });
+    upsertEntry(input.slug, { planRoot: resolvedPlanRoot, tool: "sf_team_plan" });
     return folder;
   }
   // task / followup: single-file layout

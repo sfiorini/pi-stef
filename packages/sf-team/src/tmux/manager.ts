@@ -14,7 +14,7 @@ const RUN_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
 const TMUX_WINDOW_ID_RE = /^@\d+$/;
 /**
  * Tool-derived session alias: `<toolName>-<N>`. Matches what the
- * orchestrator computes from the running tool (e.g. fh_team_auto-1).
+ * orchestrator computes from the running tool (e.g. sf_team_auto-1).
  * This is what the user sees in `tmux ls` after the orchestrator
  * renames the launcher's `fh-agent-<hex>` session.
  *
@@ -52,12 +52,12 @@ const PRETTY_PANE_PATH = path.resolve(
  * (~4 billion possibilities) so concurrent launcher collisions are
  * effectively impossible.
  *
- * The OPTION KEY itself stays under the historical `@fh-team-`
+ * The OPTION KEY itself stays under the historical `@sf-team-`
  * namespace so existing tmux sessions stamped before the launcher
  * was renamed are still recognized; only the launcher SESSION NAME
  * (the value stored under this key) changed when we rebranded.
  */
-const OWNER_OPTION = "@fh-team-owner-of";
+const OWNER_OPTION = "@sf-team-owner-of";
 
 /**
  * Strict launcher-emitted session name: matches what `scripts/fh-agent`
@@ -212,7 +212,7 @@ export function getActiveSession(opts: DetectOpts = {}): ActiveSession | null {
   //          this name; users do not create sessions with this exact
   //          shape.
   //       b) Current session carries our identity marker
-  //          (`@fh-team-owner-of`), meaning a prior
+  //          (`@sf-team-owner-of`), meaning a prior
   //          `prepareSession` call from THIS codebase stamped it.
   //          Marker presence alone is sufficient because ONLY this
   //          codebase ever writes that user-option key.
@@ -261,7 +261,7 @@ export function ensureLogDir(sessionName: string, runId: string, opts: EnsureLog
     .update(`${sessionName}:${runId}`)
     .digest("hex")
     .slice(0, 8);
-  const dirname = `fh-team-${hash}-${safeRunId}`;
+  const dirname = `sf-team-${hash}-${safeRunId}`;
   const tmpDir = opts.tmpDir ?? os.tmpdir();
   const full = path.join(tmpDir, dirname);
   mkdirSync(full, { recursive: true });
@@ -326,7 +326,7 @@ export interface PrepareSessionArgs {
   sessionName: string;
   /**
    * Tool-derived alias to rename the session to. Format
-   * `<toolName>-<N>` (e.g. `fh_team_auto-1`). When the alias already
+   * `<toolName>-<N>` (e.g. `sf_team_auto-1`). When the alias already
    * matches the strict regex AND no other session exists with that
    * alias, tmux's `rename-session` succeeds and the user sees the new
    * name everywhere. The orchestrator computes the alias and `N`.
@@ -400,7 +400,7 @@ export class TmuxManager {
   private themeForPrettyPane(): "codex" | "plain" {
     // Strict allowlist: the returned value is interpolated into the tmux
     // shell command as an env assignment, so do not widen without quoting.
-    const raw = (process.env.FH_TEAM_PANE_THEME || process.env.PRETTY_PANE_THEME || "codex").trim().toLowerCase();
+    const raw = (process.env.SF_TEAM_PANE_THEME || process.env.PRETTY_PANE_THEME || "codex").trim().toLowerCase();
     return raw === "plain" ? "plain" : "codex";
   }
 
@@ -493,7 +493,7 @@ export class TmuxManager {
         //   1. A prior `prepareSession` from this same logical
         //      launcher chain renamed `fh-agent-<hex>` → alias.
         //   2. The user has an unrelated session named `<alias>`.
-        //   3. A DIFFERENT fh-team launcher (different
+        //   3. A DIFFERENT sf-team launcher (different
         //      `fh-agent-<hex>`) renamed its session to this same
         //      alias name (e.g. via a stale `nextSessionAlias` race).
         //
@@ -521,7 +521,7 @@ export class TmuxManager {
   }
 
   /**
-   * One-shot visual decoration for any tmux session where an fh_team_* tool is
+   * One-shot visual decoration for any tmux session where an sf_team_* tool is
    * running. Unlike prepareSession, this never renames or claims ownership of
    * the session; it only titles the main pane and enables sticky pane headers.
    */

@@ -41,7 +41,7 @@ export interface SpawnAgentReturning {
    *
    * `widgetAgentId` (optional) overrides the orchestrator's default
    * one-card-per-role behavior. Tools that run the same role multiple
-   * times CONCURRENTLY (e.g. fh_team_implement's per-milestone developer)
+   * times CONCURRENTLY (e.g. sf_team_implement's per-milestone developer)
    * pass an explicit id like `developer-M3` so each milestone gets its
    * own card instead of stomping the role-default card.
    *
@@ -278,7 +278,7 @@ async function runControlledSpawn(
         };
         currentRecord = { ...currentRecord, ...patch };
         await opts.steering?.updateAgent(agentId, patch);
-        if (!agentAbort.signal.aborted) agentAbort.abort("Restart requested by fh-team steering.");
+        if (!agentAbort.signal.aborted) agentAbort.abort("Restart requested by sf-team steering.");
       },
       async waitForExit(): Promise<void> {
         await runSettled;
@@ -618,7 +618,7 @@ export function truncatePriorVerdict(s: string, transcriptHint: string): string 
 
 /**
  * Round-2+ verify-fixes prompt for PLAN-reviewer paths
- * (`fh_team_plan`, `fh_team_task`'s plan loop, `fh_team_followup`'s plan
+ * (`sf_team_plan`, `sf_team_task`'s plan loop, `sf_team_followup`'s plan
  * loop). Mirrors the round-3+-anchored shape of
  * {@link "./impl-summary".composeImplVerifyFixesPrompt} — sections in
  * order: ORIGINAL PLAN (round 1, byte-capped, never changes across
@@ -676,7 +676,7 @@ export function composePlanVerifyFixesPrompt(args: {
 
 /**
  * Compose the round-2+ "verify-fixes" reviewer prompt shared across
- * `fh_team_plan`, `fh_team_implement`, and `fh_team_followup` (the
+ * `sf_team_plan`, `sf_team_implement`, and `sf_team_followup` (the
  * plan-reviewer AND impl-reviewer phases of the latter).
  *
  * Without this scoping the reviewer fresh-reviews the whole payload

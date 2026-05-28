@@ -164,6 +164,6 @@ function chunk<T>(items: T[], size: number): T[][] {
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (signal?.aborted) {
-    throw signal.reason instanceof Error ? signal.reason : new Error("fh_team_implement: execution scheduling aborted");
+    throw signal.reason instanceof Error ? signal.reason : new Error("sf_team_implement: execution scheduling aborted");
   }
 }

@@ -53,7 +53,7 @@ const DEFAULT_MAX_ATTEMPTS = 2;
 
 export function defaultVerificationConfigForTool(toolName: string): ResolvedVerificationConfig {
   return {
-    timing: toolName === "fh_team_plan" ? "off" : "after",
+    timing: toolName === "sf_team_plan" ? "off" : "after",
     mode: "commands",
     stages: [...DEFAULT_STAGES],
     commands: [],

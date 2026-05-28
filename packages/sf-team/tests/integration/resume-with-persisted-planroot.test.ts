@@ -33,8 +33,8 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
       const metadata = createWorkflowMetadata({
         slug,
         folderPath: planFolder,
-        ownerTool: "fh_team_task",
-        currentTool: "fh_team_task",
+        ownerTool: "sf_team_task",
+        currentTool: "sf_team_task",
         phase: "implementation",
         planRootPath: planRoot,
         gitMode: "off",
@@ -46,7 +46,7 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
       const analysis = await analyzeResumeTarget({
         repoRoot: mkdtempSync(path.join(tmpdir(), "ct-other-cwd-")),
         target: slug,
-        invokedTool: "fh_team_task",
+        invokedTool: "sf_team_task",
         candidatePlanRoots: [planRoot],
       });
 
@@ -75,8 +75,8 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
       const metadata = createWorkflowMetadata({
         slug,
         folderPath: planFolder,
-        ownerTool: "fh_team_implement",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_implement",
+        currentTool: "sf_team_implement",
         phase: "implementation",
         planRootPath: planRoot,
         gitMode: "off",
@@ -87,7 +87,7 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
       const analysis = await analyzeResumeTarget({
         repoRoot: cwdRoot,
         target: slug,
-        invokedTool: "fh_team_implement",
+        invokedTool: "sf_team_implement",
         candidatePlanRoots: [planRoot],
       });
 

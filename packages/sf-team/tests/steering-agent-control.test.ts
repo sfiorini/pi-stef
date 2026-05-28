@@ -80,7 +80,7 @@ function fakeRun(state: AgentRun["state"], finalText = ""): AgentRun {
 }
 
 async function mkStore() {
-  const planRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-agent-control-"));
+  const planRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-agent-control-"));
   return createSteeringStore({ rootDir: resolvePlanSteeringRoot(planRoot), expectedRoot: planRoot });
 }
 

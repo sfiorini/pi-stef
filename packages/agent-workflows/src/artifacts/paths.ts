@@ -36,7 +36,7 @@ export function resolvePlanRoot(repoRoot: string, aiPlanPath?: string): string {
 
 /**
  * Join planRoot with slug to produce the absolute plan-folder path (D19).
- * Canonical helper for all new fh-team code paths.
+ * Canonical helper for all new sf-team code paths.
  */
 export function planFolderPathFromRoot(planRoot: string, slug: string): string {
   return path.join(planRoot, slug);

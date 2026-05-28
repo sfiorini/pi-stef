@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { planFolderPath } from "../src/plan/paths";
 import { emptyUsageTotal, type CostSummary, type CostUsageTotal } from "../src/orchestrator/cost";
 import * as autoModule from "../src/tools/auto";
@@ -29,7 +29,7 @@ class FakePi {
 
 function loadTool(name: string): RegisteredTool {
   const pi = new FakePi();
-  fhTeamExtension(pi as never);
+  sfTeamExtension(pi as never);
   const tool = pi.tools.find((t) => t.name === name);
   expect(tool, `${name} must be registered`).toBeDefined();
   return tool!;
@@ -72,8 +72,8 @@ function seedPlanFolder(root: string, slug: string): void {
   ].join("\n"));
 }
 
-describe("registered fh-team cost summaries", () => {
-  it("appends final cost sentence to fh_team_plan output and preserves details.costSummary", async () => {
+describe("registered sf-team cost summaries", () => {
+  it("appends final cost sentence to sf_team_plan output and preserves details.costSummary", async () => {
     const costSummary = exactCostSummary(1.23);
     const fakePlan = vi.fn(async () => ({
       slug: "plan-cost",
@@ -87,9 +87,9 @@ describe("registered fh-team cost summaries", () => {
       revisionMetrics: [],
       costSummary,
     }));
-    const spy = vi.spyOn(planModule, "createFhTeamPlan").mockReturnValue(fakePlan as never);
+    const spy = vi.spyOn(planModule, "createSfTeamPlan").mockReturnValue(fakePlan as never);
     try {
-      const tool = loadTool("fh_team_plan");
+      const tool = loadTool("sf_team_plan");
       const response = await tool.execute("call-1", { title: "x" }, undefined, undefined, { hasUI: false } as never);
       expect(response.content[0].text).toContain("Your total cost is $1.23.");
       expect(response.details.costSummary).toBe(costSummary);
@@ -130,16 +130,16 @@ describe("registered fh-team cost summaries", () => {
         performanceReportPaths: ["/tmp/plan-perf.md", "/tmp/impl-perf.md"],
         costSummary,
       }));
-      const implSpy = vi.spyOn(implementModule, "createFhTeamImplement").mockReturnValue(fakeImplement as never);
-      const taskSpy = vi.spyOn(taskModule, "createFhTeamTask").mockReturnValue(fakeTask as never);
-      const followupSpy = vi.spyOn(followupModule, "createFhTeamFollowup").mockReturnValue(fakeTask as never);
-      const autoSpy = vi.spyOn(autoModule, "createFhTeamAuto").mockReturnValue(fakeAuto as never);
+      const implSpy = vi.spyOn(implementModule, "createSfTeamImplement").mockReturnValue(fakeImplement as never);
+      const taskSpy = vi.spyOn(taskModule, "createSfTeamTask").mockReturnValue(fakeTask as never);
+      const followupSpy = vi.spyOn(followupModule, "createSfTeamFollowup").mockReturnValue(fakeTask as never);
+      const autoSpy = vi.spyOn(autoModule, "createSfTeamAuto").mockReturnValue(fakeAuto as never);
       const prevCwd = process.cwd();
       process.chdir(root);
       try {
-        for (const name of ["fh_team_implement", "fh_team_task", "fh_team_followup", "fh_team_auto"]) {
+        for (const name of ["sf_team_implement", "sf_team_task", "sf_team_followup", "sf_team_auto"]) {
           const tool = loadTool(name);
-          const params = name === "fh_team_implement" ? { slug: "impl-cost" } : { title: "x" };
+          const params = name === "sf_team_implement" ? { slug: "impl-cost" } : { title: "x" };
           const response = await tool.execute("call-1", params, undefined, undefined, { hasUI: false } as never);
           expect(response.content[0].text, name).toContain("Your total cost is $10.58.");
           expect(response.details.costSummary, name).toBe(costSummary);

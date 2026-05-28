@@ -30,15 +30,15 @@ describe("checkpointed verification stage", () => {
       const slug = "2026-05-06-task-verification";
       const stage = { cmd: "npm", args: ["run", "test"] };
       const first = createWorkflowCheckpointRuntime({ repoRoot: root, slug, resumeMode: false });
-      runVerificationStage("fh_team_task", root, stage, { checkpoints: first });
+      runVerificationStage("sf_team_task", root, stage, { checkpoints: first });
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);
 
       const resumed = createWorkflowCheckpointRuntime({ repoRoot: root, slug, resumeMode: true });
-      runVerificationStage("fh_team_task", root, stage, { checkpoints: resumed });
+      runVerificationStage("sf_team_task", root, stage, { checkpoints: resumed });
       expect(spawnSyncMock).toHaveBeenCalledTimes(1);
 
       const otherCwd = path.join(root, "subdir");
-      runVerificationStage("fh_team_task", otherCwd, stage, { checkpoints: resumed });
+      runVerificationStage("sf_team_task", otherCwd, stage, { checkpoints: resumed });
       expect(spawnSyncMock).toHaveBeenCalledTimes(2);
     } finally {
       rmSync(root, { recursive: true, force: true });

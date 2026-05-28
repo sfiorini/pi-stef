@@ -90,22 +90,22 @@ describe("resume ownership policy", () => {
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "fh_team_task",
-        currentTool: "fh_team_task",
+        ownerTool: "sf_team_task",
+        currentTool: "sf_team_task",
         phase: "test",
       }));
 
       const resolved = await resolvePlanTarget({ repoRoot: root, target: slug });
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_task" }))
-        .resolves.toMatchObject({ kind: "metadata", metadata: { ownerTool: "fh_team_task" } });
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_plan" }))
-        .rejects.toThrow(/owned by fh_team_task.*fh_team_plan/);
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_task" }))
+        .resolves.toMatchObject({ kind: "metadata", metadata: { ownerTool: "sf_team_task" } });
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_plan" }))
+        .rejects.toThrow(/owned by sf_team_task.*sf_team_plan/);
     } finally {
       dispose();
     }
   });
 
-  it("allows legacy five-file folders only for fh_team_implement", async () => {
+  it("allows legacy five-file folders only for sf_team_implement", async () => {
     const { root, dispose } = fixture();
     try {
       const slug = "2026-05-06-legacy";
@@ -115,10 +115,10 @@ describe("resume ownership policy", () => {
       }
       const resolved = await resolvePlanTarget({ repoRoot: root, target: slug });
 
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_implement" }))
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_implement" }))
         .resolves.toMatchObject({ kind: "legacy-five-file" });
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_auto" }))
-        .rejects.toThrow(/Supported metadata-less resume paths are fh_team_implement legacy five-file plans/);
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_auto" }))
+        .rejects.toThrow(/Supported metadata-less resume paths are sf_team_implement legacy five-file plans/);
     } finally {
       dispose();
     }
@@ -140,10 +140,10 @@ describe("resume ownership policy", () => {
       ]);
       const resolved = await resolvePlanTarget({ repoRoot: root, target: slug });
 
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_auto" }))
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_auto" }))
         .resolves.toMatchObject({ kind: "auto-checkpoint-recovery" });
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_task" }))
-        .rejects.toThrow(/fh_team_task cannot verify resume ownership/);
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_task" }))
+        .rejects.toThrow(/sf_team_task cannot verify resume ownership/);
     } finally {
       dispose();
     }
@@ -163,8 +163,8 @@ describe("resume ownership policy", () => {
       ]);
       const resolved = await resolvePlanTarget({ repoRoot: root, target: slug });
 
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "fh_team_auto" }))
-        .rejects.toThrow(/fh_team_auto folders with both plan and implementation checkpoints/);
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_auto" }))
+        .rejects.toThrow(/sf_team_auto folders with both plan and implementation checkpoints/);
     } finally {
       dispose();
     }

@@ -5,24 +5,24 @@ import { createActiveWorkflowRegistry, type ActiveWorkflowCandidate } from "../s
 import { createSteeringStore, type SteeringStoreConfig } from "../steering/store";
 import type { SteeringInstruction } from "../steering/types";
 
-export interface FhTeamSteerParams {
+export interface SfTeamSteerParams {
   instruction: string;
   workflowId?: string;
   planSlug?: string;
   priority?: "normal" | "urgent";
   targetHints?: SteeringInstruction["targetHints"];
-  /** External plan root directory. When provided, the active-workflow registry is looked up under planRoot/.fh-team/active-workflows.json instead of repoRoot. */
+  /** External plan root directory. When provided, the active-workflow registry is looked up under planRoot/.sf-team/active-workflows.json instead of repoRoot. */
   aiPlanPath?: string;
 }
 
-export interface FhTeamSteerContext {
+export interface SfTeamSteerContext {
   repoRoot: string;
   config?: SteeringStoreConfig;
   /** External plan root; when provided, the active-workflow registry lookup uses planRoot instead of repoRoot. */
   aiPlanPath?: string;
 }
 
-export type FhTeamSteerResult =
+export type SfTeamSteerResult =
   | {
     ok: true;
     workflowId: string;
@@ -38,11 +38,11 @@ export type FhTeamSteerResult =
     candidates?: ActiveWorkflowCandidate[];
   };
 
-export const FhTeamSteerSchema = Type.Object(
+export const SfTeamSteerSchema = Type.Object(
   {
     instruction: Type.String({
       minLength: 1,
-      description: "Instruction to send to an active fh-team orchestrator.",
+      description: "Instruction to send to an active sf-team orchestrator.",
     }),
     workflowId: Type.Optional(Type.String({ minLength: 1, description: "Target active workflow id." })),
     planSlug: Type.Optional(Type.String({ minLength: 1, description: "Target active plan slug." })),
@@ -64,7 +64,7 @@ export const FhTeamSteerSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export function createFhTeamSteer(): (params: FhTeamSteerParams, ctx: FhTeamSteerContext) => Promise<FhTeamSteerResult> {
+export function createSfTeamSteer(): (params: SfTeamSteerParams, ctx: SfTeamSteerContext) => Promise<SfTeamSteerResult> {
   return async (params, ctx) => {
     // When aiPlanPath is provided (via params or context), use it as the registry root.
     const registryRoot = params.aiPlanPath ?? ctx.aiPlanPath ?? ctx.repoRoot;
@@ -75,8 +75,8 @@ export function createFhTeamSteer(): (params: FhTeamSteerParams, ctx: FhTeamStee
         ok: false,
         reason: "no-active-workflow",
         message: targetDescription(params) === "active workflow"
-          ? "No active fh-team workflow is registered."
-          : `No active fh-team workflow matches ${targetDescription(params)}.`,
+          ? "No active sf-team workflow is registered."
+          : `No active sf-team workflow matches ${targetDescription(params)}.`,
       };
     }
     if (resolution.status === "ambiguous") {
@@ -84,7 +84,7 @@ export function createFhTeamSteer(): (params: FhTeamSteerParams, ctx: FhTeamStee
         ok: false,
         reason: "ambiguous-target",
         candidates: resolution.candidates,
-        message: `Multiple active fh-team workflows match. Specify workflowId: ${resolution.candidates.map((c) => c.workflowId).join(", ")}.`,
+        message: `Multiple active sf-team workflows match. Specify workflowId: ${resolution.candidates.map((c) => c.workflowId).join(", ")}.`,
       };
     }
 
@@ -127,7 +127,7 @@ export function createFhTeamSteer(): (params: FhTeamSteerParams, ctx: FhTeamStee
   };
 }
 
-function targetDescription(params: Pick<FhTeamSteerParams, "workflowId" | "planSlug">): string {
+function targetDescription(params: Pick<SfTeamSteerParams, "workflowId" | "planSlug">): string {
   if (params.workflowId) return `workflowId=${params.workflowId}`;
   if (params.planSlug) return `planSlug=${params.planSlug}`;
   return "active workflow";

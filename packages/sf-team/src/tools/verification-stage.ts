@@ -102,23 +102,23 @@ const OUTPUT_TAIL_CHARS = 4000;
 const DEFAULT_MAX_ATTEMPTS = 1;
 const DEFAULT_CONFIGURED_MAX_ATTEMPTS = 2;
 
-export type FhTeamVerificationToolName =
-  | "fh_team_plan"
-  | "fh_team_implement"
-  | "fh_team_task"
-  | "fh_team_auto"
-  | "fh_team_followup";
+export type SfTeamVerificationToolName =
+  | "sf_team_plan"
+  | "sf_team_implement"
+  | "sf_team_task"
+  | "sf_team_auto"
+  | "sf_team_followup";
 
-export type FhTeamVerificationConfigInput = VerificationConfigInput & {
+export type SfTeamVerificationConfigInput = VerificationConfigInput & {
   /** Config-file-friendly alias. Normalized to maxAttempts before shared resolution. */
   max_attempts?: number;
 };
 
 export interface RunConfiguredVerificationOptions {
-  toolName: FhTeamVerificationToolName;
+  toolName: SfTeamVerificationToolName;
   cwd: string;
   phase: VerificationPhase;
-  verification?: FhTeamVerificationConfigInput;
+  verification?: SfTeamVerificationConfigInput;
   /** Backward-compatible prompt/input override. false disables the gate; command runs as the only command. */
   legacyVerifyCommand?: { cmd: string; args: string[] } | false;
   reporter?: WorkflowReporter;
@@ -133,9 +133,9 @@ export interface RunConfiguredVerificationOptions {
 }
 
 export function resolveToolVerificationConfig(
-  toolName: FhTeamVerificationToolName,
-  config?: FhTeamVerificationConfigInput,
-  override?: FhTeamVerificationConfigInput,
+  toolName: SfTeamVerificationToolName,
+  config?: SfTeamVerificationConfigInput,
+  override?: SfTeamVerificationConfigInput,
 ): ResolvedVerificationConfig {
   return resolveVerificationConfig(toolName, normalizeFhVerificationConfig(config), normalizeFhVerificationConfig(override));
 }
@@ -156,10 +156,10 @@ export function verificationDefaultsForPlanPhase(
 
 export function verificationDefaultsForAutoImplement(
   defaults: ResolvedDefaults = DEFAULT_CONFIG,
-  inputOverride?: FhTeamVerificationConfigInput,
+  inputOverride?: SfTeamVerificationConfigInput,
 ): ResolvedDefaults {
-  // When `fh_team_auto` calls `implementTool` internally it passes
-  // `toolName: "fh_team_implement"`, so implement reads its config from
+  // When `sf_team_auto` calls `implementTool` internally it passes
+  // `toolName: "sf_team_implement"`, so implement reads its config from
   // `implement.*`. We map auto.* knobs onto the implement.* surface here
   // so behavior overrides land on the right keys: verification (M2
   // legacy), empty_diff_retries / empty_diff_retry_model (M3).
@@ -238,7 +238,7 @@ export async function runConfiguredVerification(opts: RunConfiguredVerificationO
         config: { ...config, mode: "commands", maxAttempts: 1 },
         commands: [{
           label: "verifier-agent",
-          cmd: "fh-team-verifier-agent",
+          cmd: "sf-team-verifier-agent",
           args: [config.mode, ...commands.map(formatVerificationCommand)],
         }],
         cache: opts.cache,
@@ -288,7 +288,7 @@ export async function runConfiguredVerification(opts: RunConfiguredVerificationO
 }
 
 export function runLegacyVerificationSync(
-  toolName: FhTeamVerificationToolName,
+  toolName: SfTeamVerificationToolName,
   cwd: string,
   verifyCommand: { cmd: string; args: string[] } | false | undefined,
   reporter?: WorkflowReporter,
@@ -471,7 +471,7 @@ function truncate(s: string, max: number): string {
 }
 
 function normalizeFhVerificationConfig(
-  input: FhTeamVerificationConfigInput | undefined,
+  input: SfTeamVerificationConfigInput | undefined,
 ): VerificationConfigInput | undefined {
   if (!input) return undefined;
   const { max_attempts, ...rest } = input;
@@ -496,7 +496,7 @@ function legacyVerifyCommandToConfig(
 }
 
 function resolveVerificationCommands(
-  toolName: FhTeamVerificationToolName,
+  toolName: SfTeamVerificationToolName,
   cwd: string,
   config: ResolvedVerificationConfig,
   reporter: WorkflowReporter | undefined,

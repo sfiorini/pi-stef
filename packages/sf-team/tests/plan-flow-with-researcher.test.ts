@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
-import { createFhTeamAuto } from "../src/tools/auto";
+import { createSfTeamPlan } from "../src/tools/plan";
+import { createSfTeamAuto } from "../src/tools/auto";
 import { resolveDefaults } from "../src/config/load";
 import { slugify } from "../src/plan/slug";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -61,7 +61,7 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("fh_team_plan flow with researcher", () => {
+describe("sf_team_plan flow with researcher", () => {
   it("invokes researcher → planner → reviewer in that order; planner brief contains researcher findings + user answer", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -79,7 +79,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool({ title: "Healthz", brief: "Add /healthz" }, { repoRoot: root, ui });
       expect(result.approved).toBe(true);
 
@@ -109,7 +109,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool({ title: "Skip", analysisOverride: null, answersOverride: {} }, { repoRoot: root });
       expect(captured.find((c) => c.member.role === "researcher")).toBeUndefined();
     } finally {
@@ -127,7 +127,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Self Contained",
@@ -163,7 +163,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           title: "Partial Source",
@@ -198,7 +198,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Bare File", brief: "Update README.md with the new command." },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { researcher: "auto" } } as never) },
@@ -223,7 +223,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Always Research", brief: "skip researcher\nAcceptance Criteria:\n- [ ] Ship it." },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { researcher: "always" } } as never) },
@@ -246,7 +246,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Never Research", brief: "See https://example.com/spec before planning." },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { researcher: "never" } } as never) },
@@ -270,7 +270,7 @@ describe("fh_team_plan flow with researcher", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "Ref Research", brief: "Acceptance Criteria:\n- [ ] Follow PROJ-123." },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { researcher: "auto" } } as never) },
@@ -284,7 +284,7 @@ describe("fh_team_plan flow with researcher", () => {
   });
 });
 
-describe("fh_team_auto runs researcher exactly once", () => {
+describe("sf_team_auto runs researcher exactly once", () => {
   it("counts spawnAgent({role:researcher}) === 1 across the full chain", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -307,7 +307,7 @@ describe("fh_team_auto runs researcher exactly once", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
       const ui = { select: async () => undefined, input: async () => "8080", confirm: async () => true, notify: () => undefined } as never;
       // Auto may fail at the implement stage because the dev stub doesn't stage a real change;
       // we only care that researcher was called exactly once before any failure.

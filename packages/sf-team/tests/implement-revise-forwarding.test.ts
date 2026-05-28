@@ -8,7 +8,7 @@ import {
   composeMilestoneBrief,
   composeMilestoneRevise,
   composeStoryBrief,
-  createFhTeamImplement,
+  createSfTeamImplement,
 } from "../src/tools/implement";
 import { planFolderPath } from "../src/plan/paths";
 import type { ParsedMilestone, ParsedStory } from "../src/plan/tracker";
@@ -119,7 +119,7 @@ function fakeRun(finalText: string): AgentRun {
   };
 }
 
-describe("M11 fh_team_implement D1 mode revise-forwarding (S-B03)", () => {
+describe("M11 sf_team_implement D1 mode revise-forwarding (S-B03)", () => {
   it("developer prompts keep cursor-backed tool use scoped to the current repo/worktree", () => {
     const milestone: ParsedMilestone = {
       id: "M0",
@@ -135,9 +135,9 @@ describe("M11 fh_team_implement D1 mode revise-forwarding (S-B03)", () => {
 
     const revise = composeMilestoneRevise("M0", "diff --git a/src/a.ts b/src/a.ts", {
       findings: { P0: [], P1: [], P2: ["fix src/a.ts"], P3: [] },
-    }, { cwd: "/tmp/fh-team-worktree" });
+    }, { cwd: "/tmp/sf-team-worktree" });
     expectRepoScopedToolGuardrails(revise);
-    expect(revise).toContain("/tmp/fh-team-worktree");
+    expect(revise).toContain("/tmp/sf-team-worktree");
   });
 
   it("forces REVISE on M0 round 1 → developer re-spawned with prior diff context; second reviewer sees v2 staged diff", async () => {
@@ -169,7 +169,7 @@ describe("M11 fh_team_implement D1 mode revise-forwarding (S-B03)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,
@@ -226,7 +226,7 @@ describe("M11 fh_team_implement D1 mode revise-forwarding (S-B03)", () => {
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const shouldContinue = vi.fn(() => false);
       const result = await tool(
         { slug, mode: "single-milestone", useWorktree: false, verifyCommand: false, shouldContinue },
@@ -241,7 +241,7 @@ describe("M11 fh_team_implement D1 mode revise-forwarding (S-B03)", () => {
   });
 });
 
-describe("M11 fh_team_implement records milestone approval back to story-tracker (P2 fix)", () => {
+describe("M11 sf_team_implement records milestone approval back to story-tracker (P2 fix)", () => {
   it("after a milestone commits, its stories flip to completed in the tracker", async () => {
     const { root, slug, dispose } = makeRepoWithPlanFolder();
     try {
@@ -255,7 +255,7 @@ describe("M11 fh_team_implement records milestone approval back to story-tracker
         return fakeRun(APPROVED_TEXT);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       // Stop after M0 so we can verify the partial-progress tracker update.
       const result = await tool(
         {
@@ -285,7 +285,7 @@ describe("M11 fh_team_implement records milestone approval back to story-tracker
   });
 });
 
-describe("M11 fh_team_implement D2 mode revise-forwarding (S-B04)", () => {
+describe("M11 sf_team_implement D2 mode revise-forwarding (S-B04)", () => {
   it("D2 runs through milestones without gates; per-milestone revise still re-feeds the new staged diff", async () => {
     const { root, slug, dispose } = makeRepoWithPlanFolder();
     try {
@@ -308,7 +308,7 @@ describe("M11 fh_team_implement D2 mode revise-forwarding (S-B04)", () => {
         return fakeRun(reviewerOutputs[Math.min(rIdx++, reviewerOutputs.length - 1)]);
       });
       // M2 acceptance: in D2 mode, no inter-milestone gate fires when
-      // `pauseBetweenMilestones=false` (the default for fh_team_auto and
+      // `pauseBetweenMilestones=false` (the default for sf_team_auto and
       // therefore the value the auto wrapper forwards). Use a UI spy to
       // assert no confirm was invoked.
       const ui = {
@@ -318,7 +318,7 @@ describe("M11 fh_team_implement D2 mode revise-forwarding (S-B04)", () => {
         notify: () => undefined,
       } as never;
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,

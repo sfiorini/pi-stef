@@ -156,10 +156,10 @@ describe("drain: apply-to-future guidance ordering", () => {
 /**
  * Stub WorkflowReporter that records every `reporter.message(text, opts)`
  * call as an entry on the `calls` array. The drain emits one
- * `fh-team steering: analyzing instruction ...` message before applying
+ * `sf-team steering: analyzing instruction ...` message before applying
  * (drain/index.ts:201) plus additional reporter messages on various
  * branches, so these tests filter the recorded calls for the literal
- * `fh_team_steer: applied instruction ` prefix and assert on the filtered
+ * `sf_team_steer: applied instruction ` prefix and assert on the filtered
  * subset — never on total call count.
  */
 function makeStubReporter() {
@@ -179,10 +179,10 @@ function appliedMessagesFor(
   calls: Array<{ text: string; opts?: { level?: string } }>,
   _instructionId: string,
 ): Array<{ text: string; opts?: { level?: string } }> {
-  return calls.filter((c) => c.text.startsWith("fh_team_steer: applied instruction "));
+  return calls.filter((c) => c.text.startsWith("sf_team_steer: applied instruction "));
 }
 
-describe("drain: fh_team_steer applied notification", () => {
+describe("drain: sf_team_steer applied notification", () => {
   let rootDir: string;
   let planFolder: string;
   let repoRoot: string;
@@ -197,7 +197,7 @@ describe("drain: fh_team_steer applied notification", () => {
     await rm(repoRoot, { recursive: true, force: true });
   });
 
-  it("positive — apply-to-future success emits exactly one fh_team_steer: applied instruction <id> at info level", async () => {
+  it("positive — apply-to-future success emits exactly one sf_team_steer: applied instruction <id> at info level", async () => {
     const store = createSteeringStore({ rootDir, expectedRoot: planFolder });
     const instruction = await store.appendInstruction({
       workflowId: "wf-1", source: "tool", text: "mock the backend", priority: "normal",
@@ -220,7 +220,7 @@ describe("drain: fh_team_steer applied notification", () => {
     const applied = appliedMessagesFor(calls, instruction.id);
     expect(applied).toHaveLength(1);
     // Exact-equality (toEqual): a `(apply-to-future)` suffix would fail.
-    expect(applied[0].text).toEqual(`fh_team_steer: applied instruction ${instruction.id}`);
+    expect(applied[0].text).toEqual(`sf_team_steer: applied instruction ${instruction.id}`);
     expect(applied[0].opts).toEqual({ level: "info" });
   });
 

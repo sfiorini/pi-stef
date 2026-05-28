@@ -30,7 +30,7 @@ describe("runOrchestrator parentSlug threading", () => {
         {
           repoRoot: root,
           slug,
-          toolName: "fh_team_followup",
+          toolName: "sf_team_followup",
           useWorktree: false,
           parentSlug: "the-parent-plan",
         },
@@ -52,7 +52,7 @@ describe("runOrchestrator parentSlug threading", () => {
         {
           repoRoot: root,
           slug,
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           useWorktree: false,
         },
         async () => "ok",

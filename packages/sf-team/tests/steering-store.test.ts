@@ -10,7 +10,7 @@ import type { ActiveAgentRecord, SteeringDecision } from "../src/steering/types"
 
 async function mkTempRoot(name: string): Promise<string> {
   const { mkdtemp } = await import("node:fs/promises");
-  return await mkdtemp(path.join(os.tmpdir(), `fh-team-${name}-`));
+  return await mkdtemp(path.join(os.tmpdir(), `sf-team-${name}-`));
 }
 
 function agent(id: string): ActiveAgentRecord {
@@ -56,7 +56,7 @@ describe("steering path safety", () => {
 
     expect(resolvePlanSteeringRoot(planRoot)).toBe(path.join(planRoot, ".fh-workflow", "steering"));
     expect(resolveRunSteeringRoot(runtimeRoot, "fhw_task_20260517000000_abcdef12")).toBe(
-      path.join(runtimeRoot, ".fh-team", "runs", "fhw_task_20260517000000_abcdef12", "steering"),
+      path.join(runtimeRoot, ".sf-team", "runs", "fhw_task_20260517000000_abcdef12", "steering"),
     );
   });
 

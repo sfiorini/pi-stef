@@ -50,7 +50,7 @@ function decision(patch: Partial<SteeringDecision> = {}): SteeringDecision {
 }
 
 function makePlan(): { root: string; slug: string; folder: string; dispose: () => void } {
-  const root = mkdtempSync(path.join(tmpdir(), "fh-team-backtrack-"));
+  const root = mkdtempSync(path.join(tmpdir(), "sf-team-backtrack-"));
   const slug = "2026-05-17-backtrack";
   const folder = planFolderPath(root, slug);
   mkdirSync(folder, { recursive: true });
@@ -216,7 +216,7 @@ describe("steering backtrack", () => {
   });
 
   it("plans owned revert commits but flags interleaved user-authored commits as uncertain", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-revert-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-revert-"));
     try {
       git(root, ["init", "-q", "-b", "main"]);
       git(root, ["config", "user.email", "a@b"]);
@@ -225,7 +225,7 @@ describe("steering backtrack", () => {
       git(root, ["add", "."]);
       git(root, ["commit", "-q", "-m", "base"]);
       const base = git(root, ["rev-parse", "HEAD"]);
-      writeFileSync(path.join(root, "a.txt"), "fh-team\n");
+      writeFileSync(path.join(root, "a.txt"), "sf-team\n");
       git(root, ["commit", "-am", "feat(S-101): first"]);
       const owned = git(root, ["rev-parse", "HEAD"]);
       writeFileSync(path.join(root, "user.txt"), "user\n");
@@ -257,7 +257,7 @@ describe("steering backtrack", () => {
   });
 
   it("does not route non-plan active-agent decisions through backtracking just because they reference stories", async () => {
-    const root = mkdtempSync(path.join(tmpdir(), "fh-team-drain-non-plan-"));
+    const root = mkdtempSync(path.join(tmpdir(), "sf-team-drain-non-plan-"));
     try {
       const store = createSteeringStore({ rootDir: resolvePlanSteeringRoot(root), expectedRoot: root });
       const queued = await store.appendInstruction({

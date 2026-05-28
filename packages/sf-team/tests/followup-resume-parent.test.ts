@@ -10,7 +10,7 @@ import {
   writeWorkflowMetadata,
 } from "@pi-stef/agent-workflows";
 
-import { createFhTeamFollowup } from "../src/tools/followup";
+import { createSfTeamFollowup } from "../src/tools/followup";
 import { planFolderPath } from "../src/plan/paths";
 
 function makeRepo(): { root: string; dispose: () => void } {
@@ -43,20 +43,20 @@ async function plantFollowupMetadata(
   const meta = createWorkflowMetadata({
     slug: followupSlug,
     folderPath: workflowPlanFolderPath(root, followupSlug),
-    ownerTool: "fh_team_followup",
-    currentTool: "fh_team_followup",
+    ownerTool: "sf_team_followup",
+    currentTool: "sf_team_followup",
     phase: "running",
     parentSlug,
   });
   await writeWorkflowMetadata(root, meta);
 }
 
-describe("fh_team_followup resume parent-context", () => {
+describe("sf_team_followup resume parent-context", () => {
   it("throws when the metadata is missing parentSlug", async () => {
     const { root, dispose } = makeRepo();
     try {
       await plantFollowupMetadata(root, "2026-05-08-followup-orphan", undefined);
-      const tool = createFhTeamFollowup();
+      const tool = createSfTeamFollowup();
       await expect(
         tool({ resume: "2026-05-08-followup-orphan" }, { repoRoot: root }),
       ).rejects.toThrow(/missing parentSlug/i);
@@ -65,7 +65,7 @@ describe("fh_team_followup resume parent-context", () => {
     }
   });
 
-  it("throws when the slug is owned by a different tool (e.g. fh_team_task)", async () => {
+  it("throws when the slug is owned by a different tool (e.g. sf_team_task)", async () => {
     const { root, dispose } = makeRepo();
     try {
       const slug = "2026-05-08-not-followup";
@@ -74,19 +74,19 @@ describe("fh_team_followup resume parent-context", () => {
       const meta = createWorkflowMetadata({
         slug,
         folderPath: workflowPlanFolderPath(root, slug),
-        ownerTool: "fh_team_task",
-        currentTool: "fh_team_task",
+        ownerTool: "sf_team_task",
+        currentTool: "sf_team_task",
         phase: "running",
       });
       await writeWorkflowMetadata(root, meta);
-      const tool = createFhTeamFollowup();
+      const tool = createSfTeamFollowup();
       await expect(
         tool({ resume: slug }, { repoRoot: root }),
       // The ownership check fires in resume-target analysis (upstream of
       // followup.ts), so the error wording is "owned by X; Y cannot
       // resume it". Either upstream message is acceptable as long as it
       // names the wrong owner.
-      ).rejects.toThrow(/owned by fh_team_task/);
+      ).rejects.toThrow(/owned by sf_team_task/);
     } finally {
       dispose();
     }
@@ -100,7 +100,7 @@ describe("fh_team_followup resume parent-context", () => {
       // plan, or the file was deleted out from under us).
       await plantFollowupMetadata(root, "2026-05-08-followup-orphan2", "2026-05-01-missing-parent");
       mkdirSync(planFolderPath(root, "2026-05-01-missing-parent"), { recursive: true });
-      const tool = createFhTeamFollowup();
+      const tool = createSfTeamFollowup();
       await expect(
         tool({ resume: "2026-05-08-followup-orphan2" }, { repoRoot: root }),
       ).rejects.toThrow(/parent milestone-plan\.md not found/i);
@@ -116,7 +116,7 @@ describe("fh_team_followup resume parent-context", () => {
       const parentSlug = "2026-05-01-the-parent";
       plantParentPlan(root, parentSlug);
       await plantFollowupMetadata(root, followupSlug, parentSlug);
-      const tool = createFhTeamFollowup();
+      const tool = createSfTeamFollowup();
       const absolutePath = planFolderPath(root, followupSlug);
       // We don't run the full workflow here — we just want to confirm
       // resume target resolution + parent-slug lookup don't throw the

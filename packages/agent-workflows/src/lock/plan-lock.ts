@@ -17,7 +17,7 @@ function resolveSweepRoot(target: LockTarget): string {
   return target.planRoot;
 }
 
-const LOCK_DIR = ".fh-team.lock";
+const LOCK_DIR = ".sf-team.lock";
 const META_FILE = "metadata.json";
 const STALE_SWEEP_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -100,7 +100,7 @@ export async function acquireLock(
       const stale = await isLockStale(existing, opts.hostnameOverride);
       if (!stale) {
         throw new LockHeldError(
-          `fh-team plan-folder lock held by pid=${existing.pid} on ${existing.hostname} since ${existing.startedAt}`,
+          `sf-team plan-folder lock held by pid=${existing.pid} on ${existing.hostname} since ${existing.startedAt}`,
           existing,
         );
       }
@@ -122,7 +122,7 @@ export async function acquireLock(
 
   const held = (await readMetaIfPresent(metaPath)) ?? meta;
   throw new LockHeldError(
-    `fh-team plan-folder lock contended after ${maxAttempts} attempts (current: pid=${held.pid} on ${held.hostname})`,
+    `sf-team plan-folder lock contended after ${maxAttempts} attempts (current: pid=${held.pid} on ${held.hostname})`,
     held,
   );
 }

@@ -32,7 +32,7 @@ export async function promptForResume(
   }
   const idList = state.inDev.map((s) => s.id).join(", ");
   const ok = await ui.confirm(
-    "Resume previous fh-team run?",
+    "Resume previous sf-team run?",
     `Found in-dev stories: ${idList}. Resume from where you left off?`,
   );
   return { state, resume: ok === true };

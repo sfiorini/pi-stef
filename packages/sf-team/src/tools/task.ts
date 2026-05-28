@@ -14,15 +14,15 @@ import {
 import { defaultDeps, type ToolDeps } from "./shared";
 import {
   runLegacyVerificationSync,
-  type FhTeamVerificationConfigInput,
+  type SfTeamVerificationConfigInput,
 } from "./verification-stage";
-import type { FhTeamTaskInput, FhTeamTaskResult } from "./task-types";
+import type { SfTeamTaskInput, SfTeamTaskResult } from "./task-types";
 
-export type { FhTeamTaskInput, FhTeamTaskResult } from "./task-types";
+export type { SfTeamTaskInput, SfTeamTaskResult } from "./task-types";
 export { composeDeveloperBrief, composeDevRevise } from "./run-task-workflow";
 
 /**
- * fh_team_task: full end-to-end single-task workflow.
+ * sf_team_task: full end-to-end single-task workflow.
  *
  * 1. plan-review (planner -> reviewer loop with revise callback)
  * 2. dirty-worktree guard (unless --allow-dirty)
@@ -33,14 +33,14 @@ export { composeDeveloperBrief, composeDevRevise } from "./run-task-workflow";
  * 7. commit + push decision + pr-description
  *
  * The body lives in `runTaskWorkflow` (run-task-workflow.ts) so
- * `fh_team_followup` can share the same lifecycle. This factory just
+ * `sf_team_followup` can share the same lifecycle. This factory just
  * passes the task profile through and forwards the result.
  */
-export function createFhTeamTask(rawDeps: Partial<ToolDeps> = {}) {
+export function createSfTeamTask(rawDeps: Partial<ToolDeps> = {}) {
   const deps: ToolDeps = { ...defaultDeps, ...rawDeps };
 
-  return async function fhTeamTask(
-    input: FhTeamTaskInput,
+  return async function sfTeamTask(
+    input: SfTeamTaskInput,
     ctx: {
       repoRoot: string;
       signal?: AbortSignal;
@@ -53,20 +53,20 @@ export function createFhTeamTask(rawDeps: Partial<ToolDeps> = {}) {
       rawGitMode?: "auto" | "on" | "off";
       rawTddMode?: "auto" | "on" | "off";
     },
-  ): Promise<FhTeamTaskResult> {
+  ): Promise<SfTeamTaskResult> {
     return runTaskWorkflow(deps, input, ctx, { profile: TASK_WORKFLOW_PROFILE });
   };
 }
 
 export function runVerification(
   cwd: string,
-  verifyCommand: FhTeamTaskInput["verifyCommand"],
+  verifyCommand: SfTeamTaskInput["verifyCommand"],
   reporter?: WorkflowReporter,
   checkpoints?: WorkflowCheckpointRuntime,
 ): void {
-  runLegacyVerificationSync("fh_team_task", cwd, verifyCommand, reporter, checkpoints);
+  runLegacyVerificationSync("sf_team_task", cwd, verifyCommand, reporter, checkpoints);
 }
 
 // Re-export the verification-config input type so existing callers keep
 // working without chasing the helper file.
-export type { FhTeamVerificationConfigInput };
+export type { SfTeamVerificationConfigInput };

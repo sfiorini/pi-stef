@@ -47,7 +47,7 @@ import {
 } from "./shared-helpers";
 import { decideSteeringInstruction, decideSteeringInstructions } from "../steering/decider";
 import { enforcePauseAtSafeBoundary } from "../steering/pause-enforcement";
-import type { FhTeamTaskInput, FhTeamTaskResult } from "./task-types";
+import type { SfTeamTaskInput, SfTeamTaskResult } from "./task-types";
 import {
   PLANNER_TDD_REMINDER,
   REVIEWER_TDD_POLICY,
@@ -55,7 +55,7 @@ import {
 } from "./tdd-policy";
 import {
   runConfiguredVerification,
-  type FhTeamVerificationConfigInput,
+  type SfTeamVerificationConfigInput,
 } from "./verification-stage";
 import { runVerificationGateWithFixLoop } from "./verification-gate-loop";
 
@@ -71,7 +71,7 @@ export interface RunTaskWorkflowDefaults {
   allow_dirty: boolean;
   use_worktree: boolean;
   create_branch: boolean;
-  verification: FhTeamVerificationConfigInput;
+  verification: SfTeamVerificationConfigInput;
 }
 
 /**
@@ -134,10 +134,10 @@ export interface RunTaskWorkflowCtx {
 
 export async function runTaskWorkflow(
   deps: ToolDeps,
-  input: FhTeamTaskInput,
+  input: SfTeamTaskInput,
   ctx: RunTaskWorkflowCtx,
   options: RunTaskWorkflowOptions,
-): Promise<FhTeamTaskResult> {
+): Promise<SfTeamTaskResult> {
   const { profile, parentContext } = options;
   const runLoop = makeRunStringReviewLoop(deps);
 
@@ -167,7 +167,7 @@ export async function runTaskWorkflow(
   // from a non-git cwd of a no-git workflow uses the persisted gitMode='off'.
   requireGitOrSkip({ repoRoot: ctx.repoRoot, gitMode: effectiveGitMode }, profile.toolName);
   const title = normalOrResumeValue(input, "title", resume);
-  const normalizedInput: FhTeamTaskInput = { ...input, title };
+  const normalizedInput: SfTeamTaskInput = { ...input, title };
   const slug = resume?.target.slug ?? options.slugOverride ?? slugify(title);
 
   const profileDefaults = profile.resolveConfigDefaults(ctx.configDefaults);
@@ -630,11 +630,11 @@ export async function runTaskWorkflow(
         prDescriptionPath,
         pushed,
         revisionMetrics,
-      } satisfies FhTeamTaskResult;
+      } satisfies SfTeamTaskResult;
     },
   );
 
-  const result: FhTeamTaskResult = (
+  const result: SfTeamTaskResult = (
     orchestrated.result ?? {
       slug,
       approved: false,
@@ -655,7 +655,7 @@ export async function runTaskWorkflow(
  * the existing single-task brief.
  */
 function composePlanBrief(
-  input: FhTeamTaskInput,
+  input: SfTeamTaskInput,
   parentContext?: { slug: string; parentMilestonePlan: string },
   opts?: { tddMode?: "on" | "off" | "auto" },
 ): string {
@@ -794,9 +794,9 @@ export function composeDevRevise(
 }
 
 export const TASK_WORKFLOW_PROFILE: RunTaskWorkflowProfile = {
-  toolName: "fh_team_task",
-  ownerTool: "fh_team_task",
-  resumeToolName: "fh_team_task_resume",
+  toolName: "sf_team_task",
+  ownerTool: "sf_team_task",
+  resumeToolName: "sf_team_task_resume",
   resolveConfigDefaults: (defaults) => {
     const t = defaults?.task;
     if (!t) return undefined;
@@ -808,13 +808,13 @@ export const TASK_WORKFLOW_PROFILE: RunTaskWorkflowProfile = {
     };
   },
   askUserKeyPrefix: "task",
-  errorPrefix: "fh_team_task",
+  errorPrefix: "sf_team_task",
 };
 
 export const FOLLOWUP_WORKFLOW_PROFILE: RunTaskWorkflowProfile = {
-  toolName: "fh_team_followup",
-  ownerTool: "fh_team_followup",
-  resumeToolName: "fh_team_followup_resume",
+  toolName: "sf_team_followup",
+  ownerTool: "sf_team_followup",
+  resumeToolName: "sf_team_followup_resume",
   resolveConfigDefaults: (defaults) => {
     const f = defaults?.followup;
     if (!f) return undefined;
@@ -830,5 +830,5 @@ export const FOLLOWUP_WORKFLOW_PROFILE: RunTaskWorkflowProfile = {
     };
   },
   askUserKeyPrefix: "followup",
-  errorPrefix: "fh_team_followup",
+  errorPrefix: "sf_team_followup",
 };

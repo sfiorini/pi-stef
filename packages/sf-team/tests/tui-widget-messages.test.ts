@@ -65,7 +65,7 @@ describe("workflow widget messages", () => {
     handle.update(state);
 
     const lines = calls.at(-1) ?? [];
-    const headerIndex = lines.findIndex((line) => line.includes("fh-team"));
+    const headerIndex = lines.findIndex((line) => line.includes("sf-team"));
     const resumeIndex = lines.findIndex((line) => line.includes("Resume from S-201"));
     const messageIndex = lines.findIndex((line) => line.includes("installing dependencies"));
     const milestoneIndex = lines.findIndex((line) => line.includes("M2["));

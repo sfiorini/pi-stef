@@ -44,7 +44,7 @@ export async function preflightSkillCheck(
     else missing.push(name);
   }
   if (missing.length > 0 && opts.ui?.notify) {
-    opts.ui.notify(`fh-team: skills not found, continuing without them: ${missing.join(", ")}`, "warning");
+    opts.ui.notify(`sf-team: skills not found, continuing without them: ${missing.join(", ")}`, "warning");
   }
   return { resolved, missing };
 }

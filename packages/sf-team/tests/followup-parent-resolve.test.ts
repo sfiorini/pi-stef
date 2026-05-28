@@ -1,7 +1,7 @@
 /**
  * Live failure 2026-05-08:
  *
- * 1. The user passed an absolute path to `fh_team_followup`'s
+ * 1. The user passed an absolute path to `sf_team_followup`'s
  *    `parentPlan`. `resolveParentPlan` did `path.join(repoRoot,
  *    PLAN_FOLDER_ROOT, opts.plan)` which silently concatenated the
  *    absolute path INSIDE `<repoRoot>/ai_plan/`, producing a broken
@@ -9,7 +9,7 @@
  *
  * 2. After the agent retried with a bare slug, the followup tool
  *    rejected with `workflow metadata for <slug> is owned by
- *    fh_team_auto; fh_team_followup cannot run it`. Followup is
+ *    sf_team_auto; sf_team_followup cannot run it`. Followup is
  *    by-design ADDITIVE on top of an existing plan folder, so it
  *    should be allowed to take over from any of the other workflow
  *    tools.
@@ -19,8 +19,8 @@
  *   B) resolveParentPlan accepts an absolute path.
  *   C) resolveParentPlan accepts a relative path.
  *   D) Followup can claim ownership of a plan folder that was
- *      previously owned by fh_team_auto / fh_team_plan /
- *      fh_team_implement / fh_team_task.
+ *      previously owned by sf_team_auto / sf_team_plan /
+ *      sf_team_implement / sf_team_task.
  *   E) Followup_resume still enforces ownership (no accidental
  *      cross-tool resume).
  */
@@ -37,7 +37,7 @@ import {
 } from "@pi-stef/agent-workflows";
 
 import { resolveParentPlan } from "../src/tools/followup-resolve";
-import { createFhTeamFollowup } from "../src/tools/followup";
+import { createSfTeamFollowup } from "../src/tools/followup";
 
 // --- A/B/C: resolveParentPlan path handling --------------------------------
 
@@ -130,22 +130,22 @@ async function seedOwnerMetadata(root: string, slug: string, ownerTool: Workflow
   );
 }
 
-describe("fh_team_followup ownership: takeover allowed from prior workflow tools (D); resume still strict (E)", () => {
+describe("sf_team_followup ownership: takeover allowed from prior workflow tools (D); resume still strict (E)", () => {
   /**
    * D) Cross-product: an existing plan folder owned by any of the
    * four other workflow tools must be a valid TARGET for a fresh
-   * fh_team_followup. The tool reaches the parent-plan resolution
+   * sf_team_followup. The tool reaches the parent-plan resolution
    * and orchestrator startup without throwing the
-   * "owned by X, fh_team_followup cannot run it" error.
+   * "owned by X, sf_team_followup cannot run it" error.
    *
    * We don't drive the full orchestrator (it would spawn agents and
    * create real worktrees). Instead we observe that the metadata
    * takeover rule passes by stubbing spawnAgent. If the takeover
    * still rejected, the call would throw before any spawn happens.
    */
-  for (const owner of ["fh_team_plan", "fh_team_implement", "fh_team_task", "fh_team_auto"] as const) {
+  for (const owner of ["sf_team_plan", "sf_team_implement", "sf_team_task", "sf_team_auto"] as const) {
     it(`D) followup can claim a plan folder previously owned by ${owner} (no ownership rejection on start)`, async () => {
-      const slug = `2026-05-08-owned-by-${owner.replace(/^fh_team_/, "")}`;
+      const slug = `2026-05-08-owned-by-${owner.replace(/^sf_team_/, "")}`;
       const { root, dispose } = makeGitRepoWithPlan(slug, owner);
       try {
         await seedOwnerMetadata(root, slug, owner);
@@ -157,7 +157,7 @@ describe("fh_team_followup ownership: takeover allowed from prior workflow tools
         const spawnAgent = vi.fn(async () => {
           throw new Error("__sentinel-past-ownership-guard__");
         });
-        const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never });
+        const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never });
 
         let caught: unknown;
         try {
@@ -176,7 +176,7 @@ describe("fh_team_followup ownership: takeover allowed from prior workflow tools
         // orchestration error), NOT the ownership-mismatch line.
         const message = caught instanceof Error ? caught.message : String(caught);
         expect(message, `start against ${owner}-owned plan must NOT trip the ownership rejection`).not.toMatch(
-          /owned by .*; fh_team_followup cannot run it/,
+          /owned by .*; sf_team_followup cannot run it/,
         );
       } finally {
         dispose();
@@ -186,15 +186,15 @@ describe("fh_team_followup ownership: takeover allowed from prior workflow tools
 
   it("E) followup_resume against an auto-owned plan still rejects (resume is strict)", async () => {
     const slug = "2026-05-08-auto-owned-no-followup-yet";
-    const { root, dispose } = makeGitRepoWithPlan(slug, "fh_team_auto");
+    const { root, dispose } = makeGitRepoWithPlan(slug, "sf_team_auto");
     try {
-      await seedOwnerMetadata(root, slug, "fh_team_auto");
+      await seedOwnerMetadata(root, slug, "sf_team_auto");
       const spawnAgent = vi.fn();
-      const tool = createFhTeamFollowup({ spawnAgent: spawnAgent as never });
-      // resume input → resume policy enforces ownerTool === "fh_team_followup"
+      const tool = createSfTeamFollowup({ spawnAgent: spawnAgent as never });
+      // resume input → resume policy enforces ownerTool === "sf_team_followup"
       // and rejects because there's no prior followup_start to resume.
       await expect(tool({ resume: slug } as never, { repoRoot: root })).rejects.toThrow(
-        /owned by fh_team_auto.*fh_team_followup cannot resume it/,
+        /owned by sf_team_auto.*sf_team_followup cannot resume it/,
       );
       expect(spawnAgent).not.toHaveBeenCalled();
     } finally {

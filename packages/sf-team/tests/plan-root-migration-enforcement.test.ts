@@ -4,7 +4,7 @@
  * "migration-allowed: legacy" so that they are easy to find and eventually
  * remove in M4/M5 once the planRoot param is threaded end-to-end.
  *
- * Three sweeps across fh-team/src and agent-workflows/src:
+ * Three sweeps across sf-team/src and agent-workflows/src:
  *   1. planFolderPath( calls (not planFolderPathFromRoot)
  *   2. Named imports of planFolderPath
  *   3. PLAN_FOLDER_ROOT in a path.join (the legacy repoRoot + PLAN_FOLDER_ROOT pattern)
@@ -18,7 +18,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 const REPO_ROOT = path.resolve(__dirname, "../../..");
 
-const FH_TEAM_SRC = path.join(REPO_ROOT, "packages/fh-team/src");
+const SF_TEAM_SRC = path.join(REPO_ROOT, "packages/sf-team/src");
 const AGENT_WF_SRC = path.join(REPO_ROOT, "packages/agent-workflows/src");
 
 /** Files excluded from all sweeps (definition / shim files). */
@@ -40,7 +40,7 @@ function walkTs(dir: string, results: string[] = []): string[] {
 
 function collectSourceFiles(): string[] {
   const files: string[] = [
-    ...walkTs(FH_TEAM_SRC),
+    ...walkTs(SF_TEAM_SRC),
     ...walkTs(AGENT_WF_SRC),
   ];
   return files.filter((f) => !EXCLUDED_FILES.has(f));

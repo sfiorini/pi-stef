@@ -12,7 +12,7 @@ import {
 import type { ExternalFetcher } from "./types";
 
 /**
- * Network/Atlassian-backed `ExternalFetcher` used by `fh_team_plan` when
+ * Network/Atlassian-backed `ExternalFetcher` used by `sf_team_plan` when
  * no test seam overrides the wiring.
  *
  * Dispatch by `ref.kind`:

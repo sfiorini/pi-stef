@@ -1,5 +1,5 @@
 /**
- * Public types for the fh-team agent runtime.
+ * Public types for the sf-team agent runtime.
  *
  * `TeamMember` is the static description of an agent (role + model + skills).
  * `AgentRun` is the execution record produced by `spawnAgent`. The orchestrator

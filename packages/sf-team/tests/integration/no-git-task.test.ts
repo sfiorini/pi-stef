@@ -1,5 +1,5 @@
 /**
- * S-501: Integration test — fh_team_task in a non-git tmpdir with gitMode='off'.
+ * S-501: Integration test — sf_team_task in a non-git tmpdir with gitMode='off'.
  *
  * Verifies:
  *   - Call succeeds without throwing (no assertIsGitRepo error)
@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamTask } from "../../src/tools/task";
+import { createSfTeamTask } from "../../src/tools/task";
 
 const APPROVED = `## Summary
 ok
@@ -45,7 +45,7 @@ function fakeRun(text: string) {
   };
 }
 
-describe("fh_team_task — no-git tmpdir with gitMode='off'", () => {
+describe("sf_team_task — no-git tmpdir with gitMode='off'", () => {
   it("succeeds without throwing; commitSha and prDescriptionPath are undefined", async () => {
     // tmpdir that is NOT a git repository
     const repoRoot = mkdtempSync(path.join(tmpdir(), "ct-task-no-git-"));
@@ -74,7 +74,7 @@ Test brief.
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamTask({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await tool(
         {

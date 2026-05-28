@@ -1,9 +1,9 @@
 /**
  * Test helper: produce a structurally valid plan body that passes
- * `fh_team_plan`'s post-approval plan-shape validators (length >= 200,
+ * `sf_team_plan`'s post-approval plan-shape validators (length >= 200,
  * `hasRealMilestones`, `hasRealStories`).
  *
- * Tests that exercise other parts of `fh_team_plan` (revise forwarding,
+ * Tests that exercise other parts of `sf_team_plan` (revise forwarding,
  * transcript flow, TUI plumbing) want their planner-mocks to return
  * "valid-enough" content so the validators don't throw before the
  * test's assertion runs. Pass a `label` to embed it in the body for
@@ -72,7 +72,7 @@ None notable for ${label}.
           "id": "M0-W1",
           "stories": ["S-001"],
           "writeSets": {
-            "S-001": ["packages/fh-team/src/${label}-bootstrap.ts"]
+            "S-001": ["packages/sf-team/src/${label}-bootstrap.ts"]
           }
         },
         {
@@ -80,7 +80,7 @@ None notable for ${label}.
           "stories": ["S-002"],
           "dependsOn": ["M0-W1"],
           "writeSets": {
-            "S-002": ["packages/fh-team/tests/${label}-bootstrap.test.ts"]
+            "S-002": ["packages/sf-team/tests/${label}-bootstrap.test.ts"]
           }
         }
       ]
@@ -91,7 +91,7 @@ None notable for ${label}.
           "id": "M1-W1",
           "stories": ["S-101"],
           "writeSets": {
-            "S-101": ["packages/fh-team/src/${label}-core.ts"]
+            "S-101": ["packages/sf-team/src/${label}-core.ts"]
           }
         }
       ]

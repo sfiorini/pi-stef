@@ -306,7 +306,7 @@ describe("M8 mountWidget orchestrator-pattern (S-809: dispose on success/error/a
     } finally {
       handle.dispose();
     }
-    expect(setWidget).toHaveBeenLastCalledWith("fh-team", undefined);
+    expect(setWidget).toHaveBeenLastCalledWith("sf-team", undefined);
   });
 
   it("disposes on the ERROR path (synchronous throw inside try block)", () => {
@@ -323,7 +323,7 @@ describe("M8 mountWidget orchestrator-pattern (S-809: dispose on success/error/a
       handle.dispose();
     }
     expect(caught?.message).toBe("simulated tool failure");
-    expect(setWidget).toHaveBeenLastCalledWith("fh-team", undefined);
+    expect(setWidget).toHaveBeenLastCalledWith("sf-team", undefined);
   });
 
   it("disposes on the ABORT path (signal aborted while widget is up)", async () => {
@@ -339,7 +339,7 @@ describe("M8 mountWidget orchestrator-pattern (S-809: dispose on success/error/a
     } finally {
       handle.dispose();
     }
-    expect(setWidget).toHaveBeenLastCalledWith("fh-team", undefined);
+    expect(setWidget).toHaveBeenLastCalledWith("sf-team", undefined);
   });
 });
 
@@ -352,13 +352,13 @@ describe("M8 mountWidget dispose internals", () => {
     s = upsertAgent(s, { id: "p", role: "planner", model: "m", state: "running" });
     s = setMilestones(s, [{ id: "M0", title: "spike", completed: 1, inDev: 0, total: 5 }]);
     handle.update(s);
-    expect(setWidget).toHaveBeenCalledWith("fh-team", expect.any(Array));
+    expect(setWidget).toHaveBeenCalledWith("sf-team", expect.any(Array));
     const lines = setWidget.mock.calls[0][1] as string[];
     expect(lines.join("\n")).toContain("M0[█····]");
     expect(lines.join("\n")).toContain("planner");
 
     handle.dispose();
-    expect(setWidget).toHaveBeenCalledWith("fh-team", undefined);
+    expect(setWidget).toHaveBeenCalledWith("sf-team", undefined);
     handle.dispose(); // idempotent — no extra calls
     expect(setWidget).toHaveBeenCalledTimes(2);
   });
@@ -371,7 +371,7 @@ describe("M8 mountWidget dispose internals", () => {
     handle.update(emptyState());
     // No additional setWidget call after dispose.
     expect(setWidget).toHaveBeenCalledTimes(1);
-    expect(setWidget).toHaveBeenLastCalledWith("fh-team", undefined);
+    expect(setWidget).toHaveBeenLastCalledWith("sf-team", undefined);
   });
 });
 
@@ -392,7 +392,7 @@ describe("M8 visual snapshot (S-810)", () => {
     handle.update(s);
     const out = (setWidget.mock.calls[0][1] as string[]).join("\n");
     expect(out).toMatchInlineSnapshot(`
-"── fh-team ────
+"── sf-team ────
 ⏵ Resume from S-201?
 
 M0[█████] (approved) spike

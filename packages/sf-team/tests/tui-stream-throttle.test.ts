@@ -33,7 +33,7 @@ describe("TUI stream throttling", () => {
         {
           repoRoot: root,
           slug: "stream-throttle",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           tmuxManager: null,
           widget: { update: (state) => updates.push(cloneState(state)), dispose: vi.fn() },
@@ -67,7 +67,7 @@ describe("TUI stream throttling", () => {
         {
           repoRoot: root,
           slug: "stream-throttle",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           tmuxManager: null,
           widgetUpdateIntervalMs: 20,

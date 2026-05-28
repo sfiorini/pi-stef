@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // The mock path is resolved RELATIVE to the file being mocked (i.e., the
 // path is "../src/tools/plan" because register.ts imports "./tools/plan"
 // and we mock it from a sibling test directory; Vitest hoists vi.mock so
-// `registerFhTeam` will see the mocked module when imported below).
+// `registerSfTeam` will see the mocked module when imported below).
 
 const handlerSpy = vi.fn(async () => ({
   approved: false,
@@ -15,11 +15,11 @@ const handlerSpy = vi.fn(async () => ({
 }));
 
 vi.mock("../src/tools/plan", () => ({
-  // Match the real shape: createFhTeamPlan() returns a callable handler.
-  createFhTeamPlan: () => handlerSpy,
+  // Match the real shape: createSfTeamPlan() returns a callable handler.
+  createSfTeamPlan: () => handlerSpy,
 }));
 
-import { registerFhTeam } from "../src/register";
+import { registerSfTeam } from "../src/register";
 
 class FakePi {
   tools: Array<{
@@ -35,15 +35,15 @@ class FakePi {
   sendUserMessage(_content: string): void {}
 }
 
-describe("registerFhTeam: fh_team_plan default external fetcher wiring", () => {
+describe("registerSfTeam: sf_team_plan default external fetcher wiring", () => {
   it("passes a default externalFetcher (defined, file-defensive to null) into the plan handler", async () => {
     handlerSpy.mockClear();
 
     const pi = new FakePi();
-    registerFhTeam(pi as never);
+    registerSfTeam(pi as never);
 
-    const planTool = pi.tools.find((t) => t.name === "fh_team_plan");
-    expect(planTool, "fh_team_plan tool must be registered").toBeDefined();
+    const planTool = pi.tools.find((t) => t.name === "sf_team_plan");
+    expect(planTool, "sf_team_plan tool must be registered").toBeDefined();
 
     await planTool!.execute(
       "test-id",

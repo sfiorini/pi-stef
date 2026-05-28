@@ -124,7 +124,7 @@ export async function ensureLaneWorktree(opts: EnsureLaneWorktreeOptions): Promi
       if (attached.head !== expectedBaseRef) {
         reportWorktreeWarning(
           [
-            `fh_team: reusing dirty attached worktree for ${opts.branchName} at ${attached.path},`,
+            `sf_team: reusing dirty attached worktree for ${opts.branchName} at ${attached.path},`,
             `but its HEAD ${shortSha(attached.head)} differs from expected base ${shortSha(expectedBaseRef)};`,
             "the later merge may require manual recovery.",
           ].join(" "),

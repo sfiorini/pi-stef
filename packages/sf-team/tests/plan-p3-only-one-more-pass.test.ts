@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
@@ -82,7 +82,7 @@ describe("P3-only one-more-pass (architecture step 7)", () => {
         return fakeRun(APPROVED_WITH_P3);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         { title: "P3 only", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { plan_revision: "full", researcher: "never" } } as never) },
@@ -115,7 +115,7 @@ describe("P3-only one-more-pass (architecture step 7)", () => {
         return fakeRun(APPROVED_CLEAN);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "Clean", analysisOverride: null, answersOverride: {} },
         { repoRoot: root },

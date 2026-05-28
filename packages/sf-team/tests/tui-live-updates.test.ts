@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
 
@@ -70,7 +70,7 @@ describe("TUI live updates: orchestrator drives setWidget on every spawn", () =>
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "Healthz", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, ui },
@@ -79,7 +79,7 @@ describe("TUI live updates: orchestrator drives setWidget on every spawn", () =>
       // At minimum: initial empty render + planner registration + reviewer registration + agent_end events for each.
       expect(setWidgetCalls.length).toBeGreaterThanOrEqual(2);
       // First call is the empty-state initial render.
-      expect(setWidgetCalls[0].key).toBe("fh-team");
+      expect(setWidgetCalls[0].key).toBe("sf-team");
       // Lines are a string[] (not a Component factory in this PR).
       expect(Array.isArray(setWidgetCalls[0].lines)).toBe(true);
     } finally {
@@ -107,7 +107,7 @@ describe("TUI live updates: orchestrator drives setWidget on every spawn", () =>
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "Test", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, ui },

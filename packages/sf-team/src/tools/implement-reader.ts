@@ -15,19 +15,19 @@ export interface PlanFolderRead {
 }
 
 /**
- * Read the canonical 5-file plan folder for fh_team_implement / fh_team_auto.
+ * Read the canonical 5-file plan folder for sf_team_implement / sf_team_auto.
  * Returns the milestone-plan + runbook bodies + parsed tracker.
  *
  * Throws when any of the three required files is missing — implement is a
  * contract: the plan folder must already exist (typically created by
- * fh_team_plan or pre-populated by the user).
+ * sf_team_plan or pre-populated by the user).
  */
 export async function readImplementPlanFolder(repoRoot: string, slug: string, planRoot?: string): Promise<PlanFolderRead> {
   const resolvedPlanRoot = planRoot ?? path.join(repoRoot, PLAN_FOLDER_ROOT); // migration-allowed: legacy
   const folder = planFolderPathFromRoot(resolvedPlanRoot, slug);
   const folderStat = await stat(folder).catch(() => undefined);
   if (!folderStat || !folderStat.isDirectory()) {
-    throw new Error(`fh_team_implement: plan folder not found at ${folder}`);
+    throw new Error(`sf_team_implement: plan folder not found at ${folder}`);
   }
   const [milestonePlan, continuationRunbook] = await Promise.all([
     readFile(path.join(folder, "milestone-plan.md"), "utf8"),

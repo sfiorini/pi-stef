@@ -6,7 +6,7 @@ import { renderAgentCards } from "./agent-card";
 import { renderMilestoneStrip } from "./milestone-strip";
 import { renderResumeBanner } from "./resume-banner";
 
-const WIDGET_KEY = "fh-team";
+const WIDGET_KEY = "sf-team";
 
 export interface WidgetHandle {
   /** Re-render with the latest state. Idempotent. */
@@ -16,7 +16,7 @@ export interface WidgetHandle {
 }
 
 /**
- * Mount the fh-team widget on `pi.ui.setWidget`. Returns a handle the
+ * Mount the sf-team widget on `pi.ui.setWidget`. Returns a handle the
  * orchestrator stores and calls in its `finally` teardown path so the widget
  * vanishes on every exit (success / error / abort).
  *
@@ -39,7 +39,7 @@ export function mountWidget(
   const render = (state: WidgetState): string[] => {
     if (disposed) return [];
     const lines: string[] = [];
-    lines.push("── fh-team ────");
+    lines.push("── sf-team ────");
     const banner = renderResumeBanner(state.resume);
     if (banner.length > 0) {
       lines.push(...banner);

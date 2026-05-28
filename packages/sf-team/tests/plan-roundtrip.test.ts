@@ -99,7 +99,7 @@ describe("M6 writePlanFolder + readPlanFolder round-trip", () => {
     }
   });
 
-  // The "followup overlay" code path was removed: fh_team_followup now
+  // The "followup overlay" code path was removed: sf_team_followup now
   // writes its own task-plan.md under a brand-new
   // ai_plan/<date>-followup-<slug>/ folder via the shared task workflow,
   // not an overlay file inside the parent's folder. The discriminated
@@ -164,11 +164,11 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
     try {
       const slug = "2026-05-01-fresh";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
-      const meta = await acquireLock(root, slug, "fh_team_plan");
+      const meta = await acquireLock(root, slug, "sf_team_plan");
       expect(meta.pid).toBe(process.pid);
       expect(meta.slug).toBe(slug);
       const re = await readLockMetadata(root, slug);
-      expect(re).toMatchObject({ pid: process.pid, slug, command: "fh_team_plan" });
+      expect(re).toMatchObject({ pid: process.pid, slug, command: "sf_team_plan" });
       await releaseLock(root, slug);
       expect(await readLockMetadata(root, slug)).toBeUndefined();
     } finally {
@@ -181,8 +181,8 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
     try {
       const slug = "2026-05-01-contended";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
-      await acquireLock(root, slug, "fh_team_plan");
-      await expect(acquireLock(root, slug, "fh_team_implement")).rejects.toBeInstanceOf(LockHeldError);
+      await acquireLock(root, slug, "sf_team_plan");
+      await expect(acquireLock(root, slug, "sf_team_implement")).rejects.toBeInstanceOf(LockHeldError);
     } finally {
       dispose();
     }
@@ -195,7 +195,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Build a stale lockdir manually: directory + metadata.json with a pid
       // that's almost certainly dead.
-      const lockDir = path.join(planFolderPath(root, slug), ".fh-team.lock");
+      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
       mkdirSync(lockDir);
       writeFileSync(
         path.join(lockDir, "metadata.json"),
@@ -208,7 +208,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
           slug,
         }),
       );
-      const meta = await acquireLock(root, slug, "fh_team_plan");
+      const meta = await acquireLock(root, slug, "sf_team_plan");
       expect(meta.pid).toBe(process.pid);
     } finally {
       dispose();
@@ -220,7 +220,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
     try {
       const slug = "2026-05-01-otherhost";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
-      const lockDir = path.join(planFolderPath(root, slug), ".fh-team.lock");
+      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
       mkdirSync(lockDir);
       writeFileSync(
         path.join(lockDir, "metadata.json"),
@@ -233,7 +233,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
           slug,
         }),
       );
-      const meta = await acquireLock(root, slug, "fh_team_plan", { hostnameOverride: "current-host" });
+      const meta = await acquireLock(root, slug, "sf_team_plan", { hostnameOverride: "current-host" });
       expect(meta.pid).toBe(process.pid);
     } finally {
       dispose();
@@ -281,7 +281,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       const slug = "2026-05-01-race";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       const promises = Array.from({ length: 10 }, () =>
-        acquireLock(root, slug, "fh_team_plan").then(
+        acquireLock(root, slug, "sf_team_plan").then(
           (v) => ({ ok: true as const, v }),
           (err) => ({ ok: false as const, err }),
         ),
@@ -305,9 +305,9 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       const slug = "2026-05-01-crash-residue";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Simulate a process that died between mkdir and writeFile of metadata.
-      mkdirSync(path.join(planFolderPath(root, slug), ".fh-team.lock"));
+      mkdirSync(path.join(planFolderPath(root, slug), ".sf-team.lock"));
       // Acquire should reclaim the empty lockdir without blocking forever.
-      const meta = await acquireLock(root, slug, "fh_team_plan");
+      const meta = await acquireLock(root, slug, "sf_team_plan");
       expect(meta.pid).toBe(process.pid);
     } finally {
       dispose();
@@ -321,7 +321,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Plant a stale lockdir (pid=999_999, no processStartedAt) so all
       // contenders agree it is stale.
-      const lockDir = path.join(planFolderPath(root, slug), ".fh-team.lock");
+      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
       mkdirSync(lockDir);
       writeFileSync(
         path.join(lockDir, "metadata.json"),
@@ -335,7 +335,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
         }),
       );
       const promises = Array.from({ length: 10 }, () =>
-        acquireLock(root, slug, "fh_team_plan").then(
+        acquireLock(root, slug, "sf_team_plan").then(
           (v) => ({ ok: true as const, v }),
           (err) => ({ ok: false as const, err }),
         ),

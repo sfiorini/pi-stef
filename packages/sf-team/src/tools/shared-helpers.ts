@@ -4,14 +4,14 @@ import { DEFAULT_CONFIG, type ResolvedDefaults } from "../config/schema";
 import type { AgentRole, TeamMember } from "../runtime/types";
 
 /**
- * Leaf helpers shared by `fh_team_task` and `fh_team_followup`. Both tools
+ * Leaf helpers shared by `sf_team_task` and `sf_team_followup`. Both tools
  * run the same git/diff/commit lifecycle on top of `runOrchestrator`; they
  * just differ in how they compose the planner brief and what slug shape
  * they pick. Keeping these helpers in one file removes the ~50 lines of
  * duplicated implementation between `task.ts` and `followup.ts`.
  *
  * Error messages embed the caller's tool name so a failure surfaces as
- * `fh_team_task: ...` or `fh_team_followup: ...` rather than a generic
+ * `sf_team_task: ...` or `sf_team_followup: ...` rather than a generic
  * helper string.
  */
 

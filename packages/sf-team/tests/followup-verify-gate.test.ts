@@ -47,7 +47,7 @@ afterEach(() => {
   spawnSyncMock.mockReset();
 });
 
-describe("fh_team_followup runVerification: package-manager auto-detection", () => {
+describe("sf_team_followup runVerification: package-manager auto-detection", () => {
   it("uses npm run <script> when package.json has packageManager: 'npm@...'", () => {
     const { root, dispose } = makeFixture({
       packageJson: { packageManager: "npm@10.2.0", scripts: { typecheck: "true", test: "true" } },
@@ -144,7 +144,7 @@ describe("fh_team_followup runVerification: package-manager auto-detection", () 
   });
 });
 
-describe("fh_team_followup runVerification: existing-behavior preservation", () => {
+describe("sf_team_followup runVerification: existing-behavior preservation", () => {
   it("passes through an explicit verifyCommand without invoking package-manager detection", () => {
     const { root, dispose } = makeFixture({
       packageJson: { packageManager: "pnpm@9.0.0" },
@@ -178,7 +178,7 @@ describe("fh_team_followup runVerification: existing-behavior preservation", () 
       expect(capturedCalls()).toEqual([{ cmd: "npm", args: ["run", "test"] }]);
       expect(errSpy).toHaveBeenCalledTimes(1);
       expect(errSpy.mock.calls[0]?.[0]).toBe(
-        `fh_team_followup: verification gate skipped — no \`typecheck\` script in ${root}/package.json.`,
+        `sf_team_followup: verification gate skipped — no \`typecheck\` script in ${root}/package.json.`,
       );
     } finally {
       errSpy.mockRestore();
@@ -196,7 +196,7 @@ describe("fh_team_followup runVerification: existing-behavior preservation", () 
       expect(capturedCalls()).toEqual([{ cmd: "npm", args: ["run", "typecheck"] }]);
       expect(errSpy).toHaveBeenCalledTimes(1);
       expect(errSpy.mock.calls[0]?.[0]).toBe(
-        `fh_team_followup: verification gate skipped — no \`test\` script in ${root}/package.json.`,
+        `sf_team_followup: verification gate skipped — no \`test\` script in ${root}/package.json.`,
       );
     } finally {
       errSpy.mockRestore();
@@ -234,7 +234,7 @@ describe("fh_team_followup runVerification: existing-behavior preservation", () 
     }
   });
 
-  it("throws with fh_team_followup prefix (NOT fh_team_implement) on malformed package.json", () => {
+  it("throws with sf_team_followup prefix (NOT sf_team_implement) on malformed package.json", () => {
     const root = mkdtempSync(path.join(tmpdir(), "followup-verify-gate-malformed-"));
     writeFileSync(path.join(root, "package.json"), "{ this is not json");
     try {
@@ -245,9 +245,9 @@ describe("fh_team_followup runVerification: existing-behavior preservation", () 
         thrown = e instanceof Error ? e : new Error(String(e));
       }
       expect(thrown).not.toBeNull();
-      expect(thrown!.message).toMatch(/^fh_team_followup: /);
+      expect(thrown!.message).toMatch(/^sf_team_followup: /);
       expect(thrown!.message).toContain("is not valid JSON");
-      expect(thrown!.message).not.toContain("fh_team_implement");
+      expect(thrown!.message).not.toContain("sf_team_implement");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -267,7 +267,7 @@ describe("fh_team_followup runVerification: existing-behavior preservation", () 
       }
       expect(thrown).not.toBeNull();
       const msg = thrown!.message;
-      expect(msg).toMatch(/^fh_team_followup: verification gate failed \(/);
+      expect(msg).toMatch(/^sf_team_followup: verification gate failed \(/);
       expect(msg).toContain(root);
       expect(msg).toContain("npm run typecheck");
       expect(msg).toContain("exited 7");

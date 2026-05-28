@@ -1,5 +1,5 @@
 /**
- * S-406: Integration test — fh_team_plan in a non-git tmpdir with an explicit aiPlanPath.
+ * S-406: Integration test — sf_team_plan in a non-git tmpdir with an explicit aiPlanPath.
  *
  * Verifies:
  *   - 5-file plan folder is written at <aiPlanPath>/<slug>/
@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../../src/tools/plan";
+import { createSfTeamPlan } from "../../src/tools/plan";
 import { FIVE_FILE_NAMES } from "../../src/plan/paths";
 import { validPlanText } from "../helpers/valid-plan";
 
@@ -47,7 +47,7 @@ function fakeRun(text: string) {
   };
 }
 
-describe("fh_team_plan — no-git tmpdir with explicit aiPlanPath", () => {
+describe("sf_team_plan — no-git tmpdir with explicit aiPlanPath", () => {
   it("writes 5-file folder at aiPlanPath/<slug>/; no baseline.json; no pr-description.md", async () => {
     // tmpdir that is NOT a git repository
     const repoRoot = mkdtempSync(path.join(tmpdir(), "ct-no-git-"));
@@ -58,7 +58,7 @@ describe("fh_team_plan — no-git tmpdir with explicit aiPlanPath", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
 
       const result = await tool(
         { title: "No Git Plan", aiPlanPath: plansRoot, gitMode: "off" },

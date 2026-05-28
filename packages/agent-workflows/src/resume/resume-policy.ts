@@ -28,11 +28,11 @@ export async function assertResumeOwnership(input: AssertResumeOwnershipInput): 
     return { kind: "metadata", metadata };
   }
 
-  if (input.invokedTool === "fh_team_implement" && await hasLegacyFiveFilePlan(input.target.folderPath)) {
+  if (input.invokedTool === "sf_team_implement" && await hasLegacyFiveFilePlan(input.target.folderPath)) {
     return { kind: "legacy-five-file" };
   }
 
-  if (input.invokedTool === "fh_team_auto" && await hasLegacyFiveFilePlan(input.target.folderPath)) {
+  if (input.invokedTool === "sf_team_auto" && await hasLegacyFiveFilePlan(input.target.folderPath)) {
     const evidence = await readCheckpointEvidenceFromFolder(input.target.folderPath);
     if (evidence.hasPlanPhaseCheckpoint && evidence.hasImplementationPhaseCheckpoint) {
       return { kind: "auto-checkpoint-recovery" };
@@ -69,7 +69,7 @@ async function hasLegacyFiveFilePlan(folderPath: string): Promise<boolean> {
 function missingMetadataMessage(input: AssertResumeOwnershipInput): string {
   return [
     `workflow metadata not found for ${input.target.slug}; ${input.invokedTool} cannot verify resume ownership.`,
-    "Supported metadata-less resume paths are fh_team_implement legacy five-file plans",
-    "and fh_team_auto folders with both plan and implementation checkpoints.",
+    "Supported metadata-less resume paths are sf_team_implement legacy five-file plans",
+    "and sf_team_auto folders with both plan and implementation checkpoints.",
   ].join(" ");
 }

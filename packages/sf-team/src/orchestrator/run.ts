@@ -54,7 +54,7 @@ export interface RunOrchestratorContext {
   slug: string;
   /** Tool name for lock metadata + diagnostics + telegram message. */
   toolName: WorkflowToolName;
-  /** Durable resume owner. Defaults to `toolName`; `fh_team_auto` sets this for nested plan/implement phases. */
+  /** Durable resume owner. Defaults to `toolName`; `sf_team_auto` sets this for nested plan/implement phases. */
   ownerTool?: WorkflowToolName;
   /** Allowed prior owners for normal handoff flows that intentionally claim an existing plan folder. */
   allowOwnerTakeoverFrom?: WorkflowToolName[];
@@ -107,9 +107,9 @@ export interface RunOrchestratorContext {
    */
   tmuxSessionName?: string;
   /**
-   * Optional pre-resolved session alias (e.g. `fh_team_auto-1`). When
+   * Optional pre-resolved session alias (e.g. `sf_team_auto-1`). When
    * set, the orchestrator skips `nextSessionAlias(toolName)` and uses
-   * this value instead. `fh_team_auto` uses this so the wrapping run
+   * this value instead. `sf_team_auto` uses this so the wrapping run
    * AND its inner plan/implement runs all decorate the SAME tmux
    * session. When omitted, the orchestrator computes the alias from
    * `toolName`.
@@ -182,7 +182,7 @@ export interface OrchestratorBodyContext {
   ): { agentId: string; spawnKey: string; onEvent: (e: AgentEvent) => void; rawLogPath?: string };
   /**
    * Drop every agent card from the widget. Use at milestone boundaries
-   * (and at the plan→implement phase boundary in `fh_team_auto`) so the
+   * (and at the plan→implement phase boundary in `sf_team_auto`) so the
    * panel shows only the agents currently in flight. Milestone progress,
    * resume banner, and lock state are preserved.
    */
@@ -298,7 +298,7 @@ export async function runOrchestrator<T>(
     ? await readHistoricalCostSummary(ctx.repoRoot, ctx.slug, {
       logicalToolName: ownerTool,
       ownerTool,
-      includeLegacyAutoReports: ownerTool === "fh_team_auto",
+      includeLegacyAutoReports: ownerTool === "sf_team_auto",
     })
     : { usage: emptyUsageTotal(), reportCount: 0 };
   const settledUsageBySpawn = new Map<string, CostUsageTotal>();
@@ -345,14 +345,14 @@ export async function runOrchestrator<T>(
   // Session decoration runs once on first subscribe. Launcher-emitted
   // sessions are renamed to `<toolName>-<N>`; regular user tmux sessions
   // are never renamed, but still get sticky pane headers (`[Main]`,
-  // `[planner-1]`, etc.) for fh_team_* runs.
+  // `[planner-1]`, etc.) for sf_team_* runs.
   let sessionPrepared = false;
   const prepareSessionOnce = (): void => {
     if (!tmuxManager || !tmuxSessionName || sessionPrepared) return;
     sessionPrepared = true;
     try {
       if (tmuxLauncherSession) {
-        // The caller (e.g. fh_team_auto wrapping plan + implement) can
+        // The caller (e.g. sf_team_auto wrapping plan + implement) can
         // force a shared alias so all nested orchestrator runs land on
         // the SAME session. Otherwise we compute a fresh `<toolName>-N`.
         const alias = ctx.tmuxSessionAliasOverride ?? tmuxManager.nextSessionAlias(ctx.toolName);
@@ -525,7 +525,7 @@ export async function runOrchestrator<T>(
       onLockHeld(error): void {
         // Surface lock contention as a friendly error; never write diagnostics
         // here because we have NO lock to claim the diagnostics file.
-        ctx.ui?.notify?.(`fh-team: ${error.message}`, "error");
+        ctx.ui?.notify?.(`sf-team: ${error.message}`, "error");
       },
       createReporter() {
         widget = ctx.widget ?? (ctx.ui ? mountWidget(ctx.ui) : undefined);

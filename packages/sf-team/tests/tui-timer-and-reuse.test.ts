@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderAgentCards } from "../src/tui/agent-card";
 import { applyAgentEvent } from "../src/tui/wiring";
 import { emptyState, upsertAgent, type WidgetState } from "../src/tui/state";
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
@@ -126,7 +126,7 @@ describe("Bug fix #1: timer freezes when agent reaches a terminal state", () => 
         {
           repoRoot: root,
           slug: "timer-repaint",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           tmuxManager: null,
           widget: {
@@ -271,7 +271,7 @@ describe("Bug fix #2: same-role re-spawns re-use one card and increment round", 
         return fakeRun("noop");
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamPlan({ spawnAgent: spawnAgent as never, runReviewLoop });
       await tool(
         { title: "loop", brief: "go", analysisOverride: null, answersOverride: {} },
         { repoRoot: root, ui, configDefaults: resolveDefaults({ performance: { plan_revision: "full", researcher: "never" } } as never) },
@@ -349,7 +349,7 @@ describe("Bug fix #2: same-role re-spawns re-use one card and increment round", 
         {
           repoRoot: root,
           slug: "race",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: false,
           ui,
         },

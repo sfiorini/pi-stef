@@ -14,7 +14,7 @@ const { createVerificationRunCache } = await import("@pi-stef/agent-workflows");
 const { runConfiguredVerification } = await import("../src/tools/verification-stage");
 
 function makeFixture(): { root: string; dispose: () => void } {
-  const root = mkdtempSync(path.join(tmpdir(), "fh-team-verification-cache-"));
+  const root = mkdtempSync(path.join(tmpdir(), "sf-team-verification-cache-"));
   writeFileSync(path.join(root, "package.json"), JSON.stringify({
     packageManager: "npm@10.0.0",
     scripts: { typecheck: "true", test: "true" },
@@ -31,7 +31,7 @@ afterEach(() => {
   spawnSyncMock.mockReset();
 });
 
-describe("fh-team verification cache", () => {
+describe("sf-team verification cache", () => {
   function commandCalls(): Array<[unknown, unknown]> {
     return spawnSyncMock.mock.calls
       .filter(([cmd]) => cmd !== "git")
@@ -43,14 +43,14 @@ describe("fh-team verification cache", () => {
     try {
       const cache = createVerificationRunCache();
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "after",
         verification: { timing: "after", cache: "run" },
         cache,
       });
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "after",
         verification: { timing: "after", cache: "run" },
@@ -70,7 +70,7 @@ describe("fh-team verification cache", () => {
     try {
       const cache = createVerificationRunCache();
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "after",
         verification: { timing: "after", cache: "run", stages: "test" },
@@ -81,7 +81,7 @@ describe("fh-team verification cache", () => {
         scripts: { test: "node test.js" },
       }, null, 2));
       await runConfiguredVerification({
-        toolName: "fh_team_task",
+        toolName: "sf_team_task",
         cwd: root,
         phase: "after",
         verification: { timing: "after", cache: "run", stages: "test" },

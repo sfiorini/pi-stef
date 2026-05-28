@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamAuto } from "../src/tools/auto";
+import { createSfTeamAuto } from "../src/tools/auto";
 import type { JiraContextResult } from "../src/research/jira-context";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
 import { validPlanText } from "./helpers/valid-plan";
@@ -52,7 +52,7 @@ function fakeRun(text: string): AgentRun {
   };
 }
 
-describe("fh_team_auto with Atlassian Jira context", () => {
+describe("sf_team_auto with Atlassian Jira context", () => {
   it("invokes deps.fetchJiraContext exactly once across the full plan + implement chain", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -71,7 +71,7 @@ describe("fh_team_auto with Atlassian Jira context", () => {
         }),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamAuto({
+      const tool = createSfTeamAuto({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -114,7 +114,7 @@ describe("fh_team_auto with Atlassian Jira context", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never, runReviewLoop });
       const ui = {
         select: async () => undefined,
         input: async () => "8080",
@@ -140,7 +140,7 @@ describe("fh_team_auto with Atlassian Jira context", () => {
       }
 
       expect(thrown).not.toBeNull();
-      expect(thrown!.message).toContain("fh_team_implement: verification gate failed");
+      expect(thrown!.message).toContain("sf_team_implement: verification gate failed");
       expect(thrown!.message).toContain("cwd:");
       expect(thrown!.message).toContain("auto stderr marker");
       expect(thrown!.message).toContain("auto stdout marker");

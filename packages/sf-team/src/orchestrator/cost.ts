@@ -187,8 +187,8 @@ function historicalReportMatchesScope(report: ParsedHistoricalReport, scope: His
   if (report.toolName === scope.logicalToolName) return true;
   return Boolean(
     scope.includeLegacyAutoReports
-    && scope.logicalToolName === "fh_team_auto"
-    && (report.toolName === "fh_team_plan" || report.toolName === "fh_team_implement"),
+    && scope.logicalToolName === "sf_team_auto"
+    && (report.toolName === "sf_team_plan" || report.toolName === "sf_team_implement"),
   );
 }
 
@@ -204,7 +204,7 @@ async function parseJsonReport(filePath: string): Promise<ParsedHistoricalReport
 
 async function parseMarkdownReport(filePath: string): Promise<ParsedHistoricalReport | undefined> {
   const body = await readFile(filePath, "utf8");
-  const h1 = body.match(/^# fh-team performance\s[-—]\s([^\n]+)$/m);
+  const h1 = body.match(/^# sf-team performance\s[-—]\s([^\n]+)$/m);
   const toolName = h1?.[1]?.trim();
   if (!toolName) return undefined;
   const ownerTool = body.match(/^- \*\*owner tool\*\*:\s*([^\n]+)$/m)?.[1]?.trim();

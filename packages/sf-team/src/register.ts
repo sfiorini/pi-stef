@@ -8,16 +8,16 @@ import { effectiveUi } from "./config/workflow";
 import { wrapExecute } from "./errors";
 import { formatFinalCostSentence, type CostSummary } from "./orchestrator/cost";
 import { parseStoryTracker, type ParsedMilestone } from "./plan/tracker";
-import { createFhTeamAuto } from "./tools/auto";
-import { createFhTeamFollowup } from "./tools/followup";
-import { createFhTeamImplement, type FhTeamImplementResult } from "./tools/implement";
+import { createSfTeamAuto } from "./tools/auto";
+import { createSfTeamFollowup } from "./tools/followup";
+import { createSfTeamImplement, type SfTeamImplementResult } from "./tools/implement";
 import { createDefaultExternalFetcher } from "./research/default-fetcher";
-import { createFhTeamPlan } from "./tools/plan";
-import { createFhTeamSteer, FhTeamSteerSchema, type FhTeamSteerParams, type FhTeamSteerResult } from "./tools/steer";
-import { createFhTeamTask } from "./tools/task";
+import { createSfTeamPlan } from "./tools/plan";
+import { createSfTeamSteer, SfTeamSteerSchema, type SfTeamSteerParams, type SfTeamSteerResult } from "./tools/steer";
+import { createSfTeamTask } from "./tools/task";
 
 /**
- * Resolve config (~/.pi/fh-team/config.json + repo .fh-team.json
+ * Resolve config (~/.pi/sf-team/config.json + repo .sf-team.json
  * → DEFAULT_CONFIG fallback). Surface load errors via ui.notify so the
  * user sees that their config was ignored. Called once per tool execute.
  */
@@ -28,10 +28,10 @@ async function resolveCtxDefaults(ui: ExtensionUIContext | undefined): Promise<R
 }
 
 /**
- * Production tool surface for the fh-team extension.
+ * Production tool surface for the sf-team extension.
  *
- * Each base tool name (`fh_team_plan`, `fh_team_implement`, `fh_team_task`,
- * `fh_team_auto`, `fh_team_followup`) registers TWO Pi tools:
+ * Each base tool name (`sf_team_plan`, `sf_team_implement`, `sf_team_task`,
+ * `sf_team_auto`, `sf_team_followup`) registers TWO Pi tools:
  *   - `<base>` — flat single-mode schema for new runs
  *   - `<base>_resume` — flat single-mode schema for resuming a slug
  *
@@ -43,19 +43,19 @@ async function resolveCtxDefaults(ui: ExtensionUIContext | undefined): Promise<R
  * `anyOf` union) preserve the M1 win against schema-validation churn.
  */
 export const TEAM_BASE_TOOL_NAMES = [
-  "fh_team_plan",
-  "fh_team_implement",
-  "fh_team_task",
-  "fh_team_auto",
-  "fh_team_followup",
+  "sf_team_plan",
+  "sf_team_implement",
+  "sf_team_task",
+  "sf_team_auto",
+  "sf_team_followup",
 ] as const;
 
 export type TeamBaseToolName = (typeof TEAM_BASE_TOOL_NAMES)[number];
 
-export const TEAM_STEER_TOOL_NAME = "fh_team_steer" as const;
+export const TEAM_STEER_TOOL_NAME = "sf_team_steer" as const;
 
 /**
- * Enumerates the FULL Pi tool surface fh-team registers (5 base + 5
+ * Enumerates the FULL Pi tool surface sf-team registers (5 base + 5
  * `_resume` + standalone steer = 11 names). Order: for each base name,
  * the bare start tool first, then its `_resume` companion, followed by
  * the standalone steering ingress tool.
@@ -70,14 +70,14 @@ export type TeamResumeToolName = `${TeamBaseToolName}_resume`;
 export type StartResumeToolName = TeamBaseToolName | TeamResumeToolName;
 export type TeamToolName = StartResumeToolName | typeof TEAM_STEER_TOOL_NAME;
 
-export function registerFhTeam(pi: ExtensionAPI): void {
+export function registerSfTeam(pi: ExtensionAPI): void {
   // Maintain TEAM_BASE_TOOL_NAMES order so smoke-test enumeration is stable.
   for (const name of TEAM_BASE_TOOL_NAMES) {
-    if (name === "fh_team_plan") registerPlanTool(pi);
-    else if (name === "fh_team_task") registerTaskTool(pi);
-    else if (name === "fh_team_implement") registerImplementTool(pi);
-    else if (name === "fh_team_auto") registerAutoTool(pi);
-    else if (name === "fh_team_followup") registerFollowupTool(pi);
+    if (name === "sf_team_plan") registerPlanTool(pi);
+    else if (name === "sf_team_task") registerTaskTool(pi);
+    else if (name === "sf_team_implement") registerImplementTool(pi);
+    else if (name === "sf_team_auto") registerAutoTool(pi);
+    else if (name === "sf_team_followup") registerFollowupTool(pi);
   }
   registerSteerTool(pi);
   registerSlashCommands(pi);
@@ -136,7 +136,7 @@ interface StartResumeRegistration<TStartParams, TResumeParams, TResult> {
 }
 
 /**
- * Subset of Pi's per-call execute context that fh-team handlers consume.
+ * Subset of Pi's per-call execute context that sf-team handlers consume.
  * Kept loose to avoid coupling to Pi internal types beyond what each
  * handler actually reads. `toolName` is the registered Pi tool name
  * (`<base>` for the start variant, `<base>_resume` for resume) so inner
@@ -150,12 +150,12 @@ interface PiToolExecuteCtx {
 }
 
 /**
- * Register `<base>` (start) and `<base>_resume` for one fh-team workflow.
+ * Register `<base>` (start) and `<base>_resume` for one sf-team workflow.
  * Both carry a flat single-object schema so calling LLMs hit the right
  * shape on the first try (no top-level `anyOf` union). Each `execute`
  * body is wrapped via `wrapExecute(<piToolName>, ...)` so any
- * non-FhTeamToolError throw is normalized to
- * `FhTeamToolError({ kind: "internal", ... })` whose `Error.message`
+ * non-SfTeamToolError throw is normalized to
+ * `SfTeamToolError({ kind: "internal", ... })` whose `Error.message`
  * carries the `FAILED:`/`RESUME:` envelope. Already-typed errors pass
  * through unchanged.
  */
@@ -193,7 +193,7 @@ function registerStartResumeTools<TStartParams, TResumeParams, TResult>(
 }
 
 /**
- * Register `/fh_team_*` slash commands so the team tools appear in pi's
+ * Register `/sf_team_*` slash commands so the team tools appear in pi's
  * `/` menu. Each base name registers TWO commands:
  *   - `/<base>` — directs the agent to call the start tool
  *   - `/<base>_resume` — directs the agent to call the resume tool
@@ -206,7 +206,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
   if (typeof pi.registerCommand !== "function") return;
 
   const send = typeof pi.sendUserMessage === "function" ? pi.sendUserMessage.bind(pi) : undefined;
-  const steerHandler = createFhTeamSteer();
+  const steerHandler = createSfTeamSteer();
 
   for (const base of TEAM_BASE_TOOL_NAMES) {
     const resumeName = `${base}_resume` as TeamResumeToolName;
@@ -226,14 +226,14 @@ function registerSlashCommands(pi: ExtensionAPI): void {
   }
 
   pi.registerCommand(TEAM_STEER_TOOL_NAME, {
-    description: "Send an instruction to an active fh-team workflow. Args: optional workflowId=<id>, planSlug=<slug>, aiPlanPath=<dir> plus instruction.",
+    description: "Send an instruction to an active sf-team workflow. Args: optional workflowId=<id>, planSlug=<slug>, aiPlanPath=<dir> plus instruction.",
     handler: async (args, ctx) => {
       const trimmed = args.trim();
       if (trimmed.length === 0) {
         await postSlashPrompt(
           TEAM_STEER_TOOL_NAME,
           trimmed,
-          "Invoke the fh_team_steer tool. Ask me first for the instruction and, if needed, the workflowId or planSlug.",
+          "Invoke the sf_team_steer tool. Ask me first for the instruction and, if needed, the workflowId or planSlug.",
           ctx,
         );
         return;
@@ -242,7 +242,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
       const params = parseSteerSlashArgs(trimmed);
       if (!params) {
         ctx.ui?.notify?.(
-          "fh_team_steer: include instruction text, optionally with workflowId=<id> or planSlug=<slug>.",
+          "sf_team_steer: include instruction text, optionally with workflowId=<id> or planSlug=<slug>.",
           "warning",
         );
         return;
@@ -257,7 +257,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
         const result = await steerHandler(resolvedParams, { repoRoot, aiPlanPath: planRoot });
         notifySteerSlashResult(ctx.ui, result);
       } catch (err) {
-        ctx.ui?.notify?.(`fh_team_steer: ${err instanceof Error ? err.message : String(err)}`, "warning");
+        ctx.ui?.notify?.(`sf_team_steer: ${err instanceof Error ? err.message : String(err)}`, "warning");
       }
     },
   });
@@ -288,7 +288,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
     if (!send) {
       if (ctx.ui?.notify) {
         ctx.ui.notify(
-          `fh-team: this pi runtime can't post slash-command output to the agent. Type "${name} ${trimmed}" instead.`,
+          `sf-team: this pi runtime can't post slash-command output to the agent. Type "${name} ${trimmed}" instead.`,
           "warning",
         );
       }
@@ -296,7 +296,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
     }
     // When the agent is mid-stream, sendUserMessage requires a delivery
     // mode or the runtime drops it. Use followUp for ordinary commands;
-    // fh_team_steer non-empty input bypasses this path and writes the
+    // sf_team_steer non-empty input bypasses this path and writes the
     // durable steering inbox directly.
     const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
     if (idle) {
@@ -307,7 +307,7 @@ function registerSlashCommands(pi: ExtensionAPI): void {
   }
 }
 
-function parseSteerSlashArgs(trimmed: string): FhTeamSteerParams | undefined {
+function parseSteerSlashArgs(trimmed: string): SfTeamSteerParams | undefined {
   const matches = Array.from(trimmed.matchAll(/(?:^|\s)([A-Za-z][\w-]*)=(?:"([^"]*)"|'([^']*)'|(\S+))/g));
   if (matches.length === 0) return { instruction: trimmed };
 
@@ -349,61 +349,61 @@ function blankToUndefined(value: string | undefined): string | undefined {
   return trimmed ? trimmed : undefined;
 }
 
-function notifySteerSlashResult(ui: ExtensionUIContext | undefined, result: FhTeamSteerResult): void {
+function notifySteerSlashResult(ui: ExtensionUIContext | undefined, result: SfTeamSteerResult): void {
   const message = result.ok
-    ? `fh_team_steer: queued instruction ${result.instructionId} for workflow ${result.workflowId}.`
-    : `fh_team_steer: ${result.reason}; ${result.message}`;
+    ? `sf_team_steer: queued instruction ${result.instructionId} for workflow ${result.workflowId}.`
+    : `sf_team_steer: ${result.reason}; ${result.message}`;
   ui?.notify?.(message, result.ok ? "info" : "warning");
 }
 
 function startHintForBase(base: TeamBaseToolName): string {
   switch (base) {
-    case "fh_team_plan":
+    case "sf_team_plan":
       return "title (and optionally brief, aiPlanPath, gitMode, tddMode)";
-    case "fh_team_implement":
+    case "sf_team_implement":
       return "slug of the plan folder to implement (optionally aiPlanPath, gitMode, tddMode)";
-    case "fh_team_task":
+    case "sf_team_task":
       return "title (and optionally brief, aiPlanPath, gitMode, tddMode)";
-    case "fh_team_auto":
+    case "sf_team_auto":
       return "title (and optionally brief, aiPlanPath, gitMode, tddMode)";
-    case "fh_team_followup":
+    case "sf_team_followup":
       return "title of the follow-up (optionally aiPlanPath, gitMode, tddMode); parent plan is auto-detected";
   }
 }
 
 function describeStartTool(base: TeamBaseToolName): string {
   switch (base) {
-    case "fh_team_plan":
+    case "sf_team_plan":
       return "Draft a multi-milestone plan via planner+reviewer agents and write a 5-file plan folder. Supports aiPlanPath, gitMode ('auto'|'on'|'off'), tddMode ('auto'|'on'|'off').";
-    case "fh_team_implement":
+    case "sf_team_implement":
       return "Implement an approved plan folder via developer+reviewer agents (single-milestone by default). Supports aiPlanPath, gitMode, tddMode.";
-    case "fh_team_task":
+    case "sf_team_task":
       return "Single-task end-to-end: plan-review → implement → verify → impl-review → commit. Supports aiPlanPath, gitMode ('auto'|'on'|'off'), tddMode ('auto'|'on'|'off').";
-    case "fh_team_auto":
-      return "Chain fh_team_plan and fh_team_implement (all-milestones) with no human gates. Supports aiPlanPath, gitMode, tddMode.";
-    case "fh_team_followup":
+    case "sf_team_auto":
+      return "Chain sf_team_plan and sf_team_implement (all-milestones) with no human gates. Supports aiPlanPath, gitMode, tddMode.";
+    case "sf_team_followup":
       return "Draft and implement a follow-up to an existing plan; writes a brand-new sibling plan folder under ai_plan/<date>-followup-<slug>/. Supports aiPlanPath, gitMode, tddMode.";
   }
 }
 
 function describeResumeTool(base: TeamBaseToolName): string {
   switch (base) {
-    case "fh_team_plan":
+    case "sf_team_plan":
       return "Resume an in-progress plan-review loop by slug. Accepts aiPlanPath, gitMode, tddMode.";
-    case "fh_team_implement":
+    case "sf_team_implement":
       return "Resume an in-progress implementation loop by slug. Accepts aiPlanPath, gitMode, tddMode.";
-    case "fh_team_task":
+    case "sf_team_task":
       return "Resume an in-progress single-task workflow by slug. Accepts aiPlanPath, gitMode, tddMode.";
-    case "fh_team_auto":
-      return "Resume an in-progress fh_team_auto run (plan or implement phase) by slug. Accepts aiPlanPath, gitMode, tddMode.";
-    case "fh_team_followup":
-      return "Resume an in-progress fh_team_followup run by slug. Accepts aiPlanPath, gitMode, tddMode.";
+    case "sf_team_auto":
+      return "Resume an in-progress sf_team_auto run (plan or implement phase) by slug. Accepts aiPlanPath, gitMode, tddMode.";
+    case "sf_team_followup":
+      return "Resume an in-progress sf_team_followup run by slug. Accepts aiPlanPath, gitMode, tddMode.";
   }
 }
 
 function registerSteerTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamSteer();
-  const wrapped = wrapExecute<FhTeamSteerParams, ToolExecuteOutcome<FhTeamSteerResult>>(
+  const handler = createSfTeamSteer();
+  const wrapped = wrapExecute<SfTeamSteerParams, ToolExecuteOutcome<SfTeamSteerResult>>(
     TEAM_STEER_TOOL_NAME,
     async (_id, params, _signal, _onUpdate, ctx) => {
       const repoRoot = process.cwd();
@@ -412,8 +412,8 @@ function registerSteerTool(pi: ExtensionAPI): void {
       const { planRoot } = resolveRuntime({ prompt: { aiPlanPath: params.aiPlanPath }, defaults: configDefaults, repoRoot });
       const result = await handler({ ...params, aiPlanPath: planRoot }, { repoRoot, aiPlanPath: planRoot });
       const text = result.ok
-        ? `fh_team_steer: queued instruction ${result.instructionId} for workflow ${result.workflowId}.`
-        : `fh_team_steer: ${result.reason}; ${result.message}`;
+        ? `sf_team_steer: queued instruction ${result.instructionId} for workflow ${result.workflowId}.`
+        : `sf_team_steer: ${result.reason}; ${result.message}`;
       return {
         content: [{ type: "text", text }],
         details: result,
@@ -425,19 +425,19 @@ function registerSteerTool(pi: ExtensionAPI): void {
     name: TEAM_STEER_TOOL_NAME,
     label: TEAM_STEER_TOOL_NAME,
     description: withCostSummaryGuidance(
-      "Send a steering instruction to an active fh-team workflow. Targets by workflowId, planSlug, or the single active workflow. Standalone ingress only; there is no fh_team_steer_resume.",
+      "Send a steering instruction to an active sf-team workflow. Targets by workflowId, planSlug, or the single active workflow. Standalone ingress only; there is no sf_team_steer_resume.",
     ),
-    parameters: FhTeamSteerSchema as any,
+    parameters: SfTeamSteerSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as FhTeamSteerParams, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as SfTeamSteerParams, signal ?? undefined, onUpdate ?? undefined, ctx)),
   });
 }
 
 function registerPlanTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamPlan();
+  const handler = createSfTeamPlan();
   // Default external fetcher (URL via web-access, Jira/Confluence via
   // atlassian). Constructed once per registration; the same instance is
-  // reused for every fh_team_plan call. Tests inject their own fetcher
+  // reused for every sf_team_plan call. Tests inject their own fetcher
   // via the handler's `input.externalFetcher` parameter directly, so
   // wiring it here does NOT override test-provided fetchers — tests
   // continue to take precedence.
@@ -502,17 +502,17 @@ function registerPlanTool(pi: ExtensionAPI): void {
       },
     );
     return {
-      content: [{ type: "text", text: appendCostSentence(`fh_team_plan: ${result.approved ? "approved" : "not approved"} after ${result.rounds} rounds; folder=${result.folderPath ?? "(none)"}; performance=${result.performanceReportPath ?? "(none)"}`, result) }],
+      content: [{ type: "text", text: appendCostSentence(`sf_team_plan: ${result.approved ? "approved" : "not approved"} after ${result.rounds} rounds; folder=${result.folderPath ?? "(none)"}; performance=${result.performanceReportPath ?? "(none)"}`, result) }],
       details: result,
     };
   };
 
   registerStartResumeTools(pi, {
-    base: "fh_team_plan",
+    base: "sf_team_plan",
     startDescription:
       "Draft a multi-milestone plan via planner+reviewer agents and write a 5-file plan folder. Begins a new run; required: `title`.",
     resumeDescription:
-      "Resume an in-progress fh_team_plan run. Required: `resume` (slug, absolute path, or relative path).",
+      "Resume an in-progress sf_team_plan run. Required: `resume` (slug, absolute path, or relative path).",
     startSchema,
     resumeSchema,
     executeStart: exec,
@@ -521,7 +521,7 @@ function registerPlanTool(pi: ExtensionAPI): void {
 }
 
 function registerTaskTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamTask();
+  const handler = createSfTeamTask();
   const GitModeSchema = Type.Union(GIT_MODES.map((m) => Type.Literal(m)));
   const TddModeSchema = Type.Union(TDD_MODES.map((m) => Type.Literal(m)));
   const startSchema = Type.Object(
@@ -576,7 +576,7 @@ function registerTaskTool(pi: ExtensionAPI): void {
       content: [
         {
           type: "text",
-          text: appendCostSentence(`fh_team_task: ${result.approved ? "approved" : "not approved"}; commit=${result.commitSha ?? "(none)"}; pushed=${result.pushed}; performance=${result.performanceReportPath ?? "(none)"}`, result),
+          text: appendCostSentence(`sf_team_task: ${result.approved ? "approved" : "not approved"}; commit=${result.commitSha ?? "(none)"}; pushed=${result.pushed}; performance=${result.performanceReportPath ?? "(none)"}`, result),
         },
       ],
       details: result,
@@ -584,11 +584,11 @@ function registerTaskTool(pi: ExtensionAPI): void {
   };
 
   registerStartResumeTools(pi, {
-    base: "fh_team_task",
+    base: "sf_team_task",
     startDescription:
       "End-to-end single-task workflow: plan-review → implement → verify → impl-review → commit. Begins a new run; required: `title`.",
     resumeDescription:
-      "Resume an in-progress fh_team_task workflow. Required: `resume` (slug, absolute path, or relative path).",
+      "Resume an in-progress sf_team_task workflow. Required: `resume` (slug, absolute path, or relative path).",
     startSchema,
     resumeSchema,
     executeStart: exec,
@@ -597,7 +597,7 @@ function registerTaskTool(pi: ExtensionAPI): void {
 }
 
 function registerImplementTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamImplement();
+  const handler = createSfTeamImplement();
   const GitModeSchema = Type.Union(GIT_MODES.map((m) => Type.Literal(m)));
   const TddModeSchema = Type.Union(TDD_MODES.map((m) => Type.Literal(m)));
   const sharedFields = {
@@ -666,11 +666,11 @@ function registerImplementTool(pi: ExtensionAPI): void {
   };
 
   registerStartResumeTools(pi, {
-    base: "fh_team_implement",
+    base: "sf_team_implement",
     startDescription:
       "Read an approved plan folder and implement milestones via developer+reviewer agents (D1 default). Begins a new run; required: `slug`.",
     resumeDescription:
-      "Resume an in-progress fh_team_implement run. Required: `resume` (slug, absolute path, or relative path).",
+      "Resume an in-progress sf_team_implement run. Required: `resume` (slug, absolute path, or relative path).",
     startSchema,
     resumeSchema,
     executeStart: exec,
@@ -678,9 +678,9 @@ function registerImplementTool(pi: ExtensionAPI): void {
   });
 }
 
-async function formatImplementResultText(result: FhTeamImplementResult, repoRoot: string): Promise<string> {
+async function formatImplementResultText(result: SfTeamImplementResult, repoRoot: string): Promise<string> {
   const approvedThisRun = result.milestones.filter((m) => m.approved).length;
-  let text = `fh_team_implement: ${approvedThisRun} milestone(s) approved this run on branch ${result.branch ?? "(no branch)"}.`;
+  let text = `sf_team_implement: ${approvedThisRun} milestone(s) approved this run on branch ${result.branch ?? "(no branch)"}.`;
   const progress = await readPlanProgress(repoRoot, result.slug).catch(() => undefined);
   if (progress) {
     const pendingSuffix = progress.pendingIds.length > 0 ? ` (${progress.pendingIds.join(", ")})` : "";
@@ -701,7 +701,7 @@ async function formatImplementResultText(result: FhTeamImplementResult, repoRoot
 }
 
 /**
- * Render the result text for `fh_team_auto`. Modeled on
+ * Render the result text for `sf_team_auto`. Modeled on
  * `formatImplementResultText` but with an explicit
  * `SUCCESS` / `PARTIAL` / `NO-OP` prefix so calling LLMs cannot
  * misread "5 milestone(s)" as "5 milestones still pending."
@@ -721,7 +721,7 @@ async function formatImplementResultText(result: FhTeamImplementResult, repoRoot
  * the implement formatter.
  */
 async function formatAutoResultText(
-  result: { planRounds: number; implement: FhTeamImplementResult; performanceReportPaths?: string[] },
+  result: { planRounds: number; implement: SfTeamImplementResult; performanceReportPaths?: string[] },
   repoRoot: string,
 ): Promise<string> {
   const implResult = result.implement;
@@ -749,10 +749,10 @@ async function formatAutoResultText(
     runSummary = `plan reviewed in ${result.planRounds} round(s); ${approvedThisRun}/${totalThisRun} milestone(s) approved this run on branch ${implResult.branch ?? "(no branch)"}.`;
   }
 
-  const parts: string[] = [`fh_team_auto: ${prefix} — ${runSummary}`];
+  const parts: string[] = [`sf_team_auto: ${prefix} — ${runSummary}`];
   if (planStatus) parts.push(planStatus);
   if (prefix === "PARTIAL" && progress && progress.pendingIds.length > 0) {
-    parts.push(`Next: invoke fh_team_auto_resume { resume: '${implResult.slug}' } to continue with ${progress.pendingIds[0]}.`);
+    parts.push(`Next: invoke sf_team_auto_resume { resume: '${implResult.slug}' } to continue with ${progress.pendingIds[0]}.`);
   }
   if (implResult.warnings && implResult.warnings.length > 0) {
     parts.push(`Branch cleanup warnings: ${implResult.warnings.length} (see details.implement.warnings).`);
@@ -780,7 +780,7 @@ function hasRunnableStories(milestone: ParsedMilestone): boolean {
 }
 
 function registerAutoTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamAuto();
+  const handler = createSfTeamAuto();
   const GitModeSchema = Type.Union(GIT_MODES.map((m) => Type.Literal(m)));
   const TddModeSchema = Type.Union(TDD_MODES.map((m) => Type.Literal(m)));
   const sharedFields = {
@@ -788,7 +788,7 @@ function registerAutoTool(pi: ExtensionAPI): void {
     branchPrefix: Type.Optional(Type.String()),
     pauseBetweenMilestones: Type.Optional(Type.Boolean({
       description:
-        "When true, pause and ask the user to confirm between each milestone. When false (default for fh_team_auto), run end-to-end.",
+        "When true, pause and ask the user to confirm between each milestone. When false (default for sf_team_auto), run end-to-end.",
     })),
     verification: Type.Optional(VerificationConfigSchema),
     aiPlanPath: Type.Optional(Type.String({ description: "Directory where plan folders are read from and written to. Defaults to ./ai_plan/." })),
@@ -841,11 +841,11 @@ function registerAutoTool(pi: ExtensionAPI): void {
   };
 
   registerStartResumeTools(pi, {
-    base: "fh_team_auto",
+    base: "sf_team_auto",
     startDescription:
-      "Chain fh_team_plan and fh_team_implement (all-milestones) with no human gates between. Begins a new run; required: `title`.",
+      "Chain sf_team_plan and sf_team_implement (all-milestones) with no human gates between. Begins a new run; required: `title`.",
     resumeDescription:
-      "Resume an in-progress fh_team_auto run (plan or implement phase). Required: `resume` (slug, absolute path, or relative path).",
+      "Resume an in-progress sf_team_auto run (plan or implement phase). Required: `resume` (slug, absolute path, or relative path).",
     startSchema,
     resumeSchema,
     executeStart: exec,
@@ -854,7 +854,7 @@ function registerAutoTool(pi: ExtensionAPI): void {
 }
 
 function registerFollowupTool(pi: ExtensionAPI): void {
-  const handler = createFhTeamFollowup();
+  const handler = createSfTeamFollowup();
   const GitModeSchema = Type.Union(GIT_MODES.map((m) => Type.Literal(m)));
   const TddModeSchema = Type.Union(TDD_MODES.map((m) => Type.Literal(m)));
   const sharedFields = {
@@ -914,7 +914,7 @@ function registerFollowupTool(pi: ExtensionAPI): void {
       content: [
         {
           type: "text",
-          text: appendCostSentence(`fh_team_followup: ${result.approved ? "approved" : "not approved"}; slug=${result.slug}; commit=${result.commitSha ?? "(none)"}; pushed=${result.pushed}; pr-description=${result.prDescriptionPath ?? "(none)"}; performance=${result.performanceReportPath ?? "(none)"}`, result),
+          text: appendCostSentence(`sf_team_followup: ${result.approved ? "approved" : "not approved"}; slug=${result.slug}; commit=${result.commitSha ?? "(none)"}; pushed=${result.pushed}; pr-description=${result.prDescriptionPath ?? "(none)"}; performance=${result.performanceReportPath ?? "(none)"}`, result),
         },
       ],
       details: result,
@@ -922,11 +922,11 @@ function registerFollowupTool(pi: ExtensionAPI): void {
   };
 
   registerStartResumeTools(pi, {
-    base: "fh_team_followup",
+    base: "sf_team_followup",
     startDescription:
-      "Draft and implement a follow-up to a completed plan. Creates a new plan folder under `ai_plan/<date>-followup-<slug>/` (e.g. `ai_plan/2026-05-08-followup-better-anim/`). The parent plan is referenced in the planner brief and recorded in `.fh-workflow/workflow.json` as `parentSlug` for resume; the parent folder is not modified. Runs in the current branch (same as `fh_team_task`); switch branches before invoking if a fresh branch is required. Required: `title`.",
+      "Draft and implement a follow-up to a completed plan. Creates a new plan folder under `ai_plan/<date>-followup-<slug>/` (e.g. `ai_plan/2026-05-08-followup-better-anim/`). The parent plan is referenced in the planner brief and recorded in `.fh-workflow/workflow.json` as `parentSlug` for resume; the parent folder is not modified. Runs in the current branch (same as `sf_team_task`); switch branches before invoking if a fresh branch is required. Required: `title`.",
     resumeDescription:
-      "Resume an in-progress fh_team_followup run. Required: `resume` (slug, absolute path, or relative path).",
+      "Resume an in-progress sf_team_followup run. Required: `resume` (slug, absolute path, or relative path).",
     startSchema,
     resumeSchema,
     executeStart: exec,

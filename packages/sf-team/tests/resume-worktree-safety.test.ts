@@ -8,7 +8,7 @@ import { createWorkflowMetadata, writeWorkflowMetadata } from "@pi-stef/agent-wo
 
 import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 import { ensureLaneWorktree } from "../src/worktree/create";
 
 function git(cwd: string, args: string[]): void {
@@ -139,7 +139,7 @@ describe("resume worktree safety", () => {
     }
   });
 
-  it("fh_team_implement resume reuses the dirty attached worktree on the non-parallel path", async () => {
+  it("sf_team_implement resume reuses the dirty attached worktree on the non-parallel path", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "resume-worktree-nonparallel-"));
     const worktreePath = `${root}-attached`;
     try {
@@ -149,14 +149,14 @@ describe("resume worktree safety", () => {
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "fh_team_implement",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_implement",
+        currentTool: "sf_team_implement",
         phase: "running",
       }));
       git(root, ["worktree", "add", "-b", `impl/${slug}`, worktreePath, "HEAD"]);
       writeFileSync(path.join(worktreePath, "interrupted.txt"), "dirty\n");
 
-      const tool = createFhTeamImplement({
+      const tool = createSfTeamImplement({
         spawnAgent: (async () => {
           throw new Error("no agent should run for a completed resumed plan");
         }) as never,

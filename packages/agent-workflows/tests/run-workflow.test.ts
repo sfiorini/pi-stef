@@ -40,7 +40,7 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "demo",
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           useWorktree: false,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter(events),
@@ -86,7 +86,7 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "metadata-success",
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           useWorktree: false,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter([]),
@@ -95,8 +95,8 @@ describe("runWorkflow", () => {
           const duringRun = await readWorkflowMetadata(root, "metadata-success");
           expect(duringRun).toMatchObject({
             slug: "metadata-success",
-            ownerTool: "fh_team_task",
-            currentTool: "fh_team_task",
+            ownerTool: "sf_team_task",
+            currentTool: "sf_team_task",
             status: "running",
             phase: "running",
           });
@@ -105,8 +105,8 @@ describe("runWorkflow", () => {
       );
 
       await expect(readWorkflowMetadata(root, "metadata-success")).resolves.toMatchObject({
-        ownerTool: "fh_team_task",
-        currentTool: "fh_team_task",
+        ownerTool: "sf_team_task",
+        currentTool: "sf_team_task",
         status: "completed",
         phase: "running",
       });
@@ -122,8 +122,8 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "metadata-auto",
-          toolName: "fh_team_plan",
-          ownerTool: "fh_team_auto",
+          toolName: "sf_team_plan",
+          ownerTool: "sf_team_auto",
           useWorktree: true,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter([]),
@@ -132,8 +132,8 @@ describe("runWorkflow", () => {
       );
       const afterPlan = await readWorkflowMetadata(root, "metadata-auto");
       expect(afterPlan).toMatchObject({
-        ownerTool: "fh_team_auto",
-        currentTool: "fh_team_plan",
+        ownerTool: "sf_team_auto",
+        currentTool: "sf_team_plan",
         status: "completed",
       });
 
@@ -141,8 +141,8 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "metadata-auto",
-          toolName: "fh_team_implement",
-          ownerTool: "fh_team_auto",
+          toolName: "sf_team_implement",
+          ownerTool: "sf_team_auto",
           useWorktree: true,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter([]),
@@ -150,8 +150,8 @@ describe("runWorkflow", () => {
         async () => {
           const duringImplement = await readWorkflowMetadata(root, "metadata-auto");
           expect(duringImplement).toMatchObject({
-            ownerTool: "fh_team_auto",
-            currentTool: "fh_team_implement",
+            ownerTool: "sf_team_auto",
+            currentTool: "sf_team_implement",
             status: "running",
           });
           expect(duringImplement?.createdAt).toBe(afterPlan?.createdAt);
@@ -161,8 +161,8 @@ describe("runWorkflow", () => {
 
       const afterImplement = await readWorkflowMetadata(root, "metadata-auto");
       expect(afterImplement).toMatchObject({
-        ownerTool: "fh_team_auto",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_auto",
+        currentTool: "sf_team_implement",
         status: "completed",
       });
       expect(afterImplement?.createdAt).toBe(afterPlan?.createdAt);
@@ -178,7 +178,7 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "metadata-handoff",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter([]),
@@ -190,9 +190,9 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "metadata-handoff",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
-          allowOwnerTakeoverFrom: ["fh_team_plan"],
+          allowOwnerTakeoverFrom: ["sf_team_plan"],
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter([]),
         },
@@ -200,8 +200,8 @@ describe("runWorkflow", () => {
       );
 
       await expect(readWorkflowMetadata(root, "metadata-handoff")).resolves.toMatchObject({
-        ownerTool: "fh_team_implement",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_implement",
+        currentTool: "sf_team_implement",
         status: "completed",
       });
     } finally {
@@ -218,7 +218,7 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "decline",
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           promptForResume: async () => ({ resume: false }),
           createReporter,
@@ -229,7 +229,7 @@ describe("runWorkflow", () => {
       expect(result.declinedResume).toBe(true);
       expect(createReporter).not.toHaveBeenCalled();
       expect(body).not.toHaveBeenCalled();
-      expect(existsSync(path.join(root, "ai_plan", "decline", ".fh-team.lock"))).toBe(false);
+      expect(existsSync(path.join(root, "ai_plan", "decline", ".sf-team.lock"))).toBe(false);
     } finally {
       dispose();
     }
@@ -243,7 +243,7 @@ describe("runWorkflow", () => {
         {
           repoRoot: root,
           slug: "boom",
-          toolName: "fh_team_implement",
+          toolName: "sf_team_implement",
           useWorktree: true,
           promptForResume: async () => ({ resume: true }),
           createReporter: () => reporter(events),

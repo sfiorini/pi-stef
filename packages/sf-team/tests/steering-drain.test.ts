@@ -11,7 +11,7 @@ import { createSteeringStore } from "../src/steering/store";
 import type { SteeringDecision } from "../src/steering/types";
 
 async function mkStore() {
-  const planRoot = await mkdtemp(path.join(os.tmpdir(), "fh-team-drain-"));
+  const planRoot = await mkdtemp(path.join(os.tmpdir(), "sf-team-drain-"));
   return createSteeringStore({ rootDir: resolvePlanSteeringRoot(planRoot), expectedRoot: planRoot });
 }
 

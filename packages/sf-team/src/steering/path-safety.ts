@@ -28,7 +28,7 @@ export function resolveRunSteeringRoot(workflowRoot: string, runId: string): str
     throw new Error(`Invalid steering run id: ${runId}`);
   }
   const resolvedWorkflowRoot = path.resolve(workflowRoot);
-  const steeringRoot = path.join(resolvedWorkflowRoot, ".fh-team", "runs", runId, "steering");
+  const steeringRoot = path.join(resolvedWorkflowRoot, ".sf-team", "runs", runId, "steering");
   return assertPathInsideRoot(steeringRoot, resolvedWorkflowRoot);
 }
 

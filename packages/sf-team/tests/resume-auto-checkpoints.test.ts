@@ -8,7 +8,7 @@ import { createWorkflowMetadata, FIVE_FILE_NAMES, workflowCheckpointsPath, write
 
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
-import { createFhTeamAuto } from "../src/tools/auto";
+import { createSfTeamAuto } from "../src/tools/auto";
 import { resolveToolResume } from "../src/tools/resume";
 
 describe("auto resume ownership", () => {
@@ -157,7 +157,7 @@ VERDICT: APPROVED`;
     }, null, 2)}\n`);
   }
 
-  it("accepts auto-owned metadata only when the invoked owner is fh_team_auto", async () => {
+  it("accepts auto-owned metadata only when the invoked owner is sf_team_auto", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "resume-auto-"));
     try {
       const slug = "2026-05-06-auto-owned";
@@ -166,23 +166,23 @@ VERDICT: APPROVED`;
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "fh_team_auto",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_auto",
+        currentTool: "sf_team_implement",
         phase: "implement",
       }));
 
       await expect(resolveToolResume({
         repoRoot: root,
-        toolName: "fh_team_auto",
+        toolName: "sf_team_auto",
         input: { resume: slug },
         normalField: "title",
-      })).resolves.toMatchObject({ target: { slug }, metadata: { ownerTool: "fh_team_auto" } });
+      })).resolves.toMatchObject({ target: { slug }, metadata: { ownerTool: "sf_team_auto" } });
       await expect(resolveToolResume({
         repoRoot: root,
-        toolName: "fh_team_implement",
+        toolName: "sf_team_implement",
         input: { resume: slug },
         normalField: "slug",
-      })).rejects.toThrow(/owned by fh_team_auto.*fh_team_implement/);
+      })).rejects.toThrow(/owned by sf_team_auto.*sf_team_implement/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -203,7 +203,7 @@ VERDICT: APPROVED`;
 
       await expect(resolveToolResume({
         repoRoot: root,
-        toolName: "fh_team_auto",
+        toolName: "sf_team_auto",
         input: { resume: slug },
         normalField: "title",
       })).resolves.toMatchObject({
@@ -225,15 +225,15 @@ VERDICT: APPROVED`;
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "fh_team_auto",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_auto",
+        currentTool: "sf_team_implement",
         phase: "running",
       }));
 
       const spawnAgent = vi.fn(async () => {
         throw new Error("planner/researcher/developer should not run for a completed resumed plan");
       });
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never });
       const result = await tool(
         { resume: slug, verifyCommand: false },
         {
@@ -264,8 +264,8 @@ VERDICT: APPROVED`;
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "fh_team_auto",
-        currentTool: "fh_team_implement",
+        ownerTool: "sf_team_auto",
+        currentTool: "sf_team_implement",
         phase: "running",
       }));
 
@@ -292,7 +292,7 @@ VERDICT: APPROVED`;
         }
         return fakeRun(APPROVED);
       });
-      const tool = createFhTeamAuto({ spawnAgent: spawnAgent as never });
+      const tool = createSfTeamAuto({ spawnAgent: spawnAgent as never });
       const result = await tool(
         { resume: slug, verifyCommand: false, verification: { timing: "off" } },
         {

@@ -5,19 +5,19 @@ import {
   PlanRootResolutionError,
   WorkflowMetadataConflictError,
 } from "../src/errors";
-import { FhTeamToolError } from "../src/errors";
+import { SfTeamToolError } from "../src/errors";
 
 const commonOpts = {
-  toolName: "fh_team_plan",
+  toolName: "sf_team_plan",
   kind: "plan-root-resolution",
   description: "could not resolve plan root from the given path",
   resumeHint: "Provide a valid aiPlanPath.",
 };
 
 describe("PlanRootResolutionError", () => {
-  it("extends FhTeamToolError", () => {
+  it("extends SfTeamToolError", () => {
     const err = new PlanRootResolutionError(commonOpts);
-    expect(err).toBeInstanceOf(FhTeamToolError);
+    expect(err).toBeInstanceOf(SfTeamToolError);
     expect(err).toBeInstanceOf(Error);
   });
 
@@ -33,9 +33,9 @@ describe("PlanRootResolutionError", () => {
 });
 
 describe("PlanRootCreationError", () => {
-  it("extends FhTeamToolError", () => {
+  it("extends SfTeamToolError", () => {
     const err = new PlanRootCreationError({ ...commonOpts, kind: "plan-root-creation", description: "mkdir failed", resumeHint: "Check permissions." });
-    expect(err).toBeInstanceOf(FhTeamToolError);
+    expect(err).toBeInstanceOf(SfTeamToolError);
   });
 
   it("name is PlanRootCreationError", () => {
@@ -44,9 +44,9 @@ describe("PlanRootCreationError", () => {
 });
 
 describe("WorkflowMetadataConflictError", () => {
-  it("extends FhTeamToolError", () => {
+  it("extends SfTeamToolError", () => {
     const err = new WorkflowMetadataConflictError({ ...commonOpts, kind: "workflow-metadata-conflict", description: "persisted gitMode conflicts with prompt", resumeHint: "Omit gitMode or use the same value." });
-    expect(err).toBeInstanceOf(FhTeamToolError);
+    expect(err).toBeInstanceOf(SfTeamToolError);
   });
 
   it("name is WorkflowMetadataConflictError", () => {
@@ -56,9 +56,9 @@ describe("WorkflowMetadataConflictError", () => {
 });
 
 describe("IncompatibleModeError", () => {
-  it("extends FhTeamToolError", () => {
+  it("extends SfTeamToolError", () => {
     const err = new IncompatibleModeError({ ...commonOpts, kind: "incompatible-mode", description: "useWorktree=true + gitMode=off", resumeHint: "Set gitMode=on or useWorktree=false." });
-    expect(err).toBeInstanceOf(FhTeamToolError);
+    expect(err).toBeInstanceOf(SfTeamToolError);
   });
 
   it("message matches FAILED:/RESUME: envelope", () => {

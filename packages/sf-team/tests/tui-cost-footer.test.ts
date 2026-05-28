@@ -53,7 +53,7 @@ describe("mountCostFooter", () => {
       onBranchChange: () => () => undefined,
     });
 
-    expect(component.render(100)[0]).toBe("fh-team cost pending  opus (feature/test)");
+    expect(component.render(100)[0]).toBe("sf-team cost pending  opus (feature/test)");
 
     current = summary({
       current: usage({ costTotal: 1.23, knownCostCount: 1 }),
@@ -61,7 +61,7 @@ describe("mountCostFooter", () => {
     });
     handle.update();
     expect(requestRender).toHaveBeenCalledTimes(1);
-    expect(component.render(100)[0]).toBe("fh-team cost $1.23  opus (feature/test)");
+    expect(component.render(100)[0]).toBe("sf-team cost $1.23  opus (feature/test)");
 
     current = summary({
       prior: usage({ costTotal: 4.56, knownCostCount: 1 }),
@@ -69,13 +69,13 @@ describe("mountCostFooter", () => {
       total: usage({ costTotal: 5.79, knownCostCount: 2 }),
       priorRunCount: 1,
     });
-    expect(component.render(100)[0]).toBe("fh-team cost $5.79 (prior $4.56 + current $1.23)  opus (feature/test)");
+    expect(component.render(100)[0]).toBe("sf-team cost $5.79 (prior $4.56 + current $1.23)  opus (feature/test)");
 
     current = summary({
       current: usage({ costTotal: 5.79, knownCostCount: 1, unknownCostCount: 1 }),
       total: usage({ costTotal: 5.79, knownCostCount: 1, unknownCostCount: 1 }),
     });
-    expect(component.render(100)[0]).toBe("fh-team cost >=$5.79 (partial)  opus (feature/test)");
+    expect(component.render(100)[0]).toBe("sf-team cost >=$5.79 (partial)  opus (feature/test)");
   });
 
   it("clears the footer on dispose", () => {

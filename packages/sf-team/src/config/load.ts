@@ -4,10 +4,10 @@ import path from "node:path";
 
 import { Value } from "typebox/value";
 
-import { ConfigSchema, DEFAULT_CONFIG, type FhTeamConfig, type ResolvedDefaults } from "./schema";
+import { ConfigSchema, DEFAULT_CONFIG, type SfTeamConfig, type ResolvedDefaults } from "./schema";
 
-const GLOBAL_CONFIG_PATH = path.join(os.homedir(), ".pi", "fh-team", "config.json");
-const PROJECT_CONFIG_BASENAME = ".fh-team.json";
+const GLOBAL_CONFIG_PATH = path.join(os.homedir(), ".pi", "sf-team", "config.json");
+const PROJECT_CONFIG_BASENAME = ".sf-team.json";
 
 /**
  * Load + deep-merge global and project config.
@@ -18,9 +18,9 @@ const PROJECT_CONFIG_BASENAME = ".fh-team.json";
  * {@link ConfigValidationError} carrying the file path and a JSON pointer to
  * the offending field.
  */
-export async function loadConfig(repoRoot: string, opts: { homeDir?: string } = {}): Promise<FhTeamConfig> {
+export async function loadConfig(repoRoot: string, opts: { homeDir?: string } = {}): Promise<SfTeamConfig> {
   const homeDir = opts.homeDir ?? os.homedir();
-  const globalPath = path.join(homeDir, ".pi", "fh-team", "config.json");
+  const globalPath = path.join(homeDir, ".pi", "sf-team", "config.json");
   const projectPath = path.join(repoRoot, PROJECT_CONFIG_BASENAME);
 
   const global = await loadFile(globalPath);
@@ -29,7 +29,7 @@ export async function loadConfig(repoRoot: string, opts: { homeDir?: string } = 
   return deepMerge(global, project);
 }
 
-async function loadFile(filePath: string): Promise<FhTeamConfig> {
+async function loadFile(filePath: string): Promise<SfTeamConfig> {
   let raw: string;
   try {
     raw = await readFile(filePath, "utf8");
@@ -51,7 +51,7 @@ async function loadFile(filePath: string): Promise<FhTeamConfig> {
     const pointer = pickPointer(first) ?? "/";
     throw new ConfigValidationError(filePath, pointer, first.message);
   }
-  return parsed as FhTeamConfig;
+  return parsed as SfTeamConfig;
 }
 
 function pickPointer(error: { instancePath?: string; path?: string }): string | undefined {
@@ -66,17 +66,17 @@ function pickPointer(error: { instancePath?: string; path?: string }): string | 
   return undefined;
 }
 
-export function deepMerge(base: FhTeamConfig, override: FhTeamConfig): FhTeamConfig {
+export function deepMerge(base: SfTeamConfig, override: SfTeamConfig): SfTeamConfig {
   const out: Record<string, unknown> = { ...(base as Record<string, unknown>) };
   for (const [key, value] of Object.entries(override as Record<string, unknown>)) {
     const existing = out[key];
     if (isPlainObject(existing) && isPlainObject(value)) {
-      out[key] = deepMerge(existing as FhTeamConfig, value as FhTeamConfig);
+      out[key] = deepMerge(existing as SfTeamConfig, value as SfTeamConfig);
     } else if (value !== undefined) {
       out[key] = value;
     }
   }
-  return out as FhTeamConfig;
+  return out as SfTeamConfig;
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -108,11 +108,11 @@ export class ConfigValidationError extends Error {
 export const _internal = { GLOBAL_CONFIG_PATH, PROJECT_CONFIG_BASENAME };
 
 /**
- * Merge the loaded (sparse) `FhTeamConfig` onto `DEFAULT_CONFIG` to
+ * Merge the loaded (sparse) `SfTeamConfig` onto `DEFAULT_CONFIG` to
  * produce a fully-populated `ResolvedDefaults` every consumer can read
  * without dealing with optional fields.
  */
-export function resolveDefaults(loaded: FhTeamConfig = {}): ResolvedDefaults {
+export function resolveDefaults(loaded: SfTeamConfig = {}): ResolvedDefaults {
   const d = DEFAULT_CONFIG;
   const a = loaded.agents ?? {};
   const workflow = { ...d.workflow, ...(loaded.workflow ?? {}) };
@@ -179,7 +179,7 @@ export async function loadAndResolveDefaults(
           : err instanceof Error
             ? err.message
             : String(err);
-        opts.notify(`fh-team config: ${detail} — falling back to built-in defaults.`, "warning");
+        opts.notify(`sf-team config: ${detail} — falling back to built-in defaults.`, "warning");
       } catch {
         // notify hook threw; swallow so we still fall back cleanly.
       }
@@ -195,8 +195,8 @@ export async function loadAndResolveDefaults(
  */
 function sanitizePath(filePath: string, homeDir?: string, repoRoot?: string): string {
   // Repo root wins over home: when a repo lives under $HOME, a project
-  // `.fh-team.json` should sanitize to `<repo>/.fh-team.json`,
-  // not `~/path/to/repo/.fh-team.json`.
+  // `.sf-team.json` should sanitize to `<repo>/.sf-team.json`,
+  // not `~/path/to/repo/.sf-team.json`.
   if (repoRoot && filePath.startsWith(repoRoot)) return `<repo>${filePath.slice(repoRoot.length)}`;
   const home = homeDir ?? os.homedir();
   if (homeDir && filePath.startsWith(homeDir)) return `~${filePath.slice(homeDir.length)}`;

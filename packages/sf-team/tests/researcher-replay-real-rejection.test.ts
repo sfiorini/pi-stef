@@ -24,7 +24,7 @@ const member: TeamMember = { role: "researcher", model: "claude-opus-4-7" };
 
 /**
  * Regression replay: this is the exact (trimmed) payload Opus produced on
- * the user's first live `fh_team_plan` run that took 17 minutes and was
+ * the user's first live `sf_team_plan` run that took 17 minutes and was
  * thrown away by the previous strict schema. Three samples from each
  * array are enough to exercise the tagged-object form.
  */

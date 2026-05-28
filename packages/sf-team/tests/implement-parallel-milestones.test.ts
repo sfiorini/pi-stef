@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
-import { createFhTeamImplement } from "../src/tools/implement";
+import { createSfTeamImplement } from "../src/tools/implement";
 
 const APPROVED = `## Summary
 ok
@@ -116,7 +116,7 @@ async function waitUntil(predicate: () => boolean, label: string): Promise<void>
   }
 }
 
-describe("fh_team_implement parallel milestones", () => {
+describe("sf_team_implement parallel milestones", () => {
   it("starts independent milestone lanes in the same strategy batch concurrently", async () => {
     const { root, slug, dispose } = makeRepo();
     try {
@@ -134,7 +134,7 @@ describe("fh_team_implement parallel milestones", () => {
         return fakeRun(APPROVED);
       });
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
+      const tool = createSfTeamImplement({ spawnAgent: spawnAgent as never, runReviewLoop });
       const result = await tool(
         {
           slug,

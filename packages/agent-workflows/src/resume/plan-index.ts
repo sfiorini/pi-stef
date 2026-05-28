@@ -15,7 +15,7 @@ interface PlanIndex {
 }
 
 function indexPath(): string {
-  return path.join(os.homedir(), ".fh-team", "plan-index.json");
+  return path.join(os.homedir(), ".sf-team", "plan-index.json");
 }
 
 function emptyIndex(): PlanIndex {

@@ -16,8 +16,8 @@ describe("runVerificationStage", () => {
     try {
       let thrown: Error | null = null;
       try {
-        runVerificationStage("fh_team_test", root, {
-          cmd: "definitely-not-a-real-fh-team-command",
+        runVerificationStage("sf_team_test", root, {
+          cmd: "definitely-not-a-real-sf-team-command",
           args: [],
         });
       } catch (e) {
@@ -25,7 +25,7 @@ describe("runVerificationStage", () => {
       }
 
       expect(thrown).not.toBeNull();
-      expect(thrown!.message).toContain("fh_team_test: verification gate failed");
+      expect(thrown!.message).toContain("sf_team_test: verification gate failed");
       expect(thrown!.message).toContain("spawn error");
       expect(thrown!.message).toContain(root);
       expect(thrown!.message).toContain("spawn error:");
@@ -39,7 +39,7 @@ describe("runVerificationStage", () => {
     try {
       let thrown: Error | null = null;
       try {
-        runVerificationStage("fh_team_test", root, {
+        runVerificationStage("sf_team_test", root, {
           cmd: process.execPath,
           args: ["-e", "process.kill(process.pid, 'SIGTERM')"],
         }, { maxAttempts: 1 });
@@ -60,7 +60,7 @@ describe("runVerificationStage", () => {
     try {
       let thrown: Error | null = null;
       try {
-        runVerificationStage("fh_team_test", root, {
+        runVerificationStage("sf_team_test", root, {
           cmd: process.execPath,
           args: [
             "-e",

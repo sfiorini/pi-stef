@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import fhTeamExtension from "../extensions/fh-team";
+import sfTeamExtension from "../extensions/sf-team";
 import { TEAM_TOOL_NAMES } from "../src/register";
 
 class FakePi {
@@ -13,36 +13,36 @@ class FakePi {
 }
 
 describe("extension wiring: implement / auto / followup start tools expose their required keys", () => {
-  it("fh_team_implement exposes `slug` in its schema", () => {
+  it("sf_team_implement exposes `slug` in its schema", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
-    const t = pi.tools.find((x) => x.name === "fh_team_implement");
+    sfTeamExtension(pi as never);
+    const t = pi.tools.find((x) => x.name === "sf_team_implement");
     expect(t?.description).not.toMatch(/STUB/i);
     expect(t?.description).not.toMatch(/not yet implemented/i);
     expect(JSON.stringify(t?.parameters)).toContain("slug");
   });
 
-  it("fh_team_auto exposes `title` in its schema", () => {
+  it("sf_team_auto exposes `title` in its schema", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
-    const t = pi.tools.find((x) => x.name === "fh_team_auto");
+    sfTeamExtension(pi as never);
+    const t = pi.tools.find((x) => x.name === "sf_team_auto");
     expect(t?.description).not.toMatch(/STUB/i);
     expect(t?.description).not.toMatch(/not yet implemented/i);
     expect(JSON.stringify(t?.parameters)).toContain("title");
   });
 
-  it("fh_team_followup is a real handler, and every registered start tool has a real description", () => {
+  it("sf_team_followup is a real handler, and every registered start tool has a real description", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
-    const followup = pi.tools.find((x) => x.name === "fh_team_followup");
+    sfTeamExtension(pi as never);
+    const followup = pi.tools.find((x) => x.name === "sf_team_followup");
     expect(followup?.description).not.toMatch(/STUB/i);
     expect(followup?.description).not.toMatch(/not yet implemented/i);
     for (const name of [
-      "fh_team_plan",
-      "fh_team_task",
-      "fh_team_implement",
-      "fh_team_auto",
-      "fh_team_followup",
+      "sf_team_plan",
+      "sf_team_task",
+      "sf_team_implement",
+      "sf_team_auto",
+      "sf_team_followup",
     ]) {
       const t = pi.tools.find((x) => x.name === name);
       expect(t?.description).not.toMatch(/STUB/i);
@@ -52,7 +52,7 @@ describe("extension wiring: implement / auto / followup start tools expose their
 
   it("instructs the outer assistant to repeat known total cost in its final summary", () => {
     const pi = new FakePi();
-    fhTeamExtension(pi as never);
+    sfTeamExtension(pi as never);
     for (const name of TEAM_TOOL_NAMES) {
       const t = pi.tools.find((x) => x.name === name);
       expect(t?.description, `${name} description`).toContain("Your total cost is");

@@ -13,7 +13,7 @@ export type InstallResult =
 const TRUTHY_OPTOUT = new Set(["1", "true", "yes", "on"]);
 
 function isOptedOut(): boolean {
-  const raw = process.env.FH_TEAM_SKIP_AUTO_INSTALL;
+  const raw = process.env.SF_TEAM_SKIP_AUTO_INSTALL;
   if (raw === undefined) return false;
   const normalized = raw.trim().toLowerCase();
   return TRUTHY_OPTOUT.has(normalized);
@@ -26,7 +26,7 @@ export function installDependenciesIfMissing(
   // 1. Opt-out via env var.
   if (isOptedOut()) {
     reportInstallNotice(
-      `fh_team: skipping dependency install in ${worktreePath} (FH_TEAM_SKIP_AUTO_INSTALL is set)`,
+      `sf_team: skipping dependency install in ${worktreePath} (SF_TEAM_SKIP_AUTO_INSTALL is set)`,
       reporter,
     );
     return { kind: "skipped", reason: "opted_out" };
@@ -40,7 +40,7 @@ export function installDependenciesIfMissing(
   // 3. Already installed — node_modules present.
   if (existsSync(path.join(worktreePath, "node_modules"))) {
     reportInstallNotice(
-      `fh_team: dependencies already present at ${worktreePath}; skipping install`,
+      `sf_team: dependencies already present at ${worktreePath}; skipping install`,
       reporter,
     );
     return { kind: "skipped", reason: "node_modules_present" };
@@ -49,7 +49,7 @@ export function installDependenciesIfMissing(
   // 4. Install via the detected package manager.
   const pm = detectPackageManager(worktreePath);
   reportInstallNotice(
-    `fh_team: installing dependencies via ${pm} install in ${worktreePath} (this may take a few minutes)...`,
+    `sf_team: installing dependencies via ${pm} install in ${worktreePath} (this may take a few minutes)...`,
     reporter,
   );
   const r = spawnSync(pm, ["install"], {
@@ -66,14 +66,14 @@ export function installDependenciesIfMissing(
         : "";
     throw new WorktreeCreationError(
       "install",
-      `fh_team: failed to spawn ${pm} install: ${r.error.message}${hint}`,
+      `sf_team: failed to spawn ${pm} install: ${r.error.message}${hint}`,
     );
   }
 
   if (r.status === null) {
     throw new WorktreeCreationError(
       "install",
-      `fh_team: ${pm} install was interrupted (signal: ${r.signal ?? "unknown"})`,
+      `sf_team: ${pm} install was interrupted (signal: ${r.signal ?? "unknown"})`,
     );
   }
 
@@ -83,7 +83,7 @@ export function installDependenciesIfMissing(
     const detail = stderr || stdout;
     throw new WorktreeCreationError(
       "install",
-      `fh_team: ${pm} install exited ${r.status}\n${detail}`,
+      `sf_team: ${pm} install exited ${r.status}\n${detail}`,
     );
   }
 

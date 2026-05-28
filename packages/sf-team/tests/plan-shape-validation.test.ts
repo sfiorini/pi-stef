@@ -16,7 +16,7 @@ const VALID_PLAN = `# Plan: Sample Goal
 Demonstrate a structurally valid plan body.
 
 ## Architecture
-TS module under packages/fh-team/src/.
+TS module under packages/sf-team/src/.
 
 ## Tech stack
 TypeScript, vitest.

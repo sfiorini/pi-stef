@@ -6,10 +6,10 @@ import { describe, expect, it } from "vitest";
 
 import { createActiveWorkflowRegistry } from "../src/steering/active-workflows";
 import { resolvePlanSteeringRoot } from "../src/steering/path-safety";
-import { createFhTeamSteer } from "../src/tools/steer";
+import { createSfTeamSteer } from "../src/tools/steer";
 
 async function mkRepo(): Promise<string> {
-  return await mkdtemp(path.join(os.tmpdir(), "fh-team-steer-"));
+  return await mkdtemp(path.join(os.tmpdir(), "sf-team-steer-"));
 }
 
 async function registerWorkflow(repoRoot: string, id: string, planSlug: string): Promise<void> {
@@ -19,7 +19,7 @@ async function registerWorkflow(repoRoot: string, id: string, planSlug: string):
   await registry.register({
     workflowId: id,
     workflowKind: "implement",
-    toolName: "fh_team_implement",
+    toolName: "sf_team_implement",
     planSlug,
     repoRoot,
     steeringRoot: resolvePlanSteeringRoot(planRoot),
@@ -31,11 +31,11 @@ async function inboxEntries(repoRoot: string, planSlug: string): Promise<Array<{
   return raw.trim().split(/\r?\n/).map((line) => JSON.parse(line) as { text: string; workflowId: string });
 }
 
-describe("fh_team_steer tool", () => {
+describe("sf_team_steer tool", () => {
   it("targets an explicit workflow id and persists the instruction", async () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     const result = await steer({ workflowId: "workflow-a", instruction: "Prefer smaller story batches." }, { repoRoot });
 
@@ -51,7 +51,7 @@ describe("fh_team_steer tool", () => {
   it("targets an explicit plan slug", async () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     const result = await steer({ planSlug: "plan-a", instruction: "Adjust future prompts." }, { repoRoot });
 
@@ -63,7 +63,7 @@ describe("fh_team_steer tool", () => {
   it("targets the single active workflow when no explicit target is provided", async () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     const result = await steer({ instruction: "Use the existing helper." }, { repoRoot });
 
@@ -76,7 +76,7 @@ describe("fh_team_steer tool", () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
     await registerWorkflow(repoRoot, "workflow-b", "plan-b");
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     const result = await steer({ instruction: "Pause after this story." }, { repoRoot });
 
@@ -92,7 +92,7 @@ describe("fh_team_steer tool", () => {
 
   it("returns no-active-workflow when nothing is registered", async () => {
     const repoRoot = await mkRepo();
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     await expect(steer({ instruction: "Please steer." }, { repoRoot })).resolves.toMatchObject({
       ok: false,
@@ -103,7 +103,7 @@ describe("fh_team_steer tool", () => {
   it("rejects oversized instructions without appending", async () => {
     const repoRoot = await mkRepo();
     await registerWorkflow(repoRoot, "workflow-a", "plan-a");
-    const steer = createFhTeamSteer();
+    const steer = createSfTeamSteer();
 
     await expect(
       steer({ workflowId: "workflow-a", instruction: "too long" }, { repoRoot, config: { maxInstructionChars: 3 } }),

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFhTeamPlan } from "../src/tools/plan";
+import { createSfTeamPlan } from "../src/tools/plan";
 import { resolveDefaults } from "../src/config/load";
 import { slugify } from "../src/plan/slug";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";
@@ -104,7 +104,7 @@ function jiraFailed(detectedKey: string): JiraContextResult {
   };
 }
 
-describe("fh_team_plan with Atlassian Jira context", () => {
+describe("sf_team_plan with Atlassian Jira context", () => {
   it("(1) auto policy + Jira key: fetches context, skips researcher, planner brief carries the new section", async () => {
     const { root, dispose } = makeRepo();
     try {
@@ -118,7 +118,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["ABC-123"], "# ABC-123\nRendered ticket details."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -166,7 +166,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["ABC-123"], "# ABC-123\nRendered."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -209,7 +209,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["ABC-123"], "# ABC-123\nFull ticket context."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -247,7 +247,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         content: "ROUGH DUPLICATE JIRA CONTEXT",
       }));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -281,7 +281,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["DIGENG-17720"], "# DIGENG-17720\nAuthoritative Jira context."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -289,7 +289,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
       await tool(
         {
           title: "Smoke test Jira URL coverage DIGENG-17720",
-          brief: "Smoke test only. Do not implement code. Do not commit. We are testing whether fh_team_auto treats a full Jira browse URL as already covered by Jira context after fetching the same ticket: https://firsthorizon.atlassian.net/browse/DIGENG-17720",
+          brief: "Smoke test only. Do not implement code. Do not commit. We are testing whether sf_team_auto treats a full Jira browse URL as already covered by Jira context after fetching the same ticket: https://firsthorizon.atlassian.net/browse/DIGENG-17720",
         },
         { repoRoot: root, configDefaults: resolveDefaults({ performance: { researcher: "always" } } as never) },
       );
@@ -345,7 +345,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         ),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -383,7 +383,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["DIGENG-17720"], "# DIGENG-17720\nAuthoritative Jira context."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -420,7 +420,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["ABC-123"], "# ABC-123\nAuthoritative Jira context."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -456,7 +456,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
         async () => jiraUsedResult(["ABC-123"], "# ABC-123\nRendered."),
       );
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -486,7 +486,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
       });
       const fetchJiraContext = vi.fn(async () => jiraSkippedNoKeys());
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -520,7 +520,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
       });
       const fetchJiraContext = vi.fn(async () => jiraSkippedNoCreds("ABC-123"));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -562,7 +562,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
       });
       const fetchJiraContext = vi.fn(async () => jiraFailed("ABC-123"));
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,
@@ -589,7 +589,7 @@ describe("fh_team_plan with Atlassian Jira context", () => {
       });
       const fetchJiraContext = vi.fn(async () => jiraSkippedNoKeys());
       const runReviewLoop = (await import("../src/review/loop")).runReviewLoop;
-      const tool = createFhTeamPlan({
+      const tool = createSfTeamPlan({
         spawnAgent: spawnAgent as never,
         runReviewLoop,
         fetchJiraContext: fetchJiraContext as never,

@@ -32,7 +32,7 @@ describe("M9 runOrchestrator baseline matrix (S-911)", () => {
         return "ok";
       });
       const { result } = await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_task", useWorktree: false },
+        { repoRoot: root, slug, toolName: "sf_team_task", useWorktree: false },
         body,
       );
       expect(result).toBe("ok");
@@ -53,7 +53,7 @@ describe("M9 runOrchestrator baseline matrix (S-911)", () => {
         return "ok";
       });
       await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_implement", useWorktree: true },
+        { repoRoot: root, slug, toolName: "sf_team_implement", useWorktree: true },
         body,
       );
       const reloaded = await loadBaseline(path.join(root, PLAN_FOLDER_ROOT), slug);
@@ -73,7 +73,7 @@ describe("M9 runOrchestrator baseline matrix (S-911)", () => {
       writeFileSync(baselinePath, JSON.stringify({ headSha: "deadbeef".repeat(5), porcelainStatus: "", capturedAt: "2026-05-01T00:00:00Z" }));
       let observedHeadSha: string | undefined;
       await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_followup", useWorktree: true },
+        { repoRoot: root, slug, toolName: "sf_team_followup", useWorktree: true },
         async (ctx) => {
           observedHeadSha = ctx.baseline?.headSha;
           return undefined;
@@ -97,7 +97,7 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
         {
           repoRoot: root,
           slug,
-          toolName: "fh_team_task",
+          toolName: "sf_team_task",
           useWorktree: false,
           widget: { update: vi.fn(), dispose: widgetDispose },
         },
@@ -105,7 +105,7 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
       );
       expect(widgetDispose).toHaveBeenCalledTimes(1);
       // Lock file should be gone.
-      const lockPath = path.join(planFolderPath(root, slug), ".fh-team.lock");
+      const lockPath = path.join(planFolderPath(root, slug), ".sf-team.lock");
       expect(spawnSync("test", ["-d", lockPath]).status).not.toBe(0);
     } finally {
       dispose();
@@ -143,7 +143,7 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
         {
           repoRoot: root,
           slug,
-          toolName: "fh_team_plan",
+          toolName: "sf_team_plan",
           useWorktree: true,
           workflowProfile: "headless",
           reviewRoundLimits: { maxRounds: 4, planMaxRounds: 3, implementationMaxRounds: 4 },
@@ -156,8 +156,8 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
       expect(out.performanceReportPath).toMatch(/[/\\]reports[/\\]performance-.*\.md$/);
       const body = readFileSync(out.performanceReportPath!, "utf8");
       const sidecar = JSON.parse(readFileSync(out.performanceReportPath!.replace(/\.md$/, ".json"), "utf8"));
-      expect(body).toContain("# fh-team performance — fh_team_plan");
-      expect(body).toContain("- **owner tool**: fh_team_plan");
+      expect(body).toContain("# sf-team performance — sf_team_plan");
+      expect(body).toContain("- **owner tool**: sf_team_plan");
       expect(body).toContain("- **run cost**: $0.02");
       expect(body).toContain("- **total cost including prior**: $0.02");
       expect(body).toContain("planner-1 | planner | test-model | completed");
@@ -174,8 +174,8 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
       expect(sidecar).toMatchObject({
         schemaVersion: 1,
         slug,
-        toolName: "fh_team_plan",
-        ownerTool: "fh_team_plan",
+        toolName: "sf_team_plan",
+        ownerTool: "sf_team_plan",
         status: "completed",
         runUsage: { totalTokens: 1_275, costTotal: 0.02, knownCostCount: 1 },
         costSummary: { total: { totalTokens: 1_275, costTotal: 0.02, knownCostCount: 1 } },
@@ -194,7 +194,7 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
       const widget = { update: vi.fn(), dispose: widgetDispose };
       await expect(
         runOrchestrator(
-          { repoRoot: root, slug, toolName: "fh_team_task", useWorktree: false, widget },
+          { repoRoot: root, slug, toolName: "sf_team_task", useWorktree: false, widget },
           async () => {
             throw new Error("synthetic body failure");
           },
@@ -227,7 +227,7 @@ describe("M9 runOrchestrator signal forwarding (S-902)", () => {
       const ctrl = new AbortController();
       let observed: AbortSignal | undefined;
       await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_task", useWorktree: false, signal: ctrl.signal },
+        { repoRoot: root, slug, toolName: "sf_team_task", useWorktree: false, signal: ctrl.signal },
         async (bodyCtx) => {
           observed = bodyCtx.signal;
           return "ok";
@@ -250,7 +250,7 @@ describe("M9 runOrchestrator signal forwarding (S-902)", () => {
       const ctrl = new AbortController();
       ctrl.abort(); // pre-aborted before runOrchestrator
       await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_task", useWorktree: false, signal: ctrl.signal },
+        { repoRoot: root, slug, toolName: "sf_team_task", useWorktree: false, signal: ctrl.signal },
         async (bodyCtx) => {
           expect(bodyCtx.signal?.aborted).toBe(true);
           return "ok";
@@ -291,7 +291,7 @@ describe("M9 runOrchestrator declined-resume short-circuit (S-906)", () => {
         setWidget: vi.fn(),
       } as unknown as Parameters<typeof runOrchestrator>[0]["ui"];
       const result = await runOrchestrator(
-        { repoRoot: root, slug, toolName: "fh_team_task", useWorktree: false, ui },
+        { repoRoot: root, slug, toolName: "sf_team_task", useWorktree: false, ui },
         body,
       );
       expect(result.declinedResume).toBe(true);

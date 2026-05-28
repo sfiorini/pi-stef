@@ -17,7 +17,7 @@ function git(cwd: string, args: string[]): void {
 }
 
 function makeRepo(): { repoRoot: string; worktreePath: string; dispose: () => void } {
-  const repoRoot = mkdtempSync(path.join(tmpdir(), "fh-team-discard-main-"));
+  const repoRoot = mkdtempSync(path.join(tmpdir(), "sf-team-discard-main-"));
   const worktreePath = `${repoRoot}-lane`;
   git(repoRoot, ["init", "-q", "-b", "main"]);
   git(repoRoot, ["config", "user.email", "a@b"]);
