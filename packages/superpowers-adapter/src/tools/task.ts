@@ -1,5 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const TaskSchema = Type.Object({
   subagent_type: Type.String({

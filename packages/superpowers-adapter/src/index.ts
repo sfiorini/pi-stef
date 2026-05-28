@@ -1,4 +1,4 @@
-import type { ExtensionAPI, BeforeAgentStartEvent, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI, BeforeAgentStartEvent, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { registerTodoWriteTool, clearTodos } from "./tools/todo-write.js";
 import { registerTaskTool } from "./tools/task.js";
 import { registerSkillTool, resetSkillCache, readSkillContent, discoverSkills } from "./tools/skill.js";

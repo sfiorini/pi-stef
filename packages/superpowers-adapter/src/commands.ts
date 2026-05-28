@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { formatTodos, clearTodos } from "./tools/todo-write.js";
 
 export function registerCommands(pi: ExtensionAPI): void {
