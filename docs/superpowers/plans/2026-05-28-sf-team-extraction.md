@@ -898,3 +898,10 @@ Expected: 6 package rows.
 - Only after approved push: mark plan as completed.
 
 **Note on `composite: true` + `noEmit: true`:** The base tsconfig sets `noEmit: true` but project references with `composite: true` still work with `tsc -b` on TypeScript 6+. This is the existing pattern in superpowers-adapter and passes `pnpm typecheck` today. No changes to `tsconfig.base.json` are needed.
+
+**Note on `noUnusedLocals` / `noUnusedParameters`:** The pi-stef base tsconfig enables these strict checks. The fh-agent codebase was not validated against them. If `pnpm typecheck` fails with unused-variable errors in the new packages, add per-package overrides in each package's tsconfig.json under `compilerOptions`:
+```json
+"noUnusedLocals": false,
+"noUnusedParameters": false
+```
+This preserves strict checking for superpowers-adapter while allowing the extracted code to typecheck cleanly. These can be tightened incrementally later.
