@@ -185,7 +185,7 @@ const MD_DETECTION_REGEXES = [
 ];
 
 function selectTheme() {
-  const raw = (process.env.PRETTY_PANE_THEME || process.env.FH_TEAM_PANE_THEME || "").trim().toLowerCase();
+  const raw = (process.env.PRETTY_PANE_THEME || process.env.SF_TEAM_PANE_THEME || "").trim().toLowerCase();
   return raw === "plain" ? "plain" : "codex";
 }
 

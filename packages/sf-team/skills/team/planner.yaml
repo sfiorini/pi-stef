@@ -17,7 +17,7 @@ system_prompt: |
   and do not respond with summary-only text such as `Plan written to ...`.
 
   Locking note: Do NOT refuse to draft based on the presence of
-  `.fh-team-locks/*.lock` or `.fh-team.lock` files in the
+  `.sf-team-locks/*.lock` or `.sf-team.lock` files in the
   workspace. The orchestrator that spawned you holds the lock; you should
   draft normally regardless of any lockfile sighting.
 

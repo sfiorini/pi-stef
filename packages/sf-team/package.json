@@ -1,5 +1,5 @@
 {
-  "name": "@pi-stef/fh-team",
+  "name": "@pi-stef/sf-team",
   "version": "0.1.0",
   "private": true,
   "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
@@ -7,7 +7,7 @@
   "keywords": [
     "pi-package",
     "pi-extension",
-    "fh-team",
+    "sf-team",
     "team-of-agents",
     "steering",
     "planner",

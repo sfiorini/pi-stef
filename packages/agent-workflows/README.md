@@ -2,13 +2,13 @@
 
 Reusable TypeScript workflow-engine primitives for First Horizon Pi extensions.
 
-This package is maintainer-facing infrastructure. It does not register Pi tools by itself; extensions such as `@pi-stef/fh-team` import it to get durable workflow folders, exact resume, short widget messages, verification policy helpers, and a generic orchestrator lifecycle.
+This package is maintainer-facing infrastructure. It does not register Pi tools by itself; extensions such as `@pi-stef/sf-team` import it to get durable workflow folders, exact resume, short widget messages, verification policy helpers, and a generic orchestrator lifecycle.
 
 ## Catalog Visibility
 
 This package is internal infrastructure, not a user-facing fh-agent catalog package. Its `fh-agent.package.json` sets `"catalogVisibility": "internal"`, so it is intentionally omitted from `fh-agent packages`, `catalog/packages.json`, `packages/package-manager/catalog/packages.json`, the beginner guide package list, and web catalog package cards.
 
-Do not install, update, remove, or startup-check this library directly through fh-agent. Consuming extensions own the dependency. Today `@pi-stef/fh-team` declares `@pi-stef/agent-workflows` as `file:../agent-workflows`; fh-agent's normal package-local dependency prep for `fh-team` runs `npm install --omit=peer --workspaces=false` and installs this library as part of that extension.
+Do not install, update, remove, or startup-check this library directly through fh-agent. Consuming extensions own the dependency. Today `@pi-stef/sf-team` declares `@pi-stef/agent-workflows` as `file:../agent-workflows`; fh-agent's normal package-local dependency prep for `sf-team` runs `npm install --omit=peer --workspaces=false` and installs this library as part of that extension.
 
 If a local Pi environment installed `agent-workflows` while a development branch briefly exposed it as a catalog package, treat that as a manual/orphan install from an unreleased catalog state. Remove the explicit Pi source or local package path directly if needed; do not reintroduce a public catalog package for cleanup.
 
@@ -32,7 +32,7 @@ Consumers store workflow state under the existing plan folder:
 
 ```text
 ai_plan/<slug>/
-  .fh-team.lock/                  # transient lockdir while a run owns the folder
+  .sf-team.lock/                  # transient lockdir while a run owns the folder
   .fh-workflow/
     workflow.json                 # owner/status/phase/worktree/branch metadata
     checkpoints.json              # step records and fingerprints
@@ -50,15 +50,15 @@ Rules enforced by the shared policy:
 
 - Existing `.fh-workflow/workflow.json` metadata must have `ownerTool === invokedTool`.
 - Metadata parse failures are hard errors.
-- Missing metadata is allowed for `fh_team_implement` against a legacy five-file plan folder.
-- Missing metadata is also allowed for `fh_team_auto` only when a five-file plan folder has both plan-phase checkpoints (`spawnText:planner:<n>`) and milestone implementation checkpoints (`spawnText:developer-M...:<n>` or `spawnText:reviewer-M...:<n>`). This recovers auto folders created before metadata persistence was fixed. Once the resumed run enters `runWorkflow`, it writes `workflow.json`; later resumes use the normal metadata path.
+- Missing metadata is allowed for `sf_team_implement` against a legacy five-file plan folder.
+- Missing metadata is also allowed for `sf_team_auto` only when a five-file plan folder has both plan-phase checkpoints (`spawnText:planner:<n>`) and milestone implementation checkpoints (`spawnText:developer-M...:<n>` or `spawnText:reviewer-M...:<n>`). This recovers auto folders created before metadata persistence was fixed. Once the resumed run enters `runWorkflow`, it writes `workflow.json`; later resumes use the normal metadata path.
 - Other missing-metadata folders cannot exact-resume because same-tool ownership and a safe restart point are not reconstructable.
 
 Checkpoint reuse is also conservative. Only `status: "completed"` checkpoints with the same input fingerprint are skipped. In-progress and failed checkpoints rerun.
 
-`runWorkflow` writes `.fh-workflow/workflow.json` after acquiring the folder lock. `ownerTool` defaults to `toolName`; wrappers may pass `ownerTool` when a parent workflow owns nested phases. `fh_team_auto` uses `ownerTool: "fh_team_auto"` while its nested plan and implement phases set `currentTool` to `fh_team_plan` and `fh_team_implement`. Each nested phase may mark metadata `completed` when it exits; the next phase reopens the same owner record and sets `status` back to `running`.
+`runWorkflow` writes `.fh-workflow/workflow.json` after acquiring the folder lock. `ownerTool` defaults to `toolName`; wrappers may pass `ownerTool` when a parent workflow owns nested phases. `sf_team_auto` uses `ownerTool: "sf_team_auto"` while its nested plan and implement phases set `currentTool` to `sf_team_plan` and `sf_team_implement`. Each nested phase may mark metadata `completed` when it exits; the next phase reopens the same owner record and sets `status` back to `running`.
 
-Normal handoff flows can opt in to a narrow owner claim with `allowOwnerTakeoverFrom`. `fh_team_implement slug=<plan>` uses this to claim a completed `fh_team_plan` folder for implementation while still rejecting auto/task/followup-owned folders.
+Normal handoff flows can opt in to a narrow owner claim with `allowOwnerTakeoverFrom`. `sf_team_implement slug=<plan>` uses this to claim a completed `sf_team_plan` folder for implementation while still rejecting auto/task/followup-owned folders.
 
 ## Verification Contract
 
@@ -84,9 +84,9 @@ await runWorkflow(
   {
     repoRoot,
     slug,
-    toolName: "fh_team_implement",
-    ownerTool: "fh_team_auto", // optional for nested workflows; omit when the invoked tool owns its own folder
-    // allowOwnerTakeoverFrom: ["fh_team_plan"], // optional alternative for deliberate normal handoffs
+    toolName: "sf_team_implement",
+    ownerTool: "sf_team_auto", // optional for nested workflows; omit when the invoked tool owns its own folder
+    // allowOwnerTakeoverFrom: ["sf_team_plan"], // optional alternative for deliberate normal handoffs
     useWorktree: true,
     promptForResume,
     createReporter,
@@ -104,7 +104,7 @@ await runWorkflow(
 );
 ```
 
-Keep this library generic. It must not import fh-team prompts, tmux, Telegram, plan parsers, or worktree helpers.
+Keep this library generic. It must not import sf-team prompts, tmux, Telegram, plan parsers, or worktree helpers.
 
 ## Development
 

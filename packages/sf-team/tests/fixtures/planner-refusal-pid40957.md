@@ -2,7 +2,7 @@
 
 - **length**: 455
 
-The fh-team plan-folder lock is currently held by another live `pi` process (PID 40957) on this machine, so I can't draft a new plan into `ai_plan/` right now without colliding with it.
+The sf-team plan-folder lock is currently held by another live `pi` process (PID 40957) on this machine, so I can't draft a new plan into `ai_plan/` right now without colliding with it.
 
 Options:
 1. Finish or cancel the other `pi` session, then re-run this request.

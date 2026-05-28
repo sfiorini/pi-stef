@@ -1,4 +1,4 @@
-# @pi-stef/fh-team
+# @pi-stef/sf-team
 
 Pi extension that runs a small **team of role-agents** (planner, developer, reviewer, researcher) as `pi` subprocesses to drive plan / implement / task / auto / followup workflows.
 
@@ -26,7 +26,7 @@ Use it for larger code changes where you want a durable plan folder, reviewer-ap
 ## Tools
 
 Each base workflow registers TWO Pi tools — `<base>` (start) and
-`<base>_resume`. `fh_team_steer` is a standalone ingress tool for
+`<base>_resume`. `sf_team_steer` is a standalone ingress tool for
 sending instructions to a currently active workflow; it intentionally
 has no `_resume` variant. `<base>` accepts a flat single-mode schema (the new
 run's required key plus tool-specific knobs); `<base>_resume` requires
@@ -39,25 +39,25 @@ exact required + optional keys per variant.
 
 | Workflow | Start tool | Resume tool |
 | --- | --- | --- |
-| Plan only | `fh_team_plan` | `fh_team_plan_resume` |
-| Implement an approved plan | `fh_team_implement` | `fh_team_implement_resume` |
-| End-to-end single task | `fh_team_task` | `fh_team_task_resume` |
-| Plan + implement chained | `fh_team_auto` | `fh_team_auto_resume` |
-| Follow-up against a completed plan | `fh_team_followup` | `fh_team_followup_resume` |
-| Steer an active workflow | `fh_team_steer` | none |
+| Plan only | `sf_team_plan` | `sf_team_plan_resume` |
+| Implement an approved plan | `sf_team_implement` | `sf_team_implement_resume` |
+| End-to-end single task | `sf_team_task` | `sf_team_task_resume` |
+| Plan + implement chained | `sf_team_auto` | `sf_team_auto_resume` |
+| Follow-up against a completed plan | `sf_team_followup` | `sf_team_followup_resume` |
+| Steer an active workflow | `sf_team_steer` | none |
 
 What each workflow does:
 
 - **plan**: researcher (analyze brief + repo) → Q&A → external-context fetch → planner-draft → reviewer loop → write 5-file plan folder.
 - **implement**: read plan folder → optional worktree → strategy-aware milestone/story lanes when safe → reviewer loop → configured verification hook → commit/merge → user-gate (D1) → final pr-description.
 - **task**: full end-to-end single-task workflow: plan-review → implement → impl-review → configured verification hook → commit → push decision → pr-description.
-- **auto**: chains `fh_team_plan` and `fh_team_implement` (D2 mode), no human gates between.
-- **followup**: resolves the parent plan, drafts and implements a follow-up against it as a brand-new sibling plan folder under `ai_plan/<date>-followup-<slug>/`. Runs in the current branch (mirrors `fh_team_task`); the parent's plan folder and pr-description are not modified.
+- **auto**: chains `sf_team_plan` and `sf_team_implement` (D2 mode), no human gates between.
+- **followup**: resolves the parent plan, drafts and implements a follow-up against it as a brand-new sibling plan folder under `ai_plan/<date>-followup-<slug>/`. Runs in the current branch (mirrors `sf_team_task`); the parent's plan folder and pr-description are not modified.
 - **steer**: appends a user instruction to the durable steering inbox for an active workflow, targeted by `workflowId`, `planSlug`, or the single unambiguous active workflow. Ambiguous targets return candidate workflow ids instead of guessing.
 
-Slash commands mirror the split: `/fh_team_plan` for new runs and `/fh_team_plan_resume` for resume (and the same shape for the other four workflows). `/fh_team_steer` posts to the standalone steer tool. If Pi is busy, workflow slash commands queue as follow-up instructions, while `/fh_team_steer` is delivered with Pi's steering delivery mode.
+Slash commands mirror the split: `/sf_team_plan` for new runs and `/sf_team_plan_resume` for resume (and the same shape for the other four workflows). `/sf_team_steer` posts to the standalone steer tool. If Pi is busy, workflow slash commands queue as follow-up instructions, while `/sf_team_steer` is delivered with Pi's steering delivery mode.
 
-During `fh_team_plan` research Q&A, questions are required by default. Selection questions automatically include an `Other (describe)` choice that opens inline text entry and stores the typed text as the answer. Escape does not skip required selection or free-text questions; it only skips a free-text question when the researcher explicitly marked that question optional. Recorded answers are cached in `ai_plan/<slug>/research-answers.json` so resume does not re-ask already answered questions.
+During `sf_team_plan` research Q&A, questions are required by default. Selection questions automatically include an `Other (describe)` choice that opens inline text entry and stores the typed text as the answer. Escape does not skip required selection or free-text questions; it only skips a free-text question when the researcher explicitly marked that question optional. Recorded answers are cached in `ai_plan/<slug>/research-answers.json` so resume does not re-ask already answered questions.
 
 ### Schemas per tool
 
@@ -65,59 +65,59 @@ Each tool carries a flat single-mode `Type.Object({...}, { additionalProperties:
 
 | Tool | Required key | Optional keys |
 | --- | --- | --- |
-| `fh_team_plan` | **`title`** | `brief`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_plan_resume` | **`resume`** | `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_implement` | **`slug`** | `mode`, `maxRounds`, `useWorktree`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_implement_resume` | **`resume`** | `mode`, `maxRounds`, `useWorktree`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_task` | **`title`** | `brief`, `maxRounds`, `allowDirty`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_task_resume` | **`resume`** | `maxRounds`, `allowDirty`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_auto` | **`title`** | `brief`, `maxRounds`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_auto_resume` | **`resume`** | `maxRounds`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_followup` | **`title`** | `brief`, `parentPlan`, `allowDirty`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_followup_resume` | **`resume`** | `parentPlan`, `allowDirty`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
-| `fh_team_steer` | **`instruction`** | `workflowId`, `planSlug`, `priority`, `targetHints`, `aiPlanPath` |
+| `sf_team_plan` | **`title`** | `brief`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_plan_resume` | **`resume`** | `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_implement` | **`slug`** | `mode`, `maxRounds`, `useWorktree`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_implement_resume` | **`resume`** | `mode`, `maxRounds`, `useWorktree`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_task` | **`title`** | `brief`, `maxRounds`, `allowDirty`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_task_resume` | **`resume`** | `maxRounds`, `allowDirty`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_auto` | **`title`** | `brief`, `maxRounds`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_auto_resume` | **`resume`** | `maxRounds`, `branchPrefix`, `pauseBetweenMilestones`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_followup` | **`title`** | `brief`, `parentPlan`, `allowDirty`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_followup_resume` | **`resume`** | `parentPlan`, `allowDirty`, `maxRounds`, `verification`, `aiPlanPath`, `gitMode`, `tddMode` |
+| `sf_team_steer` | **`instruction`** | `workflowId`, `planSlug`, `priority`, `targetHints`, `aiPlanPath` |
 
 ## Start A Workflow
 
-Use natural language when you want the agent to pick the right fh-team workflow for the job:
+Use natural language when you want the agent to pick the right sf-team workflow for the job:
 
 ```text
-fh-agent "Use fh_team_auto to plan and implement adding per-org rate limiting. Use Claude Opus as reviewer and stop before pushing."
-fh-agent "Use fh_team_task for a small bug fix: reproduce the cache eviction race, add a regression test, fix it, get review, and commit locally."
+fh-agent "Use sf_team_auto to plan and implement adding per-org rate limiting. Use Claude Opus as reviewer and stop before pushing."
+fh-agent "Use sf_team_task for a small bug fix: reproduce the cache eviction race, add a regression test, fix it, get review, and commit locally."
 ```
 
 Use exact tool calls when you already know the workflow and inputs. Each workflow has a start tool at the bare base name and a resume tool with a `_resume` suffix:
 
 ```text
-fh_team_plan title="Add per-org rate limiting" brief="Create a reviewed milestone plan only."
-fh_team_implement slug=2026-05-01-add-per-org-rate-limiting
-fh_team_auto title="Refactor auth module" brief="Plan, implement, review, verify, and commit locally."
-fh_team_task title="Fix race in cache eviction"
-fh_team_followup title="Add metric for cache evictions" parentPlan=2026-05-01-cache-eviction
-fh_team_steer planSlug=2026-05-01-cache-eviction instruction="Before continuing, make the metric name configurable."
+sf_team_plan title="Add per-org rate limiting" brief="Create a reviewed milestone plan only."
+sf_team_implement slug=2026-05-01-add-per-org-rate-limiting
+sf_team_auto title="Refactor auth module" brief="Plan, implement, review, verify, and commit locally."
+sf_team_task title="Fix race in cache eviction"
+sf_team_followup title="Add metric for cache evictions" parentPlan=2026-05-01-cache-eviction
+sf_team_steer planSlug=2026-05-01-cache-eviction instruction="Before continuing, make the metric name configurable."
 ```
 
 Running outside a git repository — pass `gitMode=off` (or let `auto` detect) and optionally supply `aiPlanPath` to put the plan folder wherever you like:
 
 ```text
-fh_team_plan title="Upgrade Postgres to 17" gitMode=off aiPlanPath=~/research/2026-Q2
-fh_team_task title="Audit breaking changes in react-router v7" gitMode=off
-fh_team_implement slug=2026-05-01-upgrade-postgres aiPlanPath=~/research/2026-Q2 gitMode=off
-fh_team_auto title="Refactor auth module" gitMode=off aiPlanPath=~/work/plans
-fh_team_followup title="Add query-plan metric" gitMode=off aiPlanPath=~/research/2026-Q2
-fh_team_steer planSlug=2026-05-01-upgrade-postgres aiPlanPath=~/research/2026-Q2 instruction="Skip the vacuum step"
+sf_team_plan title="Upgrade Postgres to 17" gitMode=off aiPlanPath=~/research/2026-Q2
+sf_team_task title="Audit breaking changes in react-router v7" gitMode=off
+sf_team_implement slug=2026-05-01-upgrade-postgres aiPlanPath=~/research/2026-Q2 gitMode=off
+sf_team_auto title="Refactor auth module" gitMode=off aiPlanPath=~/work/plans
+sf_team_followup title="Add query-plan metric" gitMode=off aiPlanPath=~/research/2026-Q2
+sf_team_steer planSlug=2026-05-01-upgrade-postgres aiPlanPath=~/research/2026-Q2 instruction="Skip the vacuum step"
 ```
 
 ## Steer Active Workflow
 
-Use `fh_team_steer` when a workflow is already running and you need to amend its next decision without starting a new run. Target an explicit `workflowId` when the active workflow list is ambiguous, or use `planSlug` when you know the plan folder:
+Use `sf_team_steer` when a workflow is already running and you need to amend its next decision without starting a new run. Target an explicit `workflowId` when the active workflow list is ambiguous, or use `planSlug` when you know the plan folder:
 
 ```text
-fh_team_steer workflowId=fhw_implement_20260517094530_ab12cd34 instruction="Restart the current developer with the stricter API constraint."
-fh_team_steer planSlug=2026-05-01-cache-eviction instruction="Do not touch the public cache interface; adapt internals only."
+sf_team_steer workflowId=fhw_implement_20260517094530_ab12cd34 instruction="Restart the current developer with the stricter API constraint."
+sf_team_steer planSlug=2026-05-01-cache-eviction instruction="Do not touch the public cache interface; adapt internals only."
 ```
 
-When exactly one fh-team workflow is active, `instruction` alone is accepted. When multiple active workflows match, the tool returns candidate workflow ids and does not append anything.
+When exactly one sf-team workflow is active, `instruction` alone is accepted. When multiple active workflows match, the tool returns candidate workflow ids and does not append anything.
 
 The active workflow keeps the main orchestrator loop available for conversation while role agents run in the background. Safe-boundary drains run at workflow start, before/after role-agent spawns, during active child ticks, before milestone completion, and before final completion. Each drain asks a steering-decider to classify the new instruction against the current snapshot, then records the decision, snapshots, and actions under `.fh-workflow/steering/`.
 
@@ -125,7 +125,7 @@ Steering can apply future guidance, restart or stop running agents, request conf
 
 ### Trust boundary
 
-Steering text is **advisory, not authoritative**. It comes from the user (via `fh_team_steer` or the slash command) and from the steering-decider model's `guidanceText` field. All consumers treat it as untrusted input: no authorization decisions are made from it, and destructive actions still require the existing confirmation gate.
+Steering text is **advisory, not authoritative**. It comes from the user (via `sf_team_steer` or the slash command) and from the steering-decider model's `guidanceText` field. All consumers treat it as untrusted input: no authorization decisions are made from it, and destructive actions still require the existing confirmation gate.
 
 Persisted shape:
 - Raw instruction text persisted to `inbox.jsonl` via `appendInstruction` is length-capped (default 4000 chars) so a runaway pasted payload cannot blow up the durable store.
@@ -162,43 +162,43 @@ Cost and context warning: steering may spawn an additional steering-decider role
 If a workflow was interrupted, ask for exact resume and provide the same plan slug or plan-folder path:
 
 ```text
-fh-agent "Resume the interrupted fh_team_auto workflow from 2026-05-06-refactor-auth and continue from its saved checkpoints."
-fh-agent "Resume the fh_team_task workflow at ./ai_plan/2026-05-06-fix-cache-race; do not start a new task."
+fh-agent "Resume the interrupted sf_team_auto workflow from 2026-05-06-refactor-auth and continue from its saved checkpoints."
+fh-agent "Resume the sf_team_task workflow at ./ai_plan/2026-05-06-fix-cache-race; do not start a new task."
 ```
 
 Technical exact-resume calls use the dedicated `_resume` tool with a `resume` input. The target can be a slug, a relative `ai_plan/<slug>` path, or an absolute plan-folder path:
 
 ```text
-fh_team_plan_resume resume=2026-05-06-add-rate-limit
-fh_team_implement_resume resume=./ai_plan/2026-05-06-add-rate-limit
-fh_team_task_resume resume=/path/to/repo/ai_plan/2026-05-06-fix-cache-race
-fh_team_auto_resume resume=2026-05-06-refactor-auth
-fh_team_followup_resume resume=2026-05-08-followup-add-cache-metric
+sf_team_plan_resume resume=2026-05-06-add-rate-limit
+sf_team_implement_resume resume=./ai_plan/2026-05-06-add-rate-limit
+sf_team_task_resume resume=/path/to/repo/ai_plan/2026-05-06-fix-cache-race
+sf_team_auto_resume resume=2026-05-06-refactor-auth
+sf_team_followup_resume resume=2026-05-08-followup-add-cache-metric
 ```
 
-The historical `fh_team_<base> resume=...` form (a single tool with an `anyOf` start/resume schema) is gone. Use `<base>_resume` for resume calls. Natural-language phrasing like `fh-agent "Resume the interrupted fh_team_auto workflow ..."` still works because the agent routes through the right tool when interpreting the request.
+The historical `sf_team_<base> resume=...` form (a single tool with an `anyOf` start/resume schema) is gone. Use `<base>_resume` for resume calls. Natural-language phrasing like `fh-agent "Resume the interrupted sf_team_auto workflow ..."` still works because the agent routes through the right tool when interpreting the request.
 
-Exact resume normally requires `.fh-workflow/workflow.json` to prove the same owner tool started the folder. Older metadata-less auto folders can be recovered only when they already contain both plan checkpoints and milestone implementation checkpoints; the resumed run writes metadata for future resumes. After ownership is accepted, `fh_team_auto_resume resume=<target>` skips researcher/planner whenever it finds an existing implementable five-file plan folder and resumes the implementation phase directly.
+Exact resume normally requires `.fh-workflow/workflow.json` to prove the same owner tool started the folder. Older metadata-less auto folders can be recovered only when they already contain both plan checkpoints and milestone implementation checkpoints; the resumed run writes metadata for future resumes. After ownership is accepted, `sf_team_auto_resume resume=<target>` skips researcher/planner whenever it finds an existing implementable five-file plan folder and resumes the implementation phase directly.
 
 ## Architecture
 
 The TypeScript orchestrator owns the state machine. Each role-agent is a single-job pi subprocess: receive a typed payload, produce content (plan markdown / code changes / verdict markdown), exit. Review loops alternate role-agent spawns and reviewer spawns; agents do not spawn other agents.
 
-Reusable workflow concerns live in `@pi-stef/agent-workflows`: plan-folder locks, `.fh-workflow` metadata, checkpoint stores, resume target analysis, widget messages, verification policy/cache helpers, and the generic `runWorkflow` lifecycle. `fh-team` is the first consumer of that library and keeps the tool-specific pieces: role prompts, plan/tracker parsing, worktree and merge policy, tmux panes, transcripts, diagnostics, performance reports, Telegram notifications, and final result formatting.
+Reusable workflow concerns live in `@pi-stef/agent-workflows`: plan-folder locks, `.fh-workflow` metadata, checkpoint stores, resume target analysis, widget messages, verification policy/cache helpers, and the generic `runWorkflow` lifecycle. `sf-team` is the first consumer of that library and keeps the tool-specific pieces: role prompts, plan/tracker parsing, worktree and merge policy, tmux panes, transcripts, diagnostics, performance reports, Telegram notifications, and final result formatting.
 
 Reviewers and the researcher always run with strict isolation: `--no-prompt-templates --no-extensions --no-context-files --tools read,grep,find,ls` (reviewer also pins `--no-skills`). Planner and developer agents get role-tuned skills via `--skill <path>`.
 
 Roles:
-- **researcher** — read-only analyzer. `fh_team_plan` runs it first to inspect the brief + repo state and emit a structured findings JSON (clarifying questions, files to touch, risks). Skill-free; no `bash`/`edit`/`write`.
+- **researcher** — read-only analyzer. `sf_team_plan` runs it first to inspect the brief + repo state and emit a structured findings JSON (clarifying questions, files to touch, risks). Skill-free; no `bash`/`edit`/`write`.
 - **planner** — drafts the milestone plan. Receives researcher findings + Q&A answers as context. Skills: `brainstorming`, `writing-plans`.
 - **developer** — implements one milestone at a time. Skills: `tdd`, `verification-before-completion`. Bound by the strict TDD contract documented in [TDD policy](#tdd-policy).
 - **reviewer** — strict isolation, read-only tools. Verdict format `## Summary` / `## Findings` (P0–P3) / `## Verdict`.
 
-When the configured verification gate fails after impl-review approval (`phase: "after"`), `fh_team_*` tools route the failure back into the same dev/reviewer pair instead of aborting the workflow. `tools/verification-stage.ts` throws a typed `VerificationGateFailure` carrying structured fields (toolName, phase, stageLabel, command, exitCode, signal, stdoutTail, stderrTail). `tools/verification-gate-loop.ts:runVerificationGateWithFixLoop` catches it, calls `synthesizeGateFinding` to build a synthetic `ReviewerVerdict` whose `verdictText` carries a parser-stable single-line summary (referencing the transcript) and whose `findings.P0[0]` carries the full multi-line redacted body the developer sees in their revise brief, then drives `runDeveloperRevise` followed by `runReviewer` for at most `review.implementation_max_rounds - implRound` more rounds. A reviewer-approved fix triggers a re-run of the gate; a reviewer rejection surfaces a `VerificationGateFixUnapprovedError`; budget exhaustion rethrows the most recent typed failure. `phase: "before"` gates retain their direct-throw behavior (a baseline-health failure has no developer fix to drive). Stderr/stdout embedded in the synthesized finding is capped at 4 KB after redaction (auth headers + `KEY=value` env-var patterns), so a long secret-bearing line at the tail can't leak through the cap, and the embedded text is labeled UNTRUSTED diagnostic data so the developer/reviewer treat it as evidence rather than instructions.
+When the configured verification gate fails after impl-review approval (`phase: "after"`), `sf_team_*` tools route the failure back into the same dev/reviewer pair instead of aborting the workflow. `tools/verification-stage.ts` throws a typed `VerificationGateFailure` carrying structured fields (toolName, phase, stageLabel, command, exitCode, signal, stdoutTail, stderrTail). `tools/verification-gate-loop.ts:runVerificationGateWithFixLoop` catches it, calls `synthesizeGateFinding` to build a synthetic `ReviewerVerdict` whose `verdictText` carries a parser-stable single-line summary (referencing the transcript) and whose `findings.P0[0]` carries the full multi-line redacted body the developer sees in their revise brief, then drives `runDeveloperRevise` followed by `runReviewer` for at most `review.implementation_max_rounds - implRound` more rounds. A reviewer-approved fix triggers a re-run of the gate; a reviewer rejection surfaces a `VerificationGateFixUnapprovedError`; budget exhaustion rethrows the most recent typed failure. `phase: "before"` gates retain their direct-throw behavior (a baseline-health failure has no developer fix to drive). Stderr/stdout embedded in the synthesized finding is capped at 4 KB after redaction (auth headers + `KEY=value` env-var patterns), so a long secret-bearing line at the tail can't leak through the cap, and the embedded text is labeled UNTRUSTED diagnostic data so the developer/reviewer treat it as evidence rather than instructions.
 
 ## TDD policy
 
-Every `fh_team_*` developer agent (task, followup, implement, auto) is bound by a strict test-first contract; `fh_team_plan` has no developer agent, but its planner brief receives the `PLANNER_TDD_REMINDER` so the plan is laid out tests-first. The contract is centralized in `packages/fh-team/src/tools/tdd-policy.ts` (`composeTddContract`, `REVIEWER_TDD_POLICY`, `PLANNER_TDD_REMINDER`) so prompts cannot drift across tools.
+Every `sf_team_*` developer agent (task, followup, implement, auto) is bound by a strict test-first contract; `sf_team_plan` has no developer agent, but its planner brief receives the `PLANNER_TDD_REMINDER` so the plan is laid out tests-first. The contract is centralized in `packages/sf-team/src/tools/tdd-policy.ts` (`composeTddContract`, `REVIEWER_TDD_POLICY`, `PLANNER_TDD_REMINDER`) so prompts cannot drift across tools.
 
 Before writing any non-test code the developer MUST:
 
@@ -228,14 +228,14 @@ Planner agents receive a `PLANNER_TDD_REMINDER` that nudges them to schedule eac
 
 Layered global + project config, with project winning at field level:
 
-- Global: `~/.pi/fh-team/config.json`
-- Project: `<repo>/.fh-team.json`
+- Global: `~/.pi/sf-team/config.json`
+- Project: `<repo>/.sf-team.json`
 
 Resolution chain (locked): `prompt args → project config → global config → DEFAULT_CONFIG`. The first non-`undefined` value wins.
 
-`scripts/fh-agent install fh-team` creates the global file at `~/.pi/fh-team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.fh-team.json` should contain only sparse overrides that belong in that repository.
+`scripts/fh-agent install sf-team` creates the global file at `~/.pi/sf-team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.sf-team.json` should contain only sparse overrides that belong in that repository.
 
-The generated file is copied from [`packages/fh-team/config/defaults.json`](config/defaults.json) and includes every built-in default. That includes reserved keys accepted by the schema but not honored yet, and advanced operational keys such as `heartbeatMs`; see the reference table below before changing those.
+The generated file is copied from [`packages/sf-team/config/defaults.json`](config/defaults.json) and includes every built-in default. That includes reserved keys accepted by the schema but not honored yet, and advanced operational keys such as `heartbeatMs`; see the reference table below before changing those.
 
 ```jsonc
 {
@@ -261,37 +261,37 @@ The generated file is copied from [`packages/fh-team/config/defaults.json`](conf
 
 ### Resume targets and ownership
 
-Every `fh_team_*_resume` tool accepts a `resume` field. The target can be a plan slug (`2026-05-06-add-rate-limit`), a relative path (`./ai_plan/2026-05-06-add-rate-limit`), or an absolute path to a plan folder. The start (bare `<base>`) and `<base>_resume` variants are mutually exclusive — invoke one or the other, never both.
+Every `sf_team_*_resume` tool accepts a `resume` field. The target can be a plan slug (`2026-05-06-add-rate-limit`), a relative path (`./ai_plan/2026-05-06-add-rate-limit`), or an absolute path to a plan folder. The start (bare `<base>`) and `<base>_resume` variants are mutually exclusive — invoke one or the other, never both.
 
 ```text
-fh_team_plan_resume resume=2026-05-06-add-rate-limit
-fh_team_implement_resume resume=2026-05-06-add-rate-limit
-fh_team_task_resume resume=2026-05-06-fix-cache-race
-fh_team_auto_resume resume=2026-05-06-refactor-auth
-fh_team_followup_resume resume=2026-05-08-followup-add-cache-metric
+sf_team_plan_resume resume=2026-05-06-add-rate-limit
+sf_team_implement_resume resume=2026-05-06-add-rate-limit
+sf_team_task_resume resume=2026-05-06-fix-cache-race
+sf_team_auto_resume resume=2026-05-06-refactor-auth
+sf_team_followup_resume resume=2026-05-08-followup-add-cache-metric
 ```
 
 Resume is intentionally strict. The workflow folder records the tool that started the run, and exact resume is allowed only by the matching `_resume` variant of that same workflow:
 
 | Started by | Resumed by |
 | --- | --- |
-| `fh_team_plan` | `fh_team_plan_resume` |
-| `fh_team_implement` | `fh_team_implement_resume` |
-| `fh_team_task` | `fh_team_task_resume` |
-| `fh_team_auto` | `fh_team_auto_resume` |
-| `fh_team_followup` | `fh_team_followup_resume` |
+| `sf_team_plan` | `sf_team_plan_resume` |
+| `sf_team_implement` | `sf_team_implement_resume` |
+| `sf_team_task` | `sf_team_task_resume` |
+| `sf_team_auto` | `sf_team_auto_resume` |
+| `sf_team_followup` | `sf_team_followup_resume` |
 
-Normal handoff is still supported: `fh_team_implement slug=<slug>` can implement a five-file plan produced by `fh_team_plan`. That is not exact resume; it is the normal plan-to-implementation workflow, and implement intentionally claims plan-owned metadata for that handoff. `fh_team_followup title=... parentPlan=<parent-slug>` still targets a parent plan to derive context from. Exact follow-up resume targets the FOLLOWUP'S OWN slug — `fh_team_followup_resume resume=<followup-slug>` (e.g. `2026-05-08-followup-better-anim`) — and the resume code re-loads the parent's milestone-plan from the followup's `.fh-workflow/workflow.json` `parentSlug`.
+Normal handoff is still supported: `sf_team_implement slug=<slug>` can implement a five-file plan produced by `sf_team_plan`. That is not exact resume; it is the normal plan-to-implementation workflow, and implement intentionally claims plan-owned metadata for that handoff. `sf_team_followup title=... parentPlan=<parent-slug>` still targets a parent plan to derive context from. Exact follow-up resume targets the FOLLOWUP'S OWN slug — `sf_team_followup_resume resume=<followup-slug>` (e.g. `2026-05-08-followup-better-anim`) — and the resume code re-loads the parent's milestone-plan from the followup's `.fh-workflow/workflow.json` `parentSlug`.
 
 Legacy policy:
 
-- If `.fh-workflow/workflow.json` exists, `ownerTool` must match the invoked tool's workflow base (`fh_team_plan_resume` matches an `fh_team_plan` owner record, etc.).
-- If metadata is missing, `fh_team_implement_resume resume=<slug-or-path>` may resume a legacy five-file plan folder.
-- If metadata is missing, `fh_team_auto_resume resume=<slug-or-path>` may resume only a five-file plan folder that already has both plan-phase checkpoints and milestone implementation checkpoints. This evidence is used for legacy ownership recovery; once accepted, auto resumes implementation directly instead of rerunning the plan phase. The resumed run writes `workflow.json` so later resumes use the normal owner check.
+- If `.fh-workflow/workflow.json` exists, `ownerTool` must match the invoked tool's workflow base (`sf_team_plan_resume` matches an `sf_team_plan` owner record, etc.).
+- If metadata is missing, `sf_team_implement_resume resume=<slug-or-path>` may resume a legacy five-file plan folder.
+- If metadata is missing, `sf_team_auto_resume resume=<slug-or-path>` may resume only a five-file plan folder that already has both plan-phase checkpoints and milestone implementation checkpoints. This evidence is used for legacy ownership recovery; once accepted, auto resumes implementation directly instead of rerunning the plan phase. The resumed run writes `workflow.json` so later resumes use the normal owner check.
 - Other exact resume calls require metadata because they cannot reconstruct planner/task/follow-up subprocess boundaries safely.
 - A completed checkpoint is reused only when its input fingerprint still matches. The current failed or in-progress step runs again.
 
-`fh_team_auto` (and its `_resume` companion) owns the whole chained workflow even though it runs nested `fh_team_plan` and `fh_team_implement` phases. Metadata records `ownerTool: "fh_team_auto"` and updates `currentTool` as each inner phase runs. Between phases, status may briefly be `completed` before the next phase reopens the same owner record as `running`. If `fh_team_auto_resume` starts after the plan folder exists, it does not rerun researcher or planner; it calls implement with `resume` so completed checkpoints are reused and the current in-progress milestone reruns.
+`sf_team_auto` (and its `_resume` companion) owns the whole chained workflow even though it runs nested `sf_team_plan` and `sf_team_implement` phases. Metadata records `ownerTool: "sf_team_auto"` and updates `currentTool` as each inner phase runs. Between phases, status may briefly be `completed` before the next phase reopens the same owner record as `running`. If `sf_team_auto_resume` starts after the plan folder exists, it does not rerun researcher or planner; it calls implement with `resume` so completed checkpoints are reused and the current in-progress milestone reruns.
 
 On resume, worktree safety stays conservative. The expected worktree must be attached to the expected branch and not diverged. Explicit resume may reuse that attached worktree even when it contains interrupted edits, because those edits are the state being resumed. Fresh runs still reject dirty attached worktrees, and deleted, divergent, or ambiguous branches abort with a diagnostic instead of being cleaned up automatically.
 
@@ -325,7 +325,7 @@ Defaults:
 | `task.verification` | `after` | `commands` | `typecheck`, `test` | `run` |
 | `followup.verification` | `after` | `commands` | `typecheck`, `test` | `run` |
 
-`fh_team_auto` suppresses `plan.verification` during its nested plan phase so the chain does not verify before any implementation exists. Its implement phase uses `auto.verification`, not `implement.verification`.
+`sf_team_auto` suppresses `plan.verification` during its nested plan phase so the chain does not verify before any implementation exists. Its implement phase uses `auto.verification`, not `implement.verification`.
 
 Accepted verification keys:
 
@@ -469,12 +469,12 @@ Run `pi --list-models` before copying examples across machines if your provider 
 
 ### Worktree dependency-install fast path
 
-`fh_team_implement`, `fh_team_auto`, and follow-up worktrees install dependencies only when a worktree has a `package.json` and no `node_modules`. Reused parallel lane worktrees keep the cheap path: if `node_modules` is already present, the installer exits immediately.
+`sf_team_implement`, `sf_team_auto`, and follow-up worktrees install dependencies only when a worktree has a `package.json` and no `node_modules`. Reused parallel lane worktrees keep the cheap path: if `node_modules` is already present, the installer exits immediately.
 
 For repos where dependencies are already available through another mechanism, set this before running the workflow:
 
 ```bash
-export FH_TEAM_SKIP_AUTO_INSTALL=1
+export SF_TEAM_SKIP_AUTO_INSTALL=1
 ```
 
 This skips automatic installs in newly created worktrees. Use it only when verification commands can still find the required package-manager binaries and dependencies.
@@ -498,11 +498,11 @@ Full Jira browse URLs may still be detected as URL refs. When the Atlassian Jira
 - `patch` — ask the planner for a small hierarchical JSON patch during plan-review revisions. TypeScript applies the patch to the prior full markdown plan, records patch metrics, and sends the resulting full plan to the reviewer.
 - `full` — use the prior behavior: ask the planner to return the complete revised markdown plan.
 
-Patch mode supports top-level sections, milestone IDs, milestone subsections, story IDs, and exact anchored replacements. If the planner returns invalid JSON, targets a missing or ambiguous section, repeats an anchor, or produces no change, fh-team records a fallback transcript entry and runs one full-plan rewrite for that revision. The final files written to `ai_plan/<slug>/` remain complete markdown documents in both modes.
+Patch mode supports top-level sections, milestone IDs, milestone subsections, story IDs, and exact anchored replacements. If the planner returns invalid JSON, targets a missing or ambiguous section, repeats an anchor, or produces no change, sf-team records a fallback transcript entry and runs one full-plan rewrite for that revision. The final files written to `ai_plan/<slug>/` remain complete markdown documents in both modes.
 
 ### Execution strategy and parallel limits
 
-New plan folders include `execution-strategy.json`. It declares milestone waves, story waves, dependencies, max parallel caps, and per-story `writeSets`. `fh_team_implement` and `fh_team_auto` use it only when `use_worktree=true`, `parallel.enabled=true`, and the strategy validates. Old plan folders without the artifact use the existing sequential path.
+New plan folders include `execution-strategy.json`. It declares milestone waves, story waves, dependencies, max parallel caps, and per-story `writeSets`. `sf_team_implement` and `sf_team_auto` use it only when `use_worktree=true`, `parallel.enabled=true`, and the strategy validates. Old plan folders without the artifact use the existing sequential path.
 
 Default parallel config:
 
@@ -540,13 +540,13 @@ Safety behavior:
 - Each parallel story and milestone lane gets its own git worktree and branch; no two developers share one index.
 - Story lanes commit locally, then merge into the milestone lane in story order after the wave settles.
 - Approved milestone lanes merge into the aggregate implementation branch in strategy order.
-- Merge conflicts run `git merge --abort`, write diagnostics under the plan folder, and stop. fh-team does not overwrite conflicted work.
+- Merge conflicts run `git merge --abort`, write diagnostics under the plan folder, and stop. sf-team does not overwrite conflicted work.
 - In `single-milestone` mode, pending milestones stay in strategy order but are scheduled one milestone batch at a time so the inter-milestone gate can stop before the next milestone. Interactive implement runs pause by default after each approved milestone; headless runs continue with a warning.
 - `all-milestones` preserves the execution strategy's milestone waves and runs them through unless a configured pause gate stops the run.
 
 ### Failure-mode guarantees
 
-Every fh-team tool throws a typed `FhTeamToolError` (or one of its
+Every sf-team tool throws a typed `SfTeamToolError` (or one of its
 subclasses: `EmptyDiffError`, `EmptyPlanError`, `MergeFailedError`,
 `WorkflowStateError`, `ConfigLoadError`, `LaneCleanupError`) on
 failure. The Pi runtime surfaces a thrown error to the calling LLM by
@@ -562,9 +562,9 @@ Any non-typed exception thrown inside an `execute()` body is normalized
 by the boundary helper `wrapExecute(<piToolName>, ...)` into
 `FAILED: <toolName> internal: <stringifiedCause>. RESUME: invoke
 <base>_resume { resume: '<slug-or-path>' } to retry from saved state, or
-consult the fh-team transcript under ai_plan/<slug>/ for details`. The
+consult the sf-team transcript under ai_plan/<slug>/ for details`. The
 `<base>_resume` recommendation is only included when `<piToolName>` is a
-recognized fh-team workflow; for unknown tool names the hint falls back
+recognized sf-team workflow; for unknown tool names the hint falls back
 to the transcript-only line. So calling LLMs always see a structured
 failure envelope with a clear next step — they can never
 misread an empty-diff or merge failure as silent success and pivot to
@@ -584,11 +584,11 @@ If the run is still empty after the budget is exhausted, the tool
 throws an `EmptyDiffError`:
 
 ```text
-FAILED: fh_team_implement empty_diff: milestone M5 produced no
-changes after 3 attempts. RESUME: invoke fh_team_implement_resume
+FAILED: sf_team_implement empty_diff: milestone M5 produced no
+changes after 3 attempts. RESUME: invoke sf_team_implement_resume
 { resume: '<slug>' } and consider setting
 `implement.empty_diff_retry_model` to a stronger model in
-~/.pi/fh-team/config.json.
+~/.pi/sf-team/config.json.
 ```
 
 Two config knobs control retry policy:
@@ -603,7 +603,7 @@ Two config knobs control retry policy:
 ```
 
 Both knobs also exist on the `auto` section (mapped onto the implement
-phase when `fh_team_auto` calls `fh_team_implement`
+phase when `sf_team_auto` calls `sf_team_implement`
 internally). The model bump is opt-in to keep token spend bounded; when
 unset (default), every retry uses the configured developer model.
 
@@ -613,7 +613,7 @@ than the empty first attempt.
 
 ### Lane branch cleanup
 
-After a successful parallel rollup, fh-team deletes the lane branch
+After a successful parallel rollup, sf-team deletes the lane branch
 that was just merged. Four guards run before any destructive
 `git branch -d/-D`:
 
@@ -635,7 +635,7 @@ Then `git branch -d -- <branch>`. If git rejects with `not fully merged`
 the merge demonstrably already happened).
 
 Failures NEVER throw — every non-success outcome appends a
-`BranchCleanupWarning` to `FhTeamImplementResult.warnings`:
+`BranchCleanupWarning` to `SfTeamImplementResult.warnings`:
 
 | `kind` | When |
 | --- | --- |
@@ -665,13 +665,13 @@ The raw tmux pane log still receives every stdout/stderr byte from each role age
 Use this synthetic check to verify local stream overhead without calling real models:
 
 ```bash
-pnpm test -- --run packages/fh-team/tests/spawn-stream-throughput.test.ts packages/fh-team/tests/tui-stream-throttle.test.ts
+pnpm test -- --run packages/sf-team/tests/spawn-stream-throughput.test.ts packages/sf-team/tests/tui-stream-throttle.test.ts
 ```
 
 ### Reserved fields
 
 - `implement.create_branch`, `task.create_branch` — accepted by the schema but **not yet honored by `createWorktree`**. Setting them has no effect today.
-- `task.use_worktree` — accepted by the schema but **`fh_team_task` always edits the current working tree**. The flag is reserved for a future task-isolation feature.
+- `task.use_worktree` — accepted by the schema but **`sf_team_task` always edits the current working tree**. The flag is reserved for a future task-isolation feature.
 
 ### Inter-milestone pause (`pause_between_milestones`)
 
@@ -692,38 +692,38 @@ Resolution: prompt arg → project config → global config → DEFAULT (above).
 { "implement": { "pause_between_milestones": false } }
 ```
 
-Headless behavior: when `pause_between_milestones=true` is resolved but no UI is available (`!ctx.ui`), a single `console.warn("[fh-team] pause_between_milestones=true but no UI; treating as false")` fires and the loop continues. Tests and CI runs cannot hang on a `confirm` that never gets answered.
+Headless behavior: when `pause_between_milestones=true` is resolved but no UI is available (`!ctx.ui`), a single `console.warn("[sf-team] pause_between_milestones=true but no UI; treating as false")` fires and the loop continues. Tests and CI runs cannot hang on a `confirm` that never gets answered.
 
-The `shouldContinue` callback on `FhTeamImplementInput` is a TEST-ONLY override: production tool registration does NOT inject one. When a test passes `shouldContinue` explicitly, it takes precedence over the config knob (callback semantics are stronger than config). The gate is also skipped after the LAST milestone — there is nothing to continue to.
+The `shouldContinue` callback on `SfTeamImplementInput` is a TEST-ONLY override: production tool registration does NOT inject one. When a test passes `shouldContinue` explicitly, it takes precedence over the config knob (callback semantics are stronger than config). The gate is also skipped after the LAST milestone — there is nothing to continue to.
 
 ## Quickstart
 
 ```bash
 # Install
-scripts/fh-agent install fh-team --scope project
+scripts/fh-agent install sf-team --scope project
 
 # In a pi session, ask the researcher → planner → reviewer pipeline to draft a plan:
-fh_team_plan title="Add per-org rate limiting" brief="..."
+sf_team_plan title="Add per-org rate limiting" brief="..."
 
 # Implement the plan in milestone-by-milestone D1 mode:
-fh_team_implement slug=2026-05-01-add-per-org-rate-limiting
+sf_team_implement slug=2026-05-01-add-per-org-rate-limiting
 
 # Or chain plan + implement autonomously:
-fh_team_auto title="Refactor auth module"
+sf_team_auto title="Refactor auth module"
 
 # Single-task end-to-end (plan + implement in one shot, writes a task-plan.md but no 5-file milestone folder):
-fh_team_task title="Fix race in cache eviction"
+sf_team_task title="Fix race in cache eviction"
 
 # Add a follow-up to a completed plan folder:
-fh_team_followup title="Add metric for cache evictions"
+sf_team_followup title="Add metric for cache evictions"
 
 # Resume an interrupted exact workflow by slug or plan-folder path:
-fh_team_auto_resume resume=2026-05-06-refactor-auth
+sf_team_auto_resume resume=2026-05-06-refactor-auth
 ```
 
 ## Running without a git repository
 
-By default, fh-team auto-detects whether the current working directory is inside a git work tree and enables git operations when it is (`gitMode: 'auto'`). When auto-detect finds no git repo, or when you explicitly pass `gitMode='off'`, all git-specific steps are skipped:
+By default, sf-team auto-detects whether the current working directory is inside a git work tree and enables git operations when it is (`gitMode: 'auto'`). When auto-detect finds no git repo, or when you explicitly pass `gitMode='off'`, all git-specific steps are skipped:
 
 - No baseline snapshot, no worktree creation, no commits, no pr-description.
 - The developer agent receives plain edit-and-write instructions instead of staging instructions.
@@ -734,7 +734,7 @@ By default, fh-team auto-detects whether the current working directory is inside
 Pass `gitMode='off'` on any tool call, or set it globally via config:
 
 ```jsonc
-// ~/.pi/fh-team/config.json
+// ~/.pi/sf-team/config.json
 {
   "paths": { "git_mode": "off" }
 }
@@ -745,15 +745,15 @@ Pass `gitMode='off'` on any tool call, or set it globally via config:
 By default, plan folders are written to `<repo>/ai_plan/<slug>/`. Pass `aiPlanPath` to put them anywhere:
 
 ```text
-fh_team_plan title="Upgrade Postgres to 17" aiPlanPath=/home/user/notes/plans gitMode=off
-fh_team_task title="Audit breaking changes" aiPlanPath=~/research/2026-Q2 gitMode=off
-fh_team_implement slug=2026-05-01-upgrade-postgres aiPlanPath=/home/user/notes/plans
-fh_team_auto title="Refactor auth module" aiPlanPath=~/work/plans
-fh_team_followup title="Add metric for cache evictions" aiPlanPath=~/work/plans gitMode=off
-fh_team_steer planSlug=2026-05-01-upgrade-postgres aiPlanPath=/home/user/notes/plans instruction="Skip the vacuum step"
+sf_team_plan title="Upgrade Postgres to 17" aiPlanPath=/home/user/notes/plans gitMode=off
+sf_team_task title="Audit breaking changes" aiPlanPath=~/research/2026-Q2 gitMode=off
+sf_team_implement slug=2026-05-01-upgrade-postgres aiPlanPath=/home/user/notes/plans
+sf_team_auto title="Refactor auth module" aiPlanPath=~/work/plans
+sf_team_followup title="Add metric for cache evictions" aiPlanPath=~/work/plans gitMode=off
+sf_team_steer planSlug=2026-05-01-upgrade-postgres aiPlanPath=/home/user/notes/plans instruction="Skip the vacuum step"
 ```
 
-`aiPlanPath` is resolved to an absolute path and persisted in `.fh-workflow/workflow.json` so `_resume` calls find the folder even when invoked from a different working directory. A global slug-to-planRoot index at `~/.fh-team/plan-index.json` is updated on every plan write; slug-only resumes consult the index when the slug is not found at the default `ai_plan/` location.
+`aiPlanPath` is resolved to an absolute path and persisted in `.fh-workflow/workflow.json` so `_resume` calls find the folder even when invoked from a different working directory. A global slug-to-planRoot index at `~/.sf-team/plan-index.json` is updated on every plan write; slug-only resumes consult the index when the slug is not found at the default `ai_plan/` location.
 
 ### TDD mode
 
@@ -768,7 +768,7 @@ fh_team_steer planSlug=2026-05-01-upgrade-postgres aiPlanPath=/home/user/notes/p
 Set globally via config (`tdd.mode`) or pass per call:
 
 ```text
-fh_team_task title="Fix race in cache eviction" tddMode=on gitMode=off
+sf_team_task title="Fix race in cache eviction" tddMode=on gitMode=off
 ```
 
 ## Migration and behavior-change notes
@@ -777,9 +777,9 @@ All new arguments (`aiPlanPath`, `gitMode`, `tddMode`) are **opt-in**. Existing 
 
 - `gitMode` defaults to `auto`, which resolves to `on` inside any git work tree — identical to the hard-wired behavior before this release.
 - `tddMode` defaults to `auto`, which preserves the prior behavior: TDD proof block required for code changes; the `no-test-needed:` shortcut is allowed for non-code diffs (docs, config, type-only).
-- `aiPlanPath` defaults to `undefined`, which resolves to `<cwd>/ai_plan/` — the same path fh-team has always used.
+- `aiPlanPath` defaults to `undefined`, which resolves to `<cwd>/ai_plan/` — the same path sf-team has always used.
 
-No existing config keys were renamed or removed. The two new config sections (`paths` and `tdd`) are silently ignored by older versions of fh-team, so a shared `~/.pi/fh-team/config.json` that adds these keys is safe to roll out without updating every environment at once.
+No existing config keys were renamed or removed. The two new config sections (`paths` and `tdd`) are silently ignored by older versions of sf-team, so a shared `~/.pi/sf-team/config.json` that adds these keys is safe to roll out without updating every environment at once.
 
 The only observable change to git-mode workflows is that the developer agent's git/staging instructions are now composed at spawn time via `composeDeveloperSystemPreamble` instead of being hard-coded in `developer.yaml`. The wording is identical; no behavior difference.
 
@@ -787,7 +787,7 @@ The only observable change to git-mode workflows is that the developer agent's g
 
 Use headless mode when you want the workflow to spend less time maintaining interactive side channels and more time running the actual phase work. It is intended for fast local runs, CI-like runs, or performance investigations where the performance report is the main artifact.
 
-Enable it per repo in `<repo>/.fh-team.json`:
+Enable it per repo in `<repo>/.sf-team.json`:
 
 ```jsonc
 {
@@ -795,7 +795,7 @@ Enable it per repo in `<repo>/.fh-team.json`:
 }
 ```
 
-Or enable it globally in `~/.pi/fh-team/config.json`:
+Or enable it globally in `~/.pi/sf-team/config.json`:
 
 ```jsonc
 {
@@ -806,9 +806,9 @@ Or enable it globally in `~/.pi/fh-team/config.json`:
 Then run the normal tools; no separate command is required:
 
 ```bash
-fh_team_plan title="Add account export flow" brief="..."
-fh_team_implement slug=2026-05-06-add-account-export-flow
-fh_team_auto title="Refactor notification settings" brief="..."
+sf_team_plan title="Add account export flow" brief="..."
+sf_team_implement slug=2026-05-06-add-account-export-flow
+sf_team_auto title="Refactor notification settings" brief="..."
 ```
 
 Headless mode changes workflow behavior in three ways:
@@ -851,22 +851,22 @@ Use the report's wall time, phase totals, role totals, and failure section to de
 | `review.max_rounds` | `10` (`4` in headless) | global+project+prompt | Compatibility fallback for both review-loop types when the phase-specific cap is not set. |
 | `review.plan_max_rounds` | `10` (`3` in headless) | global+project+prompt | Cap on planner ↔ reviewer loops. Prompt `maxRounds` still overrides it for that call. |
 | `review.implementation_max_rounds` | `10` (`4` in headless) | global+project+prompt | Cap on developer ↔ reviewer loops. Prompt `maxRounds` still overrides it for that call. |
-| `plan.verification` | `{ timing: "off", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for standalone `fh_team_plan`; auto suppresses this during its nested plan phase. |
+| `plan.verification` | `{ timing: "off", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for standalone `sf_team_plan`; auto suppresses this during its nested plan phase. |
 | `implement.mode` | `single-milestone` | global+project+prompt | `single-milestone` (one developer per M) or `all-milestones` (one developer over all). |
 | `implement.use_worktree` | `true` | global+project+prompt | Create a git worktree before implement. False edits the user's tree (baseline captured). |
 | `implement.create_branch` | `true` | RESERVED | Reserved for `createWorktree` follow-up — not honored today. |
 | `implement.branch_prefix` | `implement/` | global+project+prompt | Branch-name prefix for the worktree. |
 | `implement.pause_between_milestones` | `true` | global+project+prompt | Pause + ask `ctx.ui.confirm(...)` between milestones; see "Inter-milestone pause" above. |
-| `implement.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `fh_team_implement`. |
-| `auto.{mode,use_worktree,create_branch,branch_prefix}` | `all-milestones`, `true`, `true`, `auto/` | global+project+prompt | Same shape as `implement.*` but for `fh_team_auto`. |
+| `implement.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `sf_team_implement`. |
+| `auto.{mode,use_worktree,create_branch,branch_prefix}` | `all-milestones`, `true`, `true`, `auto/` | global+project+prompt | Same shape as `implement.*` but for `sf_team_auto`. |
 | `auto.pause_between_milestones` | `false` | global+project+prompt | Defaults to `false` — auto runs end-to-end unless explicitly opted in. |
 | `auto.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy used by auto's nested implement phase; it overrides `implement.verification` for auto runs. |
-| `task.use_worktree` | `false` | RESERVED | `fh_team_task` always edits the working tree today. |
+| `task.use_worktree` | `false` | RESERVED | `sf_team_task` always edits the working tree today. |
 | `task.create_branch` | `false` | RESERVED | Reserved. |
-| `task.allow_dirty` | `false` | global+project+prompt | When false, `fh_team_task` refuses to start with a dirty index. |
-| `task.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `fh_team_task`. |
+| `task.allow_dirty` | `false` | global+project+prompt | When false, `sf_team_task` refuses to start with a dirty index. |
+| `task.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `sf_team_task`. |
 | `followup.allow_dirty` | `false` | global+project+prompt | Same dirty-tree guard as task. |
-| `followup.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `fh_team_followup`. |
+| `followup.verification` | `{ timing: "after", mode: "commands", stages: ["typecheck","test"], cache: { mode: "run" }, maxAttempts: 2 }` | global+project+prompt | Verification policy for `sf_team_followup`. |
 | `notifications.telegram.enabled` | `false` | global+project | Send a Telegram summary on terminal outcomes. Honored when both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set. |
 | `performance.widget_update_interval_ms` | `150` | global+project | Coalesce non-terminal widget renders during bursty agent streams. Valid range: `0`-`5000`; set `0` to render every widget-affecting event immediately. |
 | `performance.researcher` | `auto` | global+project | Researcher policy: `auto`, `always`, or `never`. Tool-call parameters do not override it in v1. |
@@ -879,19 +879,19 @@ Use the report's wall time, phase totals, role totals, and failure section to de
 | `paths.git_mode` | `auto` | global+project+prompt (`gitMode`) | `auto` enables git operations when cwd is inside a git work tree; `on` always enables; `off` always disables. |
 | `tdd.mode` | `auto` | global+project+prompt (`tddMode`) | TDD policy: `auto` requires a proof block for code changes but allows `no-test-needed:` for non-code diffs; `on` always requires proof (no shortcut); `off` waives the contract entirely. |
 
-Resolution order applies to every knob: `prompt args → <repo>/.fh-team.json → ~/.pi/fh-team/config.json → built-in DEFAULT_CONFIG`. The first non-`undefined` value wins.
+Resolution order applies to every knob: `prompt args → <repo>/.sf-team.json → ~/.pi/sf-team/config.json → built-in DEFAULT_CONFIG`. The first non-`undefined` value wins.
 
 ## Cost totals
 
-During an interactive `fh_team_*` run, fh-team owns Pi's footer and shows the collected role-agent cost while the subprocesses run. The footer total includes completed agent usage plus any in-flight agent usage Pi has already emitted for the active logical tool run. If a provider has not emitted usage or cost yet, fh-team leaves the footer pending/unavailable rather than estimating.
+During an interactive `sf_team_*` run, sf-team owns Pi's footer and shows the collected role-agent cost while the subprocesses run. The footer total includes completed agent usage plus any in-flight agent usage Pi has already emitted for the active logical tool run. If a provider has not emitted usage or cost yet, sf-team leaves the footer pending/unavailable rather than estimating.
 
 When provider usage includes cost, the final tool text appends a sentence such as `Your total cost is $10.58.`. If some agents reported cost and others did not, the final sentence uses `at least` wording; if no cost is known, the sentence is omitted.
 
 The registered tool descriptions also instruct the outer assistant to repeat a known cost in its final user-facing summary as `Total cost: $<amount>`; for example, `Total cost: $10.58`.
 
-Resume totals include prior completed performance reports for the same workflow owner plus the active resume invocation. Normal handoff is separate from exact resume: `fh_team_implement slug=<plan-slug>` after a standalone `fh_team_plan` does not include the plan cost, while `fh_team_auto` and `fh_team_auto_resume` treat the nested plan and implement phases as one auto-owned run and count each phase once.
+Resume totals include prior completed performance reports for the same workflow owner plus the active resume invocation. Normal handoff is separate from exact resume: `sf_team_implement slug=<plan-slug>` after a standalone `sf_team_plan` does not include the plan cost, while `sf_team_auto` and `sf_team_auto_resume` treat the nested plan and implement phases as one auto-owned run and count each phase once.
 
-While fh-team owns the footer, Pi's default parent-session footer is hidden unless Pi exposes parent-session usage to the extension, in which case fh-team renders it as a second line. Footer ownership is a single UI slot today: two concurrent fh-team tool invocations in the same Pi UI are last-writer-wins for the live footer, but each run still writes its own final summary and performance report.
+While sf-team owns the footer, Pi's default parent-session footer is hidden unless Pi exposes parent-session usage to the extension, in which case sf-team renders it as a second line. Footer ownership is a single UI slot today: two concurrent sf-team tool invocations in the same Pi UI are last-writer-wins for the live footer, but each run still writes its own final summary and performance report.
 
 Legacy metadata-less auto resumes may overestimate by including old plan and implement reports with the same slug. New performance reports write owner metadata so future resume cost parsing can scope totals to the correct workflow owner.
 
@@ -919,21 +919,21 @@ Layout (ASCII):
 |                                      |------------------------------|
 |                                      | developer > running ...      |
 +--------------------------------------+------------------------------+
-        <main pane: widget + chat>            <fh-team-side:
+        <main pane: widget + chat>            <sf-team-side:
                                                per-agent tail panes
                                                stack vertically>
 ```
 
-Pane content is rendered through `packages/fh-team/scripts/pretty-pane.mjs`. The default theme is `codex`, which groups command/tool output, muted logs, and diff-like lines into a transcript-style view. Overrides:
+Pane content is rendered through `packages/sf-team/scripts/pretty-pane.mjs`. The default theme is `codex`, which groups command/tool output, muted logs, and diff-like lines into a transcript-style view. Overrides:
 
 ```bash
-FH_TEAM_PANE_THEME=plain fh-agent
+SF_TEAM_PANE_THEME=plain fh-agent
 PRETTY_PANE_THEME=plain fh-agent
 PRETTY_PANE_COLOR=never fh-agent
 NO_COLOR=1 fh-agent
 ```
 
-`FH_TEAM_PANE_THEME` and `PRETTY_PANE_THEME` accept `codex` or `plain`; `plain` preserves the legacy renderer. `NO_COLOR=1` and `PRETTY_PANE_COLOR=never` disable renderer-owned ANSI color.
+`SF_TEAM_PANE_THEME` and `PRETTY_PANE_THEME` accept `codex` or `plain`; `plain` preserves the legacy renderer. `NO_COLOR=1` and `PRETTY_PANE_COLOR=never` disable renderer-owned ANSI color.
 
 ### Install / update / remove
 
@@ -955,7 +955,7 @@ The Linux apt path runs `sudo -n true` first; if sudo would prompt for a passwor
 
 ### Per-invocation session id
 
-When the launcher decides to enter tmux, it generates a fresh session name `fh-agent-<8 hex chars>` from `/dev/urandom` and exports it as `FH_AGENT_TMUX_SESSION`. Two terminals running `fh-agent` simultaneously get separate sessions and never collide. The launcher OWNS that name — it doesn't imply any specific extension; the user may go on to invoke a fh-team `fh_team_*` tool (which renames the session to a tool-derived alias) OR a different extension entirely inside the same session.
+When the launcher decides to enter tmux, it generates a fresh session name `fh-agent-<8 hex chars>` from `/dev/urandom` and exports it as `FH_AGENT_TMUX_SESSION`. Two terminals running `fh-agent` simultaneously get separate sessions and never collide. The launcher OWNS that name — it doesn't imply any specific extension; the user may go on to invoke a sf-team `sf_team_*` tool (which renames the session to a tool-derived alias) OR a different extension entirely inside the same session.
 
 ### Escape hatches
 
@@ -966,7 +966,7 @@ When the launcher decides to enter tmux, it generates a fresh session name `fh-a
 
 ### When tmux is NOT installed
 
-`fh_team_*` tools work exactly as before — the orchestrator's pane-manager branch short-circuits when `getActiveSession()` returns null, so `subscribeAgent` does not open panes, the spawn helper does not pass `rawLogPath`, and `spawnAgent` skips the raw-stdout mirror entirely. Behavior is byte-for-byte identical.
+`sf_team_*` tools work exactly as before — the orchestrator's pane-manager branch short-circuits when `getActiveSession()` returns null, so `subscribeAgent` does not open panes, the spawn helper does not pass `rawLogPath`, and `spawnAgent` skips the raw-stdout mirror entirely. Behavior is byte-for-byte identical.
 
 ### References
 
@@ -1012,7 +1012,7 @@ ai_plan/<YYYY-MM-DD-slug>/
   │   └── diagnostics-<ISO-stamp>.log     ← one per failed run
   ├── reports/
   │   └── performance-<ISO-stamp>.md      ← one per run
-  ├── .fh-team.lock/                       ← transient lockdir; metadata.json inside while a run owns the folder
+  ├── .sf-team.lock/                       ← transient lockdir; metadata.json inside while a run owns the folder
   └── .fh-workflow/
       ├── workflow.json            ← durable owner/status/phase/worktree/branch metadata; includes `parentSlug` for followups
       ├── checkpoints.json         ← completed/failed step records with input/output fingerprints
@@ -1021,7 +1021,7 @@ ai_plan/<YYYY-MM-DD-slug>/
       └── artifacts/               ← checkpoint payloads and reusable step outputs
 ```
 
-`fh_team_followup` writes a brand-new sibling plan folder under `ai_plan/<date>-followup-<title-kebab>/` (e.g. `ai_plan/2026-05-08-followup-better-anim/`) using the same single-file `task-plan.md` layout as `fh_team_task`. The parent plan is referenced in the planner's brief and recorded in the followup's own `.fh-workflow/workflow.json` as `parentSlug`; the parent folder is not modified. Followup runs in the current branch (same as `fh_team_task`) — switch branches before invoking if a fresh branch is required.
+`sf_team_followup` writes a brand-new sibling plan folder under `ai_plan/<date>-followup-<title-kebab>/` (e.g. `ai_plan/2026-05-08-followup-better-anim/`) using the same single-file `task-plan.md` layout as `sf_team_task`. The parent plan is referenced in the planner's brief and recorded in the followup's own `.fh-workflow/workflow.json` as `parentSlug`; the parent folder is not modified. Followup runs in the current branch (same as `sf_team_task`) — switch branches before invoking if a fresh branch is required.
 
 Per-phase transcripts: each phase folder (`planning/`, `implementation/`) keeps its own counter that initializes from the highest existing sequence number on resume, so a resumed run never overwrites prior transcripts. System entries (validation-failed, patch transcripts) bucket by the active phase at write time.
 
