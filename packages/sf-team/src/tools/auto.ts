@@ -219,7 +219,7 @@ export function createFhTeamAuto(rawDeps: Partial<ToolDeps> = {}) {
 async function readResumeImplementPlanFolder(
   repoRoot: string,
   slug: string,
-  currentTool: import("@life-of-pi/agent-workflows").WorkflowToolName | undefined,
+  currentTool: import("@pi-stef/agent-workflows").WorkflowToolName | undefined,
   autoToolName: string,
   planRoot?: string,
 ): Promise<PlanFolderRead | undefined> {

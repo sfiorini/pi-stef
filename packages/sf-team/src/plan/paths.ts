@@ -7,4 +7,4 @@ export {
   planFolderPath,
   planFolderPathFromRoot,
   resolvePlanRoot,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";

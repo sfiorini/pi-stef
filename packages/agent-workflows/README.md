@@ -1,14 +1,14 @@
-# @life-of-pi/agent-workflows
+# @pi-stef/agent-workflows
 
 Reusable TypeScript workflow-engine primitives for First Horizon Pi extensions.
 
-This package is maintainer-facing infrastructure. It does not register Pi tools by itself; extensions such as `@life-of-pi/fh-team` import it to get durable workflow folders, exact resume, short widget messages, verification policy helpers, and a generic orchestrator lifecycle.
+This package is maintainer-facing infrastructure. It does not register Pi tools by itself; extensions such as `@pi-stef/fh-team` import it to get durable workflow folders, exact resume, short widget messages, verification policy helpers, and a generic orchestrator lifecycle.
 
 ## Catalog Visibility
 
 This package is internal infrastructure, not a user-facing fh-agent catalog package. Its `fh-agent.package.json` sets `"catalogVisibility": "internal"`, so it is intentionally omitted from `fh-agent packages`, `catalog/packages.json`, `packages/package-manager/catalog/packages.json`, the beginner guide package list, and web catalog package cards.
 
-Do not install, update, remove, or startup-check this library directly through fh-agent. Consuming extensions own the dependency. Today `@life-of-pi/fh-team` declares `@life-of-pi/agent-workflows` as `file:../agent-workflows`; fh-agent's normal package-local dependency prep for `fh-team` runs `npm install --omit=peer --workspaces=false` and installs this library as part of that extension.
+Do not install, update, remove, or startup-check this library directly through fh-agent. Consuming extensions own the dependency. Today `@pi-stef/fh-team` declares `@pi-stef/agent-workflows` as `file:../agent-workflows`; fh-agent's normal package-local dependency prep for `fh-team` runs `npm install --omit=peer --workspaces=false` and installs this library as part of that extension.
 
 If a local Pi environment installed `agent-workflows` while a development branch briefly exposed it as a catalog package, treat that as a manual/orphan install from an unreleased catalog state. Remove the explicit Pi source or local package path directly if needed; do not reintroduce a public catalog package for cleanup.
 

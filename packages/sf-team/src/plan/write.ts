@@ -1,6 +1,6 @@
 import path from "node:path";
 import { mkdir } from "node:fs/promises";
-import { atomicWriteFile, upsertEntry } from "@life-of-pi/agent-workflows";
+import { atomicWriteFile, upsertEntry } from "@pi-stef/agent-workflows";
 
 import { EXECUTION_STRATEGY_FILE, FIVE_FILE_NAMES, PLAN_FOLDER_ROOT, planFolderPathFromRoot, TASK_FILE_NAME } from "./paths";
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { applyAgentControlDecision, type WorktreeDiscardSummary } from "../agent-control";
 import {

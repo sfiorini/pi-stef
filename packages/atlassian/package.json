@@ -1,5 +1,5 @@
 {
-  "name": "@life-of-pi/atlassian",
+  "name": "@pi-stef/atlassian",
   "version": "0.1.0",
   "private": true,
   "description": "Pi extension and CLI for verified Atlassian Jira and Confluence tools.",
@@ -10,7 +10,7 @@
   },
   "keywords": ["pi-package", "pi-extension", "atlassian", "jira", "confluence"],
   "dependencies": {
-    "@life-of-pi/figma": "file:../figma",
+    "@pi-stef/figma": "file:../figma",
     "typebox": "^1.1.35",
     "zod": "^3.25.62"
   },

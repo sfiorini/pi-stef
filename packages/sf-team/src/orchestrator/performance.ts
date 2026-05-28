@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { REPORTS_FOLDER_NAME, reportsFolderPath } from "@life-of-pi/agent-workflows";
+import { REPORTS_FOLDER_NAME, reportsFolderPath } from "@pi-stef/agent-workflows";
 
 import type { AgentContextUsage, AgentRun, TeamMember } from "../runtime/types";
 import type { WorkflowProfile } from "../config/schema";

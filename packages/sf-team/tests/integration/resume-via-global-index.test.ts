@@ -14,7 +14,7 @@ import {
   upsertEntry,
   createWorkflowMetadata,
   writeWorkflowMetadata,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 describe("resume-via-global-index — slug-only resume from unrelated cwd finds plan via index", () => {
   it("falls through to global plan-index when no explicit candidatePlanRoots match", async () => {

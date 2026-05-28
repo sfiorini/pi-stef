@@ -1,7 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { diagnosticsFolderPath } from "@life-of-pi/agent-workflows";
+import { diagnosticsFolderPath } from "@pi-stef/agent-workflows";
 
 import type { AgentRun } from "../runtime/types";
 

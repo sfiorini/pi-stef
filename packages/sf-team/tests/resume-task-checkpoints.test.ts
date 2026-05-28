@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createWorkflowCheckpointRuntime } from "@life-of-pi/agent-workflows";
+import { createWorkflowCheckpointRuntime } from "@pi-stef/agent-workflows";
 
 const spawnSyncMock = vi.hoisted(() => vi.fn());
 

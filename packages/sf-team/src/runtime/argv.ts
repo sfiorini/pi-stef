@@ -218,7 +218,7 @@ export function defaultResolveAzureFoundryProvider(): string | undefined {
  * inside stripped regions are preserved so line numbers in any downstream
  * error message stay stable.
  *
- * Inlined rather than imported from `@life-of-pi/azure-foundry-provider`
+ * Inlined rather than imported from `@pi-stef/azure-foundry-provider`
  * to avoid making `fh-team` depend on a specific provider package;
  * the algorithm matches `packages/azure-foundry-provider/src/jsonc.ts`.
  */

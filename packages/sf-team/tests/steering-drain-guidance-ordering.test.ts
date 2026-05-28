@@ -171,7 +171,7 @@ function makeStubReporter() {
     },
     clearMessage(): void {},
     dispose(): void {},
-  } as unknown as import("@life-of-pi/agent-workflows").WorkflowReporter;
+  } as unknown as import("@pi-stef/agent-workflows").WorkflowReporter;
   return { reporter, calls } as const;
 }
 

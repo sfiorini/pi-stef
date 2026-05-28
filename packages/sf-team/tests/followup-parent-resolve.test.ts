@@ -34,7 +34,7 @@ import {
   createWorkflowMetadata,
   writeWorkflowMetadata,
   type WorkflowToolName,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { resolveParentPlan } from "../src/tools/followup-resolve";
 import { createFhTeamFollowup } from "../src/tools/followup";

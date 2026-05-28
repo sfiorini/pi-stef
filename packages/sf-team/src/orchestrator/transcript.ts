@@ -8,7 +8,7 @@ import {
   TRANSCRIPT_PLANNING_PHASE,
   type TranscriptPhase,
   transcriptPhaseFolderPath,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 /**
  * Per-orchestrator-run transcript: agent handoffs (researcher analysis,

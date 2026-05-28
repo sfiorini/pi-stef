@@ -5,7 +5,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   legacyResearchAnswersPath,
   researchAnswersPath,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { askResearchQuestion } from "./question-ui";
 import type { ResearchAnalysis } from "./types";

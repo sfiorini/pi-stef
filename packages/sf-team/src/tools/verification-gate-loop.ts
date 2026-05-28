@@ -1,4 +1,4 @@
-import type { WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { isApproved, type ReviewerVerdict } from "../review/parse";
 import type { TranscriptHandle } from "../orchestrator/transcript";

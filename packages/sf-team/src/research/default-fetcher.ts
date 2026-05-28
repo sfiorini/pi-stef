@@ -3,11 +3,11 @@ import {
   getJiraIssueContext,
   renderConfluencePageMarkdown,
   renderJiraIssueMarkdown,
-} from "@life-of-pi/atlassian";
+} from "@pi-stef/atlassian";
 import {
   fetchGuardedText,
   loadWebAccessConfig,
-} from "@life-of-pi/web-access";
+} from "@pi-stef/web-access";
 
 import type { ExternalFetcher } from "./types";
 
@@ -16,11 +16,11 @@ import type { ExternalFetcher } from "./types";
  * no test seam overrides the wiring.
  *
  * Dispatch by `ref.kind`:
- *   - `url`        → `fetchGuardedText` from `@life-of-pi/web-access`
+ *   - `url`        → `fetchGuardedText` from `@pi-stef/web-access`
  *                    (SSRF allowlist, DNS pinning, streamed byte cap,
  *                    redirect cap, timeout — see web-access docs).
  *   - `jira`       → `getJiraIssueContext` + `renderJiraIssueMarkdown`
- *                    from `@life-of-pi/atlassian`. Lazily reads
+ *                    from `@pi-stef/atlassian`. Lazily reads
  *                    `AtlassianAuth` credentials; throws "Atlassian
  *                    credentials not found." when not configured —
  *                    caught here, returns null.

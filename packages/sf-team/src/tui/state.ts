@@ -1,4 +1,4 @@
-import type { WorkflowMessage } from "@life-of-pi/agent-workflows";
+import type { WorkflowMessage } from "@pi-stef/agent-workflows";
 import type { TeamMemberRole } from "../runtime/types";
 
 /**

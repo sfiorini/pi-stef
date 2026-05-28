@@ -1,5 +1,5 @@
 import { getConfluencePageContext, renderConfluencePageMarkdown, type ConfluencePageContext } from "../confluence/ConfluenceContext";
-import { FigmaAuthorization, buildFigmaContextForMode, renderFigmaContext } from "@life-of-pi/figma";
+import { FigmaAuthorization, buildFigmaContextForMode, renderFigmaContext } from "@pi-stef/figma";
 import { ConfluenceClient } from "../confluence/ConfluenceClient";
 import { extractLinks, unique } from "../links/extractLinks";
 import { resolveAtlassianLinks } from "../links/resolveAtlassianLinks";

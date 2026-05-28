@@ -1,4 +1,4 @@
-# @life-of-pi/figma
+# @pi-stef/figma
 
 Pi extension for Figma REST API tools, compact design context, and Jira-linked Figma summaries.
 

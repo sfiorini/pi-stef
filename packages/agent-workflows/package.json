@@ -1,5 +1,5 @@
 {
-  "name": "@life-of-pi/agent-workflows",
+  "name": "@pi-stef/agent-workflows",
   "version": "0.1.0",
   "private": true,
   "description": "Reusable workflow engine primitives for First Horizon agent extensions.",

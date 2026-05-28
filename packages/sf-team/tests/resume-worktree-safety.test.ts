@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWorkflowMetadata, writeWorkflowMetadata } from "@life-of-pi/agent-workflows";
+import { createWorkflowMetadata, writeWorkflowMetadata } from "@pi-stef/agent-workflows";
 
 import { resolveDefaults } from "../src/config/load";
 import { planFolderPath } from "../src/plan/paths";

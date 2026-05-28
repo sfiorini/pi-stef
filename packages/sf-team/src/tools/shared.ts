@@ -3,7 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import type { WorkflowCheckpointRuntime, WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowCheckpointRuntime, WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { parseReviewerVerdict, type ReviewerVerdict } from "../review/parse";
 import { MaxReviewRoundsError, ReviewerEmptyVerdictError, RevisionUnchangedError, isEmptyReviewerOutput, runReviewLoop, type ReviewerFn, type ReviewerPriorContext, type ReviseFn, type RunReviewLoopOptions } from "../review/loop";

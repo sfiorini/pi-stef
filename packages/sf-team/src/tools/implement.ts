@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import type { WorkflowCheckpointRuntime, WorkflowReporter, WorkflowToolName } from "@life-of-pi/agent-workflows";
+import type { WorkflowCheckpointRuntime, WorkflowReporter, WorkflowToolName } from "@pi-stef/agent-workflows";
 
 import { EmptyDiffError, FhTeamToolError, IncompatibleModeError, MergeFailedError, WorkflowStateError } from "../errors";
 import { runOrchestrator } from "../orchestrator/run";
@@ -586,7 +586,7 @@ interface RunMilestoneCtx {
   clearAgents?: () => void;
   reporter?: WorkflowReporter;
   checkpoints?: WorkflowCheckpointRuntime;
-  verificationCache?: import("@life-of-pi/agent-workflows").VerificationRunCache;
+  verificationCache?: import("@pi-stef/agent-workflows").VerificationRunCache;
   verificationCachePath?: string;
   verificationAgent?: {
     member: TeamMember;
@@ -991,7 +991,7 @@ interface RunParallelScheduleCtx {
   clearAgents?: () => void;
   reporter?: WorkflowReporter;
   checkpoints?: WorkflowCheckpointRuntime;
-  verificationCache?: import("@life-of-pi/agent-workflows").VerificationRunCache;
+  verificationCache?: import("@pi-stef/agent-workflows").VerificationRunCache;
   verificationCachePath?: string;
   verificationAgent?: {
     member: TeamMember;

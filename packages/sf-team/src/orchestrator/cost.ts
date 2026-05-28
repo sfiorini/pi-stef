@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { reportsFolderPath } from "@life-of-pi/agent-workflows";
+import { reportsFolderPath } from "@pi-stef/agent-workflows";
 
 import type { AgentTokenUsage } from "../runtime/types";
 

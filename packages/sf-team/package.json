@@ -1,5 +1,5 @@
 {
-  "name": "@life-of-pi/fh-team",
+  "name": "@pi-stef/fh-team",
   "version": "0.1.0",
   "private": true,
   "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
@@ -19,10 +19,10 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@life-of-pi/agent-workflows": "file:../agent-workflows",
-    "@life-of-pi/atlassian": "file:../atlassian",
-    "@life-of-pi/figma": "file:../figma",
-    "@life-of-pi/web-access": "file:../web-access",
+    "@pi-stef/agent-workflows": "file:../agent-workflows",
+    "@pi-stef/atlassian": "file:../atlassian",
+    "@pi-stef/figma": "file:../figma",
+    "@pi-stef/web-access": "file:../web-access",
     "marked": "^15.0.12",
     "marked-terminal": "^7.3.0",
     "typebox": "^1.1.35"

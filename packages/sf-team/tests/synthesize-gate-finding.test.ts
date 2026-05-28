@@ -17,7 +17,7 @@ function makeFailure(overrides: Partial<{
       toolName: overrides.toolName ?? "fh_team_task",
       phase: "after",
       stageLabel: overrides.stageLabel ?? "test",
-      command: { cmd: "pnpm", args: ["-F", "@life-of-pi/fh-team", "test"] },
+      command: { cmd: "pnpm", args: ["-F", "@pi-stef/fh-team", "test"] },
       exitCode: overrides.exitCode ?? 1,
       signal: null,
       stdoutTail: overrides.stdoutTail ?? "",

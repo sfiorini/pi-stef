@@ -1,4 +1,4 @@
-import type { WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { MAX_INJECTED_GUIDANCE_CHARS } from "./guidance-sanitize";
 import type { SteeringStore } from "./store";

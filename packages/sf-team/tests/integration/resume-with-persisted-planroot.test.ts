@@ -13,11 +13,11 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { analyzeResumeTarget } from "@life-of-pi/agent-workflows";
+import { analyzeResumeTarget } from "@pi-stef/agent-workflows";
 import {
   createWorkflowMetadata,
   writeWorkflowMetadata,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 describe("resume-with-persisted-planroot — slug-only resume finds workflow and rehydrates gitMode", () => {
   it("analyzeResumeTarget with candidatePlanRoots finds workflow.json and returns persisted gitMode='off'", async () => {

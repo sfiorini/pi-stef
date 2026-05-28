@@ -1,6 +1,6 @@
 import path from "node:path";
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { jiraKeyFromBrowseUrl } from "@life-of-pi/atlassian";
+import { jiraKeyFromBrowseUrl } from "@pi-stef/atlassian";
 
 import { AskUser } from "../ask-user";
 import {
@@ -26,7 +26,7 @@ import type { ExternalFetcher, ExternalFetchResult, ExternalRef, ResearchAnalysi
 import type { PlanRevisionMetrics } from "../plan/revision-metrics";
 import type { AgentRole, TeamMember } from "../runtime/types";
 import { isApproved, type ReviewerVerdict } from "../review/parse";
-import type { WorkflowToolName } from "@life-of-pi/agent-workflows";
+import type { WorkflowToolName } from "@pi-stef/agent-workflows";
 import { revisePlanWithPatchOrFallback } from "./plan-revision";
 import { normalOrResumeValue, resolveToolResume } from "./resume";
 import { composePlanVerifyFixesPrompt, defaultDeps, EXECUTION_STRATEGY_JSON_EXAMPLE, makeReviewer, makeRunStringReviewLoop, makeSpawnHelper, PLAN_REVIEW_EXECUTION_STRATEGY_GUIDANCE, runLoopWithPartialOutput, truncatePayloadBytes, type ToolDeps } from "./shared";

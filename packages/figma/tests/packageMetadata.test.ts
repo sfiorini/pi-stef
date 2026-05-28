@@ -17,7 +17,7 @@ describe("figma package metadata", () => {
       documentation?: { readme?: string };
     };
 
-    expect(manifest.name).toBe("@life-of-pi/figma");
+    expect(manifest.name).toBe("@pi-stef/figma");
     expect(manifest.pi?.extensions).toEqual(["./extensions"]);
     expect(metadata.documentation?.readme).toBe("packages/figma/README.md");
     expect(metadata.configuration?.summary).toContain("~/.pi/figma/config.json");

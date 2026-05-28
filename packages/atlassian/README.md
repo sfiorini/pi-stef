@@ -1,4 +1,4 @@
-# @life-of-pi/atlassian
+# @pi-stef/atlassian
 
 Pi extension and development CLI for Atlassian Jira and Confluence Cloud tools.
 

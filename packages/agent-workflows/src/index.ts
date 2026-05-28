@@ -1,4 +1,4 @@
-export const AGENT_WORKFLOWS_PACKAGE_NAME = "@life-of-pi/agent-workflows" as const;
+export const AGENT_WORKFLOWS_PACKAGE_NAME = "@pi-stef/agent-workflows" as const;
 
 export * from "./artifacts/atomic-write";
 export * from "./artifacts/paths";

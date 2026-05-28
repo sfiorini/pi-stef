@@ -4,7 +4,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import {
   type ResumeAnalysis,
   type WorkflowToolName,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { WorkflowStateError } from "../errors";
 import { generatePrDescription } from "../orchestrator/pr-description";

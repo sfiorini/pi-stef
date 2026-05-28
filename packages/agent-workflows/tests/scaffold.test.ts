@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import { AGENT_WORKFLOWS_PACKAGE_NAME } from "../src";
 
-describe("@life-of-pi/agent-workflows package scaffold", () => {
+describe("@pi-stef/agent-workflows package scaffold", () => {
   it("exposes a stable package name from the entrypoint", () => {
-    expect(AGENT_WORKFLOWS_PACKAGE_NAME).toBe("@life-of-pi/agent-workflows");
+    expect(AGENT_WORKFLOWS_PACKAGE_NAME).toBe("@pi-stef/agent-workflows");
   });
 
   it("declares runnable package-local test and typecheck scripts", () => {

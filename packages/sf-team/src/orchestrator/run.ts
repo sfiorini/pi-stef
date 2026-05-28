@@ -7,7 +7,7 @@ import {
   type WorkflowToolName,
   type WorkflowReporter,
   type VerificationRunCache,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { captureBaseline, loadBaseline, type Baseline } from "../plan/baseline";
 import { planFolderPath, planFolderPathFromRoot, PLAN_FOLDER_ROOT } from "../plan/paths"; // migration-allowed: legacy

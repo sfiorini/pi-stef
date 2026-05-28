@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWorkflowCheckpointRuntime } from "@life-of-pi/agent-workflows";
+import { createWorkflowCheckpointRuntime } from "@pi-stef/agent-workflows";
 
 import { makeSpawnHelper, type ToolDeps } from "../src/tools/shared";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";

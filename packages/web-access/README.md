@@ -1,6 +1,6 @@
 # Web Access
 
-`@life-of-pi/web-access` is a First Horizon Pi extension for no-key web search, URL fetch, rendered scraping, browser sessions, login flows, screenshots, and CloakBrowser-backed page access.
+`@pi-stef/web-access` is a First Horizon Pi extension for no-key web search, URL fetch, rendered scraping, browser sessions, login flows, screenshots, and CloakBrowser-backed page access.
 
 The package is optional. Install it when an agent needs web retrieval beyond the normal model context.
 

@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import type { WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { WorktreeCreationError } from "./errors";
 import { findExistingWorktree } from "./find";

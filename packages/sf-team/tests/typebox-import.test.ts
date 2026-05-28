@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Regression guard: typebox MUST be a runtime `dependencies` entry of
- * @life-of-pi/fh-team. fh-agent installs published packages with
+ * @pi-stef/fh-team. fh-agent installs published packages with
  * `--omit=peer`, so a future move of typebox into peerDependencies would break
  * runtime config validation in production. This test imports the schema
  * builder under the same module-resolution rules pnpm uses for the package as

@@ -10,7 +10,7 @@ vi.mock("node:child_process", async (importOriginal) => {
   return { ...actual, spawnSync: spawnSyncMock };
 });
 
-const { createVerificationRunCache } = await import("@life-of-pi/agent-workflows");
+const { createVerificationRunCache } = await import("@pi-stef/agent-workflows");
 const { runConfiguredVerification } = await import("../src/tools/verification-stage");
 
 function makeFixture(): { root: string; dispose: () => void } {

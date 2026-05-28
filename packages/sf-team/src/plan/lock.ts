@@ -5,6 +5,6 @@ export {
   readLockMetadata,
   releaseLock,
   sweepStaleLockDirs,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
-export type { LockMetadata } from "@life-of-pi/agent-workflows";
+export type { LockMetadata } from "@pi-stef/agent-workflows";

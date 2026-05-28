@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWorkflowMetadata, FIVE_FILE_NAMES, workflowCheckpointsPath, writeWorkflowMetadata } from "@life-of-pi/agent-workflows";
+import { createWorkflowMetadata, FIVE_FILE_NAMES, workflowCheckpointsPath, writeWorkflowMetadata } from "@pi-stef/agent-workflows";
 
 import { resolveDefaults } from "../src/config/load";
 import type { AgentRun, AgentTask, TeamMember } from "../src/runtime/types";

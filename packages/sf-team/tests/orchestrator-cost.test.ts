@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import { describe, expect, it, vi } from "vitest";
 
 import { runOrchestrator } from "../src/orchestrator/run";
-import { reportsFolderPath } from "@life-of-pi/agent-workflows";
+import { reportsFolderPath } from "@pi-stef/agent-workflows";
 import type { AgentRun, AgentTokenUsage } from "../src/runtime/types";
 
 function makeRepo(): { root: string; dispose: () => void } {

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { resolvePlanRoot } from "@life-of-pi/agent-workflows";
+import { resolvePlanRoot } from "@pi-stef/agent-workflows";
 import type { GitMode, ResolvedDefaults, TddMode } from "./schema";
 
 export interface RuntimeResolutionInput {

@@ -8,7 +8,7 @@ import {
   renderWorkflowMessages,
   WORKFLOW_MESSAGE_MAX_CHARS,
   type WorkflowMessage,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { mountWidget } from "../src/tui/dispose";
 import { emptyState, setMessages, setMilestones, setResume, upsertAgent } from "../src/tui/state";

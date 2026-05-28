@@ -7,7 +7,7 @@ import {
   planFolderPathFromRoot,
   readWorkflowMetadata,
   type ResumeAnalysis,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import type { ResolvedDefaults } from "../config/schema";
 import {
@@ -27,7 +27,7 @@ import {
 import type {
   WorkflowCheckpointRuntime,
   WorkflowReporter,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 // Re-exports so existing callers (tests, downstream tools) stay green
 // without chasing the consolidated workflow file.

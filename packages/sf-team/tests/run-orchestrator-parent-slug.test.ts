@@ -4,7 +4,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { readWorkflowMetadata } from "@life-of-pi/agent-workflows";
+import { readWorkflowMetadata } from "@pi-stef/agent-workflows";
 
 import { planFolderPath } from "../src/plan/paths";
 import { runOrchestrator } from "../src/orchestrator/run";

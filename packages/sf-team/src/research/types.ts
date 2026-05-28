@@ -35,7 +35,7 @@ export interface ExternalFetchResult {
  * no-op that returns `null` for every ref (so all refs become unresolved).
  *
  * A real implementation (follow-up PR) wires in workspace-dep helpers
- * (`@life-of-pi/web-access`, `@life-of-pi/atlassian`, etc.) or pi
+ * (`@pi-stef/web-access`, `@pi-stef/atlassian`, etc.) or pi
  * extension tools. It must NEVER throw — errors should be caught and the
  * ref returned as a miss with a reason.
  */

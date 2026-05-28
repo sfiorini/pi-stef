@@ -5,7 +5,7 @@ import {
   VERIFICATION_STAGE_NAMES,
   VERIFICATION_TIMINGS,
   type VerificationConfigInput,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 export const GIT_MODES = ["auto", "on", "off"] as const;
 export type GitMode = (typeof GIT_MODES)[number];

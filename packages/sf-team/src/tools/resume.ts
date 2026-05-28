@@ -1,4 +1,4 @@
-import { analyzeResumeTarget, type ResumeAnalysis, type WorkflowToolName } from "@life-of-pi/agent-workflows";
+import { analyzeResumeTarget, type ResumeAnalysis, type WorkflowToolName } from "@pi-stef/agent-workflows";
 
 export interface ResumeInputShape {
   resume?: string;

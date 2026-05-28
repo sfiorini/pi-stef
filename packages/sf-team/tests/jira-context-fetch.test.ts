@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { StoryContext } from "@life-of-pi/atlassian";
+import type { StoryContext } from "@pi-stef/atlassian";
 
 import { fetchJiraContext } from "../src/research/jira-context";
 

@@ -8,7 +8,7 @@ import {
   createWorkflowMetadata,
   planFolderPath as workflowPlanFolderPath,
   writeWorkflowMetadata,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import { createFhTeamFollowup } from "../src/tools/followup";
 import { planFolderPath } from "../src/plan/paths";

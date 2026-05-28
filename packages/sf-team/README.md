@@ -1,4 +1,4 @@
-# @life-of-pi/fh-team
+# @pi-stef/fh-team
 
 Pi extension that runs a small **team of role-agents** (planner, developer, reviewer, researcher) as `pi` subprocesses to drive plan / implement / task / auto / followup workflows.
 
@@ -184,7 +184,7 @@ Exact resume normally requires `.fh-workflow/workflow.json` to prove the same ow
 
 The TypeScript orchestrator owns the state machine. Each role-agent is a single-job pi subprocess: receive a typed payload, produce content (plan markdown / code changes / verdict markdown), exit. Review loops alternate role-agent spawns and reviewer spawns; agents do not spawn other agents.
 
-Reusable workflow concerns live in `@life-of-pi/agent-workflows`: plan-folder locks, `.fh-workflow` metadata, checkpoint stores, resume target analysis, widget messages, verification policy/cache helpers, and the generic `runWorkflow` lifecycle. `fh-team` is the first consumer of that library and keeps the tool-specific pieces: role prompts, plan/tracker parsing, worktree and merge policy, tmux panes, transcripts, diagnostics, performance reports, Telegram notifications, and final result formatting.
+Reusable workflow concerns live in `@pi-stef/agent-workflows`: plan-folder locks, `.fh-workflow` metadata, checkpoint stores, resume target analysis, widget messages, verification policy/cache helpers, and the generic `runWorkflow` lifecycle. `fh-team` is the first consumer of that library and keeps the tool-specific pieces: role prompts, plan/tracker parsing, worktree and merge policy, tmux panes, transcripts, diagnostics, performance reports, Telegram notifications, and final result formatting.
 
 Reviewers and the researcher always run with strict isolation: `--no-prompt-templates --no-extensions --no-context-files --tools read,grep,find,ls` (reviewer also pins `--no-skills`). Planner and developer agents get role-tuned skills via `--skill <path>`.
 

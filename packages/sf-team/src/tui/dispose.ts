@@ -1,5 +1,5 @@
 import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
-import { renderWorkflowMessages } from "@life-of-pi/agent-workflows";
+import { renderWorkflowMessages } from "@pi-stef/agent-workflows";
 
 import type { WidgetState } from "./state";
 import { renderAgentCards } from "./agent-card";

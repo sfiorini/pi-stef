@@ -2,7 +2,7 @@ import type { ExtensionUIContext } from "@earendil-works/pi-coding-agent";
 import type {
   WorkflowCheckpointRuntime,
   WorkflowReporter,
-} from "@life-of-pi/agent-workflows";
+} from "@pi-stef/agent-workflows";
 
 import type { ResolvedDefaults } from "../config/schema";
 import {

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
-import { createVerificationRunCache } from "@life-of-pi/agent-workflows";
+import { createVerificationRunCache } from "@pi-stef/agent-workflows";
 import type { AgentRun, TeamMember } from "../src/runtime/types";
 import { runConfiguredVerification } from "../src/tools/verification-stage";
 

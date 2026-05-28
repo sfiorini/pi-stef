@@ -1,4 +1,4 @@
-import type { WorkflowReporter } from "@life-of-pi/agent-workflows";
+import type { WorkflowReporter } from "@pi-stef/agent-workflows";
 
 import { appendSteeringPlanNote } from "./guidance-plan-notes";
 import type { SteeringStore } from "./store";

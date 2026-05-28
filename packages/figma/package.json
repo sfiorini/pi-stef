@@ -1,5 +1,5 @@
 {
-  "name": "@life-of-pi/figma",
+  "name": "@pi-stef/figma",
   "version": "0.1.0",
   "private": true,
   "description": "Pi extension for Figma REST API tools, compact design context, and Jira-linked Figma summaries.",

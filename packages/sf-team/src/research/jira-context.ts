@@ -5,7 +5,7 @@ import {
   renderStoryContextMarkdown as defaultRenderStoryContextMarkdown,
   type StoryContext,
   type StoryContextOptions,
-} from "@life-of-pi/atlassian";
+} from "@pi-stef/atlassian";
 
 export interface DetectedJiraReferences {
   /** Deduped, first-occurrence-ordered Jira ticket keys after the false-positive filter. */
