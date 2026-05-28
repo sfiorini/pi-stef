@@ -44,6 +44,10 @@ Extract the fh-team agent framework and its 4 sibling dependencies from the fh-a
 - `extensions/fh-team.ts` → `extensions/sf-team.ts`
 - `fh-agent.package.json` → removed
 - `config/defaults.json` — update paths and fh-team references
+- `bin/notify-telegram.sh` — update any fh references
+- `scripts/pretty-pane.mjs` — update any fh references
+- `skills/team/*.yaml` — update fh references in planner/reviewer/developer prompts
+- `templates/*.md` — update fh references in continuation-runbook, milestone-plan, story-tracker, task-plan
 - All test files updated for sf-team naming
 
 ## Root-Level Changes in pi-stef
