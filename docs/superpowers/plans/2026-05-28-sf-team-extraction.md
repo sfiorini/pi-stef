@@ -241,9 +241,9 @@ git commit -m "refactor: rename @life-of-pi to @pi-stef in docs, config, and scr
 
 ---
 
-## Milestone M3: fh→sf Rename in sf-team
+## Milestone M3: fh→sf Rename in sf-team and agent-workflows
 
-Rename all fh/fh-team/First Horizon references in the sf-team package to sf-team equivalents.
+Rename all fh/fh-team/First Horizon references in the sf-team and agent-workflows packages. The agent-workflows package is the workflow engine that directly references tool names like `fh_team_plan`, `fh_team_implement`, etc. — it has ~133 references that must be renamed to match sf-team's renamed tool surface.
 
 ### Task M3-S1: Rename file extensions/fh-team.ts → sf-team.ts
 
@@ -267,26 +267,29 @@ git commit -m "refactor: rename extensions/fh-team.ts to sf-team.ts"
 
 **Files:**
 - Modify: all `.ts` files in `packages/sf-team/src/`, `packages/sf-team/extensions/`, `packages/sf-team/tests/`
+- Modify: all `.ts` files in `packages/agent-workflows/src/`, `packages/agent-workflows/tests/`
 
 - [ ] **Step 1: Apply all case-variant replacements in a single pass**
 
 ```bash
 cd /Users/stefano/Projects/pi-stef
-find packages/sf-team -name '*.ts' -exec sed -i '' \
-  -e 's/FH_TEAM/SF_TEAM/g' \
-  -e 's/FhTeam/SfTeam/g' \
-  -e 's/fhTeam/sfTeam/g' \
-  -e 's/fh_team/sf_team/g' \
-  -e 's/fh-team/sf-team/g' \
-  {} +
+for pkg in sf-team agent-workflows; do
+  find packages/$pkg -name '*.ts' -exec sed -i '' \
+    -e 's/FH_TEAM/SF_TEAM/g' \
+    -e 's/FhTeam/SfTeam/g' \
+    -e 's/fhTeam/sfTeam/g' \
+    -e 's/fh_team/sf_team/g' \
+    -e 's/fh-team/sf-team/g' \
+    {} +
+done
 ```
 
-This covers all case variants: `FH_TEAM_*` env vars, `FhTeam` PascalCase, `fhTeam` camelCase, `fh_team` snake_case, and `fh-team` kebab-case.
+This covers all case variants: `FH_TEAM_*` env vars, `FhTeam` PascalCase, `fhTeam` camelCase, `fh_team` snake_case, and `fh-team` kebab-case. Applied to both sf-team and agent-workflows.
 
 - [ ] **Step 2: Verify — check for remaining fh references (case-insensitive)**
 
 ```bash
-grep -rnE 'fh[_-]|fhTeam|FhTeam|FH_TEAM' packages/sf-team/ --include="*.ts"
+grep -rnE 'fh[_-]|fhTeam|FhTeam|FH_TEAM' packages/sf-team/ packages/agent-workflows/ --include="*.ts"
 ```
 
 Expected: 0 matches.
@@ -295,10 +298,10 @@ Expected: 0 matches.
 
 ```bash
 git add packages/sf-team/
-git commit -m "refactor: rename fh→sf in sf-team TypeScript source and tests"
+git commit -m "refactor: rename fh→sf in sf-team and agent-workflows TypeScript source"
 ```
 
-### Task M3-S3: Rename fh→sf in sf-team docs, config, YAML, scripts, and templates
+### Task M3-S3: Rename fh→sf in docs, config, YAML, scripts, and templates (sf-team + agent-workflows)
 
 **Files:**
 - Modify: `packages/sf-team/README.md`
@@ -306,18 +309,21 @@ git commit -m "refactor: rename fh→sf in sf-team TypeScript source and tests"
 - Modify: `packages/sf-team/skills/team/planner.yaml`
 - Modify: `packages/sf-team/scripts/pretty-pane.mjs`
 - Modify: all `.md` files in `packages/sf-team/templates/`
+- Modify: `packages/agent-workflows/README.md` (if it contains fh references)
 
 - [ ] **Step 1: Apply replacements in non-TS files**
 
 ```bash
 cd /Users/stefano/Projects/pi-stef
-find packages/sf-team -type f \( -name '*.md' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.sh' -o -name '*.mjs' \) \
-  -exec sed -i '' \
-    -e 's/FH_TEAM/SF_TEAM/g' \
-    -e 's/fh-team/sf-team/g' \
-    -e 's/fh_team/sf_team/g' \
-    -e 's/\.fh-team/.sf-team/g' \
-    {} +
+for pkg in sf-team agent-workflows; do
+  find packages/$pkg -type f \( -name '*.md' -o -name '*.json' -o -name '*.yaml' -o -name '*.yml' -o -name '*.sh' -o -name '*.mjs' \) \
+    -exec sed -i '' \
+      -e 's/FH_TEAM/SF_TEAM/g' \
+      -e 's/fh-team/sf-team/g' \
+      -e 's/fh_team/sf_team/g' \
+      -e 's/\.fh-team/.sf-team/g' \
+      {} +
+done
 ```
 
 - [ ] **Step 2: Handle "First Horizon" and "first horizon" references**
@@ -358,7 +364,7 @@ Expected: 0 matches.
 
 ```bash
 git add packages/sf-team/
-git commit -m "refactor: rename fh→sf in sf-team docs, config, and scripts"
+git commit -m "refactor: rename fh→sf in sf-team and agent-workflows docs, config, and scripts"
 ```
 
 ### Task M3-S4: Add config migration fallback
