@@ -170,7 +170,7 @@ grep -rn 'fh_web_' packages/web/tests/ --include="*.ts"
 
 Expected: 0 matches.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add packages/web/tests/
@@ -215,7 +215,7 @@ to:
 - [ ] **Step 3: Update comments referencing @pi-stef/web-access**
 
 ```bash
-sed -i '' 's/@pi-stef\/web-access/@pi-stef\/web/g; s/web-access docs/web docs/g' packages/sf-team/src/research/types.ts packages/sf-team/src/research/external-fetch.ts packages/sf-team/src/research/default-fetcher.ts packages/sf-team/src/register.ts
+sed -i '' 's/@pi-stef\/web-access/@pi-stef\/web/g; s/web-access docs/web docs/g; s/URL via web-access/URL via web/g' packages/sf-team/src/research/types.ts packages/sf-team/src/research/external-fetch.ts packages/sf-team/src/research/default-fetcher.ts packages/sf-team/src/register.ts
 ```
 
 - [ ] **Step 4: Verify**
