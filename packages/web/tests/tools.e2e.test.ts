@@ -23,7 +23,7 @@ class FakePi {
   }
 }
 
-maybeDescribe("web-access registered tools e2e", () => {
+maybeDescribe("web registered tools e2e", () => {
   let baseUrl = "";
   let closeServer: (() => Promise<void>) | undefined;
   let tmp = "";
