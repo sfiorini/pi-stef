@@ -21,7 +21,7 @@ function response(text: string, contentType = "text/html", status = 200): Awaite
   return { contentType, status, text, url: "https://example.com/final" };
 }
 
-describe("web-access fetch", () => {
+describe("web fetch", () => {
   it("fetches HTML without a browser and extracts clean markdown", async () => {
     const result = await fetchWeb({
       fetchText: async () =>

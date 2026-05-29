@@ -7,7 +7,7 @@ function response(text: string, status = 200): Awaited<ReturnType<FetchText>> {
   return { status, text, url: "https://search.example.com/" };
 }
 
-describe("web-access search", () => {
+describe("web search", () => {
   it("normalizes and deduplicates provider results", async () => {
     const results = await searchWeb({
       fetchText: async () =>

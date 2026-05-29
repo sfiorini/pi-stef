@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createPinnedLookup, isBlockedIp, parseGuardedUrl, resolveGuardedHostname } from "../src/networkPolicy";
 
-describe("web-access network policy", () => {
+describe("web network policy", () => {
   it("accepts only http and https URLs", () => {
     expect(parseGuardedUrl("https://example.com/path").href).toBe("https://example.com/path");
     expect(() => parseGuardedUrl("file:///etc/passwd")).toThrow(/only http and https/i);

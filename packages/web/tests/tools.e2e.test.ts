@@ -6,7 +6,7 @@ import type { AddressInfo } from "node:net";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import webAccessExtension from "../extensions/web-access";
+import webAccessExtension from "../extensions/web";
 
 const maybeDescribe = process.env.SF_WEB_RUN_BROWSER_TESTS === "1" ? describe : describe.skip;
 

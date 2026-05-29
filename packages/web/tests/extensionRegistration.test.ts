@@ -20,7 +20,7 @@ class FakePi {
   }
 }
 
-describe("web-access extension registration", () => {
+describe("web extension registration", () => {
   it("registers namespaced tools and preferred slash commands", async () => {
     const pi = new FakePi();
 

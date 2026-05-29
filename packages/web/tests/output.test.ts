@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createTextOutput } from "../src/output";
 
-describe("web-access output", () => {
+describe("web output", () => {
   it("returns text unchanged when within limits", async () => {
     const output = await createTextOutput("short text", {
       maxBytes: 100,

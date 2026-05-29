@@ -11,7 +11,7 @@ Custom package collection for the [pi](https://pi.dev) coding agent.
 | [agent-workflows](packages/agent-workflows/README.md) | library | Reusable workflow engine primitives | `pi install git:github.com/<USER>/pi-stef#packages/agent-workflows` |
 | [atlassian](packages/atlassian/README.md) | extension | Jira and Confluence integration tools | `pi install git:github.com/<USER>/pi-stef#packages/atlassian` |
 | [figma](packages/figma/README.md) | extension | Figma REST API tools and design context | `pi install git:github.com/<USER>/pi-stef#packages/figma` |
-| [web-access](packages/web-access/README.md) | extension | Web search, URL fetch, and browser sessions | `pi install git:github.com/<USER>/pi-stef#packages/web` |
+| [web](packages/web/README.md) | extension | Web search, URL fetch, and browser sessions | `pi install git:github.com/<USER>/pi-stef#packages/web` |
 
 ## Install All
 

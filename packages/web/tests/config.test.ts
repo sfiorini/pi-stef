@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { loadWebAccessConfig } from "../src/config";
 
-describe("web-access config", () => {
+describe("web config", () => {
   it("loads defaults, config file, env, and params in precedence order", async () => {
     const homeDir = await mkdtemp(path.join(tmpdir(), "fh-web-config-"));
     const configDir = path.join(homeDir, ".pi", "web-access");

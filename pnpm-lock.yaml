@@ -70,9 +70,9 @@ importers:
       '@pi-stef/figma':
         specifier: file:../figma
         version: file:packages/figma(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(@sinclair/typebox@0.34.49)
-      '@pi-stef/web-access':
-        specifier: file:../web-access
-        version: link:../web-access
+      '@pi-stef/web':
+        specifier: file:../web
+        version: link:../web
       '@sinclair/typebox':
         specifier: '*'
         version: 0.34.49
@@ -102,7 +102,7 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/web-access:
+  packages/web:
     dependencies:
       '@earendil-works/pi-ai':
         specifier: '*'

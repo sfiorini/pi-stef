@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { redactText, redactUrl } from "../src/redact";
 
-describe("web-access redaction", () => {
+describe("web redaction", () => {
   it("removes URL userinfo and sensitive query values", () => {
     const redacted = redactUrl(
       "https://user:secret@example.com/path?token=abc&x=1&API_KEY=def&password=hunter2",

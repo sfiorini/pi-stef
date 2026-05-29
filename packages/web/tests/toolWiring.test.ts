@@ -13,14 +13,14 @@ vi.mock("../src/browser/cloak", async (importOriginal) => ({
   createCloakBrowserSearchAdapter,
 }));
 
-describe("web-access tool wiring", () => {
+describe("web tool wiring", () => {
   beforeEach(() => {
     handleSearchCommand.mockClear();
     createCloakBrowserSearchAdapter.mockClear();
   });
 
   it("wires web_search to the CloakBrowser search adapter for browser provider fallback", async () => {
-    const { default: webAccessExtension } = await import("../extensions/web-access");
+    const { default: webAccessExtension } = await import("../extensions/web");
     const pi = new FakePi();
     webAccessExtension(pi as never);
 
