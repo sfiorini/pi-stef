@@ -7,7 +7,7 @@ const maybeIt = process.env.SF_WEB_RUN_BROWSER_TESTS === "1" ? it : it.skip;
 
 describe("CloakBrowser smoke", () => {
   maybeIt("launches only when explicitly enabled", async () => {
-    const config = await loadWebAccessConfig({ profilesDir: "/tmp/sf-web-access-smoke" });
+    const config = await loadWebAccessConfig({ profilesDir: "/tmp/sf-web-smoke" });
     const runtime = await createCloakBrowserRuntime(config, { headless: true, profile: "smoke" });
     try {
       const page = await runtime.newPage();
