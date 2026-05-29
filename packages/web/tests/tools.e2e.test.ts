@@ -74,7 +74,7 @@ maybeDescribe("web-access registered tools e2e", () => {
     const pi = new FakePi();
     webAccessExtension(pi as never);
 
-    const searchOutput = await executeText(pi, "fh_web_search", {
+    const searchOutput = await executeText(pi, "web_search", {
       maxResults: 2,
       query: "espresso machines",
       searxngUrl: baseUrl,
@@ -82,7 +82,7 @@ maybeDescribe("web-access registered tools e2e", () => {
     expect(searchOutput).toContain("Local Espresso Result");
     expect(searchOutput).toContain(`${baseUrl}/article`);
 
-    const fetchOutput = await executeText(pi, "fh_web_fetch", {
+    const fetchOutput = await executeText(pi, "web_fetch", {
       mode: "browser",
       profile: "fetch-profile",
       screenshot: true,
@@ -94,7 +94,7 @@ maybeDescribe("web-access registered tools e2e", () => {
     expect(screenshotPath).toBeTruthy();
     await expect(stat(screenshotPath!)).resolves.toMatchObject({ size: expect.any(Number) });
 
-    const flowOutput = await executeText(pi, "fh_web_flow", {
+    const flowOutput = await executeText(pi, "web_flow", {
       headless: true,
       profile: "flow-profile",
       steps: [
@@ -109,24 +109,24 @@ maybeDescribe("web-access registered tools e2e", () => {
     expect(flowResult.finalUrl).toContain("/flow-results");
     expect(flowResult.extracted[0]?.values[0]).toContain("espresso machines");
 
-    const loginOutput = await executeText(pi, "fh_web_login", {
+    const loginOutput = await executeText(pi, "web_login", {
       headless: true,
       profile: "login-profile",
       url: `${baseUrl}/login`,
     });
     expect(loginOutput).toContain('"success": true');
 
-    const listOutput = await executeText(pi, "fh_web_session", { action: "list" });
+    const listOutput = await executeText(pi, "web_session", { action: "list" });
     expect(listOutput).toContain("login-profile");
     expect(listOutput).toContain(`${baseUrl}/login`);
 
-    const inspectOutput = await executeText(pi, "fh_web_session", { action: "inspect", profile: "login-profile" });
+    const inspectOutput = await executeText(pi, "web_session", { action: "inspect", profile: "login-profile" });
     expect(inspectOutput).toContain('"name": "login-profile"');
 
-    const locateOutput = await executeText(pi, "fh_web_session", { action: "locate", profile: "login-profile" });
+    const locateOutput = await executeText(pi, "web_session", { action: "locate", profile: "login-profile" });
     expect(await readFile(path.join(locateOutput.trim(), "sf-session.json"), "utf8")).toContain(`${baseUrl}/login`);
 
-    const clearOutput = await executeText(pi, "fh_web_session", { action: "clear", profile: "login-profile", yes: true });
+    const clearOutput = await executeText(pi, "web_session", { action: "clear", profile: "login-profile", yes: true });
     expect(clearOutput).toContain("Session login-profile removed");
   }, 120_000);
 });

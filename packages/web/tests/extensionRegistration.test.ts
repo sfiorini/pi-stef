@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import webAccessExtension from "../extensions/web-access";
+import webAccessExtension from "../extensions/web";
 
 class FakePi {
   commands = new Map<string, unknown>();
@@ -27,25 +27,25 @@ describe("web-access extension registration", () => {
     webAccessExtension(pi as never);
 
     expect(pi.tools.map((tool) => tool.name)).toEqual([
-      "fh_web_search",
-      "fh_web_fetch",
-      "fh_web_flow",
-      "fh_web_login",
-      "fh_web_session",
+      "web_search",
+      "web_fetch",
+      "web_flow",
+      "web_login",
+      "web_session",
     ]);
     expect(pi.commands.has("search")).toBe(true);
     expect(pi.commands.has("web")).toBe(true);
-    await expect(pi.tools.find((tool) => tool.name === "fh_web_fetch")?.execute("call-1", {}, undefined)).resolves.toMatchObject({
-      content: [{ type: "text", text: expect.stringContaining("Usage: fh_web_fetch") }],
+    await expect(pi.tools.find((tool) => tool.name === "web_fetch")?.execute("call-1", {}, undefined)).resolves.toMatchObject({
+      content: [{ type: "text", text: expect.stringContaining("Usage: web_fetch") }],
     });
   });
 
-  it("requires a url for fh_web_fetch in the Pi schema", () => {
+  it("requires a url for web_fetch in the Pi schema", () => {
     const pi = new FakePi();
 
     webAccessExtension(pi as never);
 
-    const fetchSchema = pi.tools.find((tool) => tool.name === "fh_web_fetch")?.parameters as {
+    const fetchSchema = pi.tools.find((tool) => tool.name === "web_fetch")?.parameters as {
       properties?: Record<string, unknown>;
       required?: string[];
     };
@@ -58,10 +58,10 @@ describe("web-access extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const guidelines = pi.tools.find((tool) => tool.name === "fh_web_fetch")?.promptGuidelines;
+    const guidelines = pi.tools.find((tool) => tool.name === "web_fetch")?.promptGuidelines;
     expect(guidelines).toEqual([
       expect.stringContaining("retry with an exact URL already present"),
-      expect.stringContaining("omit intermediate internal fh_web_fetch JSON"),
+      expect.stringContaining("omit intermediate internal web_fetch JSON"),
     ]);
     expect(guidelines?.[0]).toContain("ask the user for the URL");
     expect(guidelines?.[1]).toContain("alternate-method");
@@ -73,7 +73,7 @@ describe("web-access extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const flowSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "fh_web_flow")?.parameters);
+    const flowSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "web_flow")?.parameters);
     expect(flowSchema).toContain('"navigate"');
     expect(flowSchema).toContain('"fill"');
     expect(flowSchema).toContain('"keypress"');
@@ -84,7 +84,7 @@ describe("web-access extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const searchSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "fh_web_search")?.parameters);
+    const searchSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "web_search")?.parameters);
     expect(searchSchema).toContain('"searxng-html"');
   });
 

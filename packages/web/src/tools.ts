@@ -91,10 +91,10 @@ export function registerWebAccess(pi: ExtensionAPI): void {
 
 function registerTools(pi: ExtensionAPI): void {
   pi.registerTool({
-    name: "fh_web_search",
+    name: "web_search",
     label: "FH Web Search",
     description: "Search the web using no-key provider cascade.",
-    promptSnippet: "Search the web with fh_web_search when current public web results are needed.",
+    promptSnippet: "Search the web with web_search when current public web results are needed.",
     parameters: searchParams,
     execute: async (_toolCallId, params, signal) => {
       const config = await loadWebAccessConfig({
@@ -115,18 +115,18 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "fh_web_fetch",
+    name: "web_fetch",
     label: "FH Web Fetch",
     description: "Fetch a specific URL through guarded fast fetch or CloakBrowser-rendered access. Requires a url argument.",
-    promptSnippet: "Fetch URL content with fh_web_fetch when a specific page needs to be read; include the url argument.",
+    promptSnippet: "Fetch URL content with web_fetch when a specific page needs to be read; include the url argument.",
     promptGuidelines: [
-      "If fh_web_fetch fails because the url argument is missing or invalid, retry with an exact URL already present in the conversation or fh_web_search results; if no URL is available, ask the user for the URL.",
-      "When a retry or other fetch path retrieves enough content to answer completely, omit intermediate internal fh_web_fetch JSON, schema, missing-url, alternate-method, or fallback details unless the user asks for tool diagnostics.",
+      "If web_fetch fails because the url argument is missing or invalid, retry with an exact URL already present in the conversation or web_search results; if no URL is available, ask the user for the URL.",
+      "When a retry or other fetch path retrieves enough content to answer completely, omit intermediate internal web_fetch JSON, schema, missing-url, alternate-method, or fallback details unless the user asks for tool diagnostics.",
     ],
     parameters: fetchParams,
     execute: async (_toolCallId, params, signal) => {
       if (!params.url) {
-        return { content: [{ type: "text", text: "Usage: fh_web_fetch { url: string }" }], details: { implemented: true } };
+        return { content: [{ type: "text", text: "Usage: web_fetch { url: string }" }], details: { implemented: true } };
       }
       const config = await loadWebAccessConfig();
       const result = await fetchWeb({
@@ -143,7 +143,7 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "fh_web_flow",
+    name: "web_flow",
     label: "FH Web Flow",
     description: "Run deterministic browser automation steps in a CloakBrowser session.",
     parameters: flowParams,
@@ -151,7 +151,7 @@ function registerTools(pi: ExtensionAPI): void {
       const config = await loadWebAccessConfig();
       const steps = params.steps ?? (params.instruction ? parseFlowSteps(params.instruction) : undefined);
       if (!steps?.length) {
-        return { content: [{ type: "text", text: "Usage: fh_web_flow { instruction } or { steps }" }], details: { implemented: true } };
+        return { content: [{ type: "text", text: "Usage: web_flow { instruction } or { steps }" }], details: { implemented: true } };
       }
       const runtime = await createCloakBrowserRuntime(config, { headless: params.headless ?? true, profile: params.profile });
       const result = await runWebFlow({
@@ -165,7 +165,7 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "fh_web_login",
+    name: "web_login",
     label: "FH Web Login",
     description: "Create or refresh a named browser login profile without raw password tool parameters.",
     parameters: loginParams,
@@ -195,9 +195,9 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "fh_web_session",
+    name: "web_session",
     label: "FH Web Session",
-    description: "List, inspect, locate, or clear web-access browser session profiles.",
+    description: "List, inspect, locate, or clear web browser session profiles.",
     parameters: sessionParams,
     execute: async (_toolCallId, params) => {
       const text = await handleSessionAction(params.action ?? "list", params.profile, params.yes);
@@ -208,7 +208,7 @@ function registerTools(pi: ExtensionAPI): void {
 
 function registerCommands(pi: ExtensionAPI): void {
   const searchCommand = {
-    description: "Search the web with web-access.",
+    description: "Search the web with web.",
     handler: async (args: string, ctx: any) => {
       ctx.ui.notify(await handleSearchCommand(args), "info");
     },
@@ -219,12 +219,12 @@ function registerCommands(pi: ExtensionAPI): void {
   } catch {
     pi.registerCommand("web-search", {
       ...searchCommand,
-      description: "Search the web with web-access. Fallback when /search is unavailable.",
+      description: "Search the web with web. Fallback when /search is unavailable.",
     });
   }
 
   pi.registerCommand("web", {
-    description: "Manage web-access: /web status|sessions|clear-session",
+    description: "Manage web: /web status|sessions|clear-session",
     handler: async (args: string, ctx: any) => {
       ctx.ui.notify(await handleWebCommand(args, ctx.cwd), "info");
     },
@@ -236,7 +236,7 @@ export async function handleWebCommand(args: string, cwd = process.cwd()): Promi
   if (command === "status") {
     const config = await loadWebAccessConfig({}, process.env);
     return [
-      "web-access status",
+      "web status",
       `cwd: ${cwd}`,
       `profiles: ${config.profilesDir}`,
       `output: ${config.outputDir}`,
@@ -282,5 +282,5 @@ async function handleSessionAction(action: string, profile = "default", yes = fa
       return error instanceof Error ? error.message : String(error);
     }
   }
-  return "Usage: fh_web_session { action: list|locate|clear, profile?, yes? }";
+  return "Usage: web_session { action: list|locate|clear, profile?, yes? }";
 }
