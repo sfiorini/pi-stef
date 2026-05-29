@@ -140,15 +140,29 @@ git commit -m "refactor: rename fh_web_* tools to web_* and web-access → web i
 - Modify: `packages/web/tests/toolWiring.test.ts`
 - Modify: `packages/web/tests/tools.e2e.test.ts`
 
-- [ ] **Step 1: Replace fh_web_ with web_ and web-access with web in all test files**
+- [ ] **Step 1: Replace fh_web_ with web_ in all test files**
 
 ```bash
-find packages/web/tests -name '*.ts' -exec sed -i '' 's/fh_web_/web_/g; s/web-access/web/g' {} +
+find packages/web/tests -name '*.ts' -exec sed -i '' 's/fh_web_/web_/g' {} +
 ```
 
-This also updates `describe("web-access search", ...)` blocks, `import webAccessExtension from "../extensions/web-access"` (now `../extensions/web`), and temp paths like `/tmp/sf-web-smoke`.
+- [ ] **Step 2: Replace web-access with web in test files (excluding runtime config paths)**
 
-- [ ] **Step 2: Verify**
+Replace in `describe()`, `import`, and string literals, but **do not** touch `.pi/web-access` (runtime config dir) or `sf-web-access` (temp dir prefixes):
+
+```bash
+# Fix imports and describe blocks
+sed -i '' 's|../extensions/web-access|../extensions/web|g; s|"web-access |"web |g' packages/web/tests/extensionRegistration.test.ts packages/web/tests/toolWiring.test.ts packages/web/tests/tools.e2e.test.ts packages/web/tests/browserSmoke.test.ts
+
+# Fix describe blocks and remaining descriptive references (not .pi/ paths or sf-web-access temp dirs)
+for f in packages/web/tests/*.ts packages/web/tests/browser*.ts; do
+  sed -i '' 's/describe("web-access /describe("web /g; s/`@pi-stef\/web-access`/`@pi-stef\/web`/g' "$f" 2>/dev/null || true
+done
+```
+
+**DO NOT** change `sf-web-access` temp dir prefixes in httpFetch.test.ts, browserSmoke.test.ts, or `.pi/web-access` paths in config.test.ts — these are runtime config paths that must be preserved.
+
+- [ ] **Step 3: Verify**
 
 ```bash
 grep -rn 'fh_web_' packages/web/tests/ --include="*.ts"
@@ -315,31 +329,15 @@ git commit -m "docs: update web README tool names from fh_web_* to web_*"
 **Files:**
 - Modify: `packages/figma/README.md`
 
-- [ ] **Step 1: Find and fix the --scope lines**
+- [ ] **Step 1: Find and fix the --scope lines and descriptive text**
 
-At line 58 and 64, the install commands use `--scope` which doesn't exist for `pi install`. Replace:
+The install commands use `--scope` which doesn't exist for `pi install`. Also remove/update any descriptive text referencing `--scope`:
 
-Line 58 context:
-```text
-pi install figma --scope project
-```
-→
-```text
-pi install git:github.com/<USER>/pi-stef#packages/figma
-```
-
-Line 64 context (if present):
-```text
-pi install figma --scope project --dry-run
-```
-→
-```text
-pi install -l git:github.com/<USER>/pi-stef#packages/figma
-```
-
-Apply via sed:
 ```bash
 sed -i '' 's/pi install figma --scope project/pi install git:github.com\/<USER>\/pi-stef#packages\/figma/g; s/pi install figma --scope project --dry-run/pi install -l git:github.com\/<USER>\/pi-stef#packages\/figma/g' packages/figma/README.md
+
+# Also fix descriptive text mentioning --scope global
+sed -i '' 's/Use `--scope global` when you want the tools available in every Pi project\./Use the default install for global availability, or add `-l` for project-local install./g' packages/figma/README.md
 ```
 
 - [ ] **Step 2: Verify**
