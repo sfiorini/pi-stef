@@ -181,7 +181,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
   it("on broken JSON, notifies the user and falls back to defaults", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-bad-"));
     try {
-      const cfgDir = path.join(home, ".pi", "sf-team");
+      const cfgDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(cfgDir, { recursive: true });
       // EXACT shape from the user's actual broken file: missing closing quote on key.
       writeFileSync(
@@ -205,13 +205,14 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-perf-"));
     const { root, dispose } = makeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "sf-team");
+      const globalDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
         JSON.stringify({ performance: { researcher: "always", plan_revision: "full", widget_update_interval_ms: 10 } }),
       );
-      writeFileSync(path.join(root, ".sf-team.json"), JSON.stringify({ performance: { researcher: "never" } }));
+      mkdirSync(path.join(root, ".pi", "sf", "team"), { recursive: true });
+      writeFileSync(path.join(root, ".pi", "sf", "team", "config.json"), JSON.stringify({ performance: { researcher: "never" } }));
       const out = await loadAndResolveDefaults(root, { homeDir: home });
       expect(out.performance).toEqual({
         researcher: "never",
@@ -228,7 +229,7 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
   it("on valid config, applies it without notify", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-good-"));
     try {
-      const cfgDir = path.join(home, ".pi", "sf-team");
+      const cfgDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(
         path.join(cfgDir, "config.json"),
@@ -250,11 +251,11 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
     }
   });
 
-  it("project config (<repo>/.sf-team.json) is loaded and wins over global on field conflicts", async () => {
+  it("project config (<repo>/.pi/sf/team/config.json) is loaded and wins over global on field conflicts", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-proj-"));
     const { root, dispose } = makeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "sf-team");
+      const globalDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
@@ -266,8 +267,9 @@ describe("loadAndResolveDefaults: surfaces broken JSON via notify and falls back
           review: { max_rounds: 7 },
         }),
       );
+      mkdirSync(path.join(root, ".pi", "sf", "team"), { recursive: true });
       writeFileSync(
-        path.join(root, ".sf-team.json"),
+        path.join(root, ".pi", "sf", "team", "config.json"),
         JSON.stringify({
           agents: { planner: { model: "project-planner", thinking: "xhigh" } },
           review: { max_rounds: 3 },
@@ -325,7 +327,7 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   it("buggy notify hook does NOT propagate as a rejection from loadAndResolveDefaults", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-throw-"));
     try {
-      const cfgDir = path.join(home, ".pi", "sf-team");
+      const cfgDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(path.join(cfgDir, "config.json"), '{ "garbage": ');
       const notify = vi.fn(() => {
@@ -342,13 +344,13 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
   it("warning message uses ~ for home and <repo> for repo-root paths (no absolute paths leaked)", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-path-"));
     try {
-      const cfgDir = path.join(home, ".pi", "sf-team");
+      const cfgDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(path.join(cfgDir, "config.json"), "{ broken json");
       const messages: string[] = [];
       await loadAndResolveDefaults("/x", { homeDir: home, notify: (m) => messages.push(m) });
       expect(messages).toHaveLength(1);
-      expect(messages[0]).toMatch(/~\/\.pi\/sf-team\/config\.json/);
+      expect(messages[0]).toMatch(/~\/\.pi\/sf\/team\/config\.json/);
       expect(messages[0]).not.toContain(home); // raw home path absent
     } finally {
       rmSync(home, { recursive: true, force: true });
@@ -479,12 +481,13 @@ describe("end-to-end: configDefaults reaches the spawned agents", () => {
     }
   });
 
-  it("project config (<repo>/.sf-team.json) reaches the spawned agents (parallel to the global-only e2e above)", async () => {
+  it("project config (<repo>/.pi/sf/team/config.json) reaches the spawned agents (parallel to the global-only e2e above)", async () => {
     const home = mkdtempSync(path.join(tmpdir(), "fake-home-proj-e2e-"));
     const { root, dispose } = makeRepo();
     try {
+      mkdirSync(path.join(root, ".pi", "sf", "team"), { recursive: true });
       writeFileSync(
-        path.join(root, ".sf-team.json"),
+        path.join(root, ".pi", "sf", "team", "config.json"),
         JSON.stringify({
           agents: {
             planner: { model: "openai-codex/gpt-5.3-codex" },

@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@pi-stef/paths": "file:../paths",
     "@pi-stef/agent-workflows": "file:../agent-workflows",
     "@pi-stef/atlassian": "file:../atlassian",
     "@pi-stef/figma": "file:../figma",

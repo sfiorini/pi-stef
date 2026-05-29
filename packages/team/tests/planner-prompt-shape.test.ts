@@ -18,7 +18,7 @@ describe("planner.yaml metadata (S-106 — documentation surface)", () => {
   const yaml = readFileSync(PLANNER_YAML, "utf8");
 
   it("documents the lockfile-tolerant clause in the YAML", () => {
-    expect(yaml).toMatch(/sf-team-locks\/\*\.lock/);
+    expect(yaml).toMatch(/team\.lock\.killed/);
     expect(yaml).toMatch(/Do NOT refuse to draft/);
   });
 
@@ -46,7 +46,7 @@ describe("composePlannerBrief delivers the lockfile + Stories clauses to the run
 
   it("contains the lockfile-tolerant clause", () => {
     expect(brief).toMatch(/LOCKFILE NOTE/);
-    expect(brief).toMatch(/sf-team-locks\/\*\.lock/);
+    expect(brief).toMatch(/team\.lock\.killed/);
     expect(brief).toMatch(/Do NOT refuse to draft/);
     expect(brief).toMatch(/orchestrator that spawned you holds the lock/i);
   });
@@ -110,7 +110,7 @@ describe("composeReviseBrief ALSO carries the lockfile + Stories clauses (round 
   const reviseBrief = __testing__.composeReviseBrief();
 
   it("contains the lockfile-tolerant clause", () => {
-    expect(reviseBrief).toMatch(/sf-team-locks\/\*\.lock/);
+    expect(reviseBrief).toMatch(/team\.lock\.killed/);
     expect(reviseBrief).toMatch(/Do NOT refuse to draft/);
   });
 

@@ -25,7 +25,7 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
     const repoRoot = mkdtempSync(path.join(tmpdir(), "ct-repo-"));
     const slug = "2026-05-27-test-persist-planroot";
     const planFolder = path.join(planRoot, slug);
-    const fhWorkflowDir = path.join(planFolder, ".sf-workflow");
+    const fhWorkflowDir = path.join(planFolder, ".pi", "sf", "agent-workflows");
     mkdirSync(fhWorkflowDir, { recursive: true });
 
     try {
@@ -68,7 +68,7 @@ describe("resume-with-persisted-planroot — slug-only resume finds workflow and
 
     // Create plan in planRoot only (NOT in cwdRoot/ai_plan)
     const planFolder = path.join(planRoot, slug);
-    const fhWorkflowDir = path.join(planFolder, ".sf-workflow");
+    const fhWorkflowDir = path.join(planFolder, ".pi", "sf", "agent-workflows");
     mkdirSync(fhWorkflowDir, { recursive: true });
 
     try {

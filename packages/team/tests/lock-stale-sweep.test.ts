@@ -13,7 +13,7 @@ describe("audit fix #9: stale lockdir sweep", () => {
   it("sweepStaleLockDirs removes empty lockdirs older than 24h", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-sweep-"));
     try {
-      const lockDir = path.join(root, "ai_plan", "old-slug", ".sf-team.lock");
+      const lockDir = path.join(root, "ai_plan", "old-slug", ".pi", "sf", "team", "team.lock");
       mkdirSync(lockDir, { recursive: true });
       // Backdate the lockdir mtime to 30h ago.
       const past = (Date.now() - 30 * 60 * 60 * 1000) / 1000;
@@ -30,7 +30,7 @@ describe("audit fix #9: stale lockdir sweep", () => {
   it("does NOT touch a fresh lockdir (mtime within 24h) even with no metadata", async () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-sweep-fresh-"));
     try {
-      const lockDir = path.join(root, "ai_plan", "fresh-slug", ".sf-team.lock");
+      const lockDir = path.join(root, "ai_plan", "fresh-slug", ".pi", "sf", "team", "team.lock");
       mkdirSync(lockDir, { recursive: true });
       // mtime is now (default) — within 24h.
       const removed = await sweepStaleLockDirs(root);
@@ -45,7 +45,7 @@ describe("audit fix #9: stale lockdir sweep", () => {
     const root = mkdtempSync(path.join(tmpdir(), "ct-sweep-acquire-"));
     try {
       // Pre-create a stale sibling lockdir.
-      const staleSibling = path.join(root, "ai_plan", "old-x", ".sf-team.lock");
+      const staleSibling = path.join(root, "ai_plan", "old-x", ".pi", "sf", "team", "team.lock");
       mkdirSync(staleSibling, { recursive: true });
       const past = (Date.now() - 30 * 60 * 60 * 1000) / 1000;
       utimesSync(staleSibling, past, past);
@@ -56,7 +56,7 @@ describe("audit fix #9: stale lockdir sweep", () => {
       // Stale sibling should be gone after acquire's sweep.
       expect(existsSync(staleSibling)).toBe(false);
       // Our new lockdir is held.
-      expect(existsSync(path.join(root, "ai_plan", "new-slug", ".sf-team.lock"))).toBe(true);
+      expect(existsSync(path.join(root, "ai_plan", "new-slug", ".pi", "sf", "team", "team.lock"))).toBe(true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

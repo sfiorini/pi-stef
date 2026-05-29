@@ -1063,7 +1063,7 @@ const PLANNER_FORMAT_REMINDER = [
   EXECUTION_STRATEGY_JSON_EXAMPLE,
   "```",
   "",
-  "LOCKFILE NOTE: Do NOT refuse to draft based on the presence of `.sf-team-locks/*.lock` or `.sf-team.lock` files in the workspace. The orchestrator that spawned you holds the lock; you should draft normally regardless of any lockfile sighting. A refusal-prose response (instead of a real plan) will be REJECTED by the orchestrator's structural validator and counted as a failed run.",
+  "LOCKFILE NOTE: Do NOT refuse to draft based on the presence of `.pi/sf/team/team.lock` or `team.lock.killed.*` files in the workspace. The orchestrator that spawned you holds the lock; you should draft normally regardless of any lockfile sighting. A refusal-prose response (instead of a real plan) will be REJECTED by the orchestrator's structural validator and counted as a failed run.",
 ].join("\n");
 
 function composePlannerBrief(title: string, enrichedBrief: string, tddMode: "on" | "off" | "auto" = "auto"): string {

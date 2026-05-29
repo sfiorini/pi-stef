@@ -27,7 +27,7 @@ async function registerWorkflow(repoRoot: string, id: string, planSlug: string):
 }
 
 async function inboxEntries(repoRoot: string, planSlug: string): Promise<Array<{ text: string; workflowId: string }>> {
-  const raw = await readFile(path.join(repoRoot, "ai_plan", planSlug, ".sf-workflow", "steering", "inbox.jsonl"), "utf8");
+  const raw = await readFile(path.join(repoRoot, "ai_plan", planSlug, ".pi", "sf", "agent-workflows", "steering", "inbox.jsonl"), "utf8");
   return raw.trim().split(/\r?\n/).map((line) => JSON.parse(line) as { text: string; workflowId: string });
 }
 

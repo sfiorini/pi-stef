@@ -136,7 +136,7 @@ export interface OrchestratorBodyContext {
   checkpoints: WorkflowCheckpointRuntime;
   /** Per-orchestrator-run verification cache. Shared by before/after gates and repeated milestone/story checks. */
   verificationCache: VerificationRunCache;
-  /** Persistent verification cache path under ai_plan/<slug>/.sf-workflow/. Used only when verification.cache=persistent. */
+  /** Persistent verification cache path under ai_plan/<slug>/.pi/sf/agent-workflows/. Used only when verification.cache=persistent. */
   verificationCachePath: string;
   /**
    * Per-run transcript helper. Tools call `transcript.record({...})` after

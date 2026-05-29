@@ -11,7 +11,7 @@ export interface SfTeamSteerParams {
   planSlug?: string;
   priority?: "normal" | "urgent";
   targetHints?: SteeringInstruction["targetHints"];
-  /** External plan root directory. When provided, the active-workflow registry is looked up under planRoot/.sf-team/active-workflows.json instead of repoRoot. */
+  /** External plan root directory. When provided, the active-workflow registry is looked up under planRoot/.pi/sf/team/active-workflows.json instead of repoRoot. */
   aiPlanPath?: string;
 }
 
@@ -90,7 +90,7 @@ export function createSfTeamSteer(): (params: SfTeamSteerParams, ctx: SfTeamStee
 
     const record = resolution.record;
     const recordRepoRoot = record.repoRoot || ctx.repoRoot;
-    // Derive expectedRoot from steeringRoot (steeringRoot = planFolder/.sf-workflow/steering)
+    // Derive expectedRoot from steeringRoot (steeringRoot = planFolder/.pi/sf/agent-workflows/steering)
     // so external aiPlanPath workflows are handled without needing the ai_plan subdir assumption.
     const expectedRoot = record.planSlug
       ? path.dirname(path.dirname(record.steeringRoot))

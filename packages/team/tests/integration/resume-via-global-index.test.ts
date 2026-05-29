@@ -1,7 +1,7 @@
 /**
  * S-511b: Integration test — slug-only resume via global plan-index.
  *
- * When a workflow was registered in the global plan-index (~/.sf-team/plan-index.json),
+ * When a workflow was registered in the global plan-index (~/.pi/sf/team/plan-index.json),
  * a slug-only resume from ANY cwd must find it via the index cascade.
  */
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
@@ -22,7 +22,7 @@ describe("resume-via-global-index — slug-only resume from unrelated cwd finds 
     const otherCwd = mkdtempSync(path.join(tmpdir(), "ct-idx-other-cwd-"));
     const slug = `2026-05-27-global-index-test-${Date.now()}`;
     const planFolder = path.join(planRoot, slug);
-    const fhWorkflowDir = path.join(planFolder, ".sf-workflow");
+    const fhWorkflowDir = path.join(planFolder, ".pi", "sf", "agent-workflows");
     mkdirSync(fhWorkflowDir, { recursive: true });
 
     try {

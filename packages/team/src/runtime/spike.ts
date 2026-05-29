@@ -10,6 +10,8 @@ import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { projectDir } from "@pi-stef/paths";
+
 export type ReviewerVerdict = "APPROVED" | "REVISE" | "UNKNOWN";
 
 export interface SpikeEvent {
@@ -215,11 +217,11 @@ Add a hello-world function.
 /**
  * Standardized success-artifact path. M0 writes a single file per spike run so
  * downstream milestones (M6 plan-folder I/O, M9 diagnostics) inherit the
- * convention: `<cwd>/.sf-team/spike/verdict-<isoTs>.md`.
+ * convention: `<cwd>/.pi/sf/team/spike/verdict-<isoTs>.md`.
  */
 export function spikeArtifactPath(cwd: string, now: Date = new Date()): string {
   const stamp = now.toISOString().replace(/[:.]/g, "-");
-  return path.join(cwd, ".sf-team", "spike", `verdict-${stamp}.md`);
+  return path.join(projectDir("team", cwd), "spike", `verdict-${stamp}.md`);
 }
 
 export async function writeSpikeArtifact(filePath: string, body: string): Promise<void> {

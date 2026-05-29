@@ -1,6 +1,8 @@
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { projectDir } from "@pi-stef/paths";
+
 import type { SteeringWorkflowKind } from "./path-safety";
 
 export type ActiveWorkflowToolName =
@@ -75,7 +77,7 @@ class AsyncMutex {
 const REGISTRY_MUTEXES = new Map<string, AsyncMutex>();
 
 export function activeWorkflowRegistryPath(repoRoot: string): string {
-  return path.join(path.resolve(repoRoot), ".sf-team", "active-workflows.json");
+  return path.join(projectDir("team", path.resolve(repoRoot)), "active-workflows.json");
 }
 
 export function createActiveWorkflowRegistry(repoRoot: string): ActiveWorkflowRegistry {

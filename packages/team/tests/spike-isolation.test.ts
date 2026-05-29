@@ -108,9 +108,9 @@ describe("M0 spike: verdict + final-text extraction", () => {
 });
 
 describe("M0 spike: success-artifact path convention", () => {
-  it("anchors the artifact under <cwd>/.sf-team/spike/verdict-<iso>.md", () => {
+  it("anchors the artifact under <cwd>/.pi/sf/team/spike/verdict-<iso>.md", () => {
     const at = spikeArtifactPath("/repo", new Date("2026-05-01T08:00:00.000Z"));
-    expect(at).toBe("/repo/.sf-team/spike/verdict-2026-05-01T08-00-00-000Z.md");
+    expect(at).toBe("/repo/.pi/sf/team/spike/verdict-2026-05-01T08-00-00-000Z.md");
   });
 });
 

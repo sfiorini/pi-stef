@@ -1,6 +1,9 @@
 import { randomBytes } from "node:crypto";
 import path from "node:path";
 
+import { WORKFLOW_FOLDER_NAME } from "@pi-stef/agent-workflows";
+import { projectDir } from "@pi-stef/paths";
+
 export type SteeringWorkflowKind = "plan" | "implement" | "auto" | "task" | "followup";
 
 const RUN_ID_RE = /^fhw_[a-z]+_\d{14}_[a-f0-9]{8}$/;
@@ -19,7 +22,7 @@ export function assertPathInsideRoot(targetPath: string, expectedRoot: string): 
 
 export function resolvePlanSteeringRoot(planFolder: string): string {
   const resolvedPlanFolder = path.resolve(planFolder);
-  const steeringRoot = path.join(resolvedPlanFolder, ".sf-workflow", "steering");
+  const steeringRoot = path.join(resolvedPlanFolder, WORKFLOW_FOLDER_NAME, "steering");
   return assertPathInsideRoot(steeringRoot, resolvedPlanFolder);
 }
 
@@ -28,7 +31,7 @@ export function resolveRunSteeringRoot(workflowRoot: string, runId: string): str
     throw new Error(`Invalid steering run id: ${runId}`);
   }
   const resolvedWorkflowRoot = path.resolve(workflowRoot);
-  const steeringRoot = path.join(resolvedWorkflowRoot, ".sf-team", "runs", runId, "steering");
+  const steeringRoot = path.join(projectDir("team", resolvedWorkflowRoot), "runs", runId, "steering");
   return assertPathInsideRoot(steeringRoot, resolvedWorkflowRoot);
 }
 

@@ -13,9 +13,9 @@
 export interface ResolveSources<T> {
   /** From the tool-call's prompt arguments. Highest precedence. */
   prompt?: T;
-  /** From `<repo>/.sf-team.json`. */
+  /** From `<repo>/.pi/sf/team/config.json`. */
   project?: T;
-  /** From `~/.pi/sf-team/config.json`. */
+  /** From `~/.pi/sf/team/config.json`. */
   global?: T;
   /** Default value used if the chain falls through. Required. */
   default: T;

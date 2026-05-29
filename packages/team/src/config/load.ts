@@ -1,14 +1,12 @@
-import { copyFile, mkdir } from "node:fs/promises";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
 import { Value } from "@sinclair/typebox/value";
 
-import { ConfigSchema, DEFAULT_CONFIG, type SfTeamConfig, type ResolvedDefaults } from "./schema";
+import { globalConfig as sfGlobalConfig, projectConfig as sfProjectConfig } from "@pi-stef/paths";
 
-const GLOBAL_CONFIG_PATH = path.join(os.homedir(), ".pi", "sf-team", "config.json");
-const PROJECT_CONFIG_BASENAME = ".sf-team.json";
+import { ConfigSchema, DEFAULT_CONFIG, type SfTeamConfig, type ResolvedDefaults } from "./schema";
 
 /**
  * Load + deep-merge global and project config.
@@ -21,32 +19,13 @@ const PROJECT_CONFIG_BASENAME = ".sf-team.json";
  */
 export async function loadConfig(repoRoot: string, opts: { homeDir?: string } = {}): Promise<SfTeamConfig> {
   const homeDir = opts.homeDir ?? os.homedir();
-  const globalPath = path.join(homeDir, ".pi", "sf-team", "config.json");
-  const projectPath = path.join(repoRoot, PROJECT_CONFIG_BASENAME);
-
-  await migrateLegacyGlobalConfig(homeDir, globalPath);
+  const globalPath = sfGlobalConfig("team", homeDir);
+  const projectPath = sfProjectConfig("team", repoRoot);
 
   const global = await loadFile(globalPath);
   const project = await loadFile(projectPath);
 
   return deepMerge(global, project);
-}
-
-async function migrateLegacyGlobalConfig(homeDir: string, newPath: string): Promise<void> {
-  const legacyPath = path.join(homeDir, ".pi", "fh-team", "config.json");
-  try {
-    await readFile(legacyPath, "utf8");
-  } catch {
-    return;
-  }
-  try {
-    await readFile(newPath, "utf8");
-    return;
-  } catch {
-    // new path doesn't exist — safe to migrate
-  }
-  await mkdir(path.dirname(newPath), { recursive: true });
-  await copyFile(legacyPath, newPath);
 }
 
 async function loadFile(filePath: string): Promise<SfTeamConfig> {
@@ -125,7 +104,7 @@ export class ConfigValidationError extends Error {
   }
 }
 
-export const _internal = { GLOBAL_CONFIG_PATH, PROJECT_CONFIG_BASENAME };
+export const _internal = { sfGlobalConfig, sfProjectConfig };
 
 /**
  * Merge the loaded (sparse) `SfTeamConfig` onto `DEFAULT_CONFIG` to
@@ -215,8 +194,8 @@ export async function loadAndResolveDefaults(
  */
 function sanitizePath(filePath: string, homeDir?: string, repoRoot?: string): string {
   // Repo root wins over home: when a repo lives under $HOME, a project
-  // `.sf-team.json` should sanitize to `<repo>/.sf-team.json`,
-  // not `~/path/to/repo/.sf-team.json`.
+  // `.pi/sf/team/config.json` should sanitize to `<repo>/.pi/sf/team/config.json`,
+  // not `~/path/to/repo/.pi/sf/team/config.json`.
   if (repoRoot && filePath.startsWith(repoRoot)) return `<repo>${filePath.slice(repoRoot.length)}`;
   const home = homeDir ?? os.homedir();
   if (homeDir && filePath.startsWith(homeDir)) return `~${filePath.slice(homeDir.length)}`;

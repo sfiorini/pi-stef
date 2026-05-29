@@ -3,6 +3,8 @@ import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
+import { globalConfig } from "@pi-stef/paths";
+
 import { resolveSkillPath } from "./resolve-skill";
 import type { TeamMember } from "./types";
 
@@ -283,7 +285,7 @@ function stripJsonc(input: string): string {
  *
  * Reads the SAME path the `azure-foundry-provider` package reads —
  * env override `PI_AZURE_FOUNDRY_CONFIG` first, then
- * `~/.pi/azure-foundry/config.json`. We do not introduce a sf-team-
+ * `~/.pi/sf/azure-foundry/config.json`. We do not introduce a sf-team-
  * specific env var so the two cannot drift.
  *
  * The file is parsed as JSONC (comments stripped) to match the
@@ -298,7 +300,7 @@ export function defaultResolveAzureFoundryDeploymentIds(): string[] {
     const override = process.env.PI_AZURE_FOUNDRY_CONFIG?.trim();
     const configPath = override && override.length > 0
       ? override
-      : path.join(homedir(), ".pi", "azure-foundry", "config.json");
+      : globalConfig("azure-foundry");
     if (!existsSync(configPath)) return [];
     const raw = readFileSync(configPath, "utf8");
     const parsed: unknown = JSON.parse(stripJsonc(raw));

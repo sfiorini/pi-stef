@@ -195,8 +195,8 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Build a stale lockdir manually: directory + metadata.json with a pid
       // that's almost certainly dead.
-      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
-      mkdirSync(lockDir);
+      const lockDir = path.join(planFolderPath(root, slug), ".pi", "sf", "team", "team.lock");
+      mkdirSync(lockDir, { recursive: true });
       writeFileSync(
         path.join(lockDir, "metadata.json"),
         JSON.stringify({
@@ -220,8 +220,8 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
     try {
       const slug = "2026-05-01-otherhost";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
-      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
-      mkdirSync(lockDir);
+      const lockDir = path.join(planFolderPath(root, slug), ".pi", "sf", "team", "team.lock");
+      mkdirSync(lockDir, { recursive: true });
       writeFileSync(
         path.join(lockDir, "metadata.json"),
         JSON.stringify({
@@ -305,7 +305,7 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       const slug = "2026-05-01-crash-residue";
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Simulate a process that died between mkdir and writeFile of metadata.
-      mkdirSync(path.join(planFolderPath(root, slug), ".sf-team.lock"));
+      mkdirSync(path.join(planFolderPath(root, slug), ".pi", "sf", "team", "team.lock"), { recursive: true });
       // Acquire should reclaim the empty lockdir without blocking forever.
       const meta = await acquireLock(root, slug, "sf_team_plan");
       expect(meta.pid).toBe(process.pid);
@@ -321,8 +321,8 @@ describe("M6 acquireLock / releaseLock with rich metadata", () => {
       mkdirSync(planFolderPath(root, slug), { recursive: true });
       // Plant a stale lockdir (pid=999_999, no processStartedAt) so all
       // contenders agree it is stale.
-      const lockDir = path.join(planFolderPath(root, slug), ".sf-team.lock");
-      mkdirSync(lockDir);
+      const lockDir = path.join(planFolderPath(root, slug), ".pi", "sf", "team", "team.lock");
+      mkdirSync(lockDir, { recursive: true });
       writeFileSync(
         path.join(lockDir, "metadata.json"),
         JSON.stringify({

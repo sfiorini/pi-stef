@@ -245,7 +245,7 @@ function formatEmptyDiffDescription(opts: {
 function formatEmptyDiffResumeHint(resumeTool: string, slug: string): string {
   return (
     `invoke ${resumeTool} { resume: '${slug}' } and consider setting ` +
-    "`implement.empty_diff_retry_model` to a stronger model in ~/.pi/sf-team/config.json"
+    "`implement.empty_diff_retry_model` to a stronger model in ~/.pi/sf/team/config.json"
   );
 }
 

@@ -105,7 +105,7 @@ describe("M9 runOrchestrator teardown (S-902/S-903)", () => {
       );
       expect(widgetDispose).toHaveBeenCalledTimes(1);
       // Lock file should be gone.
-      const lockPath = path.join(planFolderPath(root, slug), ".sf-team.lock");
+      const lockPath = path.join(planFolderPath(root, slug), ".pi", "sf", "team", "team.lock");
       expect(spawnSync("test", ["-d", lockPath]).status).not.toBe(0);
     } finally {
       dispose();

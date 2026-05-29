@@ -17,6 +17,12 @@ function makeFakeRepo(): { repo: string; dispose: () => void } {
   return { repo, dispose: () => rmSync(repo, { recursive: true, force: true }) };
 }
 
+function writeProjectConfig(repo: string, data: string | object): void {
+  const cfgPath = path.join(repo, ".pi", "sf", "team", "config.json");
+  mkdirSync(path.dirname(cfgPath), { recursive: true });
+  writeFileSync(cfgPath, typeof data === "string" ? data : JSON.stringify(data));
+}
+
 describe("M2: parseModelString", () => {
   it("returns model only when no colon present", () => {
     expect(parseModelString("claude-opus-4-7")).toEqual({ model: "claude-opus-4-7" });
@@ -82,7 +88,7 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      const dir = path.join(home, ".pi", "sf-team");
+      const dir = path.join(home, ".pi", "sf", "team");
       mkdirSync(dir, { recursive: true });
       writeFileSync(path.join(dir, "config.json"), JSON.stringify({ review: { max_rounds: 7 } }));
       const cfg = await loadConfig(repo, { homeDir: home });
@@ -97,7 +103,7 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "sf-team");
+      const globalDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
@@ -106,8 +112,8 @@ describe("M2: loadConfig", () => {
           review: { max_rounds: 5 },
         }),
       );
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({
           agents: { planner: { model: "project-planner", thinking: "xhigh" } },
         }),
@@ -130,8 +136,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ review: { max_rounds: "not-a-number" } }),
       );
       try {
@@ -140,7 +146,7 @@ describe("M2: loadConfig", () => {
       } catch (err) {
         expect(err).toBeInstanceOf(ConfigValidationError);
         const cve = err as ConfigValidationError;
-        expect(cve.filePath).toBe(path.join(repo, ".sf-team.json"));
+        expect(cve.filePath).toBe(path.join(repo, ".pi", "sf", "team", "config.json"));
         // JSON pointer must point at the offending field, not just "/"
         expect(cve.jsonPointer).toBe("/review/max_rounds");
         expect(cve.message).toMatch(/\/review\/max_rounds/);
@@ -155,14 +161,14 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      const globalDir = path.join(home, ".pi", "sf-team");
+      const globalDir = path.join(home, ".pi", "sf", "team");
       mkdirSync(globalDir, { recursive: true });
       writeFileSync(
         path.join(globalDir, "config.json"),
         JSON.stringify({ agents: { planner: { model: "claude-opus-4-7", thinking: "high" } } }),
       );
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ agents: { planner: { thinking: "xhigh" } } }),
       );
       const cfg = await loadConfig(repo, { homeDir: home });
@@ -179,8 +185,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ performance: { widget_update_interval_ms: 0 } }),
       );
       const cfg = await loadConfig(repo, { homeDir: home });
@@ -195,8 +201,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ performance: { widget_update_interval_ms: 5_001 } }),
       );
       await expect(loadConfig(repo, { homeDir: home })).rejects.toBeInstanceOf(ConfigValidationError);
@@ -210,7 +216,7 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      const dir = path.join(home, ".pi", "sf-team");
+      const dir = path.join(home, ".pi", "sf", "team");
       mkdirSync(dir, { recursive: true });
       writeFileSync(
         path.join(dir, "config.json"),
@@ -218,8 +224,8 @@ describe("M2: loadConfig", () => {
           performance: { researcher: "always", plan_revision: "full", widget_update_interval_ms: 20 },
         }),
       );
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ performance: { researcher: "never" } }),
       );
       const cfg = await loadConfig(repo, { homeDir: home });
@@ -236,8 +242,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({
           workflow: { profile: "headless" },
           review: { plan_max_rounds: 2, implementation_max_rounds: 4 },
@@ -258,8 +264,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({
           workflow: { profile: "daemon" },
           review: { plan_max_rounds: 0 },
@@ -276,8 +282,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ performance: { researcher: "sometimes", plan_revision: "rewrite" } }),
       );
       await expect(loadConfig(repo, { homeDir: home })).rejects.toBeInstanceOf(ConfigValidationError);
@@ -291,8 +297,8 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(
-        path.join(repo, ".sf-team.json"),
+      writeProjectConfig(
+        repo,
         JSON.stringify({ agents: { planner: { model: "x", typo_field: "boom" } } }),
       );
       await expect(loadConfig(repo, { homeDir: home })).rejects.toBeInstanceOf(ConfigValidationError);
@@ -306,7 +312,7 @@ describe("M2: loadConfig", () => {
     const { home, dispose: dh } = makeFakeHome();
     const { repo, dispose: dr } = makeFakeRepo();
     try {
-      writeFileSync(path.join(repo, ".sf-team.json"), "{ this is not json");
+      writeProjectConfig(repo, "{ this is not json");
       await expect(loadConfig(repo, { homeDir: home })).rejects.toBeInstanceOf(ConfigValidationError);
     } finally {
       dh();
