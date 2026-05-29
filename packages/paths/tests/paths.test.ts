@@ -2,7 +2,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { globalDir, globalConfig } from "../src/global.js";
 import { projectDir, projectConfig } from "../src/project.js";
-import { PI_DIR, SF_NAMESPACE } from "../src/constants.js";
+import { PI_DIR, SF_NAMESPACE, sfBase } from "../src/constants.js";
 
 const HOME = "/home/testuser";
 
@@ -12,6 +12,9 @@ describe("constants", () => {
   });
   it("SF_NAMESPACE is sf", () => {
     expect(SF_NAMESPACE).toBe("sf");
+  });
+  it("sfBase joins home/.pi/sf", () => {
+    expect(sfBase("/home/test")).toBe(path.join("/home/test", ".pi", "sf"));
   });
 });
 
