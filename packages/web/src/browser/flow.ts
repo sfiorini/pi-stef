@@ -20,6 +20,7 @@ export type FlowStepInput =
 export interface FlowResult {
   extracted: Array<{ selector: string; values: string[] }>;
   finalUrl: string;
+  pageText: string;
   screenshots: string[];
   stepsRun: number;
   title: string;
@@ -90,9 +91,11 @@ export async function runWebFlow(options: RunWebFlowOptions): Promise<FlowResult
       }
     }
 
+    const pageText = (await page.text()).trim();
     return {
       extracted,
       finalUrl: page.url(),
+      pageText,
       screenshots,
       stepsRun: steps.length,
       title: await page.title(),
@@ -174,6 +177,7 @@ function parseSiteSearchInstruction(instruction: string): FlowStep[] | undefined
     { action: "type", text: cleanSearchText(match[2]) },
     { action: "press", key: "Enter" },
     { action: "wait", ms: 2000 },
+    { action: "extract", selector: "body" },
   ];
 }
 

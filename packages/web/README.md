@@ -1,11 +1,11 @@
-# Web Access
+# SF Web Access
 
-`@pi-stef/web` is a Pi extension for no-key web search, URL fetch, rendered scraping, browser sessions, login flows, screenshots, and CloakBrowser-backed page access.
+`@pi-stef/web` provides no-key web search, URL fetch, browser automation, login sessions, and CloakBrowser-backed page rendering as a Pi extension.
 
-The package is optional. Install it when an agent needs web retrieval beyond the normal model context.
+## Installation
 
 ```bash
-pi install git:github.com/<USER>/pi-stef#packages/web
+pi install git:github.com/<USER>/pi-stef#packages/web --scope user
 ```
 
 For project-local install:
@@ -14,190 +14,300 @@ For project-local install:
 pi install -l git:github.com/<USER>/pi-stef#packages/web
 ```
 
-The package uses `runtimePostInstallCommands` so CloakBrowser binary preparation runs after package-local `npm install --omit=peer --workspaces=false` has installed `cloakbrowser` and `playwright-core`.
+After installation, verify runtime dependencies:
+
+```bash
+pnpm --filter web check-runtime
+```
+
+Install the CloakBrowser browser binary when needed:
+
+```bash
+pnpm --filter web install-browser
+```
 
 ## Contents
 
 - [Natural Language Usage](#natural-language-usage)
+- [Slash Commands](#slash-commands)
 - [Tools](#tools)
+- [Configuration](#configuration)
 - [No-Key Search Setup](#no-key-search-setup)
 - [Browser Identity](#browser-identity)
-- [CloakBrowser Footprint](#cloakbrowser-footprint)
-- [Provenance And License Notes](#provenance-and-license-notes)
 - [Security Notes](#security-notes)
-- [Browser Test](#browser-test)
+- [Browser Tests](#browser-tests)
+- [License](#license)
 
 ## Natural Language Usage
 
-Use natural language when the agent needs current web context, URL extraction, rendered pages, or browser sessions:
+The agent understands natural-language requests and routes them to the correct tool. Examples:
 
+**Search the web:**
 ```text
-pi "Use web to search for current browser automation options and summarize the top sources with links."
-pi "Fetch this URL as markdown with web, then compare it with the local README: https://example.com/docs"
-pi "Use a named browser profile to open the staging login page and capture the visible error."
+"Search for current browser automation options and summarize the top sources."
+"What's the latest news on DFW weather?"
+"Find recent articles about Rust web frameworks."
 ```
+The agent calls `sf_web_search`.
 
-Use exact tools when you need deterministic parameters:
-
+**Fetch a specific URL:**
 ```text
-web_search query="current Figma REST API rate limits" maxResults=5
-web_fetch url="https://example.com/docs" format="markdown" mode="auto"
-web_flow instruction="go to example.com and search for pricing" profile="research"
+"Fetch this URL as markdown: https://example.com/docs"
+"Read the content of https://example.com and summarize it."
+"Use the browser to fetch https://example.com (it needs JavaScript)."
 ```
+The agent calls `sf_web_fetch`. Asking to "use the browser" forces `mode='browser'`.
+
+**Run a browser flow:**
+```text
+"Use the browser to go to google.com, search for 'espresso machines', and extract the results."
+"Open walmart.com, search for 'laptop deals', and click the first result."
+"Navigate to example.com/login, fill in the username and password, and submit."
+```
+The agent calls `sf_web_flow`.
+
+**Create a login session:**
+```text
+"Log into https://example.com using my credentials."
+"Create a browser login session for the staging site."
+```
+The agent calls `sf_web_login`.
+
+**Manage sessions:**
+```text
+"List my browser sessions."
+"Clear the 'staging' browser session profile."
+```
+The agent calls `sf_web_session`.
+
+## Slash Commands
+
+Slash commands inject a prompt into the agent conversation. The agent then calls the corresponding tool.
+
+| Command | Args | Example |
+|---------|------|---------|
+| `/sf-web-search` | `<query>` | `/sf-web-search DFW weather forecast` |
+| `/sf-web-fetch` | `<url>` | `/sf-web-fetch https://example.com/docs` |
+| `/sf-web-flow` | `<instruction>` | `/sf-web-flow go to google.com and search for Rust` |
+| `/sf-web-login` | `<url>` | `/sf-web-login https://example.com/login` |
+| `/sf-web-session` | `[action] [name]` | `/sf-web-session list` |
+| `/sf-web` | `status` | `/sf-web status` |
+
+If `/sf-web-search` is already registered by another package, the extension falls back to `/sf-search`.
 
 ## Tools
 
-The extension uses namespaced tool names to avoid collisions with common Pi packages:
+All tools use the `sf_web_` prefix to avoid collisions with other Pi extensions.
 
-| Tool | Purpose |
-|---|---|
-| `web_search` | Search the web through no-key providers. |
-| `web_fetch` | Fetch one URL as markdown, text, HTML, JSON, or raw output. |
-| `web_flow` | Run deterministic browser steps such as goto, click, type, press, wait, screenshot, and extract. |
-| `web_login` | Create or refresh a named browser login profile. |
-| `web_session` | List, inspect, locate, or clear session/profile state. |
+### sf_web_search
 
-Slash commands:
+Search the web through a no-key provider cascade.
 
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `query` | string | yes | Search query |
+| `maxResults` | integer (1-20) | no | Maximum results to return (default: 10) |
+| `providers` | string[] | no | Ordered provider list: `searxng`, `searxng-html`, `duckduckgo`, `google`, `bing` |
+| `searxngUrl` | string | no | SearXNG instance URL override |
+| `headless` | boolean | no | Headless browser mode (default: true) |
+| `profile` | string | no | Browser profile name for browser-backed providers |
+
+### sf_web_fetch
+
+Fetch a specific URL. Defaults to fast HTTP; falls back to CloakBrowser for JS-heavy pages.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | yes | URL to fetch |
+| `format` | string | no | Output format: `markdown`, `text`, `html`, `json`, `raw` (default: `markdown`) |
+| `mode` | string | no | Fetch mode: `auto`, `fast`, `browser` (default: `auto`) |
+| `headless` | boolean | no | Headless browser mode (default: true) |
+| `profile` | string | no | Browser profile name for rendered fetches |
+| `screenshot` | boolean | no | Capture a screenshot when browser mode is used |
+| `selector` | string | no | CSS selector to extract from HTML pages |
+
+`mode` values:
+- `auto` — tries fast HTTP first, falls back to browser if JS-heavy or blocked
+- `fast` — HTTP only, no browser fallback
+- `browser` — always uses CloakBrowser rendering
+
+### sf_web_flow
+
+Automate multi-step browser interactions in CloakBrowser. Accepts natural-language instructions or structured step arrays.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `instruction` | string | no | Natural-language flow instruction |
+| `steps` | array | no | Structured step array (see below) |
+| `headless` | boolean | no | Headless browser mode (default: true) |
+| `profile` | string | no | Browser profile name |
+
+Either `instruction` or `steps` must be provided.
+
+**Natural-language instruction examples:**
 ```text
-/search <query>
-/web status
-/web sessions
-/web clear-session <name> [--yes]
+"go to google.com and search for espresso machines"
+"open example.com then click 'About' then wait 2s"
+"navigate to https://example.com/login; type 'user@example.com' in input[name='email']; press Enter"
 ```
 
-`/search` registers when the name is available. If another package already owns `/search`, the extension falls back to `/web-search` automatically.
+**Structured step actions:**
 
-### Tool Parameters
+| Action | Fields | Description |
+|--------|--------|-------------|
+| `goto` / `navigate` / `open` | `url` | Navigate to URL |
+| `click` | `selector`, or `role` + `name`, or `text` | Click an element |
+| `type` / `fill` | `text`, optional `selector` | Type text into an input |
+| `press` / `keypress` / `key` | `key`, optional `selector` | Press a keyboard key |
+| `wait` | `ms` | Wait in milliseconds (0-120000) |
+| `screenshot` | `path` | Capture screenshot to file |
+| `extract` | `selector`, optional `count` | Extract text content from matching elements |
 
-| Tool | Required | Optional | Notes |
-|---|---|---|---|
-| `web_search` | `query` | `maxResults`, `providers`, `searxngUrl`, `profile`, `headless` | Uses SearXNG when configured, then DuckDuckGo HTML/Lite, then CloakBrowser-backed Google/Bing providers when selected or reached by the cascade. |
-| `web_fetch` | `url` | `format`, `mode`, `selector`, `screenshot`, `profile`, `headless` | `format` is `markdown`, `text`, `html`, `json`, or `raw`. `mode` is `auto`, `fast`, or `browser`. |
-| `web_flow` | `instruction` or `steps` | `profile`, `headless` | Supports `goto`/`navigate`/`open`, `click`, `type`/`fill`, `press`/`keypress`/`key`, `wait`, `screenshot`, and `extract`. Host-only instructions such as `go to walmart.com and search for espresso machines` are normalized to HTTPS flow steps. |
-| `web_login` | `url` | `profile`, `interactive`, `interactiveWaitMs`, `usernameEnv`, `passwordEnv`, `headless` | Does not accept raw passwords. Defaults to `SF_WEB_USERNAME` and `SF_WEB_PASSWORD`. |
-| `web_session` | None | `action`, `profile`, `yes` | `action` is `list`, `inspect`, `locate`, or `clear`. `clear` requires `yes: true`. |
+### sf_web_login
 
-### Fetch Limits
+Create or refresh a named CloakBrowser login profile. Credentials come from environment variables.
 
-`SF_WEB_MAX_BYTES` controls returned tool output size and temp-file spillover. `SF_WEB_FETCH_MAX_BYTES` controls the larger network body cap used before extraction. The default fetch cap is 2 MB so normal news pages can be extracted while agent output remains bounded.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `url` | string | yes | Login page URL |
+| `profile` | string | no | Browser profile name (default: `default`) |
+| `interactive` | boolean | no | Open a headed browser for manual login |
+| `interactiveWaitMs` | integer (1000-600000) | no | Wait time for interactive login |
+| `usernameEnv` | string | no | Env var name containing username (default: `SF_WEB_USERNAME`) |
+| `passwordEnv` | string | no | Env var name containing password (default: `SF_WEB_PASSWORD`) |
+| `headless` | boolean | no | Headless browser mode (default: true) |
 
-### Runtime Checks
+### sf_web_session
 
-After installation, verify package-local runtime imports:
+List, inspect, locate, or clear CloakBrowser session profiles.
 
-```bash
-cd packages/web
-npm run check-runtime
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `action` | string | no | `list`, `inspect`, `locate`, or `clear` (default: `list`) |
+| `profile` | string | no | Profile name (default: `default`) |
+| `yes` | boolean | no | Confirm destructive clear action |
+
+## Configuration
+
+Configuration is loaded from four layers, merged with later layers overriding earlier:
+
+1. **Hardcoded defaults**
+2. **Config file**: `~/.pi/web/config.json` (or `$SF_WEB_CONFIG`)
+3. **Environment variables**: `SF_WEB_*`
+4. **Runtime parameters**: passed directly to tool calls
+
+### Config File
+
+Location: `~/.pi/web/config.json` (override with `SF_WEB_CONFIG`).
+
+```json
+{
+  "maxResults": 10,
+  "searchProviders": ["searxng", "duckduckgo", "google", "bing"],
+  "searxngUrl": "https://search.example.com",
+  "allowPrivateNetworks": false,
+  "fetchMaxBytes": 2097152,
+  "fetchTimeoutMs": 15000,
+  "maxBytes": 51200,
+  "maxLines": 2000,
+  "outputDir": "/tmp/sf-web",
+  "profilesDir": "~/.pi/web/profiles",
+  "userAgent": "Mozilla/5.0 ...",
+  "browserFingerprintSeed": "42",
+  "browserHumanPreset": "default",
+  "browserLocale": "en-US",
+  "browserTimezone": "America/New_York",
+  "browserProxy": "socks5://proxy:1080",
+  "browserGeoip": false
+}
 ```
 
-Install or update the CloakBrowser browser binary manually when needed:
+### Environment Variables
 
-```bash
-cd packages/web
-npm run install-browser
-```
+| Env Var | Config Key | Type | Default | Description |
+|---------|-----------|------|---------|-------------|
+| `SF_WEB_CONFIG` | — | string | `~/.pi/web/config.json` | Config file path |
+| `SF_WEB_SEARXNG_URL` | `searxngUrl` | string | — | SearXNG instance URL |
+| `SF_WEB_SEARCH_PROVIDERS` | `searchProviders` | CSV | `searxng,duckduckgo,google,bing` | Ordered search providers |
+| `SF_WEB_MAX_RESULTS` | `maxResults` | integer | 10 | Default max search results |
+| `SF_WEB_MAX_BYTES` | `maxBytes` | integer | 51200 | Max tool output bytes |
+| `SF_WEB_MAX_LINES` | `maxLines` | integer | 2000 | Max tool output lines |
+| `SF_WEB_FETCH_MAX_BYTES` | `fetchMaxBytes` | integer | 2097152 | Max HTTP body bytes |
+| `SF_WEB_FETCH_TIMEOUT_MS` | `fetchTimeoutMs` | integer | 15000 | HTTP fetch timeout (ms) |
+| `SF_WEB_ALLOW_PRIVATE_NETWORKS` | `allowPrivateNetworks` | boolean | false | Allow private/loopback IPs |
+| `SF_WEB_OUTPUT_DIR` | `outputDir` | string | `$TMPDIR/sf-web` | Output file directory |
+| `SF_WEB_PROFILES_DIR` | `profilesDir` | string | `~/.pi/web/profiles` | Browser profiles directory |
+| `SF_WEB_USER_AGENT` | `userAgent` | string | Chrome 124 UA | HTTP user-agent (fast fetch only) |
+| `SF_WEB_BROWSER_FINGERPRINT_SEED` | `browserFingerprintSeed` | string | auto | Fingerprint seed (positive integer) |
+| `SF_WEB_BROWSER_HUMAN_PRESET` | `browserHumanPreset` | string | — | `default` or `careful` |
+| `SF_WEB_BROWSER_LOCALE` | `browserLocale` | string | — | Browser locale (e.g., `en-US`) |
+| `SF_WEB_BROWSER_TIMEZONE` | `browserTimezone` | string | — | Browser timezone (e.g., `America/New_York`) |
+| `SF_WEB_BROWSER_PROXY` | `browserProxy` | string | — | Proxy URL (`http:`, `https:`, or `socks5:`) |
+| `SF_WEB_BROWSER_GEOIP` | `browserGeoip` | boolean | — | Enable GeoIP (requires CloakBrowser support) |
+| `SF_WEB_USERNAME` | — | string | — | Default username for `sf_web_login` |
+| `SF_WEB_PASSWORD` | — | string | — | Default password for `sf_web_login` |
+| `SF_WEB_SENSITIVE_QUERY_KEYS` | `sensitiveQueryKeys` | CSV | built-in list | Additional URL params to redact from errors |
 
 ## No-Key Search Setup
 
-Search works without API keys by default. Configure a SearXNG instance when you have one:
+Search works without API keys by default. Configure a SearXNG instance for best results:
 
 ```bash
 export SF_WEB_SEARXNG_URL="https://search.example.com"
 ```
 
-The provider cascade is:
+Provider cascade:
 
 ```text
-SearXNG JSON -> SearXNG HTML -> DuckDuckGo HTML/Lite -> Google browser scrape -> Bing browser scrape
+SearXNG JSON → SearXNG HTML → DuckDuckGo HTML/Lite → Google (browser) → Bing (browser)
 ```
 
-Public search pages can throttle or block automation. Google and Bing scraping are last-resort fallbacks and may require manual intervention when a consent or challenge page appears.
+Each provider is tried in order. The first to return results wins. Google and Bing require CloakBrowser and are last-resort fallbacks.
 
 ## Browser Identity
 
-Browser mode lets CloakBrowser manage the browser user agent and fingerprint by default. `SF_WEB_USER_AGENT` is used only by the fast HTTP fetch path; forcing it into CloakBrowser can create inconsistent browser signals.
+Browser mode uses CloakBrowser for fingerprint management. Named profiles get a stable derived fingerprint seed.
 
-Named profiles get a stable derived fingerprint seed so repeat visits look like the same returning browser. Use site-specific profiles for sensitive sites:
+For first-run challenges, use headed mode once, complete the challenge manually, then reuse the profile in headless mode.
 
-```json
-{
-  "profile": "walmart",
-  "headless": false
-}
-```
+Browser hardening is config-only (not tool parameters):
 
-For first-run challenges, use headed mode once, complete the challenge manually, then reuse the same named profile in headless mode. CloakBrowser prevents many challenges from appearing, but it does not solve CAPTCHAs or replace proxy/IP reputation.
+| Setting | Config Key | Notes |
+|---------|-----------|-------|
+| Fingerprint seed | `browserFingerprintSeed` | Positive integer; auto-derived from profile name if omitted |
+| Human preset | `browserHumanPreset` | `default` or `careful` |
+| Locale | `browserLocale` | e.g., `en-US` |
+| Timezone | `browserTimezone` | e.g., `America/New_York` |
+| Proxy | `browserProxy` | `http:`, `https:`, or `socks5:` URL |
+| GeoIP | `browserGeoip` | Requires CloakBrowser's optional GeoIP support |
 
-Config-only browser hardening knobs:
+## Security Notes
 
-| Env var | Config key | Notes |
-|---|---|---|
-| `SF_WEB_BROWSER_FINGERPRINT_SEED` | `browserFingerprintSeed` | Optional positive integer. If omitted, pi derives a stable seed from the profile name. |
-| `SF_WEB_BROWSER_HUMAN_PRESET` | `browserHumanPreset` | `default` or `careful`. |
-| `SF_WEB_BROWSER_LOCALE` | `browserLocale` | Example: `en-US`. |
-| `SF_WEB_BROWSER_TIMEZONE` | `browserTimezone` | Example: `America/New_York`. |
-| `SF_WEB_BROWSER_PROXY` | `browserProxy` | `http:`, `https:`, or `socks5:` proxy URL. This is intentionally config-only, not a tool parameter. |
-| `SF_WEB_BROWSER_GEOIP` | `browserGeoip` | `true` or `false`; requires CloakBrowser's optional GeoIP support. |
+- Only `http:` and `https:` URLs are allowed.
+- Private, loopback, link-local, multicast, and reserved IP ranges are blocked by default.
+- Fast fetch re-validates redirects before reading the body.
+- Browser profiles contain cookies and session tokens. Clear them when no longer needed.
+- `sf_web_login` does not accept raw passwords. Use interactive login or environment variable names.
 
-## CloakBrowser Footprint
+## Browser Tests
 
-Verified with:
+Real browser tests are skipped by default. Run them when intentionally testing CloakBrowser:
 
 ```bash
-npm view cloakbrowser version license repository.url engines os cpu peerDependencies --json
+SF_WEB_RUN_BROWSER_TESTS=1 pnpm exec vitest run packages/web/tests/browserSmoke.test.ts
+SF_WEB_RUN_BROWSER_TESTS=1 pnpm exec vitest run packages/web/tests/tools.e2e.test.ts
 ```
 
-Current npm metadata on 2026-05-20:
-
-```json
-{
-  "version": "0.3.29",
-  "license": "MIT",
-  "repository.url": "git+https://github.com/CloakHQ/cloakbrowser.git",
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "peerDependencies": {
-    "mmdb-lib": ">=2.0.0",
-    "playwright-core": ">=1.53.0",
-    "puppeteer-core": ">=21.0.0",
-    "socks-proxy-agent": ">=10.0.0"
-  }
-}
-```
-
-CloakBrowser's public README documents a first-launch browser cache under `~/.cloakbrowser` and platform support for Linux x86_64/arm64, macOS arm64/x86_64, and Windows x86_64. Expect roughly a browser-sized download the first time the runtime installs or updates the browser binary.
-
-## Provenance And License Notes
-
-This package is a implementation inspired by the internal `web-automation` skill in `/Users/stefano.fiorini/Documents/projects/ai-coding-skills`, plus the current Pi `fetch` package ecosystem. The source skill had no `LICENSE`, `NOTICE`, or `COPYING` file during planning, so implementation should re-create behavior from documented requirements unless internal provenance is confirmed.
+## License
 
 Runtime dependencies:
 
 | Package | Purpose | License |
-|---|---|---|
-| `cloakbrowser` | CloakHQ browser launcher/runtime integration. | MIT |
-| `playwright-core` | Browser automation API used by CloakBrowser. | Apache-2.0 |
-| `defuddle` | Clean article extraction. | MIT |
-| `@mozilla/readability` | Readability fallback extraction. | Apache-2.0 |
-| `turndown` | HTML to Markdown conversion. | MIT |
-| `jsdom` | Server-side DOM for extraction. | MIT |
-
-## Security Notes
-
-- Only `http:` and `https:` URLs are in scope.
-- Private, loopback, link-local, multicast, and reserved IP ranges are blocked by default.
-- Fast fetch re-validates redirects before reading the body. Browser mode validates requested navigation targets before handing them to CloakBrowser; treat redirects and authenticated browsing as sensitive.
-- Browser profiles can contain cookies and session tokens. Use named profiles sparingly and clear them when no longer needed.
-- `web_login` does not accept raw password values as tool parameters. Use interactive login or environment variable names.
-- Windows profile permissions are best-effort and rely on the user's normal account isolation.
-
-## Browser Test
-
-The real browser tests are skipped by default. Run them only when you intentionally want to launch CloakBrowser:
-
-```bash
-SF_WEB_RUN_BROWSER_TESTS=1 pnpm test -- --run packages/web/tests/browserSmoke.test.ts
-SF_WEB_RUN_BROWSER_TESTS=1 pnpm test -- --run packages/web/tests/tools.e2e.test.ts
-```
+|---------|---------|---------|
+| `cloakbrowser` | CloakHQ browser launcher/runtime | MIT |
+| `playwright-core` | Browser automation API | Apache-2.0 |
+| `defuddle` | Clean article extraction | MIT |
+| `@mozilla/readability` | Readability fallback extraction | Apache-2.0 |
+| `turndown` | HTML to Markdown conversion | MIT |
+| `jsdom` | Server-side DOM for extraction | MIT |
+| `@sinclair/typebox` | JSON schema type builder | MIT |

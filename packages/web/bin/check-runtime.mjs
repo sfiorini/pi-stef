@@ -7,7 +7,7 @@ const modules = [
   "@mozilla/readability",
   "turndown",
   "jsdom",
-  "typebox",
+  "@sinclair/typebox",
 ];
 
 const results = [];

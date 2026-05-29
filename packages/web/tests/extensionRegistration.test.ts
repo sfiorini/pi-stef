@@ -27,25 +27,25 @@ describe("web extension registration", () => {
     webAccessExtension(pi as never);
 
     expect(pi.tools.map((tool) => tool.name)).toEqual([
-      "web_search",
-      "web_fetch",
-      "web_flow",
-      "web_login",
-      "web_session",
+      "sf_web_search",
+      "sf_web_fetch",
+      "sf_web_flow",
+      "sf_web_login",
+      "sf_web_session",
     ]);
-    expect(pi.commands.has("search")).toBe(true);
-    expect(pi.commands.has("web")).toBe(true);
-    await expect(pi.tools.find((tool) => tool.name === "web_fetch")?.execute("call-1", {}, undefined)).resolves.toMatchObject({
-      content: [{ type: "text", text: expect.stringContaining("Usage: web_fetch") }],
+    expect(pi.commands.has("sf-web-search")).toBe(true);
+    expect(pi.commands.has("sf-web")).toBe(true);
+    await expect(pi.tools.find((tool) => tool.name === "sf_web_fetch")?.execute("call-1", {}, undefined)).resolves.toMatchObject({
+      content: [{ type: "text", text: expect.stringContaining("Usage: sf_web_fetch") }],
     });
   });
 
-  it("requires a url for web_fetch in the Pi schema", () => {
+  it("requires a url for sf_web_fetch in the Pi schema", () => {
     const pi = new FakePi();
 
     webAccessExtension(pi as never);
 
-    const fetchSchema = pi.tools.find((tool) => tool.name === "web_fetch")?.parameters as {
+    const fetchSchema = pi.tools.find((tool) => tool.name === "sf_web_fetch")?.parameters as {
       properties?: Record<string, unknown>;
       required?: string[];
     };
@@ -58,10 +58,11 @@ describe("web extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const guidelines = pi.tools.find((tool) => tool.name === "web_fetch")?.promptGuidelines;
+    const guidelines = pi.tools.find((tool) => tool.name === "sf_web_fetch")?.promptGuidelines;
     expect(guidelines).toEqual([
       expect.stringContaining("retry with an exact URL already present"),
-      expect.stringContaining("omit intermediate internal web_fetch JSON"),
+      expect.stringContaining("omit intermediate internal sf_web_fetch JSON"),
+      expect.stringContaining("mode='browser'"),
     ]);
     expect(guidelines?.[0]).toContain("ask the user for the URL");
     expect(guidelines?.[1]).toContain("alternate-method");
@@ -73,7 +74,7 @@ describe("web extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const flowSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "web_flow")?.parameters);
+    const flowSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "sf_web_flow")?.parameters);
     expect(flowSchema).toContain('"navigate"');
     expect(flowSchema).toContain('"fill"');
     expect(flowSchema).toContain('"keypress"');
@@ -84,17 +85,17 @@ describe("web extension registration", () => {
 
     webAccessExtension(pi as never);
 
-    const searchSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "web_search")?.parameters);
+    const searchSchema = JSON.stringify(pi.tools.find((tool) => tool.name === "sf_web_search")?.parameters);
     expect(searchSchema).toContain('"searxng-html"');
   });
 
-  it("falls back to /web-search when /search is already registered", () => {
-    const pi = new FakePi(new Set(["search"]));
+  it("falls back to /sf-search when /sf-web-search is already registered", () => {
+    const pi = new FakePi(new Set(["sf-web-search"]));
 
     webAccessExtension(pi as never);
 
-    expect(pi.commands.has("search")).toBe(false);
-    expect(pi.commands.has("web-search")).toBe(true);
-    expect(pi.commands.has("web")).toBe(true);
+    expect(pi.commands.has("sf-web-search")).toBe(false);
+    expect(pi.commands.has("sf-search")).toBe(true);
+    expect(pi.commands.has("sf-web")).toBe(true);
   });
 });

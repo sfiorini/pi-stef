@@ -91,10 +91,13 @@ export function registerWebAccess(pi: ExtensionAPI): void {
 
 function registerTools(pi: ExtensionAPI): void {
   pi.registerTool({
-    name: "web_search",
-    label: "FH Web Search",
-    description: "Search the web using no-key provider cascade.",
-    promptSnippet: "Search the web with web_search when current public web results are needed.",
+    name: "sf_web_search",
+    label: "SF Web Search",
+    description: "Search the web using a no-key provider cascade (SearXNG, DuckDuckGo, Google, Bing).",
+    promptSnippet: "Use sf_web_search to search the web when current public web results are needed.",
+    promptGuidelines: [
+      "After sf_web_search returns results with URLs, use sf_web_fetch to read the full page content rather than searching again.",
+    ],
     parameters: searchParams,
     execute: async (_toolCallId, params, signal) => {
       const config = await loadWebAccessConfig({
@@ -115,18 +118,20 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "web_fetch",
-    label: "FH Web Fetch",
-    description: "Fetch a specific URL through guarded fast fetch or CloakBrowser-rendered access. Requires a url argument.",
-    promptSnippet: "Fetch URL content with web_fetch when a specific page needs to be read; include the url argument.",
+    name: "sf_web_fetch",
+    label: "SF Web Fetch",
+    description:
+      "Fetch a specific URL. Defaults to fast HTTP; automatically falls back to CloakBrowser for JS-heavy pages. Use mode='browser' to force browser rendering.",
+    promptSnippet: "Use sf_web_fetch to read a specific URL; pass the url argument.",
     promptGuidelines: [
-      "If web_fetch fails because the url argument is missing or invalid, retry with an exact URL already present in the conversation or web_search results; if no URL is available, ask the user for the URL.",
-      "When a retry or other fetch path retrieves enough content to answer completely, omit intermediate internal web_fetch JSON, schema, missing-url, alternate-method, or fallback details unless the user asks for tool diagnostics.",
+      "If sf_web_fetch fails because the url argument is missing or invalid, retry with an exact URL already present in the conversation or sf_web_search results; if no URL is available, ask the user for the URL.",
+      "When a retry or other fetch path retrieves enough content to answer completely, omit intermediate internal sf_web_fetch JSON, schema, missing-url, alternate-method, or fallback details unless the user asks for tool diagnostics.",
+      "When the user explicitly asks to use the browser, pass mode='browser'.",
     ],
     parameters: fetchParams,
     execute: async (_toolCallId, params, signal) => {
       if (!params.url) {
-        return { content: [{ type: "text", text: "Usage: web_fetch { url: string }" }], details: { implemented: true } };
+        return { content: [{ type: "text", text: "Usage: sf_web_fetch { url: string }" }], details: { implemented: true } };
       }
       const config = await loadWebAccessConfig();
       const result = await fetchWeb({
@@ -143,15 +148,22 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "web_flow",
-    label: "FH Web Flow",
-    description: "Run deterministic browser automation steps in a CloakBrowser session.",
+    name: "sf_web_flow",
+    label: "SF Web Flow",
+    description:
+      "Automate multi-step browser interactions in CloakBrowser: navigate, fill forms, click, extract data. Accepts natural-language instructions or structured steps.",
+    promptSnippet:
+      "Use sf_web_flow for browser automation: navigate pages, fill forms, click elements, extract rendered content.",
+    promptGuidelines: [
+      "Always include an extract step or the flow will return only page metadata, not the visible content.",
+      "Prefer sf_web_search for simple searches; use sf_web_flow only when browser interaction is required.",
+    ],
     parameters: flowParams,
     execute: async (_toolCallId, params, signal) => {
       const config = await loadWebAccessConfig();
       const steps = params.steps ?? (params.instruction ? parseFlowSteps(params.instruction) : undefined);
       if (!steps?.length) {
-        return { content: [{ type: "text", text: "Usage: web_flow { instruction } or { steps }" }], details: { implemented: true } };
+        return { content: [{ type: "text", text: "Usage: sf_web_flow { instruction } or { steps }" }], details: { implemented: true } };
       }
       const runtime = await createCloakBrowserRuntime(config, { headless: params.headless ?? true, profile: params.profile });
       const result = await runWebFlow({
@@ -165,9 +177,14 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "web_login",
-    label: "FH Web Login",
-    description: "Create or refresh a named browser login profile without raw password tool parameters.",
+    name: "sf_web_login",
+    label: "SF Web Login",
+    description:
+      "Create or refresh a named CloakBrowser login profile. Credentials come from environment variables, never from tool arguments.",
+    promptSnippet: "Use sf_web_login to create or refresh authenticated browser sessions for sites requiring login.",
+    promptGuidelines: [
+      "Credentials must be provided via environment variables (usernameEnv, passwordEnv), never as direct arguments.",
+    ],
     parameters: loginParams,
     execute: async (_toolCallId, params, signal) => {
       const config = await loadWebAccessConfig();
@@ -195,9 +212,11 @@ function registerTools(pi: ExtensionAPI): void {
   });
 
   pi.registerTool({
-    name: "web_session",
-    label: "FH Web Session",
-    description: "List, inspect, locate, or clear web browser session profiles.",
+    name: "sf_web_session",
+    label: "SF Web Session",
+    description: "List, inspect, locate, or clear CloakBrowser session profiles.",
+    promptSnippet: "Use sf_web_session to list, inspect, or clear saved browser session profiles.",
+    promptGuidelines: [],
     parameters: sessionParams,
     execute: async (_toolCallId, params) => {
       const text = await handleSessionAction(params.action ?? "list", params.profile, params.yes);
@@ -207,26 +226,80 @@ function registerTools(pi: ExtensionAPI): void {
 }
 
 function registerCommands(pi: ExtensionAPI): void {
+  const send = typeof pi.sendUserMessage === "function" ? pi.sendUserMessage.bind(pi) : undefined;
+
+  function postPrompt(message: string, ctx: { isIdle?: () => boolean; ui?: any }, fallbackText?: string): void {
+    if (send) {
+      const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+      if (idle) {
+        send(message);
+      } else {
+        send(message, { deliverAs: "followUp" });
+      }
+    } else if (fallbackText) {
+      ctx.ui?.notify?.(fallbackText, "info");
+    } else {
+      ctx.ui?.notify?.("This runtime does not support sending messages to the agent.", "warning");
+    }
+  }
+
   const searchCommand = {
-    description: "Search the web with web.",
+    description: "Search the web.",
     handler: async (args: string, ctx: any) => {
-      ctx.ui.notify(await handleSearchCommand(args), "info");
+      const trimmed = args.trim();
+      const message = trimmed.length > 0 ? `Search the web for: ${trimmed}` : `Search the web.`;
+      postPrompt(message, ctx);
     },
   };
 
   try {
-    pi.registerCommand("search", searchCommand);
+    pi.registerCommand("sf-web-search", searchCommand);
   } catch {
-    pi.registerCommand("web-search", {
+    pi.registerCommand("sf-search", {
       ...searchCommand,
-      description: "Search the web with web. Fallback when /search is unavailable.",
+      description: "Search the web. Fallback when /sf-web-search is unavailable.",
     });
   }
 
-  pi.registerCommand("web", {
-    description: "Manage web: /web status|sessions|clear-session",
+  pi.registerCommand("sf-web-fetch", {
+    description: "Fetch a URL.",
     handler: async (args: string, ctx: any) => {
-      ctx.ui.notify(await handleWebCommand(args, ctx.cwd), "info");
+      const trimmed = args.trim();
+      const message = trimmed.length > 0 ? `Fetch the content of this URL: ${trimmed}` : `Fetch a URL (no URL provided).`;
+      postPrompt(message, ctx);
+    },
+  });
+
+  pi.registerCommand("sf-web-flow", {
+    description: "Run a browser flow.",
+    handler: async (args: string, ctx: any) => {
+      const trimmed = args.trim();
+      const message = trimmed.length > 0 ? `Run a browser flow: ${trimmed}` : `Run a browser flow (no instruction provided).`;
+      postPrompt(message, ctx);
+    },
+  });
+
+  pi.registerCommand("sf-web-login", {
+    description: "Create a browser login session.",
+    handler: async (args: string, ctx: any) => {
+      const trimmed = args.trim();
+      const message = trimmed.length > 0 ? `Create a browser login session for: ${trimmed}` : `Create a browser login session (no URL provided).`;
+      postPrompt(message, ctx);
+    },
+  });
+
+  pi.registerCommand("sf-web-session", {
+    description: "Manage browser sessions: list, inspect, clear.",
+    handler: async (args: string, ctx: any) => {
+      ctx.ui.notify(await handleSessionAction(args.trim().split(/\s+/)[0] || "list", args.trim().split(/\s+/)[1], args.includes("--yes")), "info");
+    },
+  });
+
+  pi.registerCommand("sf-web", {
+    description: "Show web package status and configuration.",
+    handler: async (args: string, ctx: any) => {
+      const result = await handleWebCommand(args, ctx.cwd);
+      ctx.ui.notify(result, "info");
     },
   });
 }
@@ -248,10 +321,10 @@ export async function handleWebCommand(args: string, cwd = process.cwd()): Promi
     return handleSessionAction("list");
   }
   if (command === "clear-session") {
-    if (!name) return "Usage: /web clear-session <name> [--yes]";
+    if (!name) return "Usage: /sf-web-session clear <name> [--yes]";
     return handleSessionAction("clear", name, flag === "--yes");
   }
-  return "Usage: /web status | /web sessions | /web clear-session <name> [--yes]";
+  return "Usage: /sf-web status | /sf-web sessions | /sf-web clear-session <name> [--yes]";
 }
 
 async function handleSessionAction(action: string, profile = "default", yes = false): Promise<string> {
@@ -282,5 +355,5 @@ async function handleSessionAction(action: string, profile = "default", yes = fa
       return error instanceof Error ? error.message : String(error);
     }
   }
-  return "Usage: web_session { action: list|locate|clear, profile?, yes? }";
+  return "Usage: sf_web_session { action: list|locate|clear, profile?, yes? }";
 }

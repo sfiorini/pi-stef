@@ -20,7 +20,7 @@ afterEach(async () => {
   await rm(root, { force: true, recursive: true });
 });
 
-describe("/web command", () => {
+describe("/sf-web command", () => {
   it("lists and clears browser sessions", async () => {
     const config = await loadWebAccessConfig();
     await ensureProfileDir(config, "default");

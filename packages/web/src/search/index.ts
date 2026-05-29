@@ -71,7 +71,7 @@ export async function handleSearchCommand(
 ): Promise<string> {
   const query = input.trim();
   if (!query) {
-    return "Usage: /search <query>";
+    return "Usage: sf_web_search { query: string }";
   }
   return renderSearchResults(await searchWeb({ ...options, query }));
 }

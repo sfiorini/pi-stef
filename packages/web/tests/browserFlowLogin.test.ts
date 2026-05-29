@@ -34,6 +34,7 @@ describe("browser flow and login helpers", () => {
       { action: "type", text: "espresso machines" },
       { action: "press", key: "Enter" },
       { action: "wait", ms: 2000 },
+      { action: "extract", selector: "body" },
     ]);
   });
 
