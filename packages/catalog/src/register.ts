@@ -22,6 +22,7 @@ import {
   disableCommand,
   type ToggleCtx,
 } from "./commands/toggle.js";
+import { syncCommand, type SyncCtx } from "./commands/sync.js";
 import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,9 @@ async function handleSubcommand(
       break;
     case "remove":
       await removeCommand(parsed, ctx as RemoveCtx);
+      break;
+    case "sync":
+      await syncCommand(parsed, ctx as SyncCtx);
       break;
     case "toggle":
       await toggleCommand(parsed, ctx as ToggleCtx);
