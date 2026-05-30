@@ -83,6 +83,8 @@ export interface ExecuteOptions {
   home?: string;
   /** Lock file writer override (for testing). Defaults to fs.writeFileSync. */
   lockFileWriter?: (filePath: string, content: string) => void;
+  /** If true, skip actual shell execution and lock file writes. Returns success with no errors. */
+  dryRun?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,6 +273,11 @@ export async function executeActions(
   options?: ExecuteOptions,
 ): Promise<ExecuteResult> {
   const errors: ActionError[] = [];
+
+  // --- Dry-run: preview mode, skip execution and lock file write ---
+  if (options?.dryRun) {
+    return { success: true, errors };
+  }
 
   // --- Uninstalls first ---
   for (const action of plan.uninstalls) {

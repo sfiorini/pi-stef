@@ -46,6 +46,19 @@ describe("reconcile", () => {
     expect(plan.orphans).toEqual([]);
   });
 
+  it("generates install action for catalog entry with enabled: true explicit", () => {
+    const catalog: Record<string, CatalogEntry> = {
+      "my-skill": { source: "npm:@foo/bar", enabled: true },
+    };
+    const plan = reconcile(catalog, {});
+    expect(plan.installs).toHaveLength(1);
+    expect(plan.installs[0]).toEqual({
+      type: "install",
+      key: "my-skill",
+      source: "npm:@foo/bar",
+    });
+  });
+
   it("generates install action for git source not yet installed", () => {
     const catalog: Record<string, CatalogEntry> = {
       "git-skill": { source: "git:github.com/user/repo" },
@@ -617,5 +630,154 @@ describe("executeActions", () => {
     await executeActions(plan, { lockFileWriter: mockLockWriter });
 
     expect(mockLockWriter).not.toHaveBeenCalled();
+  });
+
+  it("does not write lock file for empty plan with no actions", async () => {
+    const plan: ReconcilePlan = {
+      installs: [],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(mockLockWriter).not.toHaveBeenCalled();
+  });
+
+  it("returns error when uninstall action fails", async () => {
+    const uninstallError = new Error("uninstall failed");
+    mockedPiUninstall.mockRejectedValueOnce(uninstallError);
+
+    const plan: ReconcilePlan = {
+      installs: [],
+      uninstalls: [
+        { type: "uninstall", key: "old-pkg", source: "npm:old-pkg" },
+      ],
+      upgrades: [],
+      orphans: [],
+    };
+
+    const result = await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].action.type).toBe("uninstall");
+    expect(result.errors[0].action.key).toBe("old-pkg");
+    expect(result.errors[0].error).toBe(uninstallError);
+  });
+
+  it("returns error when upgrade action fails", async () => {
+    const upgradeError = new Error("upgrade failed");
+    mockedPiInstall.mockRejectedValueOnce(upgradeError);
+
+    const plan: ReconcilePlan = {
+      installs: [],
+      uninstalls: [],
+      upgrades: [
+        {
+          type: "upgrade",
+          key: "pkg-a",
+          source: "npm:pkg-a@2.0.0",
+          currentVersion: "1.0.0",
+          targetVersion: "2.0.0",
+        },
+      ],
+      orphans: [],
+    };
+
+    const result = await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].action.type).toBe("upgrade");
+    expect(result.errors[0].action.key).toBe("pkg-a");
+    expect(result.errors[0].error).toBe(upgradeError);
+  });
+
+  it("executes actions in order: uninstalls → installs → upgrades", async () => {
+    const callOrder: string[] = [];
+    mockedPiUninstall.mockImplementation(async () => {
+      callOrder.push("uninstall");
+      return { stdout: "ok", stderr: "", exitCode: 0 };
+    });
+    mockedPiInstall.mockImplementation(async (source: string) => {
+      callOrder.push(source.startsWith("npm:upgrade") ? "upgrade" : "install");
+      return { stdout: "ok", stderr: "", exitCode: 0 };
+    });
+
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "new-pkg", source: "npm:new-pkg" },
+      ],
+      uninstalls: [
+        { type: "uninstall", key: "old-pkg", source: "npm:old-pkg" },
+      ],
+      upgrades: [
+        {
+          type: "upgrade",
+          key: "upgrade-pkg",
+          source: "npm:upgrade-pkg@2.0.0",
+          currentVersion: "1.0.0",
+          targetVersion: "2.0.0",
+        },
+      ],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(callOrder).toEqual(["uninstall", "install", "upgrade"]);
+  });
+
+  it("dryRun skips all shell execution and does not write lock file", async () => {
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "pkg-a", source: "npm:pkg-a" },
+      ],
+      uninstalls: [
+        { type: "uninstall", key: "old-pkg", source: "npm:old-pkg" },
+      ],
+      upgrades: [
+        {
+          type: "upgrade",
+          key: "upgrade-pkg",
+          source: "npm:upgrade-pkg@2.0.0",
+          currentVersion: "1.0.0",
+          targetVersion: "2.0.0",
+        },
+      ],
+      orphans: [],
+    };
+
+    const result = await executeActions(plan, {
+      dryRun: true,
+      lockFileWriter: mockLockWriter,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(mockedPiInstall).not.toHaveBeenCalled();
+    expect(mockedPiUninstall).not.toHaveBeenCalled();
+    expect(mockLockWriter).not.toHaveBeenCalled();
+  });
+
+  it("handles non-Error rejections from piInstall", async () => {
+    mockedPiInstall.mockRejectedValueOnce("string error");
+
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "bad-pkg", source: "npm:bad-pkg" },
+      ],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    };
+
+    const result = await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(result.success).toBe(false);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].error.message).toBe("string error");
   });
 });
