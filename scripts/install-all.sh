@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="git:github.com/<USER>/pi-stef"
+echo "⚠️  DEPRECATED: install-all.sh is deprecated. Use 'ct sync' instead."
+echo "   Install catalog:  pi install git:github.com/sfiorini/pi-stef#packages/catalog"
+echo "   Then run:         /ct sync"
+echo ""
+
+REPO="git:github.com/sfiorini/pi-stef"
 PACKAGES=("superpowers-adapter" "agent-workflows" "atlassian" "figma" "sf-team" "web")
 SCOPE="global"
 
