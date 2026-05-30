@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createMockAPI } from "./helpers/mock-api.js";
 import { clearTodos } from "../src/tools/todo-write.js";
-import { resetSkillCache } from "../src/tools/skill.js";
+import { resetSkillCache, discoverSkills } from "../src/tools/skill.js";
 import extension from "../src/index.js";
 
 describe("extension entry point", () => {
@@ -76,5 +76,24 @@ describe("extension entry point", () => {
     const handler = mockApi.eventHandlers.get("resources_discover")!;
     await handler();
     expect(true).toBe(true);
+  });
+
+  it("discoverSkills gives cwd skills priority over home skills", () => {
+    // Create a local skill with the same name as a potential home-level skill.
+    // This verifies that cwd paths are searched before home paths so that
+    // project-level skills override global ones.
+    const skillDir = join(tempDir, ".pi", "skills", "using-superpowers");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: using-superpowers\ndescription: Local override\n---\nLocal content.\n",
+    );
+
+    resetSkillCache();
+    const skills = discoverSkills(tempDir);
+    const skill = skills.get("using-superpowers");
+    expect(skill).toBeDefined();
+    // The local (cwd) version must win over any home-level version.
+    expect(skill!.path).toContain(tempDir);
   });
 });

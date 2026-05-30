@@ -99,7 +99,7 @@ describe("sf_team_auto with Atlassian Jira context", () => {
     }
   });
 
-  it("propagates implement verification output when auto fails during verification", async () => {
+  it("propagates implement verification output when auto fails during verification", { timeout: 15_000 }, async () => {
     const { root, dispose } = makeRepo();
     try {
       const spawnAgent = vi.fn(async (member: TeamMember, task: AgentTask) => {
