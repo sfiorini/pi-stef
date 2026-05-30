@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
+import { registerCatalog } from "../src/register.js";
+
 export default function catalogExtension(pi: ExtensionAPI): void {
-  // Extension entry point – tools will be registered in later stories.
-  void pi;
+  registerCatalog(pi);
 }
