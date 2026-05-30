@@ -29,6 +29,7 @@ import {
   type SyncCtx,
   type PushPullCtx,
 } from "./commands/sync.js";
+import { loginCommand, type LoginCtx } from "./commands/login.js";
 import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,9 @@ async function handleSubcommand(
       break;
     case "disable":
       await disableCommand(parsed, ctx as ToggleCtx);
+      break;
+    case "login":
+      await loginCommand(parsed, ctx as LoginCtx);
       break;
     default:
       ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");
