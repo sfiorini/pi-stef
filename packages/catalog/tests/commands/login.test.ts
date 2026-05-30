@@ -9,6 +9,7 @@ import type { CommandArgs, CommandCtx } from "../../src/commands/types.js";
 vi.mock("../../src/sync/auth.js", () => ({
   checkAuth: vi.fn(),
   getToken: vi.fn(),
+  isGhInstalled: vi.fn(),
 }));
 
 vi.mock("../../src/sync/pull.js", () => ({
@@ -37,12 +38,13 @@ vi.mock("../../src/catalog/reconcile.js", () => ({
   executeActions: vi.fn(),
 }));
 
-import { checkAuth, getToken } from "../../src/sync/auth.js";
+import { checkAuth, getToken, isGhInstalled } from "../../src/sync/auth.js";
 import { pullCatalog } from "../../src/sync/pull.js";
 import { writeCachedGistId } from "../../src/sync/cache.js";
 
 const mockedCheckAuth = vi.mocked(checkAuth);
 const mockedGetToken = vi.mocked(getToken);
+const mockedIsGhInstalled = vi.mocked(isGhInstalled);
 const mockedPullCatalog = vi.mocked(pullCatalog);
 const mockedWriteCachedGistId = vi.mocked(writeCachedGistId);
 
@@ -79,6 +81,82 @@ function makeArgs(overrides?: Partial<CommandArgs>): CommandArgs {
 describe("loginCommand", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: gh is installed
+    mockedIsGhInstalled.mockResolvedValue(true);
+  });
+
+  // -------------------------------------------------------------------------
+  // gh CLI not installed → install guidance
+  // -------------------------------------------------------------------------
+
+  it("shows install guidance when gh CLI is not installed", async () => {
+    mockedIsGhInstalled.mockResolvedValue(false);
+
+    const { loginCommand } = await import("../../src/commands/login.js");
+    const ctx = makeCtx();
+    await loginCommand(makeArgs(), ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("GitHub CLI"),
+      "info",
+    );
+    // Should NOT attempt auth check or pull
+    expect(mockedCheckAuth).not.toHaveBeenCalled();
+    expect(mockedPullCatalog).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // gh not installed → does not attempt auth or token verification
+  // -------------------------------------------------------------------------
+
+  it("does not attempt auth check when gh is not installed", async () => {
+    mockedIsGhInstalled.mockResolvedValue(false);
+
+    const { loginCommand } = await import("../../src/commands/login.js");
+    const ctx = makeCtx();
+    await loginCommand(makeArgs(), ctx);
+
+    expect(mockedCheckAuth).not.toHaveBeenCalled();
+    expect(mockedGetToken).not.toHaveBeenCalled();
+    expect(mockedPullCatalog).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Authenticated → verifies token before pulling
+  // -------------------------------------------------------------------------
+
+  it("verifies token after successful auth check", async () => {
+    mockedCheckAuth.mockResolvedValue(true);
+    mockedGetToken.mockResolvedValue("ghp_abc123");
+    mockedPullCatalog.mockResolvedValue({
+      catalog: { meta: { pi_version: "1.0.0" }, packages: {} },
+      lock: { packages: {} },
+    });
+
+    const { loginCommand } = await import("../../src/commands/login.js");
+    const ctx = makeCtx();
+    await loginCommand(makeArgs(), ctx);
+
+    expect(mockedGetToken).toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Authenticated but no token → warning
+  // -------------------------------------------------------------------------
+
+  it("shows warning when authenticated but token is unavailable", async () => {
+    mockedCheckAuth.mockResolvedValue(true);
+    mockedGetToken.mockResolvedValue(undefined);
+
+    const { loginCommand } = await import("../../src/commands/login.js");
+    const ctx = makeCtx();
+    await loginCommand(makeArgs(), ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("token"),
+      "warning",
+    );
+    expect(mockedPullCatalog).not.toHaveBeenCalled();
   });
 
   // -------------------------------------------------------------------------
@@ -107,7 +185,7 @@ describe("loginCommand", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Authenticated → caches gist ID on pull
+  // Authenticated → caches gist ID on pull (via pullCatalog)
   // -------------------------------------------------------------------------
 
   it("caches gist ID after successful pull", async () => {
@@ -132,6 +210,7 @@ describe("loginCommand", () => {
 
   it("provides gh auth login instructions when not authenticated", async () => {
     mockedCheckAuth.mockResolvedValue(false);
+    mockedGetToken.mockResolvedValue(undefined);
 
     const { loginCommand } = await import("../../src/commands/login.js");
     const ctx = makeCtx();
@@ -147,10 +226,10 @@ describe("loginCommand", () => {
   });
 
   // -------------------------------------------------------------------------
-  // Not authenticated → does not attempt pull
+  // Not authenticated → does not attempt pull or token check
   // -------------------------------------------------------------------------
 
-  it("does not attempt pull when not authenticated", async () => {
+  it("does not attempt pull or token check when not authenticated", async () => {
     mockedCheckAuth.mockResolvedValue(false);
 
     const { loginCommand } = await import("../../src/commands/login.js");

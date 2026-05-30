@@ -5,13 +5,14 @@
  * remote catalog on success.
  *
  * Flow:
- *   1. Check if `gh` is installed and the user is authenticated.
- *   2. If already authenticated: notify success and auto-pull the remote catalog.
- *   3. If not authenticated: provide instructions to run `gh auth login`.
+ *   1. Detect whether `gh` CLI is installed.
+ *   2. Check if the user is authenticated via `gh auth status`.
+ *   3. Verify a valid token is available via `getToken()`.
+ *   4. Auto-pull the remote catalog on success.
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
-import { checkAuth } from "../sync/auth.js";
+import { checkAuth, getToken, isGhInstalled } from "../sync/auth.js";
 import { pullCatalog } from "../sync/pull.js";
 
 // ---------------------------------------------------------------------------
@@ -28,8 +29,8 @@ export type LoginCtx = CommandCtx;
 /**
  * Execute the `ct login` subcommand.
  *
- * Checks authentication status via `checkAuth()`. If authenticated,
- * auto-pulls the remote catalog. If not, provides guidance.
+ * Detects `gh` CLI, checks authentication status, verifies token,
+ * and auto-pulls the remote catalog on success.
  */
 export async function loginCommand(
   args: CommandArgs,
@@ -39,7 +40,18 @@ export async function loginCommand(
   const profile =
     typeof flags["profile"] === "string" ? flags["profile"] : "default";
 
-  // --- 1. Check authentication status ----------------------------------------
+  // --- 1. Detect gh CLI -----------------------------------------------------
+  const ghInstalled = await isGhInstalled();
+
+  if (!ghInstalled) {
+    ctx.ui.notify(
+      "GitHub CLI (`gh`) is not installed. Install it from https://cli.github.com, then re-run `ct login`.",
+      "info",
+    );
+    return;
+  }
+
+  // --- 2. Check authentication status ----------------------------------------
   const isAuthenticated = await checkAuth();
 
   if (!isAuthenticated) {
@@ -52,7 +64,18 @@ export async function loginCommand(
     return;
   }
 
-  // --- 2. Already authenticated — auto-pull ---------------------------------
+  // --- 3. Verify token ------------------------------------------------------
+  const token = await getToken();
+
+  if (!token) {
+    ctx.ui.notify(
+      "Authenticated, but no token available. Run `gh auth login` with the `read:gist` scope, then re-run `ct login`.",
+      "warning",
+    );
+    return;
+  }
+
+  // --- 4. Already authenticated — auto-pull ---------------------------------
   ctx.ui.notify("Already authenticated with GitHub.", "info");
 
   try {

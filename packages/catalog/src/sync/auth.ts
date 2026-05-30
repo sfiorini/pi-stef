@@ -55,6 +55,20 @@ function runQuiet(
 // ---------------------------------------------------------------------------
 
 /**
+ * Check whether the GitHub CLI (`gh`) is installed on the system.
+ *
+ * Returns `true` when `gh --version` exits with code 0, `false` otherwise.
+ */
+export async function isGhInstalled(): Promise<boolean> {
+  try {
+    const result = await runQuiet("gh", ["--version"]);
+    return result.exitCode === 0;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Check whether the GitHub CLI (`gh`) is installed and the user is
  * authenticated.
  *
