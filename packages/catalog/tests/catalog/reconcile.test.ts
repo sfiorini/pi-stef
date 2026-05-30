@@ -780,4 +780,110 @@ describe("executeActions", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].error.message).toBe("string error");
   });
+
+  // -----------------------------------------------------------------------
+  // Lock file population (P1: no longer a no-op stub)
+  // -----------------------------------------------------------------------
+
+  it("writes lock file with installed package metadata after successful install", async () => {
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "pkg-a", source: "npm:pkg-a@1.2.3" },
+      ],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    expect(mockLockWriter).toHaveBeenCalled();
+    expect(writtenLock).not.toBeNull();
+    const parsed = JSON.parse(writtenLock!.content);
+    expect(parsed.packages).toHaveProperty("pkg-a");
+    expect(parsed.packages["pkg-a"].version).toBe("1.2.3");
+    expect(parsed.packages["pkg-a"].contentHash).toMatch(/^sha256-/);
+    expect(parsed.packages["pkg-a"].installedAt).toBeDefined();
+    expect(parsed.packages["pkg-a"].syncState).toBe("synced");
+    // Must validate against the schema
+    expect(() => LockFileSchema.parse(parsed)).not.toThrow();
+  });
+
+  it("writes lock file with upgraded package metadata", async () => {
+    const plan: ReconcilePlan = {
+      installs: [],
+      uninstalls: [],
+      upgrades: [
+        {
+          type: "upgrade",
+          key: "pkg-a",
+          source: "npm:pkg-a@2.0.0",
+          currentVersion: "1.0.0",
+          targetVersion: "2.0.0",
+        },
+      ],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    const parsed = JSON.parse(writtenLock!.content);
+    expect(parsed.packages["pkg-a"]).toBeDefined();
+    expect(parsed.packages["pkg-a"].version).toBe("2.0.0");
+    expect(parsed.packages["pkg-a"].syncState).toBe("synced");
+  });
+
+  it("removes uninstalled packages from lock file", async () => {
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "pkg-a", source: "npm:pkg-a@1.0.0" },
+      ],
+      uninstalls: [
+        { type: "uninstall", key: "pkg-b", source: "npm:pkg-b" },
+      ],
+      upgrades: [],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    const parsed = JSON.parse(writtenLock!.content);
+    expect(parsed.packages).toHaveProperty("pkg-a");
+    expect(parsed.packages).not.toHaveProperty("pkg-b");
+  });
+
+  it("writes lock entries for multiple installs of mixed types", async () => {
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "pkg-a", source: "npm:pkg-a@1.0.0" },
+        { type: "install", key: "pkg-b", source: "git:github.com/user/repo@v2" },
+      ],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    const parsed = JSON.parse(writtenLock!.content);
+    expect(Object.keys(parsed.packages)).toHaveLength(2);
+    expect(parsed.packages["pkg-a"].version).toBe("1.0.0");
+    expect(parsed.packages["pkg-b"].version).toBe("v2");
+  });
+
+  it("uses 'unknown' version for npm source without version pin", async () => {
+    const plan: ReconcilePlan = {
+      installs: [
+        { type: "install", key: "pkg-no-ver", source: "npm:pkg-no-ver" },
+      ],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    };
+
+    await executeActions(plan, { lockFileWriter: mockLockWriter });
+
+    const parsed = JSON.parse(writtenLock!.content);
+    expect(parsed.packages["pkg-no-ver"].version).toBe("unknown");
+  });
 });

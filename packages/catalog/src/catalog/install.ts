@@ -12,6 +12,9 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 
+import { parseSource } from "./source.js";
+import { npmNodeModulesDir } from "../config/paths.js";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -33,102 +36,6 @@ export interface InstalledPackage {
 export type InstalledMap = Record<string, InstalledPackage>;
 
 // ---------------------------------------------------------------------------
-// Source parsing helpers
-// ---------------------------------------------------------------------------
-
-interface ParsedSource {
-  /** Identity key for deduplication. */
-  name: string;
-  /** Source type. */
-  type: "npm" | "git" | "local";
-  /** For npm: the package name without the npm: prefix. */
-  npmName?: string;
-  /** For npm with optional version pin: the version after @, or undefined. */
-  npmVersion?: string;
-}
-
-/**
- * Parse a raw source string into a structured form.
- */
-function parseSource(raw: string): ParsedSource {
-  // npm:pkg@version or npm:pkg
-  if (raw.startsWith("npm:")) {
-    const rest = raw.slice(4); // "@foo/bar@1.2.3" or "my-pkg"
-    const npmName = extractNpmName(rest);
-    return { name: npmName, type: "npm", npmName };
-  }
-
-  // git: shorthand
-  if (raw.startsWith("git:")) {
-    const rest = raw.slice(4); // "github.com/user/repo@v1" or "git@github.com:user/repo@v1"
-    const name = extractGitName(rest);
-    return { name, type: "git" };
-  }
-
-  // HTTPS / SSH protocol URLs treated as git sources
-  if (
-    raw.startsWith("https://") ||
-    raw.startsWith("http://") ||
-    raw.startsWith("ssh://") ||
-    raw.startsWith("git://")
-  ) {
-    const name = extractGitName(raw);
-    return { name, type: "git" };
-  }
-
-  // Everything else is a local path — derive name from directory basename
-  const name = path.basename(path.resolve(raw));
-  return { name, type: "local" };
-}
-
-/**
- * Extract the npm package name from "pkg@version" or "@scope/pkg@version".
- */
-function extractNpmName(spec: string): string {
-  // Scoped package: @scope/pkg@version -> @scope/pkg
-  if (spec.startsWith("@")) {
-    const secondAt = spec.indexOf("@", 1);
-    return secondAt === -1 ? spec : spec.slice(0, secondAt);
-  }
-  // Unscoped: pkg@version -> pkg
-  const atIdx = spec.indexOf("@");
-  return atIdx === -1 ? spec : spec.slice(0, atIdx);
-}
-
-/**
- * Extract a human-readable name from a git/URL source.
- *
- * Examples:
- *   "github.com/user/repo@v1"   -> "github.com/user/repo"
- *   "git@github.com:user/repo"  -> "github.com/user/repo"
- *   "https://github.com/user/repo@v2" -> "github.com/user/repo"
- *   "ssh://git@github.com/user/repo@v1" -> "github.com/user/repo"
- */
-function extractGitName(raw: string): string {
-  let cleaned = raw;
-
-  // Strip protocol prefix
-  cleaned = cleaned.replace(/^(https?:\/\/|ssh:\/\/|git:\/\/)/, "");
-  // Strip user@ prefix (e.g. git@)
-  cleaned = cleaned.replace(/^[^@/]+@/, "");
-  // Convert colon to slash for git@host:path style
-  cleaned = cleaned.replace(/:/, "/");
-
-  // Strip trailing @ref
-  const atIdx = cleaned.lastIndexOf("@");
-  if (atIdx !== -1) {
-    cleaned = cleaned.slice(0, atIdx);
-  }
-
-  // Strip trailing .git
-  if (cleaned.endsWith(".git")) {
-    cleaned = cleaned.slice(0, -4);
-  }
-
-  return cleaned;
-}
-
-// ---------------------------------------------------------------------------
 // Version resolution
 // ---------------------------------------------------------------------------
 
@@ -141,11 +48,7 @@ function readNpmVersion(
   npmName: string,
 ): string | undefined {
   const pkgJsonPath = path.join(
-    home,
-    ".pi",
-    "agent",
-    "npm",
-    "node_modules",
+    npmNodeModulesDir(home),
     npmName,
     "package.json",
   );
