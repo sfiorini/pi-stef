@@ -45,8 +45,8 @@ function exec(
           return;
         }
         resolve({
-          stdout: typeof stdout === "string" ? stdout : (stdout?.toString() ?? ""),
-          stderr: typeof stderr === "string" ? stderr : (stderr?.toString() ?? ""),
+          stdout: typeof stdout === "string" ? stdout : String(stdout ?? ""),
+          stderr: typeof stderr === "string" ? stderr : String(stderr ?? ""),
         });
       },
     );
@@ -71,16 +71,6 @@ function getOctokit(): InstanceType<typeof Octokit> {
 /** Reset the cached Octokit (used by tests to ensure fresh mocks). */
 export function _resetOctokit(): void {
   _octokit = null;
-}
-
-/**
- * Check if an error is a "command not found" error (ENOENT).
- */
-function isNotFound(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    (error as NodeJS.ErrnoException).code === "ENOENT"
-  );
 }
 
 /**
@@ -126,9 +116,8 @@ export async function createGist(
     const data = JSON.parse(stdout);
     return { id: data.id, url: data.html_url };
   } catch (ghError) {
-    if (!isNotFound(ghError)) {
-      // gh was found but the API call failed — still try octokit as fallback
-    }
+    // gh was found but the API call failed, or gh was not found (ENOENT).
+    // Fall through to octokit in either case.
 
     // --- Fallback: Octokit REST API ---
     const octokit = getOctokit();
@@ -139,8 +128,8 @@ export async function createGist(
     });
 
     return {
-      id: response.data.id,
-      url: response.data.html_url,
+      id: response.data.id!,
+      url: response.data.html_url ?? undefined,
     };
   }
 }
@@ -179,7 +168,7 @@ export async function readGist(gistId: string): Promise<{
       files[name] = { content: (file as { content?: string }).content ?? "" };
     }
 
-    return { id: response.data.id, files };
+    return { id: response.data.id!, files };
   }
 }
 
@@ -220,8 +209,8 @@ export async function updateGist(
     });
 
     return {
-      id: response.data.id,
-      url: response.data.html_url,
+      id: response.data.id!,
+      url: response.data.html_url ?? undefined,
     };
   }
 }
@@ -253,8 +242,10 @@ export async function findGistByDescription(
       const octokit = getOctokit();
       const response = await octokit.gists.list();
 
-      const gists: Array<{ id: string; description?: string }> = response.data;
-      return gists.find((g) => g.description === description);
+      const raw = response.data as Array<{ id: string; description: string | null | undefined }>;
+      const found = raw.find((g) => g.description === description);
+      if (!found) return undefined;
+      return { id: found.id, description: found.description ?? undefined };
     } catch {
       return undefined;
     }

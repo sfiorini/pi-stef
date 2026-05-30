@@ -257,8 +257,6 @@ describe("CatalogPackageSchema", () => {
     });
     expect(result.success).toBe(false);
   });
-
-  });
 });
 
 // ---------------------------------------------------------------------------

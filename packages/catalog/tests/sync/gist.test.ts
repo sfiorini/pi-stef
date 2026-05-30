@@ -117,9 +117,7 @@ describe("createGist", () => {
 
     // Verify the JSON body passed via stdin contains the description
     const callArgs = mockedExecFile.mock.calls[0] as unknown[];
-    const options = callArgs[2] as Record<string, unknown>;
-    // stdin is not directly on execFile options, but the stdin is written via child.stdin
-    // Instead verify the --input flag is present
+    // Verify the --input flag is present
     const ghArgs = callArgs[1] as string[];
     expect(ghArgs).toContain("--input");
     expect(ghArgs).toContain("-");

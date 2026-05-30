@@ -1,6 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import fs from "node:fs";
-import path from "node:path";
 import yaml from "js-yaml";
 
 // ---------------------------------------------------------------------------
@@ -252,7 +251,6 @@ describe("pushCatalog", () => {
     mockedExecFile.mockImplementation(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (..._args: any[]) => {
-        const opts = _args[2] as Record<string, unknown> | undefined;
         // The actual implementation writes stdin via child.stdin
         // For this test we just verify the result comes back correctly
         const cb = _args[_args.length - 1] as (
@@ -344,6 +342,31 @@ describe("pullCatalog", () => {
 
     await expect(pullCatalog(profile)).rejects.toThrow(
       /no gist found/i,
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  it("caches discovered gist ID to .gist file when no cached ID existed", async () => {
+    const catalog = sampleCatalog();
+    const lock = sampleLock();
+
+    mockedFs.existsSync.mockReturnValue(false);
+
+    // Queue: findGistByDescription → found, readGist → gist data
+    mockExecFileQueue([
+      { stdout: gistListJson([{ id: "discovered-gist-7", description }]) },
+      { stdout: gistViewJson("discovered-gist-7", gistFilesFrom(catalog, lock)) },
+    ]);
+
+    const result = await pullCatalog(profile);
+
+    expect(result.catalog).toEqual(catalog);
+    // The discovered gist ID should be persisted to the cache
+    expect(mockedFs.writeFileSync).toHaveBeenCalledWith(
+      expect.stringContaining(".gist"),
+      "discovered-gist-7",
+      "utf-8",
     );
   });
 

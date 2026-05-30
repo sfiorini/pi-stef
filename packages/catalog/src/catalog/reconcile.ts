@@ -13,7 +13,6 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import { piInstall, piUninstall } from "../util/exec.js";
 import { lockFile } from "../config/paths.js";
-import { LockFileSchema } from "../config/schema.js";
 import type { LockFile } from "../config/schema.js";
 import type { InstalledMap } from "./install.js";
 import {

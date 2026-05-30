@@ -33,8 +33,8 @@ function runQuiet(
       args,
       { timeout, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
-        const out = typeof stdout === "string" ? stdout : (stdout?.toString() ?? "");
-        const err = typeof stderr === "string" ? stderr : (stderr?.toString() ?? "");
+        const out = typeof stdout === "string" ? stdout : String(stdout ?? "");
+        const err = typeof stderr === "string" ? stderr : String(stderr ?? "");
 
         if (error) {
           const exitCode =

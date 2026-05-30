@@ -1,11 +1,9 @@
-import fs from "node:fs";
-import path from "node:path";
 import yaml from "js-yaml";
 
-import { catalogDir } from "../config/paths.js";
 import { CatalogYamlSchema, LockFileSchema } from "../config/schema.js";
 import type { CatalogYaml, LockFile } from "../config/schema.js";
 import { readGist, findGistByDescription } from "./gist.js";
+import { readCachedGistId, writeCachedGistId } from "./cache.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -15,31 +13,6 @@ import { readGist, findGistByDescription } from "./gist.js";
 export interface PullResult {
   catalog: CatalogYaml;
   lock: LockFile;
-}
-
-// ---------------------------------------------------------------------------
-// Gist ID cache
-// ---------------------------------------------------------------------------
-
-/**
- * Path to the `.gist` file that caches the gist ID for a profile.
- */
-function gistCachePath(home?: string): string {
-  return path.join(catalogDir(home), ".gist");
-}
-
-/** Read the cached gist ID, or `undefined` if not cached. */
-function readCachedGistId(home?: string): string | undefined {
-  const cacheFile = gistCachePath(home);
-  try {
-    if (fs.existsSync(cacheFile)) {
-      const id = fs.readFileSync(cacheFile, "utf-8").trim();
-      return id.length > 0 ? id : undefined;
-    }
-  } catch {
-    // ignore read errors
-  }
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,6 +27,7 @@ function readCachedGistId(home?: string): string | undefined {
  *  2. If no cached ID, search for an existing gist by description.
  *  3. Fetch the gist and read its files.
  *  4. Deserialize `cat.yaml` → CatalogYaml and `catalog.lock.json` → LockFile.
+ *  5. Cache the discovered gist ID for future pulls.
  *
  * Throws if no gist is found for the given profile.
  */
@@ -65,12 +39,14 @@ export async function pullCatalog(
 
   // 1. Check for cached gist ID
   let gistId = readCachedGistId(home);
+  let discovered = false;
 
   // 2. If no cached ID, find existing gist by description
   if (!gistId) {
     const existing = await findGistByDescription(description);
     if (existing) {
       gistId = existing.id;
+      discovered = true;
     }
   }
 
@@ -90,6 +66,11 @@ export async function pullCatalog(
 
   const parsedLock = JSON.parse(lockJsonContent);
   const lock: LockFile = LockFileSchema.parse(parsedLock);
+
+  // 5. Cache the discovered gist ID for future pulls
+  if (discovered) {
+    writeCachedGistId(gistId, home);
+  }
 
   return { catalog, lock };
 }

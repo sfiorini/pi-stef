@@ -54,6 +54,26 @@ export {
   type LockPackage,
 } from "./config/schema.js";
 
+// sync
+export { checkAuth, getToken } from "./sync/auth.js";
+export {
+  createGist,
+  readGist,
+  updateGist,
+  findGistByDescription,
+  _resetOctokit,
+  type GistFiles,
+  type GistResult,
+  type GistSummary,
+} from "./sync/gist.js";
+export {
+  gistCachePath,
+  readCachedGistId,
+  writeCachedGistId,
+} from "./sync/cache.js";
+export { pullCatalog, type PullResult } from "./sync/pull.js";
+export { pushCatalog, type PushResult } from "./sync/push.js";
+
 // util
 export {
   execCommand,
