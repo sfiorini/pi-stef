@@ -18,7 +18,7 @@ describe("CatalogYamlSchema (cat.yaml)", () => {
     packages: {
       "my-skill": {
         source: "https://github.com/example/my-skill",
-        rating: 5,
+        rating: "core",
       },
     },
   };
@@ -29,7 +29,7 @@ describe("CatalogYamlSchema (cat.yaml)", () => {
     expect(parsed.packages["my-skill"].source).toBe(
       "https://github.com/example/my-skill",
     );
-    expect(parsed.packages["my-skill"].rating).toBe(5);
+    expect(parsed.packages["my-skill"].rating).toBe("core");
   });
 
   it("parses a document with optional type and profile fields", () => {
@@ -38,13 +38,13 @@ describe("CatalogYamlSchema (cat.yaml)", () => {
       packages: {
         "my-skill": {
           source: "https://github.com/example/my-skill",
-          rating: 4,
+          rating: "useful",
           type: "skill",
           profile: "default",
         },
         "another-pkg": {
           source: "https://github.com/example/pkg",
-          rating: 3,
+          rating: "debatable",
           type: "pi-native",
         },
       },
@@ -64,7 +64,7 @@ meta:
 packages:
   hello-world:
     source: "https://github.com/example/hello"
-    rating: 5
+    rating: "core"
     type: skill
     profile: work
 `;
@@ -99,7 +99,7 @@ packages:
     const doc = {
       meta: { pi_version: "1.0.0" },
       packages: {
-        bad: { rating: 5 },
+        bad: { rating: "core" },
       },
     };
     expect(() => CatalogYamlSchema.parse(doc)).toThrow();
@@ -121,7 +121,7 @@ packages:
       packages: {
         bad: {
           source: "https://github.com/example/bad",
-          rating: 3,
+          rating: "core",
           type: "invalid-type",
         },
       },
@@ -129,26 +129,13 @@ packages:
     expect(() => CatalogYamlSchema.parse(doc)).toThrow();
   });
 
-  it("rejects a non-integer rating", () => {
+  it("rejects an invalid rating value", () => {
     const doc = {
       meta: { pi_version: "1.0.0" },
       packages: {
         bad: {
           source: "https://github.com/example/bad",
-          rating: 3.5,
-        },
-      },
-    };
-    expect(() => CatalogYamlSchema.parse(doc)).toThrow();
-  });
-
-  it("rejects a rating outside 1-5 range", () => {
-    const doc = {
-      meta: { pi_version: "1.0.0" },
-      packages: {
-        bad: {
-          source: "https://github.com/example/bad",
-          rating: 0,
+          rating: "invalid",
         },
       },
     };
