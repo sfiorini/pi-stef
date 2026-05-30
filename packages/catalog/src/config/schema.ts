@@ -68,9 +68,11 @@ export const LockPackageSchema = z.object({
 });
 
 /** Full catalog.lock.json document schema. */
-export const LockFileSchema = z.object({
-  packages: z.record(z.string(), LockPackageSchema),
-});
+export const LockFileSchema = z
+  .object({
+    packages: z.record(z.string(), LockPackageSchema),
+  })
+  .passthrough();
 
 // ---------------------------------------------------------------------------
 // Inferred TypeScript types

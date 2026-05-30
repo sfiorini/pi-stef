@@ -85,6 +85,11 @@ export {
   type PiExecOptions,
 } from "./util/exec.js";
 
+// update
+export { checkSelfUpdate } from "./update/self-update.js";
+export { checkPiUpdate } from "./update/pi-update.js";
+export type { UpdateCheckResult, UpdateCacheEntry } from "./update/types.js";
+
 // profiles
 export {
   DEFAULT_PROFILE,
