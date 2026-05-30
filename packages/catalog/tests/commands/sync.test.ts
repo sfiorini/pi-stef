@@ -434,4 +434,68 @@ describe("syncCommand", () => {
 
     expect(mockedPull).toHaveBeenCalledWith("default", ctx.home);
   });
+
+  // -------------------------------------------------------------------------
+  // --force flag forces push even when no reconcile actions
+  // -------------------------------------------------------------------------
+
+  it("--force flag forces push even when no changes detected", async () => {
+    mockedReconcile.mockReturnValue({
+      installs: [],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    });
+
+    const ctx = makeCtx();
+    await syncCommand({ positional: [], flags: { force: true } }, ctx);
+
+    // Should still push despite no actions
+    expect(mockedPush).toHaveBeenCalled();
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Pushed to gist"),
+      "info",
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // --no-push flag skips the push step
+  // -------------------------------------------------------------------------
+
+  it("--no-push flag skips push step even with changes", async () => {
+    mockedReconcile.mockReturnValue({
+      installs: [{ type: "install", key: "x", source: "npm:x" }],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    });
+
+    const ctx = makeCtx();
+    await syncCommand({ positional: [], flags: { "no-push": true } }, ctx);
+
+    expect(mockedExecuteActions).toHaveBeenCalled();
+    expect(mockedPush).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Partial failure: pull succeeds, push fails → reports push error
+  // -------------------------------------------------------------------------
+
+  it("reports push error when pull succeeds but push fails", async () => {
+    mockedReconcile.mockReturnValue({
+      installs: [{ type: "install", key: "x", source: "npm:x" }],
+      uninstalls: [],
+      upgrades: [],
+      orphans: [],
+    });
+    mockedPush.mockRejectedValue(new Error("push failed: network timeout"));
+
+    const ctx = makeCtx();
+    await syncCommand({ positional: [], flags: {} }, ctx);
+
+    const allNotifies = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls
+      .map((c: [string, ...unknown[]]) => c[0])
+      .join(" ");
+    expect(allNotifies).toContain("push failed");
+  });
 });

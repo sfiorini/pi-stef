@@ -56,6 +56,8 @@ export async function syncCommand(
 ): Promise<void> {
   const { flags } = args;
   const dryRun = "dry-run" in flags;
+  const force = "force" in flags;
+  const noPush = "no-push" in flags;
   const profile = typeof flags["profile"] === "string" ? flags["profile"] : "default";
 
   const summary: SyncSummary = {
@@ -135,10 +137,21 @@ export async function syncCommand(
   }
 
   // --- 5. Push if changed --------------------------------------------------
+  if (noPush) {
+    // --no-push: skip push and report
+    if (summary.actionCount > 0 && summary.errors.length === 0) {
+      ctx.ui.notify(
+        `Synced locally (${summary.actionCount} action(s)). Push skipped (--no-push).`,
+        "info",
+      );
+    }
+    return;
+  }
+
   const hasGist = readCachedGistId(ctx.home) !== undefined;
   const localHasPackages = Object.keys(catalog.packages).length > 0;
 
-  if (summary.actionCount > 0 || (!hasGist && localHasPackages)) {
+  if (force || summary.actionCount > 0 || (!hasGist && localHasPackages)) {
     try {
       const updatedCatalog = readCatalog(ctx.home);
       const updatedLock = readLock(ctx.home);
@@ -169,7 +182,7 @@ export async function syncCommand(
     }
   }
 
-  if (summary.actionCount === 0 && summary.errors.length === 0) {
+  if (summary.actionCount === 0 && summary.errors.length === 0 && !force) {
     ctx.ui.notify("Catalog already up to date.", "info");
     return;
   }
