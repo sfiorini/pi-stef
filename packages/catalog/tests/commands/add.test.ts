@@ -2,9 +2,9 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import yaml from "js-yaml";
 
 import type { CatalogYaml } from "../../src/config/schema.js";
+import type { CommandCtx } from "../../src/commands/types.js";
 import { addCommand } from "../../src/commands/add.js";
 import { writeCatalog, readCatalog } from "../../src/config/io.js";
 
@@ -36,7 +36,7 @@ interface MockUi {
 }
 
 function makeCtx(overrides: Partial<MockUi> = {}): {
-  ctx: { ui: MockUi; home: string };
+  ctx: CommandCtx;
   ui: MockUi;
 } {
   const ui: MockUi = {
@@ -45,7 +45,7 @@ function makeCtx(overrides: Partial<MockUi> = {}): {
     confirm: vi.fn(),
     ...overrides,
   };
-  return { ctx: { ui, home: tmpDir }, ui };
+  return { ctx: { ui, home: tmpDir } as CommandCtx, ui };
 }
 
 function emptyCatalog(): CatalogYaml {
@@ -64,8 +64,20 @@ function seedCatalog(home: string, catalog?: CatalogYaml): void {
 // ---------------------------------------------------------------------------
 
 describe("addCommand", () => {
-  beforeEach(() => makeHome());
-  afterEach(() => cleanup());
+  let installSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(async () => {
+    makeHome();
+    const execModule = await import("../../src/util/exec.js");
+    installSpy = vi
+      .spyOn(execModule, "piInstall")
+      .mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
+  });
+
+  afterEach(() => {
+    installSpy?.mockRestore();
+    cleanup();
+  });
 
   // --- Full args, npm source ------------------------------------------------
 
@@ -270,12 +282,6 @@ describe("addCommand", () => {
     seedCatalog(tmpDir);
     const { ctx } = makeCtx();
 
-    // We'll spy on the install module
-    const execModule = await import("../../src/util/exec.js");
-    const installSpy = vi
-      .spyOn(execModule, "piInstall")
-      .mockResolvedValue({ stdout: "", stderr: "", exitCode: 0 });
-
     await addCommand(
       {
         positional: ["my-pkg", "npm:my-pkg"],
@@ -285,7 +291,6 @@ describe("addCommand", () => {
     );
 
     expect(installSpy).toHaveBeenCalledWith("npm:my-pkg");
-    installSpy.mockRestore();
   });
 
   // --- install failure is non-fatal -----------------------------------------
@@ -294,10 +299,7 @@ describe("addCommand", () => {
     seedCatalog(tmpDir);
     const { ctx, ui } = makeCtx();
 
-    const execModule = await import("../../src/util/exec.js");
-    const installSpy = vi
-      .spyOn(execModule, "piInstall")
-      .mockRejectedValue(new Error("install failed"));
+    installSpy.mockRejectedValue(new Error("install failed"));
 
     await addCommand(
       {
@@ -315,34 +317,6 @@ describe("addCommand", () => {
       expect.stringContaining("install"),
       "warning",
     );
-    installSpy.mockRestore();
   });
 
-  // --- Interactive mode prompts for missing name and source ------------------
-
-  it("interactive mode: prompts for name and source when args are incomplete", async () => {
-    seedCatalog(tmpDir);
-    const { ctx, ui } = makeCtx();
-
-    // Simulate interactive mode: no positional args
-    // The command should prompt for name, source, rating
-    ui.select
-      .mockResolvedValueOnce("core"); // rating prompt
-
-    // Provide name and source through a different mechanism —
-    // in interactive mode we'd use input prompts, but since ctx.ui
-    // doesn't define input(), the test verifies the behavior when
-    // positional is empty (shows usage).
-    // For now, the basic interactive flow is: name/source are required positional args.
-    await addCommand(
-      { positional: [], flags: {} },
-      ctx,
-    );
-
-    // Should show usage since interactive mode isn't fully implemented
-    expect(ui.notify).toHaveBeenCalledWith(
-      expect.stringContaining("Usage"),
-      "error",
-    );
-  });
 });

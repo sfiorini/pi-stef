@@ -12,6 +12,17 @@ import {
   SUBCOMMAND_DEFS,
   getAliasMap,
 } from "./commands/definitions.js";
+import { parseSubcommand } from "./commands/dispatch.js";
+import { addCommand, type AddCtx } from "./commands/add.js";
+import { initCommand, type InitContext } from "./commands/init.js";
+import { removeCommand, type RemoveCtx } from "./commands/remove.js";
+import {
+  toggleCommand,
+  enableCommand,
+  disableCommand,
+  type ToggleCtx,
+} from "./commands/toggle.js";
+import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
 // Alias map (derived from shared definitions)
@@ -26,13 +37,12 @@ const aliasMap = getAliasMap();
 /**
  * Handle a parsed subcommand invocation.
  *
- * Currently a thin shim that notifies the user. Full implementation
- * delegation will be wired in subsequent stories.
+ * Delegates to the appropriate command implementation module.
  */
 async function handleSubcommand(
   subcommand: string,
-  _args: string,
-  ctx: { ui: { notify: (msg: string, type?: "error" | "info" | "warning") => void } },
+  args: string,
+  ctx: CommandCtx,
 ): Promise<void> {
   const canonical = aliasMap.get(subcommand);
   if (!canonical) {
@@ -40,8 +50,32 @@ async function handleSubcommand(
     return;
   }
 
-  // Story S-502 will add real dispatcher logic here.
-  ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");
+  // Parse the raw argument string into structured { positional, flags }
+  const rawParts = (args ?? "").trim().split(/\s+/).filter(Boolean);
+  const parsed = parseSubcommand(rawParts);
+
+  switch (canonical) {
+    case "add":
+      await addCommand(parsed, ctx as AddCtx);
+      break;
+    case "init":
+      await initCommand(parsed, ctx as InitContext);
+      break;
+    case "remove":
+      await removeCommand(parsed, ctx as RemoveCtx);
+      break;
+    case "toggle":
+      await toggleCommand(parsed, ctx as ToggleCtx);
+      break;
+    case "enable":
+      await enableCommand(parsed, ctx as ToggleCtx);
+      break;
+    case "disable":
+      await disableCommand(parsed, ctx as ToggleCtx);
+      break;
+    default:
+      ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 
 import type { CatalogYaml } from "../../src/config/schema.js";
+import type { CommandCtx } from "../../src/commands/types.js";
 import { removeCommand } from "../../src/commands/remove.js";
 import { writeCatalog, readCatalog } from "../../src/config/io.js";
 
@@ -35,7 +36,7 @@ interface MockUi {
 }
 
 function makeCtx(overrides: Partial<MockUi> = {}): {
-  ctx: { ui: MockUi; home: string };
+  ctx: CommandCtx;
   ui: MockUi;
 } {
   const ui: MockUi = {
@@ -44,7 +45,7 @@ function makeCtx(overrides: Partial<MockUi> = {}): {
     confirm: vi.fn(),
     ...overrides,
   };
-  return { ctx: { ui, home: tmpDir }, ui };
+  return { ctx: { ui, home: tmpDir } as CommandCtx, ui };
 }
 
 function catalogWithPackages(): CatalogYaml {

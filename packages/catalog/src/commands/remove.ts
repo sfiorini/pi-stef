@@ -10,7 +10,7 @@
  * and `writeCatalog` / `readCatalog` for persistence.
  */
 
-import type { CatalogYaml } from "../config/schema.js";
+import type { CommandArgs, CommandCtx } from "./types.js";
 import { removePackage } from "../catalog/crud.js";
 import { readCatalog, writeCatalog } from "../config/io.js";
 import { piUninstall } from "../util/exec.js";
@@ -19,22 +19,11 @@ import { piUninstall } from "../util/exec.js";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Arguments parsed from the command line by the dispatcher. */
-export interface RemoveArgs {
-  /** Positional arguments: [name] */
-  positional: string[];
-  /** Parsed flags. */
-  flags: Record<string, true | string>;
-}
-
-/** Context provided by the pi extension runtime. */
-export interface RemoveCtx {
-  ui: {
-    notify: (msg: string, type?: "error" | "info" | "warning") => void;
+/** Context for `removeCommand`, extending the base with `confirm`. */
+export interface RemoveCtx extends CommandCtx {
+  ui: CommandCtx["ui"] & {
     confirm?: (message: string) => Promise<boolean>;
   };
-  /** Home directory override (for testing). */
-  home?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -48,7 +37,7 @@ export interface RemoveCtx {
  * writes the catalog, and runs `pi uninstall`.
  */
 export async function removeCommand(
-  args: RemoveArgs,
+  args: CommandArgs,
   ctx: RemoveCtx,
 ): Promise<void> {
   const { positional, flags } = args;

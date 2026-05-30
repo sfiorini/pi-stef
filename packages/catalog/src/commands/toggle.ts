@@ -13,6 +13,7 @@
  */
 
 import { togglePackage, enablePackage, disablePackage } from "../catalog/crud.js";
+import type { CommandArgs, CommandCtx } from "./types.js";
 import { readCatalog, writeCatalog } from "../config/io.js";
 import { piUninstall } from "../util/exec.js";
 
@@ -20,22 +21,8 @@ import { piUninstall } from "../util/exec.js";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Arguments parsed from the command line by the dispatcher. */
-export interface ToggleArgs {
-  /** Positional arguments: [name] */
-  positional: string[];
-  /** Parsed flags. */
-  flags: Record<string, true | string>;
-}
-
-/** Context provided by the pi extension runtime. */
-export interface ToggleCtx {
-  ui: {
-    notify: (msg: string, type?: "error" | "info" | "warning") => void;
-  };
-  /** Home directory override (for testing). */
-  home?: string;
-}
+/** Context for toggle/enable/disable commands. Uses the base `CommandCtx`. */
+export type ToggleCtx = CommandCtx;
 
 // ---------------------------------------------------------------------------
 // toggleCommand
@@ -47,7 +34,7 @@ export interface ToggleCtx {
  * Cycles the package's rating through: core → useful → debatable → disabled → core.
  */
 export async function toggleCommand(
-  args: ToggleArgs,
+  args: CommandArgs,
   ctx: ToggleCtx,
 ): Promise<void> {
   const name = args.positional[0];
@@ -83,7 +70,7 @@ export async function toggleCommand(
  * No-op when the package is already enabled.
  */
 export async function enableCommand(
-  args: ToggleArgs,
+  args: CommandArgs,
   ctx: ToggleCtx,
 ): Promise<void> {
   const name = args.positional[0];
@@ -126,7 +113,7 @@ export async function enableCommand(
  * restoration, and runs `pi uninstall` to remove the package.
  */
 export async function disableCommand(
-  args: ToggleArgs,
+  args: CommandArgs,
   ctx: ToggleCtx,
 ): Promise<void> {
   const name = args.positional[0];

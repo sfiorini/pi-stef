@@ -10,8 +10,8 @@
  * and `writeCatalog` / `readCatalog` for persistence.
  */
 
-import type { CatalogYaml } from "../config/schema.js";
 import type { RatingValue } from "../catalog/ratings.js";
+import type { CommandArgs, CommandCtx } from "./types.js";
 import { addPackage } from "../catalog/crud.js";
 import { readCatalog, writeCatalog } from "../config/io.js";
 import { piInstall } from "../util/exec.js";
@@ -20,25 +20,14 @@ import { piInstall } from "../util/exec.js";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Arguments parsed from the command line by the dispatcher. */
-export interface AddArgs {
-  /** Positional arguments: [name, source] */
-  positional: string[];
-  /** Parsed flags. */
-  flags: Record<string, true | string>;
-}
-
-/** Context provided by the pi extension runtime. */
-export interface AddCtx {
-  ui: {
-    notify: (msg: string, type?: "error" | "info" | "warning") => void;
+/** Context for `addCommand`, extending the base with `select` for type prompts. */
+export interface AddCtx extends CommandCtx {
+  ui: CommandCtx["ui"] & {
     select?: <T>(options: {
       message: string;
       choices: { value: T; label: string }[];
     }) => Promise<T>;
   };
-  /** Home directory override (for testing). */
-  home?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +78,7 @@ function resolveType(
  * Reads the catalog, validates inputs, prompts for type if needed,
  * adds the package, writes the catalog, and runs `pi install`.
  */
-export async function addCommand(args: AddArgs, ctx: AddCtx): Promise<void> {
+export async function addCommand(args: CommandArgs, ctx: AddCtx): Promise<void> {
   const { positional, flags } = args;
   const name = positional[0];
   const source = positional[1];

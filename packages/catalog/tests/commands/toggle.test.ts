@@ -4,6 +4,7 @@ import path from "node:path";
 import os from "node:os";
 
 import type { CatalogYaml } from "../../src/config/schema.js";
+import type { CommandCtx } from "../../src/commands/types.js";
 import { writeCatalog, readCatalog } from "../../src/config/io.js";
 import {
   toggleCommand,
@@ -37,14 +38,14 @@ interface MockUi {
 }
 
 function makeCtx(overrides: Partial<MockUi> = {}): {
-  ctx: { ui: MockUi; home: string };
+  ctx: CommandCtx;
   ui: MockUi;
 } {
   const ui: MockUi = {
     notify: vi.fn(),
     ...overrides,
   };
-  return { ctx: { ui, home: tmpDir }, ui };
+  return { ctx: { ui, home: tmpDir } as CommandCtx, ui };
 }
 
 function catalogWith(

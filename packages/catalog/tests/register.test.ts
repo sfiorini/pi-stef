@@ -139,12 +139,108 @@ describe("registerCatalog", () => {
     const notify = vi.fn();
     const mockCtx = { ui: { notify } };
 
-    // Calling handler with "status" should invoke the status handler path.
-    // Since implementation modules are not wired yet, we just verify no throw
-    // on unknown subcommand gives a user-facing notification.
+    // Calling handler with "unknown-sub" should notify about unknown subcommand
     await ct.handler("unknown-sub", mockCtx as never);
-    // The handler should notify the user about the unknown subcommand
     expect(notify).toHaveBeenCalled();
+  });
+
+  it("ct-add handler delegates to addCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctAdd = commands.get("ct-add")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    // addCommand with no args should show "Usage" error, not "not yet implemented"
+    await ctAdd.handler("", mockCtx as never);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage"),
+      "error",
+    );
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.stringContaining("not yet implemented"),
+      expect.anything(),
+    );
+  });
+
+  it("ct-remove handler delegates to removeCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctRemove = commands.get("ct-remove")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    // removeCommand with no args should show "Usage" error
+    await ctRemove.handler("", mockCtx as never);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage"),
+      "error",
+    );
+  });
+
+  it("ct-toggle handler delegates to toggleCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctToggle = commands.get("ct-toggle")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    // toggleCommand with no args should show "Usage" error
+    await ctToggle.handler("", mockCtx as never);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage"),
+      "error",
+    );
+  });
+
+  it("ct-enable handler delegates to enableCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctEnable = commands.get("ct-enable")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    await ctEnable.handler("", mockCtx as never);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage"),
+      "error",
+    );
+  });
+
+  it("ct-disable handler delegates to disableCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctDisable = commands.get("ct-disable")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    await ctDisable.handler("", mockCtx as never);
+    expect(notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage"),
+      "error",
+    );
+  });
+
+  it("ct-init handler delegates to initCommand (not a stub)", async () => {
+    const { pi, commands } = mockPi();
+    registerCatalog(pi);
+
+    const ctInit = commands.get("ct-init")!;
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
+
+    // initCommand with no args should scan and notify (or show an error)
+    // It should NOT say "not yet implemented"
+    await ctInit.handler("", mockCtx as never);
+    expect(notify).not.toHaveBeenCalledWith(
+      expect.stringContaining("not yet implemented"),
+      expect.anything(),
+    );
   });
 
   it("each registered tool execute function returns an object with details", async () => {

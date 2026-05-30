@@ -10,6 +10,7 @@ import yaml from "js-yaml";
 import { scanInstalled } from "../catalog/install.js";
 import { CatalogYamlSchema } from "../config/schema.js";
 import type { CatalogYaml } from "../config/schema.js";
+import type { CommandArgs, CommandCtx } from "./types.js";
 import { writeCatalog } from "../config/io.js";
 import { readGist } from "../sync/gist.js";
 
@@ -17,13 +18,8 @@ import { readGist } from "../sync/gist.js";
 // Types
 // ---------------------------------------------------------------------------
 
-export interface InitContext {
-  /** Optional home directory override (for testing). */
-  home?: string;
-  ui: {
-    notify: (msg: string, type?: "error" | "info" | "warning") => void;
-  };
-}
+/** Context for `initCommand`. Uses the base `CommandCtx`. */
+export type InitContext = CommandCtx;
 
 // ---------------------------------------------------------------------------
 // initCommand
@@ -38,22 +34,10 @@ export interface InitContext {
  *   validates it, and writes it as the local catalog.
  */
 export async function initCommand(
-  args: string[],
+  args: CommandArgs,
   ctx: InitContext,
 ): Promise<void> {
-  // Parse flags from args
-  const flags: Record<string, true | string> = {};
-  for (const token of args) {
-    if (token.startsWith("--")) {
-      const body = token.slice(2);
-      if (body.includes("=")) {
-        const eqIdx = body.indexOf("=");
-        flags[body.slice(0, eqIdx)] = body.slice(eqIdx + 1);
-      } else {
-        flags[body] = true;
-      }
-    }
-  }
+  const { flags } = args;
 
   // --from-gist mode
   const gistId = typeof flags["from-gist"] === "string" ? flags["from-gist"] : undefined;
@@ -72,7 +56,14 @@ export async function initCommand(
 // ---------------------------------------------------------------------------
 
 function initFromScan(ctx: InitContext): void {
-  const installed = scanInstalled(ctx.home);
+  let installed: Record<string, { source: string }>;
+  try {
+    installed = scanInstalled(ctx.home);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.ui.notify(`Failed to scan installed packages: ${message}`, "error");
+    return;
+  }
   const names = Object.keys(installed);
 
   const packages: CatalogYaml["packages"] = {};

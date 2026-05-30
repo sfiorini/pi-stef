@@ -79,7 +79,7 @@ describe("initCommand", () => {
   it("generates an empty catalog when no packages are installed", async () => {
     mockedScan.mockReturnValue({});
 
-    await initCommand([], makeCtx());
+    await initCommand({ positional: [], flags: {} }, makeCtx());
 
     const catalog = readCatalogFromDisk();
     expect(catalog.meta.pi_version).toBe("0.0.0");
@@ -96,7 +96,7 @@ describe("initCommand", () => {
       "another-pkg": { source: "git:github.com/user/repo", name: "github.com/user/repo", version: undefined },
     });
 
-    await initCommand([], makeCtx());
+    await initCommand({ positional: [], flags: {} }, makeCtx());
 
     const catalog = readCatalogFromDisk();
     expect(Object.keys(catalog.packages)).toHaveLength(2);
@@ -130,7 +130,7 @@ describe("initCommand", () => {
       "new-pkg": { source: "npm:new-pkg", name: "new-pkg", version: "2.0.0" },
     });
 
-    await initCommand([], makeCtx());
+    await initCommand({ positional: [], flags: {} }, makeCtx());
 
     const catalog = readCatalogFromDisk();
     expect(catalog.packages["old-pkg"]).toBeUndefined();
@@ -150,7 +150,7 @@ describe("initCommand", () => {
     });
 
     const ctx = makeCtx();
-    await initCommand([], ctx);
+    await initCommand({ positional: [], flags: {} }, ctx);
 
     expect(ctx.ui.notify).toHaveBeenCalled();
     const call = ctx.ui.notify.mock.calls.find(
@@ -184,7 +184,7 @@ describe("initCommand", () => {
       });
 
       const ctx = makeCtx();
-      await initCommand(["--from-gist=abc123"], ctx);
+      await initCommand({ positional: [], flags: { "from-gist": "abc123" } }, ctx);
 
       const catalog = readCatalogFromDisk();
       expect(catalog.meta.pi_version).toBe("3.5.0");
@@ -209,7 +209,7 @@ describe("initCommand", () => {
       });
 
       const ctx = makeCtx();
-      await initCommand(["--from-gist=xyz789"], ctx);
+      await initCommand({ positional: [], flags: { "from-gist": "xyz789" } }, ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalled();
     });
@@ -218,7 +218,7 @@ describe("initCommand", () => {
       mockedReadGist.mockRejectedValue(new Error("Gist not found"));
 
       const ctx = makeCtx();
-      await initCommand(["--from-gist=bad-id"], ctx);
+      await initCommand({ positional: [], flags: { "from-gist": "bad-id" } }, ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         expect.stringContaining("Gist not found"),
@@ -233,12 +233,30 @@ describe("initCommand", () => {
       });
 
       const ctx = makeCtx();
-      await initCommand(["--from-gist=abc123"], ctx);
+      await initCommand({ positional: [], flags: { "from-gist": "abc123" } }, ctx);
 
       expect(ctx.ui.notify).toHaveBeenCalledWith(
         expect.stringContaining("cat.yaml"),
         "error",
       );
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // scanInstalled error handling
+  // -------------------------------------------------------------------------
+
+  it("notifies error when scanInstalled throws unexpectedly", async () => {
+    mockedScan.mockImplementation(() => {
+      throw new Error("permission denied");
+    });
+
+    const ctx = makeCtx();
+    await initCommand({ positional: [], flags: {} }, ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("permission denied"),
+      "error",
+    );
   });
 });
