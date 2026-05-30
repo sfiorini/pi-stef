@@ -29,6 +29,9 @@ import {
   type SyncCtx,
   type PushPullCtx,
 } from "./commands/sync.js";
+import { statusCommand, type StatusCtx } from "./commands/status.js";
+import { diffCommand, type DiffCtx } from "./commands/diff.js";
+import { verifyCommand, type VerifyCtx } from "./commands/verify.js";
 import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
@@ -88,6 +91,15 @@ async function handleSubcommand(
       break;
     case "disable":
       await disableCommand(parsed, ctx as ToggleCtx);
+      break;
+    case "status":
+      await statusCommand(parsed, ctx as StatusCtx);
+      break;
+    case "diff":
+      await diffCommand(parsed, ctx as DiffCtx);
+      break;
+    case "verify":
+      await verifyCommand(parsed, ctx as VerifyCtx);
       break;
     default:
       ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");
