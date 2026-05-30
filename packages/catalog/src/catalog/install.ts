@@ -1,9 +1,11 @@
 /**
  * Scanning installed pi packages from settings.json.
  *
- * S-302: scanInstalled reads ~/.pi/agent/settings.json (or the project
- * variant), parses the `packages` array, and returns a map keyed by
- * package name with source, name, and version info.
+ * S-302: scanInstalled reads ~/.pi/agent/settings.json and optionally
+ * <cwd>/.pi/settings.json (project variant), parses the `packages`
+ * array from each, and returns a merged map keyed by package name
+ * with source, name, and version info. Project settings take
+ * precedence over global for the same package key.
  */
 
 import path from "node:path";
@@ -179,21 +181,17 @@ function readLocalVersion(home: string, localPath: string): string | undefined {
 // ---------------------------------------------------------------------------
 
 /**
- * Discover currently installed pi packages by reading
- * `~/.pi/agent/settings.json` (or the project variant).
- *
- * Returns a map keyed by package identity name, each entry containing
- * the raw source, derived name, and version (if discoverable).
+ * Read packages from a settings.json file and return a map of installed packages.
+ * Returns empty map if the file doesn't exist or is malformed.
  */
-export function scanInstalled(home?: string): InstalledMap {
-  const resolvedHome = home ?? os.homedir();
-  const settingsPath = path.join(resolvedHome, ".pi", "agent", "settings.json");
-
+function readPackagesFromSettings(
+  settingsPath: string,
+  home: string,
+): InstalledMap {
   let settingsJson: string;
   try {
     settingsJson = fs.readFileSync(settingsPath, "utf-8");
   } catch (err: unknown) {
-    // If settings.json doesn't exist, return empty — nothing installed.
     if (err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT") {
       return {};
     }
@@ -204,7 +202,6 @@ export function scanInstalled(home?: string): InstalledMap {
   try {
     settings = JSON.parse(settingsJson);
   } catch {
-    // Malformed settings — treat as empty.
     return {};
   }
 
@@ -216,7 +213,6 @@ export function scanInstalled(home?: string): InstalledMap {
   const result: InstalledMap = {};
 
   for (const entry of packages) {
-    // Normalize: entry may be a string or an object with a `source` key.
     let rawSource: string;
     if (typeof entry === "string") {
       rawSource = entry;
@@ -228,7 +224,6 @@ export function scanInstalled(home?: string): InstalledMap {
     ) {
       rawSource = (entry as { source: string }).source;
     } else {
-      // Skip malformed entries
       continue;
     }
 
@@ -236,13 +231,11 @@ export function scanInstalled(home?: string): InstalledMap {
 
     let version: string | undefined;
     if (parsed.type === "npm") {
-      version = readNpmVersion(resolvedHome, parsed.npmName!);
+      version = readNpmVersion(home, parsed.npmName!);
     } else if (parsed.type === "local") {
-      version = readLocalVersion(resolvedHome, rawSource);
+      version = readLocalVersion(home, rawSource);
     }
-    // git packages: version is not read from disk (could be enhanced later)
 
-    // Key by identity name; for local paths, the raw source IS the identity
     const key = parsed.type === "local" ? rawSource : parsed.name;
 
     result[key] = {
@@ -250,6 +243,33 @@ export function scanInstalled(home?: string): InstalledMap {
       name: parsed.name,
       version,
     };
+  }
+
+  return result;
+}
+
+/**
+ * Discover currently installed pi packages by reading
+ * `~/.pi/agent/settings.json` and optionally
+ * `<cwd>/.pi/settings.json`.
+ *
+ * When `cwd` is provided, project settings are merged on top of
+ * global settings — project packages take precedence for the same key.
+ *
+ * Returns a map keyed by package identity name, each entry containing
+ * the raw source, derived name, and version (if discoverable).
+ */
+export function scanInstalled(home?: string, cwd?: string): InstalledMap {
+  const resolvedHome = home ?? os.homedir();
+  const globalPath = path.join(resolvedHome, ".pi", "agent", "settings.json");
+
+  const result = readPackagesFromSettings(globalPath, resolvedHome);
+
+  if (cwd) {
+    const projectPath = path.join(cwd, ".pi", "settings.json");
+    const projectPackages = readPackagesFromSettings(projectPath, resolvedHome);
+    // Project packages override global for the same key
+    Object.assign(result, projectPackages);
   }
 
   return result;
