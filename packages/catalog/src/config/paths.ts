@@ -1,5 +1,6 @@
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { globalDir } from "@pi-stef/paths";
 
 /**
@@ -31,4 +32,13 @@ export function ensureCatalogDir(home?: string): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
+}
+
+/**
+ * ~/.pi/agent/npm/node_modules
+ *
+ * Centralised so the npm node_modules path is not hardcoded in consumers.
+ */
+export function npmNodeModulesDir(home?: string): string {
+  return path.join(home ?? os.homedir(), ".pi", "agent", "npm", "node_modules");
 }

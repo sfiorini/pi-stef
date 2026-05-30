@@ -12,6 +12,11 @@ export interface ExecOptions {
   cwd?: string;
   /** Environment variables to merge into the child process. */
   env?: Record<string, string>;
+  /**
+   * Shell to execute the command with (passed through to node:child_process).
+   * Set to `true` to use the default shell, or a string path to a specific shell.
+   */
+  shell?: boolean | string;
 }
 
 /** Result of a successful command execution. */
@@ -65,6 +70,7 @@ export function execCommand(
       env: options?.env
         ? { ...process.env, ...options.env }
         : undefined,
+      shell: options?.shell,
       maxBuffer: 1024 * 1024, // 1 MB
     };
 

@@ -261,4 +261,134 @@ describe("scanInstalled", () => {
     const result = scanInstalled();
     expect(result["test-pkg"]).toBeDefined();
   });
+
+  // -----------------------------------------------------------------------
+  // Project-level settings (.pi/settings.json)
+  // -----------------------------------------------------------------------
+
+  it("reads project settings when cwd is provided", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      // Global settings has one package
+      if (fp.includes("/fake/home/.pi/agent/settings.json")) {
+        return makeSettings(["npm:global-pkg"]);
+      }
+      // Project settings has another package
+      if (fp.includes("/fake/project/.pi/settings.json")) {
+        return makeSettings(["npm:project-pkg"]);
+      }
+      // npm package.jsons for both
+      if (fp.includes("node_modules") && fp.includes("global-pkg") && fp.endsWith("package.json")) {
+        return makePackageJson("global-pkg", "1.0.0");
+      }
+      if (fp.includes("node_modules") && fp.includes("project-pkg") && fp.endsWith("package.json")) {
+        return makePackageJson("project-pkg", "2.0.0");
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home", "/fake/project");
+    expect(Object.keys(result)).toHaveLength(2);
+    expect(result["global-pkg"]).toBeDefined();
+    expect(result["global-pkg"].version).toBe("1.0.0");
+    expect(result["project-pkg"]).toBeDefined();
+    expect(result["project-pkg"].version).toBe("2.0.0");
+  });
+
+  it("project settings override global for same package key", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      if (fp.includes("/fake/home/.pi/agent/settings.json")) {
+        return makeSettings(["npm:shared-pkg@1.0.0"]);
+      }
+      if (fp.includes("/fake/project/.pi/settings.json")) {
+        return makeSettings(["npm:shared-pkg@2.0.0"]);
+      }
+      // Return project version (project wins)
+      if (fp.includes("node_modules") && fp.endsWith("package.json")) {
+        return makePackageJson("shared-pkg", "2.0.0");
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home", "/fake/project");
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result["shared-pkg"]).toBeDefined();
+    // Project settings source wins
+    expect(result["shared-pkg"].source).toBe("npm:shared-pkg@2.0.0");
+  });
+
+  it("falls back to global only when project settings file is missing", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      if (fp.includes("/fake/home/.pi/agent/settings.json")) {
+        return makeSettings(["npm:global-only"]);
+      }
+      if (fp.includes("/fake/project/.pi/settings.json")) {
+        const err = new Error("ENOENT") as NodeJS.ErrnoException;
+        err.code = "ENOENT";
+        throw err;
+      }
+      if (fp.includes("node_modules") && fp.endsWith("package.json")) {
+        return makePackageJson("global-only", "1.0.0");
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home", "/fake/project");
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result["global-only"]).toBeDefined();
+  });
+
+  it("returns empty map when settings.json has malformed JSON", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      if (fp.endsWith("settings.json")) {
+        return "not valid json {{{";
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home");
+    expect(result).toEqual({});
+  });
+
+  it("returns empty map when packages is not an array", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      if (fp.endsWith("settings.json")) {
+        return JSON.stringify({ packages: "not-an-array" });
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home");
+    expect(result).toEqual({});
+  });
+
+  it("skips malformed package entries (null, numbers, objects without source)", () => {
+    readFileSyncSpy.mockImplementation((p: string | Buffer) => {
+      const fp = typeof p === "string" ? p : p.toString();
+      if (fp.endsWith("settings.json")) {
+        return JSON.stringify({
+          packages: [
+            null,
+            123,
+            { notSource: "npm:pkg" },
+            "npm:valid-pkg",
+          ],
+        });
+      }
+      if (fp.includes("node_modules") && fp.endsWith("package.json")) {
+        return makePackageJson("valid-pkg", "1.0.0");
+      }
+      throw new Error(`unexpected read: ${fp}`);
+    });
+
+    const result = scanInstalled("/fake/home");
+    // Only the valid string entry survives
+    expect(Object.keys(result)).toHaveLength(1);
+    expect(result["valid-pkg"]).toBeDefined();
+    expect(result["valid-pkg"].source).toBe("npm:valid-pkg");
+  });
 });

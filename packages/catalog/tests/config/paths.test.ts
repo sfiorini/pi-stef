@@ -2,7 +2,7 @@ import path from "node:path";
 import os from "node:os";
 import fs from "node:fs";
 import { describe, expect, it, afterEach } from "vitest";
-import { catalogDir, catalogFile, lockFile, ensureCatalogDir } from "../../src/config/paths.js";
+import { catalogDir, catalogFile, lockFile, ensureCatalogDir, npmNodeModulesDir } from "../../src/config/paths.js";
 
 const HOME = "/tmp/pi-catalog-paths-test";
 
@@ -25,6 +25,18 @@ describe("catalog path resolution", () => {
     expect(dir).toContain("sf");
     expect(dir).toContain("catalog");
     expect(dir).toBe(path.join(os.homedir(), ".pi", "sf", "catalog"));
+  });
+
+  it("npmNodeModulesDir returns ~/.pi/agent/npm/node_modules", () => {
+    expect(npmNodeModulesDir(HOME)).toBe(
+      path.join(HOME, ".pi", "agent", "npm", "node_modules"),
+    );
+  });
+
+  it("npmNodeModulesDir defaults to os.homedir() when home is omitted", () => {
+    expect(npmNodeModulesDir()).toBe(
+      path.join(os.homedir(), ".pi", "agent", "npm", "node_modules"),
+    );
   });
 });
 

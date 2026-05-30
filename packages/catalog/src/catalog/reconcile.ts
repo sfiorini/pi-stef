@@ -10,9 +10,17 @@
  */
 
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { piInstall, piUninstall } from "../util/exec.js";
 import { lockFile } from "../config/paths.js";
+import { LockFileSchema } from "../config/schema.js";
+import type { LockFile } from "../config/schema.js";
 import type { InstalledMap } from "./install.js";
+import {
+  sourceToKey,
+  extractNpmVersion,
+  extractVersionFromSource,
+} from "./source.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -83,79 +91,39 @@ export interface ExecuteOptions {
   home?: string;
   /** Lock file writer override (for testing). Defaults to fs.writeFileSync. */
   lockFileWriter?: (filePath: string, content: string) => void;
+  /** If true, skip actual shell execution and lock file writes. Returns success with no errors. */
+  dryRun?: boolean;
 }
 
 // ---------------------------------------------------------------------------
-// Source-key derivation (mirrors install.ts parseSource key logic)
+// Plan helpers
+// ---------------------------------------------------------------------------
+
+/** Returns true when the plan contains at least one action. */
+function hasActions(plan: ReconcilePlan): boolean {
+  return (
+    plan.installs.length > 0 ||
+    plan.uninstalls.length > 0 ||
+    plan.upgrades.length > 0
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Lock-file helpers
 // ---------------------------------------------------------------------------
 
 /**
- * Derive the installed-map key from a source string.
+ * Produce a deterministic content hash from a source string.
  *
- * - npm sources → npm package name (e.g. "@foo/bar")
- * - git sources → cleaned host/path (e.g. "github.com/user/repo")
- * - local paths → the raw source string itself
+ * NOTE: This hashes the *source specifier*, not the installed file contents.
+ * A future milestone should replace this with actual content hashing after
+ * extraction.
  */
-function sourceToKey(source: string): string {
-  if (source.startsWith("npm:")) {
-    return extractNpmName(source.slice(4));
-  }
-  if (source.startsWith("git:")) {
-    return cleanGitName(source.slice(4));
-  }
-  if (
-    source.startsWith("https://") ||
-    source.startsWith("http://") ||
-    source.startsWith("ssh://") ||
-    source.startsWith("git://")
-  ) {
-    return cleanGitName(source);
-  }
-  // Local path — key is the raw source itself (matches scanInstalled behavior)
-  return source;
-}
-
-/**
- * Extract the npm package name from "pkg@version" or "@scope/pkg@version".
- */
-function extractNpmName(spec: string): string {
-  if (spec.startsWith("@")) {
-    const secondAt = spec.indexOf("@", 1);
-    return secondAt === -1 ? spec : spec.slice(0, secondAt);
-  }
-  const atIdx = spec.indexOf("@");
-  return atIdx === -1 ? spec : spec.slice(0, atIdx);
-}
-
-/**
- * Extract version from an npm spec (the part after the last relevant @).
- */
-function extractNpmVersion(spec: string): string | undefined {
-  if (spec.startsWith("@")) {
-    const secondAt = spec.indexOf("@", 1);
-    return secondAt === -1 ? undefined : spec.slice(secondAt + 1);
-  }
-  const atIdx = spec.indexOf("@");
-  return atIdx === -1 ? undefined : spec.slice(atIdx + 1);
-}
-
-/**
- * Clean a git/URL source into a canonical host/path name.
- * Mirrors the logic in install.ts extractGitName.
- */
-function cleanGitName(raw: string): string {
-  let cleaned = raw;
-  cleaned = cleaned.replace(/^(https?:\/\/|ssh:\/\/|git:\/\/)/, "");
-  cleaned = cleaned.replace(/^[^@/]+@/, "");
-  cleaned = cleaned.replace(/:/, "/");
-  const atIdx = cleaned.lastIndexOf("@");
-  if (atIdx !== -1) {
-    cleaned = cleaned.slice(0, atIdx);
-  }
-  if (cleaned.endsWith(".git")) {
-    cleaned = cleaned.slice(0, -4);
-  }
-  return cleaned;
+function contentHashForSource(source: string): string {
+  return (
+    "sha256-" +
+    createHash("sha256").update(source).digest("hex").slice(0, 16)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -272,6 +240,11 @@ export async function executeActions(
 ): Promise<ExecuteResult> {
   const errors: ActionError[] = [];
 
+  // --- Dry-run: preview mode, skip execution and lock file write ---
+  if (options?.dryRun) {
+    return { success: true, errors };
+  }
+
   // --- Uninstalls first ---
   for (const action of plan.uninstalls) {
     try {
@@ -310,17 +283,56 @@ export async function executeActions(
 
   const success = errors.length === 0;
 
-  // Write lock file only on full success
-  if (success && (plan.installs.length + plan.uninstalls.length + plan.upgrades.length > 0)) {
+  // Write lock file only on full success and when there were actions
+  if (success && hasActions(plan)) {
     const lfPath = lockFile(options?.home);
-    const lockContent = JSON.stringify(
-      {
-        packages: {},
-      },
-      null,
-      2,
-    );
-    const writer = options?.lockFileWriter ?? ((p, c) => fs.writeFileSync(p, c, "utf-8"));
+
+    // Read existing lock to preserve entries not touched in this run
+    let existingPackages: LockFile["packages"] = {};
+    try {
+      const raw = fs.readFileSync(lfPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed?.packages && typeof parsed.packages === "object") {
+        existingPackages = parsed.packages;
+      }
+    } catch {
+      // No existing lock or malformed — start fresh
+    }
+
+    const lockPackages = { ...existingPackages };
+    const now = new Date().toISOString();
+
+    // Add/update entries for successful installs
+    for (const action of plan.installs) {
+      lockPackages[action.key] = {
+        version: extractVersionFromSource(action.source),
+        contentHash: contentHashForSource(action.source),
+        installedAt: now,
+        syncState: "synced",
+      };
+    }
+
+    // Add/update entries for successful upgrades
+    for (const action of plan.upgrades) {
+      lockPackages[action.key] = {
+        version: extractVersionFromSource(action.source),
+        contentHash: contentHashForSource(action.source),
+        installedAt: now,
+        syncState: "synced",
+      };
+    }
+
+    // Remove entries for successful uninstalls
+    for (const action of plan.uninstalls) {
+      delete lockPackages[action.key];
+    }
+
+    const lockContent =
+      JSON.stringify({ packages: lockPackages }, null, 2) + "\n";
+
+    const writer =
+      options?.lockFileWriter ??
+      ((p, c) => fs.writeFileSync(p, c, "utf-8"));
     writer(lfPath, lockContent);
   }
 

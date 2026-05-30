@@ -138,6 +138,18 @@ describe("execCommand", () => {
     expect(options.shell).toBeUndefined();
   });
 
+  it("passes the shell option through to execFile when set", async () => {
+    mockExecFileResult({ stdout: "", stderr: "" });
+
+    await execCommand("echo", ["hello"], { shell: "/bin/zsh" });
+
+    const options = (mockedExecFile.mock.calls[0] as unknown[])[2] as Record<
+      string,
+      unknown
+    >;
+    expect(options.shell).toBe("/bin/zsh");
+  });
+
   it("converts Buffer stdout/stderr to strings", async () => {
     // When execFile is called without encoding, Node passes Buffer objects.
     // Verify the implementation converts them to strings.
