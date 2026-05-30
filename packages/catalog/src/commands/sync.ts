@@ -12,6 +12,7 @@
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
+import type { CatalogYaml, LockFile } from "../config/schema.js";
 import { readCatalog, writeCatalog, readLock, writeLock } from "../config/io.js";
 import { pullCatalog } from "../sync/pull.js";
 import { pushCatalog } from "../sync/push.js";
@@ -23,8 +24,11 @@ import { reconcile, executeActions } from "../catalog/reconcile.js";
 // Types
 // ---------------------------------------------------------------------------
 
-/** Context for `syncCommand`. Uses the base `CommandCtx`. */
+/** Context for `syncCommand`, `pushCommand`, and `pullCommand`. Uses the base `CommandCtx`. */
 export type SyncCtx = CommandCtx;
+
+/** Alias used by push/pull commands. */
+export type PushPullCtx = CommandCtx;
 
 /** Summary of a completed sync for user reporting. */
 interface SyncSummary {
@@ -192,4 +196,133 @@ export async function syncCommand(
   }
 
   ctx.ui.notify(`Synced: ${parts.join(" | ")}`, "info");
+}
+
+// ---------------------------------------------------------------------------
+// pushCommand
+// ---------------------------------------------------------------------------
+
+/**
+ * Execute the `ct push` subcommand.
+ *
+ * Reads the local catalog and lock file, serializes them, and pushes
+ * to the GitHub Gist for the current profile.
+ */
+export async function pushCommand(
+  args: CommandArgs,
+  ctx: PushPullCtx,
+): Promise<void> {
+  const { flags } = args;
+  const profile =
+    typeof flags["profile"] === "string" ? flags["profile"] : "default";
+
+  try {
+    const catalog = readCatalog(ctx.home);
+    const lock = readLock(ctx.home);
+    const result = await pushCatalog(catalog, lock, profile, ctx.home);
+
+    ctx.ui.notify(
+      `Pushed catalog to gist: ${result.gistUrl}`,
+      "info",
+    );
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.ui.notify(`Push failed: ${message}`, "error");
+  }
+}
+
+// ---------------------------------------------------------------------------
+// pullCommand
+// ---------------------------------------------------------------------------
+
+/**
+ * Execute the `ct pull` subcommand.
+ *
+ * Fetches the remote catalog and lock from the GitHub Gist, writes them
+ * locally, then reconciles and executes any install/uninstall/upgrade
+ * actions needed.
+ */
+export async function pullCommand(
+  args: CommandArgs,
+  ctx: PushPullCtx,
+): Promise<void> {
+  const { flags } = args;
+  const profile =
+    typeof flags["profile"] === "string" ? flags["profile"] : "default";
+
+  // --- 1. Pull remote catalog ----------------------------------------------
+  let pulledCatalog: CatalogYaml | undefined;
+  let pulledLock: LockFile | undefined;
+  try {
+    const pulled = await pullCatalog(profile, ctx.home);
+    pulledCatalog = pulled.catalog;
+    pulledLock = pulled.lock;
+
+    // Write the pulled catalog and lock as the local copies
+    writeCatalog(pulledCatalog, ctx.home);
+    writeLock(pulledLock, ctx.home);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    ctx.ui.notify(`Pull failed: ${message}`, "error");
+    return;
+  }
+
+  // --- 2. Reconcile --------------------------------------------------------
+  const catalog = readCatalog(ctx.home);
+  const installed = scanInstalled(ctx.home);
+
+  const catalogEntries: Record<string, { source: string; enabled?: boolean }> =
+    {};
+  for (const [key, pkg] of Object.entries(catalog.packages)) {
+    catalogEntries[key] = {
+      source: pkg.source,
+      enabled: pkg.enabled,
+    };
+  }
+
+  const plan = reconcile(catalogEntries, installed);
+  const actionCount =
+    plan.installs.length + plan.uninstalls.length + plan.upgrades.length;
+
+  // --- 3. Execute actions --------------------------------------------------
+  const errors: string[] = [];
+  if (actionCount > 0) {
+    const result = await executeActions(plan, { home: ctx.home });
+    for (const { error } of result.errors) {
+      ctx.ui.notify(`Action error: ${error.message}`, "warning");
+      errors.push(error.message);
+    }
+  }
+
+  // --- 4. Report -----------------------------------------------------------
+  if (actionCount === 0 && errors.length === 0) {
+    ctx.ui.notify(
+      `Pulled remote catalog. Already up to date.`,
+      "info",
+    );
+    return;
+  }
+
+  // Build summary
+  const parts: string[] = ["Pulled remote catalog."];
+  if (plan.installs.length > 0) {
+    parts.push(
+      `${plan.installs.length} install(s): ${plan.installs.map((a) => a.key).join(", ")}`,
+    );
+  }
+  if (plan.uninstalls.length > 0) {
+    parts.push(
+      `${plan.uninstalls.length} uninstall(s): ${plan.uninstalls.map((a) => a.key).join(", ")}`,
+    );
+  }
+  if (plan.upgrades.length > 0) {
+    parts.push(
+      `${plan.upgrades.length} upgrade(s): ${plan.upgrades.map((a) => a.key).join(", ")}`,
+    );
+  }
+  if (errors.length > 0) {
+    parts.push(`${errors.length} error(s) encountered.`);
+  }
+
+  ctx.ui.notify(parts.join(" "), "info");
 }

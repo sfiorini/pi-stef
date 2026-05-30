@@ -22,7 +22,13 @@ import {
   disableCommand,
   type ToggleCtx,
 } from "./commands/toggle.js";
-import { syncCommand, type SyncCtx } from "./commands/sync.js";
+import {
+  syncCommand,
+  pushCommand,
+  pullCommand,
+  type SyncCtx,
+  type PushPullCtx,
+} from "./commands/sync.js";
 import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
@@ -67,6 +73,12 @@ async function handleSubcommand(
       break;
     case "sync":
       await syncCommand(parsed, ctx as SyncCtx);
+      break;
+    case "push":
+      await pushCommand(parsed, ctx as PushPullCtx);
+      break;
+    case "pull":
+      await pullCommand(parsed, ctx as PushPullCtx);
       break;
     case "toggle":
       await toggleCommand(parsed, ctx as ToggleCtx);
