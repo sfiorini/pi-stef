@@ -17,6 +17,7 @@
     "@octokit/rest": "^21.0.0",
     "@pi-stef/paths": "file:../paths",
     "js-yaml": "^4.1.0",
+    "@sinclair/typebox": "*",
     "zod": "^3.25.62"
   },
   "peerDependencies": {
