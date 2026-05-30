@@ -92,10 +92,10 @@ export function discoverSkills(cwd: string): Map<string, SkillMeta> {
   const home = homedir();
 
   const skillPaths = [
-    join(home, ".pi", "agent", "skills"),
-    join(home, ".agents", "skills"),
     join(cwd, ".pi", "skills"),
     join(cwd, ".agents", "skills"),
+    join(home, ".pi", "agent", "skills"),
+    join(home, ".agents", "skills"),
   ];
 
   const gitPackagesDir = join(home, ".pi", "agent", "git");

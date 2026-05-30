@@ -1,0 +1,33 @@
+{
+  "name": "@pi-stef/catalog",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi extension for managing skill/package catalogs.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "catalog"
+  ],
+  "dependencies": {
+    "@octokit/rest": "^21.0.0",
+    "@pi-stef/paths": "file:../paths",
+    "js-yaml": "^4.1.0",
+    "zod": "^3.25.62"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9"
+  }
+}
