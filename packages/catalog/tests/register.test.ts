@@ -8,20 +8,23 @@ import { registerCatalog } from "../src/register.js";
 // Helpers
 // ---------------------------------------------------------------------------
 
+interface RecordedCommand {
+  description?: string;
+  getArgumentCompletions?: unknown;
+  handler: (args: string | undefined, ctx: Record<string, unknown>) => Promise<void>;
+}
+
 /** Create a mock ExtensionAPI that records all registerCommand/registerTool calls. */
 function mockPi() {
-  const commands = new Map<
-    string,
-    { description?: string; getArgumentCompletions?: unknown; handler: unknown }
-  >();
-  const tools = new Map<string, { name: string; description: string }>();
+  const commands = new Map<string, RecordedCommand>();
+  const tools = new Map<string, Record<string, unknown>>();
 
   const pi = {
-    registerCommand: vi.fn((name: string, opts: Record<string, unknown>) => {
-      commands.set(name, opts as never);
+    registerCommand: vi.fn((name: string, opts: RecordedCommand) => {
+      commands.set(name, opts);
     }),
-    registerTool: vi.fn((def: { name: string; description: string }) => {
-      tools.set(def.name, def);
+    registerTool: vi.fn((def: Record<string, unknown>) => {
+      tools.set(def.name as string, def);
     }),
   } as unknown as ExtensionAPI;
 
@@ -112,7 +115,8 @@ describe("registerCatalog", () => {
     registerCatalog(pi);
 
     for (const [name, def] of tools) {
-      expect(def.description.length, `tool ${name} description`).toBeGreaterThan(0);
+      const desc = def.description as string;
+      expect(desc.length, `tool ${name} description`).toBeGreaterThan(0);
     }
   });
 
@@ -120,7 +124,7 @@ describe("registerCatalog", () => {
     const { pi } = mockPi();
     registerCatalog(pi);
 
-    const calls = vi.mocked(pi.registerTool).mock.calls;
+    const calls = (pi.registerTool as ReturnType<typeof vi.fn>).mock.calls;
     for (const [def] of calls) {
       const d = def as Record<string, unknown>;
       expect(d.parameters, `tool ${d.name} parameters`).toBeDefined();
@@ -132,15 +136,33 @@ describe("registerCatalog", () => {
     registerCatalog(pi);
 
     const ct = commands.get("ct")!;
-    const mockCtx = {
-      ui: { notify: vi.fn() },
-    } as unknown as Parameters<typeof ct.handler>[1];
+    const notify = vi.fn();
+    const mockCtx = { ui: { notify } };
 
     // Calling handler with "status" should invoke the status handler path.
     // Since implementation modules are not wired yet, we just verify no throw
     // on unknown subcommand gives a user-facing notification.
-    await ct.handler("unknown-sub", mockCtx);
+    await ct.handler("unknown-sub", mockCtx as never);
     // The handler should notify the user about the unknown subcommand
-    expect(mockCtx.ui.notify).toHaveBeenCalled();
+    expect(notify).toHaveBeenCalled();
+  });
+
+  it("each registered tool execute function returns an object with details", async () => {
+    const { pi, tools } = mockPi();
+    registerCatalog(pi);
+
+    for (const [name, def] of tools) {
+      const execute = def.execute as (
+        toolCallId: string,
+        params: unknown,
+        signal: undefined,
+        onUpdate: undefined,
+        ctx: unknown,
+      ) => Promise<Record<string, unknown>>;
+
+      const result = await execute("test-id", {}, undefined, undefined, undefined);
+      expect(result, `tool ${name} result`).toHaveProperty("content");
+      expect(result, `tool ${name} result must have details`).toHaveProperty("details");
+    }
   });
 });

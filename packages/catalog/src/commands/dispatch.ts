@@ -4,40 +4,37 @@
  * `parseSubcommand` splits a raw argument list (e.g. `["sync", "--force"]`)
  * into a structured `{ subcommand, flags, positional }` object.
  *
- * `resolveAlias` maps short aliases (`a` → `add`, `rm` → `remove`) to their
- * canonical subcommand name.
+ * Subcommand names and aliases are derived from the shared definitions in
+ * `definitions.ts` — the single source of truth.
  */
 
+import {
+  getSubcommandNames,
+  resolveCanonical,
+} from "./definitions.js";
+
 // ---------------------------------------------------------------------------
-// Constants
+// Re-export derived constants for backward compatibility
 // ---------------------------------------------------------------------------
 
 /** Canonical subcommand names accepted by the `/ct` command. */
-export const SUBCOMMANDS = [
-  "sync",
-  "init",
-  "add",
-  "remove",
-  "toggle",
-  "disable",
-  "enable",
-  "push",
-  "pull",
-  "login",
-  "status",
-  "diff",
-  "verify",
-  "profiles",
-  "profile",
-] as const;
+export const SUBCOMMANDS = getSubcommandNames() as readonly string[];
 
+/** Canonical subcommand name type derived from the definitions. */
 export type SubcommandName = (typeof SUBCOMMANDS)[number];
 
-/** Mapping from alias → canonical name. */
-const ALIASES: Record<string, SubcommandName> = {
-  a: "add",
-  rm: "remove",
-};
+// ---------------------------------------------------------------------------
+// resolveAlias (delegates to shared definitions)
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a token to its canonical subcommand name.
+ *
+ * Delegates to `resolveCanonical` from the shared definitions module.
+ */
+export function resolveAlias(token: string): SubcommandName | undefined {
+  return resolveCanonical(token) as SubcommandName | undefined;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -52,27 +49,6 @@ export interface ParsedCommand {
   flags: Record<string, true | string>;
   /** Positional (non-flag) arguments, in order of appearance. */
   positional: string[];
-}
-
-// ---------------------------------------------------------------------------
-// resolveAlias
-// ---------------------------------------------------------------------------
-
-/**
- * Map a token to its canonical subcommand name.
- *
- * Returns the canonical name for known aliases (e.g. `"a"` → `"add"`),
- * passes through valid canonical names unchanged, and returns `undefined`
- * for unrecognised tokens.
- */
-export function resolveAlias(token: string): SubcommandName | undefined {
-  if (ALIASES[token]) return ALIASES[token];
-
-  for (const name of SUBCOMMANDS) {
-    if (name === token) return name;
-  }
-
-  return undefined;
 }
 
 // ---------------------------------------------------------------------------

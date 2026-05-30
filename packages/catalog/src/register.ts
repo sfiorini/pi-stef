@@ -6,49 +6,18 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
+import { Type } from "@sinclair/typebox";
+
+import {
+  SUBCOMMAND_DEFS,
+  getAliasMap,
+} from "./commands/definitions.js";
 
 // ---------------------------------------------------------------------------
-// Subcommand definitions
+// Alias map (derived from shared definitions)
 // ---------------------------------------------------------------------------
 
-interface SubcommandDef {
-  name: string;
-  aliases?: string[];
-  description: string;
-}
-
-const SUBCOMMANDS: SubcommandDef[] = [
-  { name: "sync", description: "Sync catalog with remote gist" },
-  { name: "init", description: "Initialize a new catalog" },
-  { name: "add", aliases: ["a"], description: "Add a package to the catalog" },
-  { name: "remove", aliases: ["rm"], description: "Remove a package from the catalog" },
-  { name: "toggle", description: "Toggle a package's rating" },
-  { name: "disable", description: "Disable a package" },
-  { name: "enable", description: "Enable a package" },
-  { name: "push", description: "Push catalog to remote gist" },
-  { name: "pull", description: "Pull catalog from remote gist" },
-  { name: "login", description: "Authenticate with GitHub for sync" },
-  { name: "status", description: "Show catalog status" },
-  { name: "diff", description: "Show diff between local and remote catalog" },
-  { name: "verify", description: "Verify catalog integrity" },
-  { name: "profiles", description: "List available profiles" },
-  { name: "profile", description: "Show or switch active profile" },
-];
-
-/** Build a lookup map from subcommand name or alias → canonical name. */
-function buildAliasMap(): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const sub of SUBCOMMANDS) {
-    map.set(sub.name, sub.name);
-    for (const alias of sub.aliases ?? []) {
-      map.set(alias, sub.name);
-    }
-  }
-  return map;
-}
-
-const aliasMap = buildAliasMap();
+const aliasMap = getAliasMap();
 
 // ---------------------------------------------------------------------------
 // Command handlers (delegate to implementation modules)
@@ -63,7 +32,7 @@ const aliasMap = buildAliasMap();
 async function handleSubcommand(
   subcommand: string,
   _args: string,
-  ctx: { ui: { notify: (msg: string, level: string) => void } },
+  ctx: { ui: { notify: (msg: string, type?: "error" | "info" | "warning") => void } },
 ): Promise<void> {
   const canonical = aliasMap.get(subcommand);
   if (!canonical) {
@@ -91,7 +60,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
   pi.registerCommand("ct", {
     description: "Catalog management: sync, add, remove, toggle, and more",
     getArgumentCompletions(prefix: string) {
-      const items = SUBCOMMANDS.map((s) => ({
+      const items = SUBCOMMAND_DEFS.map((s) => ({
         value: s.name,
         label: s.name,
         description: s.description,
@@ -108,7 +77,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
   });
 
   // ----- Individual alias commands (e.g. /ct-sync, /ct-init) ---------------
-  for (const sub of SUBCOMMANDS) {
+  for (const sub of SUBCOMMAND_DEFS) {
     pi.registerCommand(`ct-${sub.name}`, {
       description: sub.description,
       async handler(args, ctx) {
@@ -134,7 +103,8 @@ export function registerCatalog(pi: ExtensionAPI): void {
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       // Implementation delegation wired in later milestone
       return {
-        content: [{ type: "text", text: "ct_sync: not yet implemented" }],
+        content: [{ type: "text" as const, text: "ct_sync: not yet implemented" }],
+        details: undefined as unknown,
       };
     },
   });
@@ -155,7 +125,8 @@ export function registerCatalog(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       return {
-        content: [{ type: "text", text: "ct_add: not yet implemented" }],
+        content: [{ type: "text" as const, text: "ct_add: not yet implemented" }],
+        details: undefined as unknown,
       };
     },
   });
@@ -173,7 +144,8 @@ export function registerCatalog(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       return {
-        content: [{ type: "text", text: "ct_remove: not yet implemented" }],
+        content: [{ type: "text" as const, text: "ct_remove: not yet implemented" }],
+        details: undefined as unknown,
       };
     },
   });
@@ -192,7 +164,8 @@ export function registerCatalog(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       return {
-        content: [{ type: "text", text: "ct_toggle: not yet implemented" }],
+        content: [{ type: "text" as const, text: "ct_toggle: not yet implemented" }],
+        details: undefined as unknown,
       };
     },
   });
@@ -210,7 +183,8 @@ export function registerCatalog(pi: ExtensionAPI): void {
     }),
     async execute(_toolCallId, _params, _signal, _onUpdate, _ctx) {
       return {
-        content: [{ type: "text", text: "ct_status: not yet implemented" }],
+        content: [{ type: "text" as const, text: "ct_status: not yet implemented" }],
+        details: undefined as unknown,
       };
     },
   });
