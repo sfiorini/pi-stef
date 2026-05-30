@@ -33,6 +33,11 @@ import { loginCommand, type LoginCtx } from "./commands/login.js";
 import { statusCommand, type StatusCtx } from "./commands/status.js";
 import { diffCommand, type DiffCtx } from "./commands/diff.js";
 import { verifyCommand, type VerifyCtx } from "./commands/verify.js";
+import {
+  profilesCommand,
+  profileCommand,
+  type ProfilesCtx,
+} from "./commands/profiles.js";
 import type { CommandCtx } from "./commands/types.js";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +109,12 @@ async function handleSubcommand(
       break;
     case "verify":
       await verifyCommand(parsed, ctx as VerifyCtx);
+      break;
+    case "profiles":
+      await profilesCommand(parsed, ctx as ProfilesCtx);
+      break;
+    case "profile":
+      await profileCommand(parsed, ctx as ProfilesCtx);
       break;
     default:
       ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");

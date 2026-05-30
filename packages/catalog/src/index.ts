@@ -84,3 +84,12 @@ export {
   type ExecResult,
   type PiExecOptions,
 } from "./util/exec.js";
+
+// profiles
+export {
+  DEFAULT_PROFILE,
+  createProfile,
+  switchProfile,
+  deleteProfile,
+  resolveEffectivePackages,
+} from "./profiles/manager.js";

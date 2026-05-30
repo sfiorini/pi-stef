@@ -30,12 +30,22 @@ export const CatalogPackageSchema = z.object({
 export const CatalogMetaSchema = z.object({
   /** Minimum pi version this catalog requires. */
   pi_version: z.string().min(1),
+  /** Currently active profile name. */
+  activeProfile: z.string().optional(),
+});
+
+/** A single named profile with its own package overrides. */
+export const ProfileSchema = z.object({
+  /** Packages specific to this profile (override base packages). */
+  packages: z.record(z.string(), CatalogPackageSchema),
 });
 
 /** Full cat.yaml document schema. */
 export const CatalogYamlSchema = z.object({
   meta: CatalogMetaSchema,
   packages: z.record(z.string(), CatalogPackageSchema),
+  /** Named profiles with package overrides. */
+  profiles: z.record(z.string(), ProfileSchema).optional(),
 });
 
 // ---------------------------------------------------------------------------
@@ -69,6 +79,7 @@ export const LockFileSchema = z.object({
 export type CatalogYaml = z.infer<typeof CatalogYamlSchema>;
 export type CatalogMeta = z.infer<typeof CatalogMetaSchema>;
 export type CatalogPackage = z.infer<typeof CatalogPackageSchema>;
+export type Profile = z.infer<typeof ProfileSchema>;
 export type LockFile = z.infer<typeof LockFileSchema>;
 export type LockPackage = z.infer<typeof LockPackageSchema>;
 export type RatingValue = z.infer<typeof Rating>;
