@@ -138,7 +138,12 @@ export function parseCheckpointStore(value: unknown): WorkflowCheckpointStore {
   if (typeof value.updatedAt !== "string") throw new Error("invalid checkpoint store: updatedAt must be a string");
   if (!isRecord(value.checkpoints)) throw new Error("invalid checkpoint store: checkpoints must be an object");
   if (!isRecord(value.commitIntents)) throw new Error("invalid checkpoint store: commitIntents must be an object");
-  return value as unknown as WorkflowCheckpointStore;
+  const parsed = value as unknown as WorkflowCheckpointStore;
+  return {
+    ...parsed,
+    checkpoints: { ...parsed.checkpoints },
+    commitIntents: { ...parsed.commitIntents },
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

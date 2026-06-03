@@ -74,7 +74,9 @@ describe("resolvePlanTarget slug cascade", () => {
       candidatePlanRoots: [],
     });
 
-    expect(result.folderPath).toBe(path.join(indexRoot, slug));
+    // planRoot is normalized via realpathSync, so compare normalized paths
+    const normalizedRoot = fs.realpathSync(indexRoot);
+    expect(result.folderPath).toBe(path.join(normalizedRoot, slug));
   });
 
   it("throws ResumeTargetNotFoundError(kind='ambiguous') when index has 2 live entries", async () => {
@@ -85,14 +87,17 @@ describe("resolvePlanTarget slug cascade", () => {
     upsertEntry(slug, { planRoot: root1, tool: "sf_team_plan" });
     upsertEntry(slug, { planRoot: root2, tool: "sf_team_plan" });
 
+    const normalizedRoot1 = fs.realpathSync(root1);
+    const normalizedRoot2 = fs.realpathSync(root2);
+
     await expect(
       resolvePlanTarget({ repoRoot: tmpDir, target: slug, candidatePlanRoots: [] }),
     ).rejects.toSatisfy(
       (e: unknown) =>
         e instanceof ResumeTargetNotFoundError &&
         e.kind === "ambiguous" &&
-        e.candidates.includes(root1) &&
-        e.candidates.includes(root2),
+        e.candidates.includes(normalizedRoot1) &&
+        e.candidates.includes(normalizedRoot2),
     );
   });
 

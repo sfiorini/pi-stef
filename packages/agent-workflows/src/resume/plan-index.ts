@@ -87,7 +87,7 @@ export function upsertEntry(slug: string, opts: { planRoot: string; tool: string
   });
 
   const entry: PlanIndexEntry = {
-    planRoot: opts.planRoot,
+    planRoot: normalizedRoot,
     lastSeenAt: new Date().toISOString(),
     lastTool: opts.tool,
   };

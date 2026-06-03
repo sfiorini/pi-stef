@@ -1,7 +1,7 @@
 import { stat } from "node:fs/promises";
 import path from "node:path";
 
-import { planFolderPath, planFolderPathFromRoot, WORKFLOW_FOLDER_NAME } from "../artifacts/paths"; // migration-allowed: legacy
+import { planFolderPath, planFolderPathFromRoot, WORKFLOW_FOLDER_NAME, WORKFLOW_METADATA_FILE } from "../artifacts/paths"; // migration-allowed: legacy
 import { lookupEntries } from "./plan-index";
 import { ResumeTargetNotFoundError } from "./errors";
 
@@ -58,7 +58,7 @@ export async function resolvePlanTarget(input: ResolvePlanTargetInput): Promise<
     // New cascade: check each explicit candidate for workflow.json
     for (const planRoot of input.candidatePlanRoots) {
       const folderPath = planFolderPathFromRoot(planRoot, slug);
-      const workflowJson = path.join(folderPath, WORKFLOW_FOLDER_NAME, "workflow.json");
+      const workflowJson = path.join(folderPath, WORKFLOW_FOLDER_NAME, WORKFLOW_METADATA_FILE);
       if (await fileExists(workflowJson)) {
         return { slug, folderPath, target, targetKind };
       }

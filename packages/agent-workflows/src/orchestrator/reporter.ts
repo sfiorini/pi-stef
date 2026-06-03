@@ -43,6 +43,8 @@ export function createWorkflowReporter(opts: WorkflowReporterOptions = {}): Work
   let disposed = false;
 
   const hasStore = (): boolean => typeof opts.getMessages === "function" && typeof opts.setMessages === "function";
+  const getMsgs = (): readonly WorkflowMessage[] => opts.getMessages?.() ?? [];
+  const setMsgs = (msgs: WorkflowMessage[]): void => { opts.setMessages?.(msgs); };
 
   const clearTimer = (id: string): void => {
     const timer = timers.get(id);
@@ -58,10 +60,10 @@ export function createWorkflowReporter(opts: WorkflowReporterOptions = {}): Work
     const timer = setTimeoutFn(() => {
       timers.delete(message.id);
       if (disposed || !hasStore()) return;
-      const current = opts.getMessages!();
+      const current = getMsgs();
       const next = expireWorkflowMessages(current, nowMs());
       if (next.length === current.length) return;
-      opts.setMessages!(next);
+      setMsgs(next);
       opts.render?.();
     }, delayMs);
     timer.unref?.();
@@ -83,7 +85,7 @@ export function createWorkflowReporter(opts: WorkflowReporterOptions = {}): Work
       const ttlMs = messageOpts.ttlMs ?? DEFAULT_TTL_MS[level];
       const currentNowMs = nowMs();
       const nextMessages = addWorkflowMessage(
-        hasStore() && !disposed ? opts.getMessages!() : [],
+        hasStore() && !disposed ? getMsgs() : [],
         { id: messageOpts.id, level, text, ttlMs },
         currentNowMs,
       );
@@ -95,7 +97,7 @@ export function createWorkflowReporter(opts: WorkflowReporterOptions = {}): Work
       }
 
       if (!disposed && hasStore()) {
-        opts.setMessages!(nextMessages);
+        setMsgs(nextMessages);
         opts.render?.();
         scheduleExpiration(message);
       }
@@ -106,10 +108,10 @@ export function createWorkflowReporter(opts: WorkflowReporterOptions = {}): Work
     clearMessage(id: string): void {
       clearTimer(id);
       if (disposed || !hasStore()) return;
-      const current = opts.getMessages!();
+      const current = getMsgs();
       const next = current.filter((message) => message.id !== id);
       if (next.length === current.length) return;
-      opts.setMessages!(next);
+      setMsgs(next);
       opts.render?.();
     },
 

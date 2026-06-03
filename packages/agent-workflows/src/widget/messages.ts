@@ -18,8 +18,6 @@ export interface AddWorkflowMessageInput {
 export const MAX_WORKFLOW_MESSAGES = 5;
 export const WORKFLOW_MESSAGE_MAX_CHARS = 140;
 
-let nextGeneratedId = 0;
-
 export function createWorkflowMessage(
   input: AddWorkflowMessageInput,
   nowMs = Date.now(),
@@ -64,8 +62,7 @@ export function truncateWorkflowMessageText(text: string): string {
 }
 
 function generatedMessageId(nowMs: number): string {
-  nextGeneratedId += 1;
-  return `workflow-message-${nowMs}-${nextGeneratedId}`;
+  return `workflow-message-${nowMs}-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function renderLevel(level: WorkflowMessageLevel): string {

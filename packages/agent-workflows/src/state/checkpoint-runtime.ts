@@ -52,7 +52,7 @@ export function createWorkflowCheckpointRuntime(
       const store = await load();
       await writeCheckpointStore(opts.repoRoot, fn(store), checkpointsPath);
     });
-    queue = next.catch(() => undefined);
+    queue = next;
     await next;
   };
   const artifactFor = (stepId: string): string =>
@@ -103,7 +103,7 @@ export function createWorkflowCheckpointRuntime(
           stepId,
           artifactPath,
           outputFingerprint: err instanceof Error ? workflowFingerprint(err.message) : workflowFingerprint(String(err)),
-        })).catch(() => undefined);
+        })).catch(() => {/* best-effort failure recording */});
         throw err;
       }
     },
