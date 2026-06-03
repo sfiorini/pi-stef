@@ -6,7 +6,7 @@ import { parseRetryAfterMs, sleep } from './rateLimit';
 
 export { FigmaApiError } from './FigmaErrors';
 
-const FIGMA_API_BASE = 'https://api.figma.com/v1';
+export const FIGMA_API_BASE = 'https://api.figma.com/v1';
 
 export const FIGMA_REQUEST_TIMEOUT_MS = 15_000;
 export const FIGMA_MAX_RETRIES = 3;

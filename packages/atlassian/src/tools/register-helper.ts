@@ -20,7 +20,7 @@ export function registerTool(
     promptSnippet: options?.promptSnippet,
     parameters: parameters as never,
     async execute(_toolCallId, params, signal) {
-      const result = await execute(params, signal);
+      const result = await execute(params as Record<string, unknown>, signal);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
         details: result,

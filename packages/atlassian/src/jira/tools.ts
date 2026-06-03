@@ -3,7 +3,6 @@ import { Type } from "@sinclair/typebox";
 
 import { ConfluenceClient } from "../confluence/ConfluenceClient";
 import { buildStoryContext, renderStoryContextMarkdown } from "../context/AtlassianContextWalker";
-import { registerTool } from "../tools/register-helper";
 import { getJiraIssueContext, renderJiraIssueMarkdown } from "./JiraContext";
 import { JiraPlatformClient } from "./JiraPlatformClient";
 
@@ -42,7 +41,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
   const jira = deps.jira ?? new JiraPlatformClient();
   const confluence = deps.confluence ?? new ConfluenceClient();
 
-  registerTool(pi, "jira_list_projects", "List Jira projects using REST v3 project search.", Type.Object({
+  register(pi, "jira_list_projects", "List Jira projects using REST v3 project search.", Type.Object({
     startAt: Type.Optional(Type.Integer({ minimum: 0 })),
     maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
     orderBy: Type.Optional(Type.String()),
@@ -52,7 +51,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     action: Type.Optional(Type.String()),
   }), (params, signal) => jira.listProjects({ ...params, signal }));
 
-  registerTool(pi, "jira_search_issues", "Search Jira issues using enhanced JQL search at /rest/api/3/search/jql with nextPageToken pagination.", Type.Object({
+  register(pi, "jira_search_issues", "Search Jira issues using enhanced JQL search at /rest/api/3/search/jql with nextPageToken pagination.", Type.Object({
     jql: Type.String(),
     fields: Type.Optional(stringArray),
     expand: Type.Optional(stringArray),
@@ -63,7 +62,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     reconcileIssues: Type.Optional(Type.Array(Type.Integer())),
   }), (params, signal) => jira.searchIssues({ ...params, signal }));
 
-  registerTool(pi, "jira_create_issue", "Create a Jira issue. Plain-text description is converted to Atlassian Document Format.", Type.Object({
+  register(pi, "jira_create_issue", "Create a Jira issue. Plain-text description is converted to Atlassian Document Format.", Type.Object({
     projectKey: Type.Optional(Type.String()),
     projectId: Type.Optional(Type.Union([Type.String(), Type.Integer()])),
     issueTypeName: Type.Optional(Type.String()),
@@ -74,7 +73,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     update: Type.Optional(anyRecord),
   }), (params, signal) => jira.createIssue({ ...params, signal }));
 
-  registerTool(pi, "jira_update_issue", "Update a Jira issue. Plain-text description is converted to Atlassian Document Format.", Type.Object({
+  register(pi, "jira_update_issue", "Update a Jira issue. Plain-text description is converted to Atlassian Document Format.", Type.Object({
     issueIdOrKey: Type.String(),
     summary: Type.Optional(Type.String()),
     description: Type.Optional(Type.Any()),
@@ -85,7 +84,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     overrideEditableFlag: Type.Optional(Type.Boolean()),
   }), (params, signal) => jira.updateIssue({ ...params, signal }));
 
-  registerTool(pi, "jira_delete_issue", "Delete a Jira issue.", Type.Object({
+  register(pi, "jira_delete_issue", "Delete a Jira issue.", Type.Object({
     issueIdOrKey: Type.String(),
     deleteSubtasks: Type.Optional(Type.Boolean()),
   }), (params, signal) => jira.deleteIssue({ ...params, signal }));
@@ -114,14 +113,14 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     },
   });
 
-  registerTool(pi, "jira_get_transitions", "Get available transitions for a Jira issue.", Type.Object({
+  register(pi, "jira_get_transitions", "Get available transitions for a Jira issue.", Type.Object({
     issueIdOrKey: Type.String(),
     transitionId: Type.Optional(Type.String()),
     includeUnavailableTransitions: Type.Optional(Type.Boolean()),
     skipRemoteOnlyCondition: Type.Optional(Type.Boolean()),
   }), (params, signal) => jira.getTransitions({ ...params, signal }));
 
-  registerTool(pi, "jira_transition_issue", "Transition a Jira issue. Optional plain-text comment is converted to Atlassian Document Format.", Type.Object({
+  register(pi, "jira_transition_issue", "Transition a Jira issue. Optional plain-text comment is converted to Atlassian Document Format.", Type.Object({
     issueIdOrKey: Type.String(),
     transitionId: Type.String(),
     fields: Type.Optional(anyRecord),
@@ -130,14 +129,14 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     comment: Type.Optional(Type.Any()),
   }), (params, signal) => jira.transitionIssue({ ...params, signal }));
 
-  registerTool(pi, "jira_add_comment", "Add a Jira issue comment. Plain text is converted to Atlassian Document Format.", Type.Object({
+  register(pi, "jira_add_comment", "Add a Jira issue comment. Plain text is converted to Atlassian Document Format.", Type.Object({
     issueIdOrKey: Type.String(),
     body: Type.Any(),
     visibility: Type.Optional(anyRecord),
     properties: Type.Optional(Type.Array(Type.Any())),
   }), (params, signal) => jira.addComment({ ...params, signal }));
 
-  registerTool(pi, "jira_get_worklog", "Get worklogs for a Jira issue.", Type.Object({
+  register(pi, "jira_get_worklog", "Get worklogs for a Jira issue.", Type.Object({
     issueIdOrKey: Type.String(),
     startAt: Type.Optional(Type.Integer({ minimum: 0 })),
     maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
@@ -146,7 +145,7 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     expand: Type.Optional(stringArray),
   }), (params, signal) => jira.getWorklog({ ...params, signal }));
 
-  registerTool(pi, "jira_add_worklog", "Add a Jira worklog. started must look like 2026-05-04T09:30:00.000+0000.", Type.Object({
+  register(pi, "jira_add_worklog", "Add a Jira worklog. started must look like 2026-05-04T09:30:00.000+0000.", Type.Object({
     issueIdOrKey: Type.String(),
     timeSpent: Type.Optional(Type.String()),
     timeSpentSeconds: Type.Optional(Type.Integer({ minimum: 0 })),
@@ -157,9 +156,9 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     reduceBy: Type.Optional(Type.String()),
   }), (params, signal) => jira.addWorklog({ ...params, signal }));
 
-  registerTool(pi, "jira_get_issue_link_types", "Get Jira issue link types.", Type.Object({}), (_params, signal) => jira.getIssueLinkTypes({ signal }));
+  register(pi, "jira_get_issue_link_types", "Get Jira issue link types.", Type.Object({}), (_params, signal) => jira.getIssueLinkTypes({ signal }));
 
-  registerTool(pi, "jira_create_issue_link", "Create a Jira issue link.", Type.Object({
+  register(pi, "jira_create_issue_link", "Create a Jira issue link.", Type.Object({
     typeName: Type.Optional(Type.String()),
     typeId: Type.Optional(Type.String()),
     inwardIssueKey: Type.String(),
@@ -167,12 +166,12 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     comment: Type.Optional(Type.Any()),
   }), (params, signal) => jira.createIssueLink({ ...params, signal }));
 
-  registerTool(pi, "jira_get_project_versions", "Get project versions.", Type.Object({
+  register(pi, "jira_get_project_versions", "Get project versions.", Type.Object({
     projectIdOrKey: Type.String(),
     expand: Type.Optional(Type.String()),
   }), (params, signal) => jira.getProjectVersions({ ...params, signal }));
 
-  registerTool(pi, "jira_create_version", "Create a project version.", Type.Object({
+  register(pi, "jira_create_version", "Create a project version.", Type.Object({
     projectId: Type.Optional(Type.Integer()),
     project: Type.Optional(Type.String()),
     name: Type.String(),
@@ -183,14 +182,14 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     startDate: Type.Optional(Type.String()),
   }), (params, signal) => jira.createVersion({ ...params, signal }));
 
-  registerTool(pi, "jira_get_project_issues", "Search issues in a project using enhanced JQL search.", Type.Object({
+  register(pi, "jira_get_project_issues", "Search issues in a project using enhanced JQL search.", Type.Object({
     projectIdOrKey: Type.String(),
     fields: Type.Optional(stringArray),
     maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
     nextPageToken: Type.Optional(Type.String()),
   }), (params, signal) => jira.getProjectIssues({ ...params, signal }));
 
-  registerTool(pi, "jira_search_fields", "Search Jira fields.", Type.Object({
+  register(pi, "jira_search_fields", "Search Jira fields.", Type.Object({
     startAt: Type.Optional(Type.Integer({ minimum: 0 })),
     maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
     type: Type.Optional(Type.String()),
@@ -200,27 +199,27 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     expand: Type.Optional(stringArray),
   }), (params, signal) => jira.searchFields({ ...params, signal }));
 
-  registerTool(pi, "jira_batch_get_changelogs", "Bulk fetch changelogs for Jira issues using /rest/api/3/changelog/bulkfetch.", Type.Object({
+  register(pi, "jira_batch_get_changelogs", "Bulk fetch changelogs for Jira issues using /rest/api/3/changelog/bulkfetch.", Type.Object({
     issueIdsOrKeys: stringArray,
     fieldIds: Type.Optional(stringArray),
     maxResults: Type.Optional(Type.Integer({ minimum: 1 })),
     nextPageToken: Type.Optional(Type.String()),
   }), (params, signal) => jira.batchGetChangelogs({ ...params, signal }));
 
-  registerTool(pi, "jira_get_user_profile", "Get a Jira user profile.", Type.Object({
+  register(pi, "jira_get_user_profile", "Get a Jira user profile.", Type.Object({
     accountId: Type.Optional(Type.String()),
     username: Type.Optional(Type.String()),
     key: Type.Optional(Type.String()),
     expand: Type.Optional(Type.String()),
   }), (params, signal) => jira.getUserProfile({ ...params, signal }));
 
-  registerTool(pi, "jira_download_attachments", "Download Jira issue attachments to a package-local runtime directory by default.", Type.Object({
+  register(pi, "jira_download_attachments", "Download Jira issue attachments to a package-local runtime directory by default.", Type.Object({
     issueIdOrKey: Type.Optional(Type.String()),
     attachmentIds: Type.Optional(stringArray),
     outputDir: Type.Optional(Type.String()),
   }), (params, signal) => jira.downloadAttachments({ ...params, signal }));
 
-  registerTool(pi, "jira_batch_create_issues", "Create multiple Jira issues. Plain-text descriptions are converted to Atlassian Document Format.", Type.Object({
+  register(pi, "jira_batch_create_issues", "Create multiple Jira issues. Plain-text descriptions are converted to Atlassian Document Format.", Type.Object({
     issues: Type.Array(Type.Object({
       projectKey: Type.Optional(Type.String()),
       projectId: Type.Optional(Type.Union([Type.String(), Type.Integer()])),
@@ -233,11 +232,11 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
     })),
   }), (params, signal) => jira.batchCreateIssues({ ...params, signal }));
 
-  registerTool(pi, "jira_remove_issue_link", "Remove a Jira issue link.", Type.Object({
+  register(pi, "jira_remove_issue_link", "Remove a Jira issue link.", Type.Object({
     linkId: Type.String(),
   }), (params, signal) => jira.removeIssueLink({ ...params, signal }));
 
-  registerTool(pi, "jira_batch_create_versions", "Create multiple project versions by calling the verified create-version endpoint for each item.", Type.Object({
+  register(pi, "jira_batch_create_versions", "Create multiple project versions by calling the verified create-version endpoint for each item.", Type.Object({
     versions: Type.Array(Type.Object({
       projectId: Type.Optional(Type.Integer()),
       project: Type.Optional(Type.String()),
@@ -332,7 +331,25 @@ export function registerJiraPlatformTools(pi: ExtensionAPI, deps: JiraPlatformTo
   });
 }
 
-function pickContextOptions(params: Record<string, unknown>): Record<string, unknown> {
+type ExecuteFn = (params: any, signal?: AbortSignal) => Promise<unknown>;
+
+function register(pi: ExtensionAPI, name: string, description: string, parameters: unknown, execute: ExecuteFn): void {
+  pi.registerTool({
+    name,
+    label: name,
+    description,
+    parameters: parameters as never,
+    async execute(_toolCallId, params, signal) {
+      const result = await execute(params, signal);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        details: result,
+      };
+    },
+  });
+}
+
+function pickContextOptions(params: any): any {
   const {
     includeComments,
     includeConfluence,
