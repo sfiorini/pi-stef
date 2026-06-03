@@ -7,16 +7,11 @@
   "scripts": {
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
-    "typecheck": "tsc -b",
-    "install:all:global": "./scripts/install-all.sh",
-    "install:all:project": "./scripts/install-all.sh --project"
+    "typecheck": "tsc -b"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["@google/genai", "protobufjs"]
   }
 }

@@ -76,11 +76,9 @@ export interface RunWorkflowRuntimeContext<TBaseline = unknown> {
   baseline?: TBaseline;
 }
 
-export interface RunWorkflowResult<TResult, TArtifacts = unknown> {
-  result: TResult;
-  declinedResume?: boolean;
-  artifacts?: TArtifacts;
-}
+export type RunWorkflowResult<TResult, TArtifacts = unknown> =
+  | { result: TResult; declinedResume?: false; artifacts?: TArtifacts }
+  | { result?: undefined; declinedResume: true };
 
 export type RunWorkflowBody<TResult, TBaseline = unknown> = (
   ctx: RunWorkflowRuntimeContext<TBaseline>,
@@ -92,7 +90,7 @@ export async function runWorkflow<TResult, TBaseline = unknown, TArtifacts = unk
 ): Promise<RunWorkflowResult<TResult, TArtifacts>> {
   const resume = await opts.promptForResume(opts.repoRoot, opts.slug);
   if (!resume.resume) {
-    return { result: undefined as TResult, declinedResume: true };
+    return { declinedResume: true };
   }
 
   let lock: LockMetadata | undefined;

@@ -158,6 +158,7 @@ export async function updateWorkflowMetadata(
 
 export function parseWorkflowMetadata(value: unknown): WorkflowMetadata {
   if (!isRecord(value)) throw new Error("invalid workflow metadata: expected object");
+  if (typeof value.schemaVersion !== "number") throw new Error("invalid workflow metadata: schemaVersion must be a number");
   if (value.schemaVersion !== 1) throw new Error("invalid workflow metadata: unsupported schemaVersion");
   const requiredStrings = ["slug", "folderPath", "ownerTool", "currentTool", "createdAt", "updatedAt", "status", "phase"];
   for (const key of requiredStrings) {
@@ -165,11 +166,12 @@ export function parseWorkflowMetadata(value: unknown): WorkflowMetadata {
   }
   if (!isRecord(value.checkpoints)) throw new Error("invalid workflow metadata: checkpoints must be an object");
   if (!isRecord(value.commitIntents)) throw new Error("invalid workflow metadata: commitIntents must be an object");
-  // Apply legacy defaults for fields added after initial schema version.
   const parsed = value as unknown as WorkflowMetadata;
-  if (!parsed.gitMode) parsed.gitMode = "on";
-  if (!parsed.tddMode) parsed.tddMode = "auto";
-  return parsed;
+  return {
+    ...parsed,
+    gitMode: parsed.gitMode ?? "on",
+    tddMode: parsed.tddMode ?? "auto",
+  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

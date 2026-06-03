@@ -247,6 +247,8 @@ describe("registerCatalog", () => {
     const { pi, tools } = mockPi();
     registerCatalog(pi);
 
+    const mockCtx = { ui: { notify: vi.fn() } };
+
     for (const [name, def] of tools) {
       const execute = def.execute as (
         toolCallId: string,
@@ -256,9 +258,78 @@ describe("registerCatalog", () => {
         ctx: unknown,
       ) => Promise<Record<string, unknown>>;
 
-      const result = await execute("test-id", {}, undefined, undefined, undefined);
+      const result = await execute("test-id", {}, undefined, undefined, mockCtx);
       expect(result, `tool ${name} result`).toHaveProperty("content");
       expect(result, `tool ${name} result must have details`).toHaveProperty("details");
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // S19: LLM tool integration tests (success + error paths)
+  // -------------------------------------------------------------------------
+
+  describe("ct_sync tool execute", () => {
+    it("delegates to syncCommand (not a stub)", async () => {
+      const { pi, tools } = mockPi();
+      registerCatalog(pi);
+      const execute = tools.get("ct_sync")!.execute as (...args: unknown[]) => Promise<Record<string, unknown>>;
+      const notify = vi.fn();
+      const result = await execute("id", {}, undefined, undefined, { ui: { notify } });
+      expect(result).toHaveProperty("content");
+      const text = (result.content as Array<{ text: string }>)[0].text;
+      expect(text).not.toContain("not yet implemented");
+    });
+  });
+
+  describe("ct_add tool execute", () => {
+    it("delegates to addCommand with params", async () => {
+      const { pi, tools } = mockPi();
+      registerCatalog(pi);
+      const execute = tools.get("ct_add")!.execute as (...args: unknown[]) => Promise<Record<string, unknown>>;
+      const notify = vi.fn();
+      const result = await execute("id", { name: "test", source: "npm:test" }, undefined, undefined, { ui: { notify } });
+      expect(result).toHaveProperty("content");
+      const text = (result.content as Array<{ text: string }>)[0].text;
+      expect(text).not.toContain("not yet implemented");
+    });
+  });
+
+  describe("ct_remove tool execute", () => {
+    it("delegates to removeCommand with params", async () => {
+      const { pi, tools } = mockPi();
+      registerCatalog(pi);
+      const execute = tools.get("ct_remove")!.execute as (...args: unknown[]) => Promise<Record<string, unknown>>;
+      const notify = vi.fn();
+      const result = await execute("id", { name: "nonexistent" }, undefined, undefined, { ui: { notify } });
+      expect(result).toHaveProperty("content");
+      const text = (result.content as Array<{ text: string }>)[0].text;
+      expect(text).not.toContain("not yet implemented");
+    });
+  });
+
+  describe("ct_toggle tool execute", () => {
+    it("delegates to toggleCommand with params", async () => {
+      const { pi, tools } = mockPi();
+      registerCatalog(pi);
+      const execute = tools.get("ct_toggle")!.execute as (...args: unknown[]) => Promise<Record<string, unknown>>;
+      const notify = vi.fn();
+      const result = await execute("id", { name: "nonexistent" }, undefined, undefined, { ui: { notify } });
+      expect(result).toHaveProperty("content");
+      const text = (result.content as Array<{ text: string }>)[0].text;
+      expect(text).not.toContain("not yet implemented");
+    });
+  });
+
+  describe("ct_status tool execute", () => {
+    it("delegates to statusCommand", async () => {
+      const { pi, tools } = mockPi();
+      registerCatalog(pi);
+      const execute = tools.get("ct_status")!.execute as (...args: unknown[]) => Promise<Record<string, unknown>>;
+      const notify = vi.fn();
+      const result = await execute("id", {}, undefined, undefined, { ui: { notify } });
+      expect(result).toHaveProperty("content");
+      const text = (result.content as Array<{ text: string }>)[0].text;
+      expect(text).not.toContain("not yet implemented");
+    });
   });
 });
