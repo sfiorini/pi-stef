@@ -8,3 +8,4 @@ dist/
 **/worktrees/
 .claude/
 **/tsconfig.tsbuildinfo
+.worktrees
