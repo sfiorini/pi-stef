@@ -52,7 +52,9 @@ export function createWorkflowCheckpointRuntime(
       const store = await load();
       await writeCheckpointStore(opts.repoRoot, fn(store), checkpointsPath);
     });
-    queue = next;
+    // Reset queue to resolved on error so subsequent mutations aren't corrupted.
+    // The caller still receives the error via `await next`.
+    queue = next.catch(() => undefined);
     await next;
   };
   const artifactFor = (stepId: string): string =>

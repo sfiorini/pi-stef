@@ -1,6 +1,16 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import TurndownService from "turndown";
+
+const turndown = new TurndownService({
+  bulletListMarker: "-",
+  codeBlockStyle: "fenced",
+  emDelimiter: "*",
+  headingStyle: "atx",
+  linkStyle: "inlined",
+  strongDelimiter: "**",
+});
+turndown.remove(["script", "style", "noscript"]);
 import { Defuddle } from "defuddle/node";
 
 import type { ExtractedContent } from "./types";
@@ -158,15 +168,6 @@ function contentFromHtml(
 }
 
 function htmlToMarkdown(html: string): string {
-  const turndown = new TurndownService({
-    bulletListMarker: "-",
-    codeBlockStyle: "fenced",
-    emDelimiter: "*",
-    headingStyle: "atx",
-    linkStyle: "inlined",
-    strongDelimiter: "**",
-  });
-  turndown.remove(["script", "style", "noscript"]);
   return turndown.turndown(html).replace(/\n{4,}/g, "\n\n\n").trim();
 }
 

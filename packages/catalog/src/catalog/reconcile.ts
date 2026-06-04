@@ -118,7 +118,7 @@ function hasActions(plan: ReconcilePlan): boolean {
  * A future milestone should replace this with actual content hashing after
  * extraction.
  */
-function contentHashForSource(source: string): string {
+function sourceHashForSource(source: string): string {
   return (
     "sha256-" +
     createHash("sha256").update(source).digest("hex").slice(0, 16)
@@ -305,7 +305,7 @@ export async function executeActions(
     for (const action of plan.installs) {
       lockPackages[action.key] = {
         version: extractVersionFromSource(action.source),
-        sourceHash: contentHashForSource(action.source),
+        sourceHash: sourceHashForSource(action.source),
         installedAt: now,
         syncState: "synced",
       };
@@ -315,7 +315,7 @@ export async function executeActions(
     for (const action of plan.upgrades) {
       lockPackages[action.key] = {
         version: extractVersionFromSource(action.source),
-        sourceHash: contentHashForSource(action.source),
+        sourceHash: sourceHashForSource(action.source),
         installedAt: now,
         syncState: "synced",
       };

@@ -41,7 +41,8 @@ export function parseFlowSteps(instruction: string): FlowStep[] {
     .split(/\band\s+then\b|\bthen\b|;/gi)
     .map((part) => part.trim())
     .filter(Boolean)
-    .map(parseFlowStep);
+    .map(parseFlowStep)
+    .filter((step): step is FlowStep => step !== null);
 }
 
 export function normalizeFlowSteps(steps: FlowStepInput[]): FlowStep[] {
@@ -110,7 +111,7 @@ async function guardNavigation(url: string, guard: RunWebFlowOptions["guardNavig
   return guard ? guard(url) : url;
 }
 
-function parseFlowStep(part: string): FlowStep {
+function parseFlowStep(part: string): FlowStep | null {
   const goto = part.match(/^(?:go to|open|navigate to)\s+(\S+)\s*$/i);
   if (goto) return { action: "goto", url: normalizeNavigationUrl(goto[1]) };
 
@@ -141,7 +142,8 @@ function parseFlowStep(part: string): FlowStep {
   const shot = part.match(/^screenshot(?: to)?\s+(.+)$/i);
   if (shot) return { action: "screenshot", path: shot[1].trim() };
 
-  throw new Error(`Could not parse flow step: "${part}"`);
+  console.warn(`[web] unrecognized flow step, skipping: "${part}"`);
+  return null;
 }
 
 function normalizeNavigationUrl(rawUrl: string): string {
