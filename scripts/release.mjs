@@ -247,7 +247,7 @@ function rollback(releases, createdTags) {
   const files = releases
     .map((r) => `packages/${r.dirName}/package.json packages/${r.dirName}/CHANGELOG.md`)
     .join(" ");
-  try { run(`git checkout HEAD -- ${files} pnpm-lock.yaml`, { silent: true }); } catch {}
+  try { run(`git checkout HEAD -- ${files}`, { silent: true }); } catch {}
 
   // Delete any tags created in this session
   for (const tag of createdTags) {
@@ -271,7 +271,7 @@ function gitRelease(releases, isAll, createdTags) {
     .map((r) => `packages/${r.dirName}/package.json packages/${r.dirName}/CHANGELOG.md`)
     .join(" ");
 
-  run(`git add ${files} pnpm-lock.yaml`);
+  run(`git add ${files}`);
 
   const version = releases[0].newVersion;
   const commitMsg = sanitize(
@@ -357,17 +357,13 @@ async function main() {
     process.exit(0);
   }
 
-  // Update package.json files (version + deps + private flag)
+  // Update package.json files (version + private flag)
+  // Note: file: deps are kept as-is; CI converts them before publish
   if (!dryRun) {
     updateAllPackageVersions(releases);
     for (const r of releases) {
       console.log(`  Updated ${r.dirName}/package.json`);
     }
-
-    // Sync lockfile with updated deps (file: → workspace:*)
-    console.log("\n⏳ Syncing lockfile...");
-    run("pnpm install --no-frozen-lockfile");
-    console.log("✅ Lockfile synced.");
   }
 
   // Update changelogs

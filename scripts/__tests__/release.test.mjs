@@ -24,7 +24,7 @@ describe("bumpVersion", () => {
 });
 
 describe("convertFileDependencies", () => {
-  it("converts file: dependencies to version ranges", () => {
+  it("is a no-op (CI handles conversion before publish)", () => {
     const pkg = {
       dependencies: {
         "@pi-stef/paths": "file:../paths",
@@ -35,46 +35,9 @@ describe("convertFileDependencies", () => {
 
     convertFileDependencies(pkg, versionMap);
 
-    expect(pkg.dependencies["@pi-stef/paths"]).toBe("workspace:*");
+    // file: deps are left untouched; CI converts them
+    expect(pkg.dependencies["@pi-stef/paths"]).toBe("file:../paths");
     expect(pkg.dependencies["lodash"]).toBe("^4.17.21");
-  });
-
-  it("handles devDependencies", () => {
-    const pkg = {
-      devDependencies: {
-        "@pi-stef/paths": "file:../paths",
-      },
-    };
-    const versionMap = new Map([["@pi-stef/paths", "2.0.0"]]);
-
-    convertFileDependencies(pkg, versionMap);
-
-    expect(pkg.devDependencies["@pi-stef/paths"]).toBe("workspace:*");
-  });
-
-  it("skips when no dependencies", () => {
-    const pkg = {};
-    const versionMap = new Map();
-
-    convertFileDependencies(pkg, versionMap);
-
-    expect(pkg.dependencies).toBeUndefined();
-    expect(pkg.devDependencies).toBeUndefined();
-  });
-
-  it("skips non-file: dependencies", () => {
-    const pkg = {
-      dependencies: {
-        "lodash": "^4.17.21",
-        "@pi-stef/paths": "file:../paths",
-      },
-    };
-    const versionMap = new Map([["lodash", "5.0.0"]]);
-
-    convertFileDependencies(pkg, versionMap);
-
-    expect(pkg.dependencies["lodash"]).toBe("^4.17.21");
-    expect(pkg.dependencies["@pi-stef/paths"]).toBe("workspace:*");
   });
 });
 

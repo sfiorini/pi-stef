@@ -17,19 +17,11 @@ export function bumpVersion(version, type) {
 }
 
 /**
- * Convert file: protocol dependencies to workspace: protocol.
- * pnpm will resolve workspace:* to real versions during publish.
+ * Convert file: protocol dependencies to published version ranges.
+ * NOTE: Currently a no-op — CI handles conversion before publish.
  */
 export function convertFileDependencies(pkg, _versionMap) {
-  const depFields = ["dependencies", "devDependencies"];
-  for (const field of depFields) {
-    if (!pkg[field]) continue;
-    for (const [depName, depValue] of Object.entries(pkg[field])) {
-      if (typeof depValue === "string" && depValue.startsWith("file:")) {
-        pkg[field][depName] = "workspace:*";
-      }
-    }
-  }
+  // Intentionally left as no-op; CI converts file: deps before publishing
 }
 
 /**

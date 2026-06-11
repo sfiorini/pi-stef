@@ -60,6 +60,18 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Convert file: deps for publish
+        run: |
+          PKG_DIR="${{ steps.tag.outputs.pkg_dir }}"
+          PKG_FILE="packages/${PKG_DIR}/package.json"
+
+          # Convert file: references to workspace:* so pnpm can resolve them
+          sed -i 's|"file:\.\./[^"]*"|"workspace:*"|g' "$PKG_FILE"
+          echo "Converted file: deps in ${PKG_FILE}"
+
+      - name: Sync lockfile
+        run: pnpm install --no-frozen-lockfile
+
       - name: Publish to npm
         run: pnpm --filter ${{ steps.tag.outputs.pkg_name }} publish --access public --no-git-checks
         env:
