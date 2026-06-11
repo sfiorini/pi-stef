@@ -1,11 +1,14 @@
 {
   "name": "@pi-stef/team",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/", "extensions/", "bin/"],
+  "files": [
+    "src/",
+    "extensions/",
+    "bin/"
+  ],
   "keywords": [
     "pi-package",
     "pi-extension",

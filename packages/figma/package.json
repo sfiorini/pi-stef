@@ -1,11 +1,13 @@
 {
   "name": "@pi-stef/figma",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Pi extension for Figma REST API tools, compact design context, and Jira-linked Figma summaries.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/", "extensions/"],
+  "files": [
+    "src/",
+    "extensions/"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,7 +16,11 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "keywords": ["pi-package", "pi-extension", "figma"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "figma"
+  ],
   "dependencies": {
     "@pi-stef/paths": "file:../paths",
     "zod": "^3.25.62"
@@ -25,6 +31,8 @@
     "@sinclair/typebox": "*"
   },
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": [
+      "./extensions"
+    ]
   }
 }

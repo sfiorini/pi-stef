@@ -1,11 +1,12 @@
 {
   "name": "@pi-stef/agent-workflows",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Reusable workflow engine primitives for agent extensions.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/"],
+  "files": [
+    "src/"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"

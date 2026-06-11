@@ -1,11 +1,14 @@
 {
   "name": "@pi-stef/web",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Pi extension for no-key web search, URL fetch, rendered scraping, browser sessions, login flows, and CloakBrowser-backed page access.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/", "extensions/", "bin/"],
+  "files": [
+    "src/",
+    "extensions/",
+    "bin/"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"

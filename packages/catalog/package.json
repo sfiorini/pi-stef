@@ -1,11 +1,13 @@
 {
   "name": "@pi-stef/catalog",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Pi extension for managing skill/package catalogs.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/", "extensions/"],
+  "files": [
+    "src/",
+    "extensions/"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"

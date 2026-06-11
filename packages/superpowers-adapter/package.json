@@ -1,18 +1,27 @@
 {
   "name": "@pi-stef/superpowers-adapter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bridges the superpowers skill system to pi's extension API with TodoWrite, Task, and Skill tools.",
-  "keywords": ["pi-package", "pi-extension", "superpowers"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "superpowers"
+  ],
   "license": "MIT",
   "type": "module",
   "main": "./src/index.ts",
-  "files": ["src/", "README.md"],
+  "files": [
+    "src/",
+    "README.md"
+  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

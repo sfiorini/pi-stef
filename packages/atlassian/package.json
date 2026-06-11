@@ -1,11 +1,14 @@
 {
   "name": "@pi-stef/atlassian",
-  "version": "0.2.0",
-  "private": true,
+  "version": "0.2.1",
   "description": "Pi extension and CLI for verified Atlassian Jira and Confluence tools.",
   "type": "module",
   "license": "MIT",
-  "files": ["src/", "extensions/", "bin/"],
+  "files": [
+    "src/",
+    "extensions/",
+    "bin/"
+  ],
   "exports": {
     ".": "./src/index.ts",
     "./package.json": "./package.json"
@@ -14,7 +17,13 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
-  "keywords": ["pi-package", "pi-extension", "atlassian", "jira", "confluence"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "atlassian",
+    "jira",
+    "confluence"
+  ],
   "dependencies": {
     "@pi-stef/paths": "file:../paths",
     "@pi-stef/figma": "file:../figma",
@@ -26,6 +35,8 @@
     "@earendil-works/pi-coding-agent": "*"
   },
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": [
+      "./extensions"
+    ]
   }
 }
