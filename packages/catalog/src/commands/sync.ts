@@ -111,9 +111,11 @@ export async function syncCommand(
     errors: [],
   };
 
-  // --- 1. Read local catalog BEFORE pulling --------------------------------
-  // We need this to detect local-only packages that haven't been pushed yet.
+  // --- 1. Read local state BEFORE pulling ---------------------------------
+  // We need this to detect local-only packages and version changes
+  // (e.g., from `pi update`) that haven't been pushed yet.
   const localCatalogBeforePull = readCatalog(ctx.home);
+  const localLockBeforePull = readLock(ctx.home);
 
   // --- 2. Pull remote catalog (into memory only) ---------------------------
   let remoteCatalog = false;
@@ -142,6 +144,30 @@ export async function syncCommand(
       if (!(key in catalog.packages)) {
         catalog.packages[key] = pkg;
         hasLocalOnlyPackages = true;
+      }
+    }
+  }
+
+  // Detect local lock changes (e.g., from `pi update` bumping versions).
+  // If the local lock has different versions than the remote lock, we need
+  // to push so the remote gist reflects the actual installed state.
+  let hasLocalLockChanges = false;
+  if (pulledData) {
+    const remoteLock = pulledData.lock;
+    for (const [key, localEntry] of Object.entries(localLockBeforePull.packages)) {
+      const remoteEntry = remoteLock.packages[key];
+      if (!remoteEntry || remoteEntry.version !== localEntry.version) {
+        hasLocalLockChanges = true;
+        break;
+      }
+    }
+    // Also check for packages in remote but removed locally
+    if (!hasLocalLockChanges) {
+      for (const key of Object.keys(remoteLock.packages)) {
+        if (!(key in localLockBeforePull.packages)) {
+          hasLocalLockChanges = true;
+          break;
+        }
       }
     }
   }
@@ -225,7 +251,7 @@ export async function syncCommand(
   const hasGist = readCachedGistId(ctx.home) !== undefined;
   const localHasPackages = Object.keys(catalog.packages).length > 0;
 
-  if (force || summary.actionCount > 0 || hasLocalOnlyPackages || (!hasGist && localHasPackages)) {
+  if (force || summary.actionCount > 0 || hasLocalOnlyPackages || hasLocalLockChanges || (!hasGist && localHasPackages)) {
     try {
       const updatedCatalog = readCatalog(ctx.home);
       const updatedLock = readLock(ctx.home);
@@ -256,7 +282,7 @@ export async function syncCommand(
     }
   }
 
-  if (summary.actionCount === 0 && summary.errors.length === 0 && !force && !hasLocalOnlyPackages) {
+  if (summary.actionCount === 0 && summary.errors.length === 0 && !force && !hasLocalOnlyPackages && !hasLocalLockChanges) {
     ctx.ui.notify("Catalog already up to date.", "info");
     return;
   }
@@ -268,6 +294,9 @@ export async function syncCommand(
   }
   if (hasLocalOnlyPackages) {
     parts.push("Merged local-only packages.");
+  }
+  if (hasLocalLockChanges) {
+    parts.push("Pushed local version updates.");
   }
   if (plan.installs.length > 0) {
     parts.push(`${plan.installs.length} install(s): ${plan.installs.map((a) => a.key).join(", ")}`);
