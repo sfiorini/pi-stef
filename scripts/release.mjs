@@ -127,20 +127,73 @@ function updateAllPackageVersions(releases) {
 }
 
 /**
+ * Get commit messages since the last release tag for a package.
+ *
+ * Looks for tags matching `@pi-stef/<dirName>@*` sorted by version,
+ * takes the latest one, and returns commit messages since that tag.
+ * If no tag exists, returns messages from the first commit.
+ *
+ * @param {string} dirName - package directory name
+ * @returns {string[]} array of commit message subjects
+ */
+function getCommitMessagesSinceLastRelease(dirName) {
+  try {
+    // Find the latest tag for this package
+    const tagOutput = run(
+      `git tag -l "@pi-stef/${dirName}@*" --sort=-v:refname`,
+      { silent: true },
+    );
+
+    const tags = tagOutput.split("\n").filter(Boolean);
+    const lastTag = tags[0];
+
+    if (lastTag) {
+      const log = run(
+        `git log ${lastTag}..HEAD --pretty=format:"%s" --no-merges -- "packages/${dirName}/"`,
+        { silent: true },
+      );
+      return log.split("\n").filter(Boolean);
+    }
+  } catch {
+    // Fall through to return all commits
+  }
+
+  // No tag found — return all commits for this package
+  try {
+    const log = run(
+      `git log --pretty=format:"%s" --no-merges -- "packages/${dirName}/"`,
+      { silent: true },
+    );
+    return log.split("\n").filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Update a package's CHANGELOG.md with a new version entry.
  * If the file doesn't exist, creates it.
  * If [Unreleased] section exists, replaces it with the new version + fresh [Unreleased].
  * If [Unreleased] is missing, inserts the new version after the header.
+ *
+ * @param {string} pkgDir - package directory name
+ * @param {string} newVersion - the new version string
+ * @param {string[]} [commitMessages] - commit messages to include in changelog
  */
-function updateChangelog(pkgDir, newVersion) {
+function updateChangelog(pkgDir, newVersion, commitMessages) {
   const changelogPath = join(PACKAGES_DIR, pkgDir, "CHANGELOG.md");
   const today = new Date().toISOString().split("T")[0];
+
+  // Build changelog entries from commit messages, or fallback to "Version bump"
+  const entries = commitMessages && commitMessages.length > 0
+    ? commitMessages.map((msg) => `- ${msg}`).join("\n")
+    : "- Version bump";
 
   const newEntry = `## [Unreleased]
 
 ## [${newVersion}] - ${today}
 ### Changed
-- Version bump
+${entries}
 `;
 
   if (!existsSync(changelogPath)) {
@@ -369,7 +422,8 @@ async function main() {
   // Update changelogs
   if (!dryRun) {
     for (const r of releases) {
-      updateChangelog(r.dirName, r.newVersion);
+      const commitMessages = getCommitMessagesSinceLastRelease(r.dirName);
+      updateChangelog(r.dirName, r.newVersion, commitMessages);
       console.log(`  Updated ${r.dirName}/CHANGELOG.md`);
     }
   }
