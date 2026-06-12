@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/catalog",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "Pi extension for managing skill/package catalogs.",
   "type": "module",
   "license": "MIT",

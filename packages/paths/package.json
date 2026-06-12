@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/paths",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "Shared path conventions for all sf packages.",
   "type": "module",
   "license": "MIT",
