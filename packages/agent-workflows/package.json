@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/agent-workflows",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Reusable workflow engine primitives for agent extensions.",
   "type": "module",
   "license": "MIT",

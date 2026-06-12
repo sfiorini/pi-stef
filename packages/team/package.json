@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/team",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
   "type": "module",
   "license": "MIT",

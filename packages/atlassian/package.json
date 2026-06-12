@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/atlassian",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Pi extension and CLI for verified Atlassian Jira and Confluence tools.",
   "type": "module",
   "license": "MIT",
