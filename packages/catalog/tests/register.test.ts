@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -73,7 +76,7 @@ describe("registerCatalog", () => {
     }
   });
 
-  it("registers LLM tools (ct_sync, ct_add, ct_remove, ct_update, ct_toggle, ct_status)", () => {
+  it("registers LLM tools (ct_sync, ct_add, ct_remove, ct_update, ct_toggle, ct_status, ct_reset)", () => {
     const { pi, tools } = mockPi();
     registerCatalog(pi);
 
@@ -84,6 +87,7 @@ describe("registerCatalog", () => {
       "ct_update",
       "ct_toggle",
       "ct_status",
+      "ct_reset",
     ];
 
     for (const name of expectedTools) {
@@ -95,15 +99,15 @@ describe("registerCatalog", () => {
     const { pi } = mockPi();
     registerCatalog(pi);
 
-    // 1 main (/ct) + 16 subcommand aliases = 17 commands
-    expect(pi.registerCommand).toHaveBeenCalledTimes(17);
+    // 1 main (/ct) + 17 subcommand aliases = 18 commands
+    expect(pi.registerCommand).toHaveBeenCalledTimes(18);
   });
 
-  it("calls registerTool exactly 6 times", () => {
+  it("calls registerTool exactly 7 times", () => {
     const { pi } = mockPi();
     registerCatalog(pi);
 
-    expect(pi.registerTool).toHaveBeenCalledTimes(6);
+    expect(pi.registerTool).toHaveBeenCalledTimes(7);
   });
 
   it("does not throw (smoke test)", () => {
@@ -248,7 +252,8 @@ describe("registerCatalog", () => {
     const { pi, tools } = mockPi();
     registerCatalog(pi);
 
-    const mockCtx = { ui: { notify: vi.fn() } };
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "pi-register-tools-"));
+    const mockCtx = { ui: { notify: vi.fn(), confirm: vi.fn().mockResolvedValue(true) }, home: tmpDir };
 
     for (const [name, def] of tools) {
       const execute = def.execute as (
@@ -263,6 +268,8 @@ describe("registerCatalog", () => {
       expect(result, `tool ${name} result`).toHaveProperty("content");
       expect(result, `tool ${name} result must have details`).toHaveProperty("details");
     }
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   // -------------------------------------------------------------------------

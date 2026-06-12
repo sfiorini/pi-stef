@@ -16,6 +16,7 @@ import { addCommand, type AddCtx } from "./commands/add.js";
 import { initCommand, type InitContext } from "./commands/init.js";
 import { removeCommand, type RemoveCtx } from "./commands/remove.js";
 import { updateCommand } from "./commands/update.js";
+import { resetCommand, type ResetCtx } from "./commands/reset.js";
 import {
   toggleCommand,
   enableCommand,
@@ -136,6 +137,9 @@ async function handleSubcommand(
       break;
     case "profile":
       await profileCommand(parsed, ctx as ProfilesCtx);
+      break;
+    case "reset":
+      await resetCommand(parsed, ctx as ResetCtx);
       break;
     default:
       ctx.ui.notify(`ct ${canonical}: not yet implemented`, "info");
@@ -315,6 +319,31 @@ export function registerCatalog(pi: ExtensionAPI): void {
         return { content: [{ type: "text" as const, text: "Update completed." }], details: undefined as unknown };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Update failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };
+      }
+    },
+  });
+
+  pi.registerTool({
+    name: "ct_reset",
+    label: "Catalog Reset",
+    description:
+      "Full nuke: uninstall all @pi-stef packages, delete gist refs, delete config files.",
+    promptSnippet: "Reset catalog completely",
+    promptGuidelines: [
+      "Use ct_reset when the user wants to completely remove all @pi-stef packages and catalog config.",
+    ],
+    parameters: Type.Object({
+      yes: Type.Optional(Type.Boolean({ description: "Skip confirmation prompt" })),
+    }),
+    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+      try {
+        const flags: Record<string, true | string> = {};
+        if (params.yes) flags.yes = true;
+        const args: CommandArgs = { positional: [], flags };
+        await resetCommand(args, ctx as unknown as ResetCtx);
+        return { content: [{ type: "text" as const, text: "Reset completed." }], details: undefined as unknown };
+      } catch (err) {
+        return { content: [{ type: "text" as const, text: `Reset failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };
       }
     },
   });

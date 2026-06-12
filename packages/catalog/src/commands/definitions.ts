@@ -42,6 +42,7 @@ export const SUBCOMMAND_DEFS: readonly SubcommandDef[] = [
   { name: "verify", description: "Verify catalog integrity" },
   { name: "profiles", description: "List available profiles" },
   { name: "profile", description: "Show or switch active profile" },
+  { name: "reset", description: "Reset catalog: uninstall all @pi-stef packages and delete config" },
 ] as const;
 
 // ---------------------------------------------------------------------------
