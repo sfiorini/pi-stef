@@ -2,13 +2,15 @@
  * `ct status` subcommand implementation.
  *
  * Shows catalog status: profile, package counts (enabled/disabled),
- * installed/missing/orphan counts, gist URL, and last sync time.
+ * installed/missing/orphan counts, gist URL, last sync time,
+ * and individual package listing with setup status.
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
 import { readCatalog, readLock } from "../config/io.js";
 import { scanInstalled } from "../catalog/install.js";
 import { readCachedGistId } from "../sync/cache.js";
+import { checkSetupForSource } from "../catalog/setup.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -25,7 +27,7 @@ export type StatusCtx = CommandCtx;
  * Execute the `ct status` subcommand.
  *
  * Reads catalog, lock, gist cache, and installed packages to build
- * a comprehensive status summary.
+ * a comprehensive status summary with individual package listing.
  */
 export async function statusCommand(
   args: CommandArgs,
@@ -55,20 +57,21 @@ export async function statusCommand(
   }
 
   // --- Installed / missing / orphan ---
+  // Build a lookup map for installed packages by source
+  const installedBySource = new Map<string, { name: string; version?: string }>();
+  for (const inst of Object.values(installed)) {
+    installedBySource.set(inst.source, { name: inst.name, version: inst.version });
+  }
+
   const catalogSources = new Set<string>();
   for (const pkg of Object.values(packages)) {
     catalogSources.add(pkg.source);
   }
 
-  const installedSources = new Set<string>();
-  for (const inst of Object.values(installed)) {
-    installedSources.add(inst.source);
-  }
-
   // Count how many catalog packages are actually installed
   let installedCount = 0;
   for (const pkg of Object.values(packages)) {
-    if (installedSources.has(pkg.source)) {
+    if (installedBySource.has(pkg.source)) {
       installedCount++;
     }
   }
@@ -120,6 +123,54 @@ export async function statusCommand(
     lines.push(`Last sync: ${lastSync}`);
   } else {
     lines.push("Last sync: never synced");
+  }
+
+  // --- Individual package listing ---
+  if (totalPackages > 0) {
+    lines.push("");
+    lines.push("Packages:");
+
+    for (const [name, pkg] of Object.entries(packages)) {
+      const isDisabled = pkg.enabled === false;
+      const isInstalled = installedBySource.has(pkg.source);
+      const inst = installedBySource.get(pkg.source);
+
+      // Status indicator
+      let status: string;
+      if (isDisabled) {
+        status = "disabled";
+      } else if (isInstalled) {
+        status = "installed";
+      } else {
+        status = "missing";
+      }
+
+      // Version info
+      const versionStr = inst?.version ? ` v${inst.version}` : "";
+
+      // Setup status
+      let setupStr = "";
+      if (isInstalled && !isDisabled) {
+        const setup = checkSetupForSource(pkg.source, ctx.home);
+        if (setup && !setup.ok) {
+          setupStr = " ⚠ setup incomplete";
+        }
+      }
+
+      lines.push(`  ${name} [${status}]${versionStr}${setupStr}`);
+    }
+  }
+
+  // --- Orphans ---
+  if (orphanCount > 0) {
+    lines.push("");
+    lines.push("Orphans:");
+    for (const inst of Object.values(installed)) {
+      if (!catalogSources.has(inst.source)) {
+        const versionStr = inst.version ? ` v${inst.version}` : "";
+        lines.push(`  ${inst.name} [orphan]${versionStr}`);
+      }
+    }
   }
 
   ctx.ui.notify(lines.join("\n"), "info");

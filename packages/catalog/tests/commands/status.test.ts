@@ -24,14 +24,20 @@ vi.mock("../../src/sync/cache.js", () => ({
   gistCachePath: vi.fn(),
 }));
 
+vi.mock("../../src/catalog/setup.js", () => ({
+  checkSetupForSource: vi.fn(),
+}));
+
 import { readCatalog, readLock } from "../../src/config/io.js";
 import { scanInstalled } from "../../src/catalog/install.js";
 import { readCachedGistId } from "../../src/sync/cache.js";
+import { checkSetupForSource } from "../../src/catalog/setup.js";
 
 const mockedReadCatalog = vi.mocked(readCatalog);
 const mockedReadLock = vi.mocked(readLock);
 const mockedScanInstalled = vi.mocked(scanInstalled);
 const mockedReadCachedGistId = vi.mocked(readCachedGistId);
+const mockedCheckSetupForSource = vi.mocked(checkSetupForSource);
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,6 +108,7 @@ describe("statusCommand", () => {
       "enabled-skill-1": { source: "npm:enabled-skill-1", name: "enabled-skill-1", version: "1.0.0" },
       "enabled-skill-2": { source: "npm:enabled-skill-2", name: "enabled-skill-2", version: "2.0.0" },
     });
+    mockedCheckSetupForSource.mockReturnValue(undefined);
   });
 
   afterEach(() => {
@@ -256,5 +263,74 @@ describe("statusCommand", () => {
       expect.stringContaining("0 total"),
       "info",
     );
+  });
+
+  // -------------------------------------------------------------------------
+  // Individual package listing
+  // -------------------------------------------------------------------------
+
+  it("lists individual packages with status indicators", async () => {
+    const ctx = makeCtx();
+    await statusCommand({ positional: [], flags: {} }, ctx);
+
+    const notifyCalls = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls;
+    const statusMsg = notifyCalls[0][0] as string;
+    expect(statusMsg).toContain("enabled-skill-1 [installed]");
+    expect(statusMsg).toContain("enabled-skill-2 [installed]");
+    expect(statusMsg).toContain("disabled-skill [disabled]");
+  });
+
+  it("shows missing status for uninstalled packages", async () => {
+    mockedScanInstalled.mockReturnValue({});
+
+    const ctx = makeCtx();
+    await statusCommand({ positional: [], flags: {} }, ctx);
+
+    const notifyCalls = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls;
+    const statusMsg = notifyCalls[0][0] as string;
+    expect(statusMsg).toContain("enabled-skill-1 [missing]");
+    expect(statusMsg).toContain("enabled-skill-2 [missing]");
+  });
+
+  it("shows version info for installed packages", async () => {
+    const ctx = makeCtx();
+    await statusCommand({ positional: [], flags: {} }, ctx);
+
+    const notifyCalls = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls;
+    const statusMsg = notifyCalls[0][0] as string;
+    expect(statusMsg).toContain("v1.0.0");
+    expect(statusMsg).toContain("v2.0.0");
+  });
+
+  it("shows setup warning for packages with incomplete setup", async () => {
+    mockedCheckSetupForSource.mockReturnValue({
+      ok: false,
+      missingEnv: ["API_KEY"],
+      missingFiles: [],
+      missingCli: [],
+    });
+
+    const ctx = makeCtx();
+    await statusCommand({ positional: [], flags: {} }, ctx);
+
+    const notifyCalls = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls;
+    const statusMsg = notifyCalls[0][0] as string;
+    expect(statusMsg).toContain("⚠ setup incomplete");
+  });
+
+  it("lists orphan packages separately", async () => {
+    mockedScanInstalled.mockReturnValue({
+      "enabled-skill-1": { source: "npm:enabled-skill-1", name: "enabled-skill-1", version: "1.0.0" },
+      "orphan-pkg": { source: "npm:orphan-pkg", name: "orphan-pkg", version: "3.0.0" },
+    });
+
+    const ctx = makeCtx();
+    await statusCommand({ positional: [], flags: {} }, ctx);
+
+    const notifyCalls = (ctx.ui.notify as ReturnType<typeof vi.fn>).mock.calls;
+    const statusMsg = notifyCalls[0][0] as string;
+    expect(statusMsg).toContain("Orphans:");
+    expect(statusMsg).toContain("orphan-pkg [orphan]");
+    expect(statusMsg).toContain("v3.0.0");
   });
 });
