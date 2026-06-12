@@ -4,14 +4,6 @@ Declarative package manager for the [pi](https://pi.dev) coding agent. Manage yo
 
 ## Installation
 
-From the monorepo root (while developing):
-
-```bash
-pi install packages/catalog
-```
-
-Once published to npm:
-
 ```bash
 pi install npm:@pi-stef/catalog
 ```
@@ -40,37 +32,48 @@ All commands are invoked as `/ct <subcommand>` inside pi, or via the shorthand `
 |---|---|---|---|
 | `sync` | — | Full sync cycle: pull → reconcile → execute → push | `--dry-run`, `--force`, `--no-push`, `--profile=<name>` |
 | `init` | — | Initialize catalog from installed packages or a gist | `--from-gist=<id>` |
-| `add` | `a` | Add a package to the catalog and install it | `--rating=<r>`, `-r <r>`, `--type=<t>`, `-s <t>` |
-| `remove` | `rm` | Remove a package from the catalog | — |
-| `toggle` | — | Cycle a package's rating: core → useful → debatable → disabled → core | — |
-| `enable` | — | Re-enable a disabled package (restores previous rating) | — |
-| `disable` | — | Disable a package (preserves rating for later restore) | — |
+| `add` | `a` | Add a package to the catalog and install it | `--type=<t>`, `-s <t>`, `--scope=@pi-stef` |
+| `remove` | `rm` | Remove a package from the catalog | `--yes`, `--scope=@pi-stef` |
+| `toggle` | — | Toggle a package's enabled state (enabled ↔ disabled) | — |
+| `enable` | — | Enable a disabled package | — |
+| `disable` | — | Disable a package and uninstall it | — |
+| `update` | `up` | Update packages to latest versions | `--all` |
 | `push` | — | Push local catalog + lock to GitHub Gist | `--dry-run`, `--profile=<name>` |
 | `pull` | — | Pull remote catalog from gist and reconcile | `--dry-run`, `--profile=<name>` |
 | `login` | — | Authenticate with GitHub via `gh` CLI | — |
-| `status` | — | Show catalog status, package counts, gist URL, last sync | — |
+| `status` | — | Show catalog status with package listing | — |
 | `diff` | — | Show diff between local and remote catalog | — |
-| `verify` | — | Verify catalog integrity (sources, ratings, duplicates) | — |
+| `verify` | — | Verify catalog integrity | — |
 | `profiles` | — | List all profiles with active indicator | — |
 | `profile` | — | Show or switch active profile | — |
+| `reset` | — | Uninstall all @pi-stef packages and delete config | `--yes` |
 
 ### Adding Packages
 
 ```bash
-# Add from a git source (prompts for type if not specified)
-/ct add my-skill git:github.com/user/repo#packages/my-skill
-
-# Add with explicit rating and type
-/ct add my-skill git:github.com/user/repo#packages/my-skill --rating=useful --type=skill
+# Add from a git source (name auto-derived)
+/ct add git:github.com/user/repo#packages/my-skill
 
 # Add an npm package
-/ct add lodash npm:lodash
+/ct add npm:lodash
+
+# Add all @pi-stef packages at once
+/ct add --scope=@pi-stef
 ```
 
 ### Removing Packages
 
 ```bash
 /ct remove my-skill
+/ct remove --scope=@pi-stef
+```
+
+### Enabling and Disabling
+
+```bash
+/ct enable my-skill      # Enable a disabled package
+/ct disable my-skill     # Disable a package (uninstalls it)
+/ct toggle my-skill      # Toggle enabled ↔ disabled
 ```
 
 ## `cat.yaml` Format
@@ -85,18 +88,14 @@ meta:
 packages:
   superpowers-adapter:
     source: "git:github.com/sfiorini/pi-stef#packages/superpowers-adapter"
-    rating: core
     type: skill
   team:
     source: "git:github.com/sfiorini/pi-stef#packages/team"
-    rating: core
     type: skill
   atlassian:
     source: "git:github.com/sfiorini/pi-stef#packages/atlassian"
-    rating: useful
     type: skill
     enabled: false
-    previousRating: useful
 ```
 
 ### Package Fields
@@ -104,11 +103,9 @@ packages:
 | Field | Required | Description |
 |---|---|---|
 | `source` | ✓ | Package source URL (`npm:…` or `git:…`) |
-| `rating` | ✓ | One of: `core`, `useful`, `debatable`, `disabled` |
 | `type` | — | `skill` or `pi-native` |
 | `profile` | — | Profile name this package belongs to |
 | `enabled` | — | `true` (default) or `false` |
-| `previousRating` | — | Rating before disable; restored by `ct enable` |
 
 ### Examples
 
@@ -117,7 +114,6 @@ packages:
 packages:
   lodash:
     source: "npm:lodash"
-    rating: useful
 ```
 
 **Git source:**
@@ -125,17 +121,19 @@ packages:
 packages:
   my-extension:
     source: "git:github.com/user/repo#packages/my-extension"
-    rating: core
     type: pi-native
 ```
 
-**Git source with subpath:**
-```yaml
-packages:
-  my-skill:
-    source: "git:github.com/user/repo#skills/my-skill"
-    rating: core
-    type: skill
+## Setup Detection
+
+Packages can include a `.pi-setup.json` file declaring requirements (environment variables, config files, CLI tools). After install or update, the catalog checks these requirements and warns if anything is missing.
+
+```json
+{
+  "env": ["API_TOKEN"],
+  "files": ["config.json"],
+  "cli": ["docker"]
+}
 ```
 
 ## Profiles
@@ -150,19 +148,16 @@ meta:
 packages:
   superpowers-adapter:
     source: "git:github.com/sfiorini/pi-stef#packages/superpowers-adapter"
-    rating: core
 
 profiles:
   work:
     packages:
       atlassian:
         source: "git:github.com/sfiorini/pi-stef#packages/atlassian"
-        rating: core
   personal:
     packages:
       figma:
         source: "git:github.com/sfiorini/pi-stef#packages/figma"
-        rating: useful
 ```
 
 **Profile commands:**

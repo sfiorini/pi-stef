@@ -55,13 +55,13 @@ chmod 600 ~/.pi/sf/figma/config.json
 Install the package:
 
 ```bash
-pi install git:github.com/<USER>/pi-stef#packages/figma
+pi install npm:@pi-stef/figma
 ```
 
 Use the default install for global availability, or add `-l` for project-local install. Use `--dry-run` first when you want to inspect the Pi install command:
 
 ```bash
-pi install git:github.com/<USER>/pi-stef#packages/figma --dry-run
+pi install npm:@pi-stef/figma --dry-run
 ```
 
 Check token discovery without printing the token:

@@ -7,13 +7,13 @@ Use it for larger code changes where you want a durable plan folder, reviewer-ap
 ## Installation
 
 ```bash
-pi install git:github.com/sfiorini/pi-stef#packages/team
+pi install npm:@pi-stef/team
 ```
 
 For project-local install:
 
 ```bash
-pi install -l git:github.com/sfiorini/pi-stef#packages/team
+pi install -l npm:@pi-stef/team
 ```
 
 ## Contents
@@ -309,7 +309,7 @@ Layered global + project config, with project winning at field level:
 
 Resolution chain (locked): `prompt args → project config → global config → DEFAULT_CONFIG`. The first non-`undefined` value wins.
 
-`pi install git:github.com/sfiorini/pi-stef#packages/team` creates the global file at `~/.pi/sf/team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.pi/sf/team/config.json` should contain only sparse overrides that belong in that repository.
+`pi install npm:@pi-stef/team` creates the global file at `~/.pi/sf/team/config.json` when it is missing. Existing files are preserved and reported as pre-existing. Project files are intentionally not generated: `<repo>/.pi/sf/team/config.json` should contain only sparse overrides that belong in that repository.
 
 The generated file is copied from [`packages/sf-team/config/defaults.json`](config/defaults.json) and includes every built-in default. That includes reserved keys accepted by the schema but not honored yet, and advanced operational keys such as `heartbeatMs`; see the reference table below before changing those.
 
@@ -756,7 +756,7 @@ The `shouldContinue` callback on `SfTeamImplementInput` is a TEST-ONLY override:
 
 ```bash
 # Install
-pi install git:github.com/sfiorini/pi-stef#packages/team
+pi install npm:@pi-stef/team
 
 # In a pi session, ask the researcher → planner → reviewer pipeline to draft a plan:
 sf_team_plan title="Add per-org rate limiting" brief="..."

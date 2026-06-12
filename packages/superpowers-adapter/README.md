@@ -25,7 +25,7 @@ While pi natively supports skill discovery (listing them in the system prompt), 
 pi install https://github.com/obra/superpowers
 
 # 2. Install this extension
-pi install git:github.com/sfiorini/pi-stef#packages/superpowers-adapter
+pi install npm:@pi-stef/superpowers-adapter
 ```
 
 ## Tools

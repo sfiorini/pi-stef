@@ -5,13 +5,13 @@
 ## Installation
 
 ```bash
-pi install git:github.com/sfiorini/pi-stef#packages/web
+pi install npm:@pi-stef/web
 ```
 
 For project-local install:
 
 ```bash
-pi install -l git:github.com/sfiorini/pi-stef#packages/web
+pi install -l npm:@pi-stef/web
 ```
 
 After installation, verify runtime dependencies:

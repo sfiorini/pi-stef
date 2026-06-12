@@ -8,6 +8,12 @@ This package is implemented against the current Atlassian Cloud REST APIs:
 - Jira platform REST v3 for project, issue, search, comment, worklog, link, version, field, user, and attachment operations.
 - Jira Software REST for Agile board, sprint, backlog, ranking, and epic operations.
 
+## Installation
+
+```bash
+pi install npm:@pi-stef/atlassian
+```
+
 ## Contents
 
 - [Natural Language Usage](#natural-language-usage)

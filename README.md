@@ -22,21 +22,23 @@ pi install git:github.com/sfiorini/pi-stef#packages/catalog
 
 | Package | Type | Description | Install |
 |---------|------|-------------|---------|
-| **[catalog](packages/catalog/README.md)** | extension | Declarative package manager — sync, add, remove, toggle packages via `cat.yaml` | `pi install git:github.com/sfiorini/pi-stef#packages/catalog` |
-| [superpowers-adapter](packages/superpowers-adapter/README.md) | extension | Bridges superpowers skill system to pi | `pi install git:github.com/sfiorini/pi-stef#packages/superpowers-adapter` |
-| [team](packages/team/README.md) | extension | Steerable team of role-agents for plan/review/implement workflows | `pi install git:github.com/sfiorini/pi-stef#packages/team` |
-| [agent-workflows](packages/agent-workflows/README.md) | library | Reusable workflow engine primitives | `pi install git:github.com/sfiorini/pi-stef#packages/agent-workflows` |
-| [atlassian](packages/atlassian/README.md) | extension | Jira and Confluence integration tools | `pi install git:github.com/sfiorini/pi-stef#packages/atlassian` |
-| [figma](packages/figma/README.md) | extension | Figma REST API tools and design context | `pi install git:github.com/sfiorini/pi-stef#packages/figma` |
-| [web](packages/web/README.md) | extension | Web search, URL fetch, and browser sessions | `pi install git:github.com/sfiorini/pi-stef#packages/web` |
+| **[catalog](packages/catalog/README.md)** | extension | Declarative package manager — sync, add, remove, toggle packages via `cat.yaml` | `pi install npm:@pi-stef/catalog` |
+| [superpowers-adapter](packages/superpowers-adapter/README.md) | extension | Bridges superpowers skill system to pi | `pi install npm:@pi-stef/superpowers-adapter` |
+| [team](packages/team/README.md) | extension | Steerable team of role-agents for plan/review/implement workflows | `pi install npm:@pi-stef/team` |
+| [agent-workflows](packages/agent-workflows/README.md) | library | Reusable workflow engine primitives (internal dependency, not user-installed) | — |
+| [atlassian](packages/atlassian/README.md) | extension | Jira and Confluence integration tools | `pi install npm:@pi-stef/atlassian` |
+| [figma](packages/figma/README.md) | extension | Figma REST API tools and design context | `pi install npm:@pi-stef/figma` |
+| [web](packages/web/README.md) | extension | Web search, URL fetch, and browser sessions | `pi install npm:@pi-stef/web` |
 
 ## Package Management
 
 Use the [catalog](packages/catalog/README.md) extension (`ct`) for declarative package management and cross-machine sync.
 
 ```bash
-/ct add <name> <source>       # Add a package
+/ct add <source>              # Add a package (name auto-derived)
 /ct remove <name>             # Remove a package
+/ct enable <name>             # Enable a package
+/ct disable <name>            # Disable a package
 /ct sync                      # Sync with remote gist
 /ct status                    # Show catalog status
 ```
@@ -54,7 +56,7 @@ Use `ct sync` to install all catalog packages:
 ## Individual Install
 
 ```bash
-pi install git:github.com/sfiorini/pi-stef#packages/<package-name>
+pi install npm:@pi-stef/<package-name>
 ```
 
 ## Prerequisites
