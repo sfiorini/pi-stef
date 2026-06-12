@@ -12,7 +12,7 @@
 
 import type { CommandArgs, CommandCtx } from "./types.js";
 import { removePackage } from "../catalog/crud.js";
-import { readCatalog, writeCatalog } from "../config/io.js";
+import { readCatalog, writeCatalog, readLock, writeLock } from "../config/io.js";
 import { piUninstall } from "../util/exec.js";
 
 // ---------------------------------------------------------------------------
@@ -80,6 +80,13 @@ export async function removeCommand(
   // --- Remove package -------------------------------------------------------
   const updated = removePackage(catalog, name);
   writeCatalog(updated, ctx.home);
+
+  // --- Remove from lock file ------------------------------------------------
+  const lock = readLock(ctx.home);
+  if (lock.packages[name]) {
+    delete lock.packages[name];
+    writeLock(lock, ctx.home);
+  }
 
   ctx.ui.notify(`Removed "${name}" from catalog`, "info");
 
