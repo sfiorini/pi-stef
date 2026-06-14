@@ -351,6 +351,24 @@ function gitRelease(releases, isAll, createdTags) {
   console.log("✅ Pushed commits and tags.");
 }
 
+/**
+ * Build the documentation site.
+ * Runs vitepress build. Non-fatal — doesn't abort the release if it fails.
+ * Cleans up build artifacts after to keep working tree clean.
+ */
+function buildDocs() {
+  console.log("\n⏳ Building documentation site...");
+  try {
+    run("pnpm docs:build");
+    console.log("✅ Documentation built.");
+    // Clean up build artifacts so working tree stays clean
+    try { run("rm -rf docs-site/.vitepress/dist", { silent: true }); } catch {}
+  } catch {
+    console.error("\n⚠️  Documentation build failed. Continuing release.");
+    // Non-fatal — don't abort the release
+  }
+}
+
 // --- Main ---
 async function main() {
   const pkgs = discoverPackages();
@@ -439,6 +457,10 @@ async function main() {
   const createdTags = [];
   try {
     gitRelease(releases, isAll, createdTags);
+
+    // Build docs after successful release
+    buildDocs();
+
     console.log("\n🎉 Release complete!");
     console.log("CI will now publish to npm when tags are processed.");
   } catch (err) {
