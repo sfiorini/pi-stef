@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-14
+### Changed
+- docs: update all READMEs and CHANGELOG for new features
+- feat(setup): detect missing setup requirements for packages
+
+
 ## [0.3.1] - 2026-06-12
 ### Changed
 - Version bump
