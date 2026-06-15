@@ -52,6 +52,12 @@ meta:
   activeProfile: default
 
 packages:
+  azure-foundry:
+    source: npm:@pi-stef/azure-foundry
+    enabled: true
+  cursor:
+    source: npm:@pi-stef/cursor
+    enabled: true
   team:
     source: npm:@pi-stef/team
     enabled: true
