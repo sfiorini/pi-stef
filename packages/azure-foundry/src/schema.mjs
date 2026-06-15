@@ -1,0 +1,65 @@
+// Hand-maintained runtime JSON Schema source. When changing this file, update
+// schema.d.mts as well; tests enforce schema/type drift for the public config
+// fields but cannot prove this declaration file stays aligned.
+export const CONFIG_SCHEMA = {
+  $schema: "http://json-schema.org/draft-07/schema#",
+  title: "Azure Foundry Provider Config",
+  type: "object",
+  required: ["deployments"],
+  additionalProperties: false,
+  properties: {
+    $schema: { type: "string" },
+    deployments: {
+      type: "array",
+      items: {
+        type: "object",
+        required: ["id", "name", "baseUrl", "apiKeyEnv", "api", "models"],
+        additionalProperties: false,
+        properties: {
+          id: { type: "string", minLength: 1, pattern: "^[a-z0-9][a-z0-9-]*$" },
+          name: { type: "string", minLength: 1 },
+          baseUrl: { type: "string", pattern: "^https://" },
+          apiKeyEnv: { type: "string", minLength: 1, pattern: "^[A-Z_][A-Z0-9_]*$" },
+          api: { type: "string", enum: ["openai-completions", "azure-openai-responses"] },
+          authHeader: { type: "boolean" },
+          headers: {
+            type: "object",
+            additionalProperties: { type: "string", pattern: "^[A-Z_][A-Z0-9_]*$" },
+          },
+          models: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["id", "name", "reasoning", "input", "contextWindow", "maxTokens", "cost"],
+              additionalProperties: false,
+              properties: {
+                id: { type: "string", minLength: 1 },
+                name: { type: "string", minLength: 1 },
+                reasoning: { type: "boolean" },
+                input: {
+                  type: "array",
+                  minItems: 1,
+                  items: { type: "string", enum: ["text", "image"] },
+                },
+                contextWindow: { type: "integer", minimum: 1 },
+                maxTokens: { type: "integer", minimum: 1 },
+                cost: {
+                  type: "object",
+                  required: ["input", "output", "cacheRead", "cacheWrite"],
+                  additionalProperties: false,
+                  properties: {
+                    input: { type: "number", minimum: 0 },
+                    output: { type: "number", minimum: 0 },
+                    cacheRead: { type: "number", minimum: 0 },
+                    cacheWrite: { type: "number", minimum: 0 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+};
