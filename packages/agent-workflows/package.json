@@ -26,8 +26,10 @@
   },
   "keywords": [
     "pi-package",
+    "pi-library",
     "agent-workflows",
     "workflow-engine",
     "resume"
-  ]
+  ],
+  "pi": {}
 }

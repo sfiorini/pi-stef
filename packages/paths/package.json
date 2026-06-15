@@ -17,9 +17,11 @@
   },
   "keywords": [
     "pi-package",
+    "pi-library",
     "paths",
     "config"
   ],
+  "pi": {},
   "dependencies": {
     "@pi-stef/agent-workflows": "^0.3.0",
     "@pi-stef/atlassian": "^0.3.0",
