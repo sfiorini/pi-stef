@@ -1,0 +1,45 @@
+{
+  "name": "@pi-stef/cursor",
+  "version": "0.1.0",
+  "description": "Cursor AI editor as a native Pi stream provider — OAuth login, protobuf/HTTP2 protocol, tool-call recovery",
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "src/",
+    "extensions/",
+    "scripts/",
+    "docs/"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "cursor",
+    "provider",
+    "ai-editor"
+  ],
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.0.0",
+    "@pi-stef/catalog": "^0.3.0",
+    "@pi-stef/team": "^0.3.0",
+    "@pi-stef/web": "^0.3.0",
+    "@pi-stef/figma": "^0.3.0",
+    "@pi-stef/atlassian": "^0.3.0",
+    "@pi-stef/superpowers-adapter": "^0.3.0",
+    "@pi-stef/paths": "^0.3.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": ["./extensions"]
+  }
+}
