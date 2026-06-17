@@ -4,6 +4,12 @@
   "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/team"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/team.html",
   "files": [
     "src/",
     "extensions/",

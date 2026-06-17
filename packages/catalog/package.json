@@ -4,6 +4,12 @@
   "description": "Pi extension for managing skill/package catalogs.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/catalog"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/catalog.html",
   "files": [
     "src/",
     "extensions/"

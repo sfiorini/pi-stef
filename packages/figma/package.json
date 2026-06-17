@@ -4,6 +4,12 @@
   "description": "Pi extension for Figma REST API tools, compact design context, and Jira-linked Figma summaries.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/figma"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/figma.html",
   "files": [
     "src/",
     "extensions/"

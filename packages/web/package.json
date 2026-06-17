@@ -4,6 +4,12 @@
   "description": "Pi extension for no-key web search, URL fetch, rendered scraping, browser sessions, login flows, and CloakBrowser-backed page access.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/web"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/web.html",
   "files": [
     "src/",
     "extensions/",

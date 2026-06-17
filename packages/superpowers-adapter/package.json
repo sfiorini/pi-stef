@@ -8,6 +8,12 @@
     "superpowers"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/superpowers-adapter"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/superpowers-adapter.html",
   "type": "module",
   "main": "./src/index.ts",
   "files": [

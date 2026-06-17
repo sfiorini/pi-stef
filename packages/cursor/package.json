@@ -4,6 +4,12 @@
   "description": "Cursor AI editor as a native Pi stream provider — OAuth login, protobuf/HTTP2 protocol, tool-call recovery",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/cursor"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/cursor.html",
   "files": [
     "src/",
     "extensions/",

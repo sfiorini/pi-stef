@@ -4,6 +4,12 @@
   "description": "Reusable workflow engine primitives for agent extensions.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/agent-workflows"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/",
   "files": [
     "src/"
   ],

@@ -4,6 +4,12 @@
   "description": "Azure Foundry and Azure OpenAI deployments as native Pi providers — config-driven, JSONC support, validation",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/azure-foundry"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/azure-foundry.html",
   "files": [
     "src/",
     "extensions/",
