@@ -19,6 +19,7 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 | [superpowers-adapter](/packages/superpowers-adapter) | Bridges superpowers skill system to pi |
 | [atlassian](/packages/atlassian) | Jira and Confluence integration |
 | [figma](/packages/figma) | Figma REST API tools and design context |
+| [pair](/packages/pair) | Simplified plan/review/implement with pi-subagents |
 | [web](/packages/web) | Web search, URL fetch, and browser automation |
 | [paths](/packages/paths) | Shared path conventions (internal) |
 | agent-workflows | Workflow engine primitives (internal, not user-installed) |

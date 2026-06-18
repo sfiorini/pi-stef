@@ -22,6 +22,7 @@ export const PI_STEF_PACKAGES: readonly string[] = [
   "@pi-stef/agent-workflows",
   "@pi-stef/atlassian",
   "@pi-stef/figma",
+  "@pi-stef/pair",
   "@pi-stef/paths",
   "@pi-stef/team",
   "@pi-stef/web",
