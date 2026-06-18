@@ -11,12 +11,13 @@ This package is implemented against the current Atlassian Cloud REST APIs:
 ## Installation
 
 ```bash
-pi install npm:@pi-stef/atlassian
+npx pi-cli plugins install npm:@pi-stef/atlassian
 ```
 
 ## Contents
 
 - [Natural Language Usage](#natural-language-usage)
+- [Slash Commands](#slash-commands)
 - [Auth](#auth)
 - [Development CLI](#development-cli)
 - [Jira Context](#jira-context)
@@ -37,6 +38,18 @@ For exact local reads during development, use the CLI:
 pnpm exec tsx packages/atlassian/bin/atlassian.ts jira ABC-123 --context
 pnpm exec tsx packages/atlassian/bin/atlassian.ts confluence "https://your-site.atlassian.net/wiki/..."
 ```
+
+## Slash Commands
+
+Three slash commands are available in the agent session:
+
+| Command | Description |
+|---------|-------------|
+| `/jira-issue <KEY>` | Fetch a Jira issue with full context |
+| `/get-jira-issue <KEY>` | Get a Jira issue by key |
+| `/story-context <KEY>` | Build implementation context from a Jira story |
+
+These commands post prompts to the agent session, which then invoke the corresponding tools.
 
 ## Auth
 
