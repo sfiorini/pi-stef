@@ -1,10 +1,12 @@
 {
   "name": "@pi-stef/pair",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension for plan/review/implement workflows using pi-subagents for reviewer spawning.",
   "type": "module",
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": [
+      "./extensions"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
