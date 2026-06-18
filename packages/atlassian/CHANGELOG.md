@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-18
+### Changed
+- docs(atlassian,catalog): document Confluence slash commands and catalog hot-reload
+- feat(atlassian,catalog): implement milestones M1+M2 - confluence slash commands and catalog hot-reload
+
+
 ## [0.4.0] - 2026-06-18
 ### Changed
 - docs(atlassian): implement milestone M3 - documentation updates
