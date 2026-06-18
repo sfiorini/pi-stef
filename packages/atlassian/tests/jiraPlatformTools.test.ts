@@ -8,6 +8,7 @@ import { adfToPlainText, plainTextToAdf } from "../src/text/adf";
 import { getJiraIssueContext, renderJiraIssueMarkdown } from "../src/jira/JiraContext";
 import { JiraPlatformClient } from "../src/jira/JiraPlatformClient";
 import { registerJiraPlatformTools } from "../src/jira/tools";
+import { ConfluenceClient } from "../src/confluence/ConfluenceClient";
 
 class RecordingHttp {
   calls: Array<{ method: string; path: string; body?: unknown; query?: Record<string, unknown> }> = [];
@@ -321,5 +322,39 @@ describe("Jira platform tool registration", () => {
 
     await expect(tool?.execute("call-1", { query: "abc" })).resolves.toMatchObject({ details: { values: [] } });
     expect(jira.listProjects).toHaveBeenCalledWith({ query: "abc", signal: undefined });
+  });
+
+  it("jira_issue with includeContext=true does not throw when context options are omitted", async () => {
+    const pi = new FakePi();
+    const http = new RecordingHttp();
+    http.responses.push({ id: "10001", key: "ABC-1", fields: { summary: "Test issue", issuetype: { name: "Story" }, status: { name: "Open" }, description: null, priority: null, assignee: null, reporter: null, labels: [], components: [], fixVersions: [] }, names: {} });
+    http.responses.push({ issueLinkTypes: [] });
+    http.responses.push({ comments: [] });
+    const jira = new JiraPlatformClient(http as never);
+    const confluence = new ConfluenceClient(new RecordingHttp() as never);
+
+    registerJiraPlatformTools(pi as never, { jira, confluence });
+    const tool = pi.tools.find((item) => item.name === "jira_issue");
+
+    const result = await tool?.execute("call-ctx", { key: "ABC-1", includeContext: true });
+    expect(result).toBeDefined();
+    expect(result!.content[0].text).toContain("Test issue");
+  });
+
+  it("jira_get_issue with includeContext=true does not throw when context options are omitted", async () => {
+    const pi = new FakePi();
+    const http = new RecordingHttp();
+    http.responses.push({ id: "10001", key: "ABC-1", fields: { summary: "Test issue", issuetype: { name: "Story" }, status: { name: "Open" }, description: null, priority: null, assignee: null, reporter: null, labels: [], components: [], fixVersions: [] }, names: {} });
+    http.responses.push({ issueLinkTypes: [] });
+    http.responses.push({ comments: [] });
+    const jira = new JiraPlatformClient(http as never);
+    const confluence = new ConfluenceClient(new RecordingHttp() as never);
+
+    registerJiraPlatformTools(pi as never, { jira, confluence });
+    const tool = pi.tools.find((item) => item.name === "jira_get_issue");
+
+    const result = await tool?.execute("call-ctx-2", { issueIdOrKey: "ABC-1", includeContext: true });
+    expect(result).toBeDefined();
+    expect(result!.content[0].text).toContain("Test issue");
   });
 });
