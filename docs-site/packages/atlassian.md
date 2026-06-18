@@ -41,13 +41,22 @@ pnpm exec tsx packages/atlassian/bin/atlassian.ts confluence "https://your-site.
 
 ## Slash Commands
 
-Three slash commands are available in the agent session:
+Five slash commands are available in the agent session:
+
+### Jira
 
 | Command | Description |
 |---------|-------------|
 | `/jira-issue <KEY>` | Fetch a Jira issue with full context |
 | `/get-jira-issue <KEY>` | Get a Jira issue by key |
 | `/story-context <KEY>` | Build implementation context from a Jira story |
+
+### Confluence
+
+| Command | Description |
+|---------|-------------|
+| `/confluence-page <URL or ID>` | Fetch a Confluence page with context by URL or page ID |
+| `/get-confluence-page <ID>` | Get a Confluence page by ID |
 
 These commands post prompts to the agent session, which then invoke the corresponding tools.
 

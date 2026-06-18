@@ -17,6 +17,12 @@ pi install npm:@pi-stef/catalog
 /ct sync           # Install + push to gist
 ```
 
+## Hot-Reload
+
+Commands that install, update, or remove packages (`add`, `update`, `remove`, `disable`, `sync`, `pull`) automatically reload extensions after a successful operation. New or updated tools are available immediately without restarting pi.
+
+If the reload fails or is not available (e.g., when invoked via an LLM tool), you'll see a message asking you to restart pi for changes to take effect.
+
 ## Command Reference
 
 | Subcommand | Description | Flags |

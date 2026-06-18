@@ -24,6 +24,12 @@ pi install npm:@pi-stef/catalog
 
 After `ct login`, your GitHub token is cached for future sync operations.
 
+## Hot-Reload
+
+Commands that install, update, or remove packages (`add`, `update`, `remove`, `disable`, `sync`, `pull`) automatically reload extensions after a successful operation. This means new or updated tools are available immediately without restarting pi.
+
+If the reload fails or is not available (e.g., when invoked via an LLM tool), you'll see a message asking you to restart pi for changes to take effect.
+
 ## Command Reference
 
 All commands are invoked as `/ct <subcommand>` inside pi, or via the shorthand `/ct-<subcommand>`.
