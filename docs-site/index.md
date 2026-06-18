@@ -22,6 +22,10 @@ features:
     title: Team Orchestration
     details: Steerable team of role-agents (researcher, planner, developer, reviewer) for plan, implement, and review workflows.
     link: /packages/team
+  - icon: 🤝
+    title: Pair Workflow
+    details: Simplified plan/review/implement with pi-subagents for reviewer spawning. Lighter alternative to team.
+    link: /packages/pair
   - icon: 🔍
     title: Web Search & Fetch
     details: No-key web search with provider cascade, URL content extraction, and browser automation sessions.
