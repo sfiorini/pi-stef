@@ -35,7 +35,7 @@ If it doesn't exist, stop and ask the user for a reviewer model.
 
 ### Phase 4: Design
 
-Load `brainstorming` skill. Present 2-3 approaches and recommend one. Resolve open design questions before the milestone breakdown.
+Load `brainstorming` skill. Present 2-3 approaches and recommend one. Use `AskUserQuestion` to get the user's approval on the chosen approach before proceeding. Do NOT move to Phase 5 until the user confirms the design.
 
 ### Phase 5: Plan
 
