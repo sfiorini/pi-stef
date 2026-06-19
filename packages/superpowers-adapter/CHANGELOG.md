@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-06-19
+### Changed
+- fix: add skill discovery for workspace packages and fix tool instructions
+
+
 ## [0.3.4] - 2026-06-17
 ### Changed
 - feat(all): add repository and homepage fields to all package.json files
