@@ -17,7 +17,14 @@ Create a multi-milestone implementation plan with iterative reviewer approval.
 
 ### Phase 1: Analyze
 
-Explore the codebase and existing patterns. Use `Agent({ agentType: "general-purpose" })` to understand the project structure — this inherits the current session model. Do NOT use the default `Explore` agent (it uses Haiku).
+Explore the codebase and existing patterns. Use `Agent({ agentType: "general-purpose" })` to understand the project structure.
+
+If an explorer model was configured (via prompt, config, or env), use it:
+```
+Agent({ agentType: "general-purpose", model: "<explorer_model>" })
+```
+
+If no explorer model is configured, omit the `model` parameter to inherit the current session model. Do NOT use the default `Explore` agent (it uses Haiku).
 
 ### Phase 2: Gather Requirements
 

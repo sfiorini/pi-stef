@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   loadAndResolveDefaults,
   resolveReviewerModel,
+  resolveExplorerModel,
 } from "./config/load";
 
 export const PAIR_TOOL_NAMES = [
@@ -54,15 +55,35 @@ function extractReviewerModelFromPrompt(prompt: string): string | undefined {
   return undefined;
 }
 
+/**
+ * Extract explorer model from prompt string.
+ * Looks for patterns like "use <model> as explorer" or "explorer: <model>"
+ */
+function extractExplorerModelFromPrompt(prompt: string): string | undefined {
+  const patterns = [
+    /use\s+([\w/.-]+)\s+as\s+explorer/i,
+    /explorer[:\s]+([\w/.-]+)/i,
+    /explore\s+with\s+([\w/.-]+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
 export function registerSfPair(pi: ExtensionAPI): void {
   // Register plan tool
   const planSchema = Type.Object(
     {
       prompt: Type.Optional(
-        Type.String({ description: "The task to plan. May include reviewer model override." })
+        Type.String({ description: "The task to plan. May include reviewer/explorer model overrides." })
       ),
       reviewer_model: Type.Optional(
         Type.String({ description: "Override reviewer model (e.g. 'anthropic/sonnet-4-6')" })
+      ),
+      explorer_model: Type.Optional(
+        Type.String({ description: "Override explorer model (e.g. 'anthropic/sonnet-4-6'). Falls back to parent model if not set." })
       ),
     },
     { additionalProperties: false }
@@ -77,13 +98,16 @@ export function registerSfPair(pi: ExtensionAPI): void {
     execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const repoRoot = ctx.cwd ?? process.cwd();
       const defaults = await loadAndResolveDefaults(repoRoot);
-      const promptModel = extractReviewerModelFromPrompt((params as any).prompt ?? "");
-      const model = resolveReviewerModel(
-        (params as any).reviewer_model ?? promptModel,
+      const prompt = (params as any).prompt ?? "";
+
+      // Resolve reviewer model
+      const promptReviewerModel = extractReviewerModelFromPrompt(prompt);
+      const reviewerModel = resolveReviewerModel(
+        (params as any).reviewer_model ?? promptReviewerModel,
         defaults
       );
 
-      if (!model) {
+      if (!reviewerModel) {
         return {
           content: [
             {
@@ -95,16 +119,27 @@ export function registerSfPair(pi: ExtensionAPI): void {
         };
       }
 
-      await writeReviewerAgent(repoRoot, model);
+      // Resolve explorer model (optional, falls back to parent)
+      const promptExplorerModel = extractExplorerModelFromPrompt(prompt);
+      const explorerModel = resolveExplorerModel(
+        (params as any).explorer_model ?? promptExplorerModel,
+        defaults
+      );
+
+      await writeReviewerAgent(repoRoot, reviewerModel);
+
+      const explorerInfo = explorerModel
+        ? `Explorer model: ${explorerModel}`
+        : "Explorer model: inherits from parent (not configured)";
 
       return {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the plan skill.`,
+            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the plan skill.`,
           },
         ],
-        details: { configured: true, model },
+        details: { configured: true, reviewerModel, explorerModel },
       };
     },
   });

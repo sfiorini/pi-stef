@@ -69,6 +69,10 @@ export async function loadConfig(
       ...(global.reviewer ?? {}),
       ...(project.reviewer ?? {}),
     },
+    explorer: {
+      ...(global.explorer ?? {}),
+      ...(project.explorer ?? {}),
+    },
   };
 }
 
@@ -76,6 +80,9 @@ export function resolveDefaults(loaded: PairConfig = {}): ResolvedPairConfig {
   return {
     reviewer: {
       model: loaded.reviewer?.model ?? DEFAULT_CONFIG.reviewer.model,
+    },
+    explorer: {
+      model: loaded.explorer?.model ?? DEFAULT_CONFIG.explorer.model,
     },
   };
 }
@@ -119,5 +126,30 @@ export function resolveReviewerModel(
   if (envModel) return envModel;
 
   // 4. Not found — caller must ask user
+  return null;
+}
+
+/**
+ * Resolve explorer model from the 3-step chain:
+ * 1. Prompt argument (parsed by caller)
+ * 2. Project/global config
+ * 3. Environment variable SF_PAIR_EXPLORER_MODEL
+ * 4. Returns null to inherit parent model (no need to ask user)
+ */
+export function resolveExplorerModel(
+  promptArg: string | undefined,
+  config: ResolvedPairConfig
+): string | null {
+  // 1. Prompt argument
+  if (promptArg) return promptArg;
+
+  // 2. Config file
+  if (config.explorer.model) return config.explorer.model;
+
+  // 3. Environment variable
+  const envModel = process.env.SF_PAIR_EXPLORER_MODEL;
+  if (envModel) return envModel;
+
+  // 4. Not found — inherit parent model
   return null;
 }
