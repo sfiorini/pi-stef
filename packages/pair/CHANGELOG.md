@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-06-19
+### Changed
+- fix(pair): use correct skill names in tool responses
+- fix(pair): address P2 findings in plan skill guardrails
+- fix(pair): enforce ai_plan folder creation with strict guardrails
+- fix(pair): address P3 findings and update documentation
+- feat(pair): add explorer model configuration
+- docs(pair): add missing changelog entry for design approval
+- fix(pair): require user approval on design before planning
+
+
 ## [0.1.4] - 2026-06-19
 ### Changed
 - fix(pair): use general-purpose agent type which inherits session model
