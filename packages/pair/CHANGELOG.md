@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-06-19
+### Changed
+- fix(pair): use general-purpose agent type which inherits session model
+
+
 ## [0.1.3] - 2026-06-19
 ### Changed
 - fix(pair): use current session model for exploration, not hardcoded model
