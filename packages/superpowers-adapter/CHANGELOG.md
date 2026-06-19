@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.7] - 2026-06-19
+### Changed
+- fix(superpowers-adapter): discover skills from global npm install
+
+
 ## [0.3.6] - 2026-06-19
 ### Changed
 - fix: discover skills from globally installed npm packages (`~/.pi/agent/npm/node_modules`)

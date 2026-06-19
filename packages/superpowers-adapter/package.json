@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/superpowers-adapter",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "Bridges the superpowers skill system to pi's extension API with TodoWrite, Task, and Skill tools.",
   "keywords": [
     "pi-package",
