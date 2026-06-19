@@ -83,7 +83,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         Type.String({ description: "Override reviewer model (e.g. 'anthropic/sonnet-4-6')" })
       ),
       explorer_model: Type.Optional(
-        Type.String({ description: "Override explorer model (e.g. 'anthropic/sonnet-4-6'). Falls back to parent model if not set." })
+        Type.String({ description: "Override explorer model (e.g. 'anthropic/sonnet-4-6'). Falls back to parent model if not set.", minLength: 1 })
       ),
     },
     { additionalProperties: false }
@@ -190,7 +190,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
             text: `Reviewer configured with model: ${model}\nPlan path: ${(params as any).path}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the implement skill.`,
           },
         ],
-        details: { configured: true, model, path: (params as any).path },
+        details: { configured: true, reviewerModel: model, path: (params as any).path },
       };
     },
   });
@@ -244,7 +244,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
             text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the task skill.`,
           },
         ],
-        details: { configured: true, model, prompt: (params as any).prompt },
+        details: { configured: true, reviewerModel: model, prompt: (params as any).prompt },
       };
     },
   });

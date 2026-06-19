@@ -33,6 +33,7 @@ pi install npm:@pi-stef/pair
 
 ```
 "Create a plan for adding user authentication, use anthropic/sonnet-4-6 as reviewer"
+"Create a plan for auth, use anthropic/sonnet-4-6 as reviewer, use anthropic/haiku-4-5 as explorer"
 "Implement the plan in ai_plan/2026-06-17-auth-system"
 "Execute this task end-to-end: add a health check endpoint"
 ```
@@ -55,6 +56,7 @@ Create a multi-milestone implementation plan with iterative reviewer approval.
 |-----------|----------|-------------|
 | `prompt` | No | The task to plan |
 | `reviewer_model` | No | Override reviewer model |
+| `explorer_model` | No | Override explorer model (inherits parent if not set) |
 
 ### sf_pair_implement
 
@@ -82,16 +84,26 @@ Config file location: `.pi/sf/pair/config.json`
 {
   "reviewer": {
     "model": "anthropic/sonnet-4-6"
+  },
+  "explorer": {
+    "model": "anthropic/haiku-4-5"
   }
 }
 ```
 
 ### Resolution Chain
 
+**Reviewer Model** (required for plan/implement/task):
 1. Prompt argument (e.g., "use X as reviewer")
 2. Config file (global or project)
 3. Environment variable `SF_PAIR_REVIEWER_MODEL`
 4. Ask user
+
+**Explorer Model** (optional, used only in plan):
+1. Prompt argument (e.g., "use X as explorer")
+2. Config file (global or project)
+3. Environment variable `SF_PAIR_EXPLORER_MODEL`
+4. Inherits parent model (current session model)
 
 ## Architecture
 
@@ -120,7 +132,7 @@ The implement skill:
 |---------|------|------|
 | Architecture | Skill-driven | Orchestration-driven |
 | Reviewer spawning | pi-subagents | External CLI subprocess |
-| Config | Reviewer model only | Full config with lanes |
+| Config | Reviewer + Explorer model | Full config with lanes |
 | Worktree | Automatic lifecycle | Manual or tool-managed |
 | Q&A | AskUserQuestion | External library |
 
@@ -139,4 +151,5 @@ ai_plan/YYYY-MM-DD-<slug>/
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `reviewer.model` | `string` | `null` | Model for reviewer agent |
+| `reviewer.model` | `string` | `null` | Model for reviewer agent (required) |
+| `explorer.model` | `string` | `null` | Model for explorer agent (inherits parent if not set) |
