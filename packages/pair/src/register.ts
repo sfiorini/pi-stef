@@ -136,7 +136,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the sf-pair-plan skill.`,
+            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nIMPORTANT: Load the skill named "sf-pair-plan" by running: /skill sf-pair-plan\nThen follow the skill instructions exactly.`,
           },
         ],
         details: { configured: true, reviewerModel, explorerModel },
@@ -187,7 +187,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nPlan path: ${(params as any).path}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the sf-pair-implement skill.`,
+            text: `Reviewer configured with model: ${model}\nPlan path: ${(params as any).path}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nIMPORTANT: Load the skill named "sf-pair-implement" by running: /skill sf-pair-implement\nThen follow the skill instructions exactly.`,
           },
         ],
         details: { configured: true, reviewerModel: model, path: (params as any).path },
@@ -241,7 +241,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load and follow the sf-pair-task skill.`,
+            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nIMPORTANT: Load the skill named "sf-pair-task" by running: /skill sf-pair-task\nThen follow the skill instructions exactly.`,
           },
         ],
         details: { configured: true, reviewerModel: model, prompt: (params as any).prompt },
