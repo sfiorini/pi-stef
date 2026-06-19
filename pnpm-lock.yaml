@@ -26,6 +26,9 @@ importers:
       '@pi-stef/figma':
         specifier: workspace:^0.3.0
         version: link:packages/figma
+      '@pi-stef/pair':
+        specifier: workspace:^0.1.0
+        version: link:packages/pair
       '@pi-stef/paths':
         specifier: workspace:^0.3.0
         version: link:packages/paths

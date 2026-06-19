@@ -27,6 +27,7 @@
     "@pi-stef/catalog": "workspace:^0.3.0",
     "@pi-stef/cursor": "workspace:^0.1.0",
     "@pi-stef/figma": "workspace:^0.3.0",
+    "@pi-stef/pair": "workspace:^0.1.0",
     "@pi-stef/paths": "workspace:^0.3.0",
     "@pi-stef/superpowers-adapter": "workspace:^0.3.0",
     "@pi-stef/team": "workspace:^0.3.0",
