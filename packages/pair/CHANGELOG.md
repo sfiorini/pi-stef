@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-06-19
+### Changed
+- fix: add skill discovery for workspace packages and fix tool instructions
+- fix(pair): make skill loading instructions more explicit
+
+
 ## [0.1.5] - 2026-06-19
 ### Changed
 - fix(pair): use correct skill names in tool responses
