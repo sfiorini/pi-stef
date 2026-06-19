@@ -94,11 +94,54 @@ function findSkillsDirs(
   }
 }
 
-export function discoverSkills(cwd: string): Map<string, SkillMeta> {
+/**
+ * Collect `skills/` directories from a node_modules layout.
+ * Handles scoped (@scope/pkg) and unscoped (pkg) packages.
+ */
+function collectNodeModulesSkillPaths(
+  nodeModulesDir: string,
+  skillPaths: string[],
+): void {
+  if (!existsSync(nodeModulesDir)) return;
+  let entries;
+  try {
+    entries = readdirSync(nodeModulesDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (entry.name.startsWith("@")) {
+      // Scope directory: iterate packages one level deeper.
+      const scopeDir = join(nodeModulesDir, entry.name);
+      let scopedEntries;
+      try {
+        scopedEntries = readdirSync(scopeDir, { withFileTypes: true });
+      } catch {
+        continue;
+      }
+      for (const pkg of scopedEntries) {
+        if (!pkg.isDirectory()) continue;
+        const pkgSkillsDir = join(scopeDir, pkg.name, "skills");
+        if (existsSync(pkgSkillsDir)) {
+          skillPaths.push(pkgSkillsDir);
+        }
+      }
+    } else {
+      // Unscoped package directory.
+      const pkgSkillsDir = join(nodeModulesDir, entry.name, "skills");
+      if (existsSync(pkgSkillsDir)) {
+        skillPaths.push(pkgSkillsDir);
+      }
+    }
+  }
+}
+
+export function discoverSkills(cwd: string, homeDir?: string): Map<string, SkillMeta> {
   if (skillCache) return skillCache;
 
   const skills = new Map<string, SkillMeta>();
-  const home = homedir();
+  const home = homeDir ?? homedir();
 
   const skillPaths = [
     join(cwd, ".pi", "skills"),
@@ -125,23 +168,15 @@ export function discoverSkills(cwd: string): Map<string, SkillMeta> {
     }
   }
 
-  // Add installed package skills (node_modules pattern)
-  const nodeModulesDir = join(cwd, "node_modules", "@pi-stef");
-  if (existsSync(nodeModulesDir)) {
-    try {
-      const packages = readdirSync(nodeModulesDir, { withFileTypes: true });
-      for (const pkg of packages) {
-        if (pkg.isDirectory()) {
-          const pkgSkillsDir = join(nodeModulesDir, pkg.name, "skills");
-          if (existsSync(pkgSkillsDir)) {
-            skillPaths.push(pkgSkillsDir);
-          }
-        }
-      }
-    } catch {
-      // Skip if can't read node_modules directory
-    }
-  }
+  // Add locally installed package skills (node_modules pattern), any scope.
+  collectNodeModulesSkillPaths(join(cwd, "node_modules"), skillPaths);
+
+  // Add globally installed package skills (~/.pi/agent/npm/node_modules pattern).
+  // This is where `pi install`/catalog packages live on consumer machines.
+  collectNodeModulesSkillPaths(
+    join(home, ".pi", "agent", "npm", "node_modules"),
+    skillPaths,
+  );
 
   const gitPackagesDir = join(home, ".pi", "agent", "git");
   if (existsSync(gitPackagesDir)) {

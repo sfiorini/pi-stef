@@ -114,6 +114,50 @@ describe("Skill tool", () => {
     const after = discoverSkills(tempDir);
     expect(after.has("reset-skill")).toBe(true); // re-discovered
   });
+
+  it("discovers skills from globally installed npm packages (scoped)", () => {
+    // Mirrors ~/.pi/agent/npm/node_modules/@pi-stef/pair/skills/<skill>/SKILL.md
+    const skillDir = join(
+      tempDir,
+      ".pi",
+      "agent",
+      "npm",
+      "node_modules",
+      "@pi-stef",
+      "pair",
+      "skills",
+      "sf-pair-x",
+    );
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: sf-pair-x\ndescription: A globally installed skill\n---\nNPM skill content.\n",
+    );
+
+    const skills = discoverSkills(tempDir, tempDir);
+    expect(skills.has("sf-pair-x")).toBe(true);
+  });
+
+  it("discovers skills from globally installed npm packages (unscoped)", () => {
+    const skillDir = join(
+      tempDir,
+      ".pi",
+      "agent",
+      "npm",
+      "node_modules",
+      "somepkg",
+      "skills",
+      "unscoped-skill",
+    );
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: unscoped-skill\ndescription: An unscoped global skill\n---\nContent.\n",
+    );
+
+    const skills = discoverSkills(tempDir, tempDir);
+    expect(skills.has("unscoped-skill")).toBe(true);
+  });
 });
 
 describe("parseSkillFrontmatter", () => {

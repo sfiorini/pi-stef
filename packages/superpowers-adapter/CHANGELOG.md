@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-06-19
+### Changed
+- fix: discover skills from globally installed npm packages (`~/.pi/agent/npm/node_modules`)
+- fix: scan all scopes for locally installed package skills (was `@pi-stef` only)
+
 ## [0.3.5] - 2026-06-19
 ### Changed
 - fix: add skill discovery for workspace packages and fix tool instructions

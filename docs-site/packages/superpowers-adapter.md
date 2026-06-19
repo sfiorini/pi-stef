@@ -47,6 +47,9 @@ Load skill instructions by name. Discovers skills from standard pi skill directo
 - `<cwd>/.agents/skills/`
 - `~/.pi/agent/skills/`
 - `~/.agents/skills/`
+- Workspace packages: `<cwd>/packages/<pkg>/skills/`
+- Locally installed packages: `<cwd>/node_modules/<pkg>/skills/` (any scope)
+- Globally installed packages: `~/.pi/agent/npm/node_modules/<pkg>/skills/` (any scope)
 - Recursively under `~/.pi/agent/git/` (depth 10)
 
 ## Commands
