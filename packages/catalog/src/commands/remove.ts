@@ -177,6 +177,9 @@ export async function removeCommand(
   // --- Remove package -------------------------------------------------------
   const updated = removePackage(catalog, name);
   writeCatalog(updated, ctx.home);
+  // Record the removal regardless of uninstall outcome — the catalog is the
+  // source of truth and sync must not re-install this package even if the
+  // disk-level uninstall fails (the user can always re-add and re-sync).
   recordRemoval(name, ctx.home);
 
   // --- Remove from lock file ------------------------------------------------

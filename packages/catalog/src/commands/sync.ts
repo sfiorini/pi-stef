@@ -19,7 +19,7 @@ import { pullCatalog } from "../sync/pull.js";
 import { pushCatalog } from "../sync/push.js";
 import { readCachedGistId } from "../sync/cache.js";
 import { scanInstalled } from "../catalog/install.js";
-import { applyRemovalTombstones, clearTombstones } from "../catalog/removal-tombstones.js";
+import { applyRemovalTombstones } from "../catalog/removal-tombstones.js";
 import { reconcile, executeActions } from "../catalog/reconcile.js";
 import { extractVersionFromSource } from "../catalog/source.js";
 import { createHash } from "node:crypto";
@@ -302,7 +302,6 @@ export async function syncCommand(
       );
       summary.pushed = true;
       summary.gistUrl = pushResult.gistUrl;
-      clearTombstones(ctx.home);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       ctx.ui.notify(`Push failed: ${message}`, "error");
@@ -410,7 +409,6 @@ export async function pushCommand(
   try {
     const result = await pushCatalog(catalog, lock, profile, ctx.home);
     ctx.ui.notify(`Pushed to gist: ${result.gistUrl}`, "info");
-    clearTombstones(ctx.home);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.ui.notify(`Push failed: ${message}`, "error");

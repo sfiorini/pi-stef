@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   recordRemoval,
   readTombstones,
   applyRemovalTombstones,
-  clearTombstones,
 } from "../src/catalog/removal-tombstones";
 
 describe("removal tombstones", () => {
@@ -35,13 +34,13 @@ describe("removal tombstones", () => {
     expect(readTombstones(tmpHome)).toEqual(["pkg-a", "pkg-b"]);
   });
 
-  it("clearTombstones removes the file", () => {
+  it("is idempotent — does not duplicate a package name", () => {
     recordRemoval("x", tmpHome);
-    clearTombstones(tmpHome);
-    expect(readTombstones(tmpHome)).toEqual([]);
+    recordRemoval("x", tmpHome);
+    expect(readTombstones(tmpHome)).toEqual(["x"]);
   });
 
-  it("applyRemovalTombstones drops named packages from catalog", () => {
+  it("applyRemovalTombstones drops named packages and clears the log", () => {
     recordRemoval("superpowers-adapter", tmpHome);
     const catalog = {
       meta: { pi_version: "0.0.0" },
@@ -56,6 +55,9 @@ describe("removal tombstones", () => {
       pair: { source: "npm:@pi-stef/pair" },
       team: { source: "npm:@pi-stef/team" },
     });
+    // Tombsones are cleared after application — a "re-add remotely"
+    // scenario on the next sync won't be silently dropped.
+    expect(readTombstones(tmpHome)).toEqual([]);
   });
 
   it("applyRemovalTombstones is a no-op when no tombstones exist", () => {
@@ -65,5 +67,6 @@ describe("removal tombstones", () => {
     };
     applyRemovalTombstones(catalog, tmpHome);
     expect(Object.keys(catalog.packages)).toEqual(["pair"]);
+    expect(readTombstones(tmpHome)).toEqual([]);
   });
 });
