@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-20
+### Changed
+- feat(catalog): wire companion resolution into ct update
+
+
 ## [0.6.0] - 2026-06-20
 ### Changed
 - docs: M6 — add pair to sidebar, README table, dev tree; changelog entries
