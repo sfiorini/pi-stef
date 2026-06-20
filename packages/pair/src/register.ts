@@ -1,42 +1,18 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import {
   loadAndResolveDefaults,
   resolveReviewerModel,
   resolveExplorerModel,
 } from "./config/load";
+import { ensureAgentFiles } from "./agents";
 
 export const PAIR_TOOL_NAMES = [
   "sf_pair_plan",
   "sf_pair_implement",
   "sf_pair_task",
 ] as const;
-
-const REVIEWER_AGENT_PATH = ".pi/agents/reviewer.md";
-
-/**
- * Write the reviewer agent file with the resolved model.
- * This ensures pi-subagents spawns the reviewer with the correct model.
- */
-async function writeReviewerAgent(
-  repoRoot: string,
-  model: string
-): Promise<void> {
-  const agentPath = join(repoRoot, REVIEWER_AGENT_PATH);
-  await mkdir(dirname(agentPath), { recursive: true });
-
-  // Read the template file from the package
-  const templatePath = join(dirname(fileURLToPath(import.meta.url)), "..", "agents", "reviewer.md");
-  const template = await readFile(templatePath, "utf8");
-
-  // Replace the {{REVIEWER_MODEL}} placeholder with the resolved model
-  const content = template.replace("{{REVIEWER_MODEL}}", model);
-
-  await writeFile(agentPath, content, "utf8");
-}
 
 /**
  * Extract reviewer model from prompt string.
@@ -126,17 +102,21 @@ export function registerSfPair(pi: ExtensionAPI): void {
         defaults
       );
 
-      await writeReviewerAgent(repoRoot, reviewerModel);
+      const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
 
       const explorerInfo = explorerModel
         ? `Explorer model: ${explorerModel}`
         : "Explorer model: inherits from parent (not configured)";
 
+      const warnText = agentWarnings.length > 0
+        ? `\n\n⚠️ Agent warning:\n${agentWarnings.map((w) => `- ${w}`).join("\n")}`
+        : "";
+
       return {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load the skill named "sf-pair-plan" using the Skill tool, then follow its instructions exactly.`,
+            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow load the skill named "sf-pair-plan" and follow its instructions exactly.${warnText}`,
           },
         ],
         details: { configured: true, reviewerModel, explorerModel },
@@ -181,13 +161,17 @@ export function registerSfPair(pi: ExtensionAPI): void {
         };
       }
 
-      await writeReviewerAgent(repoRoot, model);
+      const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+
+      const warnText = agentWarnings.length > 0
+        ? `\n\n⚠️ Agent warning:\n${agentWarnings.map((w) => `- ${w}`).join("\n")}`
+        : "";
 
       return {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nPlan path: ${(params as any).path}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load the skill named "sf-pair-implement" using the Skill tool, then follow its instructions exactly.`,
+            text: `Reviewer configured with model: ${model}\nPlan path: ${(params as any).path}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow load the skill named "sf-pair-implement" and follow its instructions exactly.${warnText}`,
           },
         ],
         details: { configured: true, reviewerModel: model, path: (params as any).path },
@@ -235,13 +219,17 @@ export function registerSfPair(pi: ExtensionAPI): void {
         };
       }
 
-      await writeReviewerAgent(repoRoot, model);
+      const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+
+      const warnText = agentWarnings.length > 0
+        ? `\n\n⚠️ Agent warning:\n${agentWarnings.map((w) => `- ${w}`).join("\n")}`
+        : "";
 
       return {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent file written to ${REVIEWER_AGENT_PATH}\n\nNow load the skill named "sf-pair-task" using the Skill tool, then follow its instructions exactly.`,
+            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow load the skill named "sf-pair-task" and follow its instructions exactly.${warnText}`,
           },
         ],
         details: { configured: true, reviewerModel: model, prompt: (params as any).prompt },
