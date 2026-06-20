@@ -32,6 +32,7 @@ export default defineConfig({
           { text: "azure-foundry", link: "/packages/azure-foundry" },
           { text: "catalog", link: "/packages/catalog" },
           { text: "cursor", link: "/packages/cursor" },
+          { text: "pair", link: "/packages/pair" },
           { text: "team", link: "/packages/team" },
           { text: "atlassian", link: "/packages/atlassian" },
           { text: "figma", link: "/packages/figma" },

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- `pi.companions` auto-install on `ct add` with BFS traversal (depth cap 3, dedup, cycle-safe). A package declaring `pi.companions` in its `package.json` gets companions installed alongside it.
 
 ## [0.5.4] - 2026-06-18
 ### Changed

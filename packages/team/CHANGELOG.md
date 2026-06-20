@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Changed
+- Declares obra/superpowers as a `pi.companions` dependency.
+- Planner contract now emits `## Global Constraints` and `**Interfaces:**` plan sections (obra v6).
+- Task-plan template: removed Claude-Code-isms (Runtime/Reviewer CLI values, stale session IDs).
+- README: corrected planner skills documentation (planner runs `--no-skills`).
 
 ## [0.3.4] - 2026-06-17
 ### Changed

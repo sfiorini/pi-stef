@@ -27,6 +27,7 @@ pi install npm:@pi-stef/catalog
 | **[catalog](packages/catalog/README.md)** | extension | Declarative package manager — sync, add, remove, toggle packages via `cat.yaml` | `pi install npm:@pi-stef/catalog` |
 | [azure-foundry](packages/azure-foundry/README.md) | extension | Azure Foundry and Azure OpenAI deployments as native Pi providers | `pi install npm:@pi-stef/azure-foundry` |
 | [cursor](packages/cursor/README.md) | extension | Cursor AI editor as a native Pi stream provider | `pi install npm:@pi-stef/cursor` |
+| [pair](https://sfiorini.github.io/pi-stef/packages/pair) | extension | Plan/review/implement workflows using pi-subagents | `pi install npm:@pi-stef/pair` |
 | [team](packages/team/README.md) | extension | Steerable team of role-agents for plan/review/implement workflows | `pi install npm:@pi-stef/team` |
 | [agent-workflows](packages/agent-workflows/README.md) | library | Reusable workflow engine primitives (internal dependency, not user-installed) | — |
 | paths | library | Shared path conventions for all sf packages | — |

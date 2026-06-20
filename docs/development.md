@@ -13,6 +13,7 @@
 pi-stef/
 ├── packages/
 │   ├── catalog/           # Declarative package manager extension
+│   ├── pair/                  # Plan/review/implement workflows using pi-subagents
 │   ├── team/              # Team of role-agents for plan/review/implement
 │   ├── agent-workflows/   # Workflow engine primitives (internal)
 │   ├── atlassian/         # Jira and Confluence integration
