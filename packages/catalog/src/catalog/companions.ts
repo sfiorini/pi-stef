@@ -1,6 +1,14 @@
 import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
+import type { CommandCtx } from "../commands/types.js";
+import { readCatalog } from "../config/io.js";
+import { piInstall } from "../util/exec.js";
+import { resolveInstalledDir } from "./install.js";
+
+/** Maximum companion recursion depth (3 hops) to bound chains and prevent runaway installs. */
+export const MAX_COMPANION_DEPTH = 3;
+
 /**
  * Companion-package resolution for the catalog.
  *
@@ -64,4 +72,52 @@ export function resolveCompanions(
     out.push(c);
   }
   return out;
+}
+
+/**
+ * Install companions declared in the installed package manifest via BFS.
+ *
+ * Reads `pi.companions` from the installed package's `package.json` and
+ * installs each companion that is not already in the catalog or already
+ * visited. Traverses transitively (companions may declare their own
+ * companions) up to `MAX_COMPANION_DEPTH` levels. Companion install failures
+ * are warnings — they never fail the caller.
+ *
+ * Used by both `ct add` and `ct update` after the primary install/update
+ * succeeds. Skipped silently when `ctx.home` is unavailable.
+ *
+ * @param source The primary package source string that was installed/updated.
+ * @param ctx The command context (provides home dir + UI hooks).
+ */
+export async function installCompanions(
+  source: string,
+  ctx: CommandCtx,
+): Promise<void> {
+  if (!ctx.home) return;
+  const rootDir = resolveInstalledDir(source, ctx.home);
+  if (!rootDir) return;
+
+  const visited = new Set<string>([source]);
+  const queue: { dir: string; depth: number }[] = [{ dir: rootDir, depth: 0 }];
+  while (queue.length > 0) {
+    const { dir, depth } = queue.shift()!;
+    if (depth >= MAX_COMPANION_DEPTH) continue;
+    const catalogSources = new Set(
+      Object.values(readCatalog(ctx.home).packages).map((p) => p.source),
+    );
+    for (const c of resolveCompanions(dir, new Set([...visited, ...catalogSources]))) {
+      if (visited.has(c)) continue;
+      visited.add(c);
+      ctx.ui.setWorkingMessage?.(`Installing companion ${c}...`);
+      try {
+        await piInstall(c);
+        ctx.ui.notify(`Installed companion "${c}"`, "info");
+      } catch {
+        ctx.ui.notify(`Warning: companion "${c}" install failed`, "warning");
+      }
+      const cdir = resolveInstalledDir(c, ctx.home);
+      if (cdir) queue.push({ dir: cdir, depth: depth + 1 });
+    }
+  }
+  ctx.ui.setWorkingMessage?.();
 }

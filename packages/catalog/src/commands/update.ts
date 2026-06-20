@@ -14,6 +14,7 @@ import type { CommandArgs, CommandCtx } from "./types.js";
 import { readCatalog } from "../config/io.js";
 import { piUpdate } from "../util/exec.js";
 import { checkSetupForSource, formatSetupStatus } from "../catalog/setup.js";
+import { installCompanions } from "../catalog/companions.js";
 
 // ---------------------------------------------------------------------------
 // updateCommand
@@ -60,6 +61,11 @@ export async function updateCommand(
     }
     ctx.ui.setWorkingMessage?.();
 
+    // Install companions declared in the updated package manifest
+    if (updateSucceeded) {
+      await installCompanions(entry.source, ctx);
+    }
+
     // Reload extensions so updated tools are available immediately
     if (updateSucceeded && typeof ctx.reload === "function") {
       ctx.ui.notify("Reloading extensions...", "info");
@@ -101,18 +107,23 @@ export async function updateCommand(
   for (const pkgName of names) {
     const entry = packages[pkgName];
     ctx.ui.setWorkingMessage?.(`Updating ${pkgName} (${updated + 1}/${names.length})...`);
+    let updateSucceeded = false;
     try {
       await piUpdate(entry.source);
       updated++;
+      updateSucceeded = true;
+    } catch {
+      ctx.ui.notify(`Warning: update of "${pkgName}" failed`, "warning");
+      failed++;
+    }
 
-      // Check setup after successful update
+    // Install companions and check setup after successful update
+    if (updateSucceeded) {
+      await installCompanions(entry.source, ctx);
       const setup = checkSetupForSource(entry.source, ctx.home);
       if (setup && !setup.ok) {
         setupWarnings.push(`${pkgName}: ${formatSetupStatus(setup)}`);
       }
-    } catch {
-      ctx.ui.notify(`Warning: update of "${pkgName}" failed`, "warning");
-      failed++;
     }
   }
   ctx.ui.setWorkingMessage?.();

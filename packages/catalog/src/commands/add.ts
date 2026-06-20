@@ -17,11 +17,7 @@ import { checkSetupForSource, formatSetupStatus } from "../catalog/setup.js";
 import { PI_STEF_PACKAGES } from "../catalog/packages.js";
 import { readCatalog, writeCatalog } from "../config/io.js";
 import { piInstall } from "../util/exec.js";
-import { resolveCompanions } from "../catalog/companions.js";
-import { resolveInstalledDir } from "../catalog/install.js";
-
-/** Maximum companion recursion depth (3 hops) to bound chains and prevent runaway installs. */
-const MAX_COMPANION_DEPTH = 3;
+import { installCompanions } from "../catalog/companions.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -233,34 +229,9 @@ export async function addCommand(args: CommandArgs, ctx: AddCtx): Promise<void> 
   }
   ctx.ui.setWorkingMessage?.();
 
-  // --- Install companions declared in the installed package manifest (BFS) ---
-  if (installSucceeded && ctx.home) {
-    const rootDir = resolveInstalledDir(source, ctx.home);
-    if (rootDir) {
-      const visited = new Set<string>([source]);
-      const queue: { dir: string; depth: number }[] = [{ dir: rootDir, depth: 0 }];
-      while (queue.length > 0) {
-        const { dir, depth } = queue.shift()!;
-        if (depth >= MAX_COMPANION_DEPTH) continue;
-        const catalogSources = new Set(
-          Object.values(readCatalog(ctx.home).packages).map((p) => p.source),
-        );
-        for (const c of resolveCompanions(dir, new Set([...visited, ...catalogSources]))) {
-          if (visited.has(c)) continue;
-          visited.add(c);
-          ctx.ui.setWorkingMessage?.(`Installing companion ${c}...`);
-          try {
-            await piInstall(c);
-            ctx.ui.notify(`Installed companion "${c}"`, "info");
-          } catch {
-            ctx.ui.notify(`Warning: companion "${c}" install failed`, "warning");
-          }
-          const cdir = resolveInstalledDir(c, ctx.home);
-          if (cdir) queue.push({ dir: cdir, depth: depth + 1 });
-        }
-      }
-      ctx.ui.setWorkingMessage?.();
-    }
+  // --- Install companions declared in the installed package manifest ----------
+  if (installSucceeded) {
+    await installCompanions(source, ctx);
   }
 
   // --- Reload extensions so the new package is available immediately ---------
