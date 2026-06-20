@@ -93,9 +93,18 @@ export async function installCompanions(
   source: string,
   ctx: CommandCtx,
 ): Promise<void> {
-  if (!ctx.home) return;
+  if (!ctx.home) {
+    ctx.ui.notify?.("Cannot resolve companions: catalog home directory is not available.", "warning");
+    return;
+  }
   const rootDir = resolveInstalledDir(source, ctx.home);
-  if (!rootDir) return;
+  if (!rootDir) {
+    ctx.ui.notify?.(
+      `Cannot resolve companions for "${source}": unable to determine installed directory (only npm sources can resolve companions).`,
+      "warning",
+    );
+    return;
+  }
 
   const visited = new Set<string>([source]);
   const queue: { dir: string; depth: number }[] = [{ dir: rootDir, depth: 0 }];
