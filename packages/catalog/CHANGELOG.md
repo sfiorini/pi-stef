@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-06-20
+### Changed
+- fix(catalog): gate tombstone apply on !dryRun, wire clearTombstones into pushCommand
+- fix(catalog): address tombstone review findings — atomic writes, dedup, clear-on-apply
+- test(catalog): add TDD tests for removal tombstones + fix missing mkdir
+- fix(catalog): prevent ct sync from re-installing packages removed via ct remove
+
+
 ## [0.6.3] - 2026-06-20
 ### Changed
 - fix(catalog): fall back to os.homedir() when ctx.home is undefined in installCompanions
