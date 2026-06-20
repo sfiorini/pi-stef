@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-06-20
+### Changed
+- fix(catalog): add companions to the catalog after successful install to prevent orphans
+
+
 ## [0.6.4] - 2026-06-20
 ### Changed
 - fix(catalog): gate tombstone apply on !dryRun, wire clearTombstones into pushCommand
