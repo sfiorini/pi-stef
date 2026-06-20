@@ -72,8 +72,8 @@ Commit ONLY to `pair/<slug>` (the worktree HEAD). Do not touch any base branch.
 
 Once ALL milestones are approved and committed to `pair/<slug>`:
 
-1. Call the `sf_pair_finalize` tool with the `worktree_path` from the implement tool result. It removes the worktree directory but PRESERVES `pair/<slug>`.
-2. Return to the original checkout (e.g. `cd` back to the repo root).
+1. Return to the original checkout FIRST: `cd` back to the repo root (the main checkout, NOT the worktree). You must be outside the worktree before calling finalize.
+2. Call the `sf_pair_finalize` tool with the `worktree_path` from the implement tool result. It removes the worktree directory but PRESERVES `pair/<slug>`.
 3. Stop for the user's final review. Tell the user: branch `pair/<slug>` holds all milestone commits and is ready to push / open a PR. Do NOT push automatically.
 
 ### Phase 6: Telegram Notification

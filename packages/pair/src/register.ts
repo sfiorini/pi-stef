@@ -283,10 +283,11 @@ export function registerSfPair(pi: ExtensionAPI): void {
     description:
       "Finalize a pair implement run: remove the worktree directory while preserving the pair/<slug> branch for a PR. Call after all milestones are committed to the worktree branch.",
     parameters: finalizeSchema as any,
-    execute: async (_id, params, _signal, _onUpdate, _ctx) => {
+    execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const worktreePath = (params as any).worktree_path;
+      const cwd = ctx.cwd ?? process.cwd();
       try {
-        await finalizeWorktree(worktreePath);
+        await finalizeWorktree(worktreePath, cwd);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
