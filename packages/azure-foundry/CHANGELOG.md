@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-06-20
+### Changed
+- chore: remove @pi-stef/superpowers-adapter and all references (M5)
+
+
 ## [0.1.2] - 2026-06-17
 ### Changed
 - feat(all): add repository and homepage fields to all package.json files

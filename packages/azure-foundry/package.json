@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/azure-foundry",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Azure Foundry and Azure OpenAI deployments as native Pi providers — config-driven, JSONC support, validation",
   "type": "module",
   "license": "MIT",
