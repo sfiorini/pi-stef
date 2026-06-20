@@ -20,6 +20,7 @@ import { piInstall } from "../util/exec.js";
 import { resolveCompanions } from "../catalog/companions.js";
 import { resolveInstalledDir } from "../catalog/install.js";
 
+/** Maximum companion recursion depth (3 hops) to bound chains and prevent runaway installs. */
 const MAX_COMPANION_DEPTH = 3;
 
 // ---------------------------------------------------------------------------
@@ -240,7 +241,7 @@ export async function addCommand(args: CommandArgs, ctx: AddCtx): Promise<void> 
       const queue: { dir: string; depth: number }[] = [{ dir: rootDir, depth: 0 }];
       while (queue.length > 0) {
         const { dir, depth } = queue.shift()!;
-        if (depth >= MAX_COMPANION_DEPTH) break;
+        if (depth >= MAX_COMPANION_DEPTH) continue;
         const catalogSources = new Set(
           Object.values(readCatalog(ctx.home).packages).map((p) => p.source),
         );

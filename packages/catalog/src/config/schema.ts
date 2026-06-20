@@ -19,9 +19,9 @@ export const CatalogPackageSchema = z.object({
   enabled: z.boolean().optional(),
   /**
    * Optional companion sources to auto-install alongside this package.
-   * Each entry is a source string (npm:... or git:...). Used when a
-   * package declares required companions in its own package.json via
-   * `pi.companions`; catalog copies them here on add.
+   * Each entry is a source string (npm:... or git:...). Reserved for
+   * future use — the catalog discovers companions at install time by
+   * reading `pi.companions` from the installed package's package.json.
    */
   companions: z.array(z.string().min(1)).optional(),
 });

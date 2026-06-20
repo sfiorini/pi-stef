@@ -1,3 +1,6 @@
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+
 /**
  * Companion-package resolution for the catalog.
  *
@@ -30,9 +33,6 @@ export function readCompanionsFromManifest(manifest: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw.filter((c): c is string => typeof c === "string" && c.length > 0);
 }
-
-import { readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
 
 /**
  * Resolve the companion sources declared by an installed package that are

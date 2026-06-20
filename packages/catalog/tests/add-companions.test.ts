@@ -189,7 +189,7 @@ describe("addCommand — companions", () => {
     await addCommand({ positional: ["npm:pkg-a"], flags: { type: "pi-native" } }, ctx);
 
     const calls = installSpy.mock.calls.map((c) => c[0]);
-    // MAX_COMPANION_DEPTH=3, so after root (a) → b (d=0) → c (d=1) → d (d=2) → "break at d>=3" means d's companion e is NOT installed
+    // MAX_COMPANION_DEPTH=3, so after root (a) → b (d=0) → c (d=1) → d (d=2) → "continue at d=3" means d's companion e is NOT installed
     expect(calls.filter((s) => s === "npm:pkg-e")).toHaveLength(0);
     // b, c, d should be installed
     expect(calls).toContain("npm:pkg-b");

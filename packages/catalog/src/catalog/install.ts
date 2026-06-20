@@ -199,7 +199,7 @@ export function scanInstalled(home?: string, cwd?: string): InstalledMap {
 export function resolveInstalledDir(source: string, home: string): string | undefined {
   const parsed = parseSource(source);
   if (parsed.type === "npm" && parsed.npmName) {
-    return path.join(home, ".pi", "agent", "npm", "node_modules", parsed.npmName);
+    return path.join(npmNodeModulesDir(home), parsed.npmName);
   }
   return undefined;
 }
