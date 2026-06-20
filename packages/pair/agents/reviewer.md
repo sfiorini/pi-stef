@@ -1,7 +1,6 @@
 ---
 description: Plan/Implementation Reviewer
 tools: read, grep, find, ls
-model: {{REVIEWER_MODEL}}
 thinking: high
 max_turns: 30
 isolated: true
