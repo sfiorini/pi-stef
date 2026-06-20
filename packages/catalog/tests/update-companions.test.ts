@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { updateCommand } from "../src/commands/update";
-import { writeCatalog } from "../src/config/io";
+import { writeCatalog, readCatalog } from "../src/config/io";
 import type { CatalogYaml } from "../src/config/schema";
 
 // ---------------------------------------------------------------------------
@@ -93,6 +93,10 @@ describe("updateCommand — companions", () => {
 
     // piInstall should have been called for the companion
     expect(installSpy).toHaveBeenCalledWith("git:github.com/obra/superpowers");
+    // The companion should be added to the catalog so it's not orphaned
+    const updatedCatalog = readCatalog(tmpDir);
+    expect(updatedCatalog.packages["github.com/obra/superpowers"]).toBeDefined();
+    expect(updatedCatalog.packages["github.com/obra/superpowers"].source).toBe("git:github.com/obra/superpowers");
 
     installSpy.mockRestore();
     ridMock.mockRestore();

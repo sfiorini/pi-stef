@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 import type { CommandCtx } from "../commands/types.js";
-import { readCatalog } from "../config/io.js";
+import { readCatalog, writeCatalog } from "../config/io.js";
 import { piInstall } from "../util/exec.js";
 import { resolveInstalledDir } from "./install.js";
+import { addPackage } from "./crud.js";
+import { sourceToKey } from "./source.js";
 
 /** Maximum companion recursion depth (3 hops) to bound chains and prevent runaway installs. */
 export const MAX_COMPANION_DEPTH = 3;
@@ -117,6 +119,20 @@ export async function installCompanions(
       try {
         await piInstall(c);
         ctx.ui.notify(`Installed companion "${c}"`, "info");
+        // Add the companion to the catalog so it's tracked (not orphaned).
+        // It was already verified not in catalogSources, so no risk of
+        // double-adding. Failures here are warnings — they don't undo the
+        // install, just mean the user may need to ct add manually.
+        try {
+          const key = sourceToKey(c);
+          const updated = addPackage(readCatalog(ctx.home), key, c);
+          writeCatalog(updated, ctx.home);
+        } catch {
+          ctx.ui.notify(
+            `Warning: companion "${c}" installed but could not be added to catalog`,
+            "warning",
+          );
+        }
       } catch {
         ctx.ui.notify(`Warning: companion "${c}" install failed`, "warning");
       }
