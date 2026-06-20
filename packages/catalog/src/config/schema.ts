@@ -17,6 +17,13 @@ export const CatalogPackageSchema = z.object({
   profile: z.string().optional(),
   /** Whether the package is active. Defaults to true when absent. */
   enabled: z.boolean().optional(),
+  /**
+   * Optional companion sources to auto-install alongside this package.
+   * Each entry is a source string (npm:... or git:...). Used when a
+   * package declares required companions in its own package.json via
+   * `pi.companions`; catalog copies them here on add.
+   */
+  companions: z.array(z.string().min(1)).optional(),
 });
 
 /** The meta section at the top of cat.yaml. */
