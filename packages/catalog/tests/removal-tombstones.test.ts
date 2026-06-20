@@ -55,7 +55,7 @@ describe("removal tombstones", () => {
       pair: { source: "npm:@pi-stef/pair" },
       team: { source: "npm:@pi-stef/team" },
     });
-    // Tombsones are cleared after application — a "re-add remotely"
+    // Tombstones are cleared after application — a "re-add remotely"
     // scenario on the next sync won't be silently dropped.
     expect(readTombstones(tmpHome)).toEqual([]);
   });

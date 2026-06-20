@@ -1,6 +1,5 @@
 import { readFileSync, existsSync, writeFileSync, unlinkSync, mkdirSync, renameSync } from "node:fs";
 import path from "node:path";
-import { tmpdir } from "node:os";
 import { catalogDir } from "../config/paths";
 import type { CatalogYaml } from "../config/schema";
 
@@ -61,7 +60,7 @@ export function applyRemovalTombstones(
   for (const key of removed) {
     delete catalog.packages[key];
   }
-  // Tombsones have served their purpose — the packages are now dropped
+  // Tombstones have served their purpose — the packages are now dropped
   // from the in-memory catalog and won't be re-installed. Clear them
   // regardless of whether the subsequent push succeeds, so they don't
   // leak into the next sync cycle and silently drop re-added packages.
