@@ -7,6 +7,7 @@ import {
   resolveExplorerModel,
 } from "./config/load";
 import { ensureAgentFiles } from "./agents";
+import { buildImplementReadyMessage } from "./messages";
 
 import { finalizeWorktree } from "./worktree/finalize";
 import { createWorktree } from "./worktree/create";
@@ -187,15 +188,18 @@ export function registerSfPair(pi: ExtensionAPI): void {
         };
       }
 
-      const warnText = agentWarnings.length > 0
-        ? `\n\n⚠️ Agent warning:\n${agentWarnings.map((w) => `- ${w}`).join("\n")}`
-        : "";
-
       return {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nPlan path: ${rawPath}\nWorktree created at ${worktree.worktreePath} on branch ${worktree.branchName} (base ${worktree.baseSha}).${warnText}\n\nSwitch to the worktree directory, then load the skill named "sf-pair-implement" and follow its instructions exactly. When all milestones are committed to ${worktree.branchName}, call sf_pair_finalize with worktree_path "${worktree.worktreePath}".`,
+            text: buildImplementReadyMessage({
+              reviewerModel: model,
+              planPath: rawPath,
+              worktreePath: worktree.worktreePath,
+              branchName: worktree.branchName,
+              baseSha: worktree.baseSha,
+              warnings: agentWarnings,
+            }),
           },
         ],
         details: {
