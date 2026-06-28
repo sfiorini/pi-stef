@@ -11,6 +11,6 @@ describe("fetchClose", () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ price: "65000" }), { status: 200, headers: { "content-type": "application/json" } }));
     const close = await fetchClose("CRYPTO:BTC", { fetcher: fetcher as never });
     expect(close).toBe(65000);
-    expect(fetcher.mock.calls[0][0]).toContain("coinbase.com");
+    expect((fetcher.mock.calls[0] as string[])[0]).toContain("coinbase.com");
   });
 });
