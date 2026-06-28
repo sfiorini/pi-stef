@@ -11,7 +11,13 @@ export function historyRoutes(db: Database.Database) {
     
     let rows;
     if (accountId) {
-      rows = db.prepare("SELECT * FROM prices WHERE symbol=? ORDER BY date DESC").all(symbol);
+      // Filter by account: join through holdings to get account-specific prices
+      rows = db.prepare(`
+        SELECT DISTINCT p.* FROM prices p
+        JOIN holdings h ON h.symbol = p.symbol
+        WHERE p.symbol = ? AND h.account_id = ?
+        ORDER BY p.date DESC
+      `).all(symbol, accountId);
     } else {
       rows = db.prepare("SELECT * FROM prices WHERE symbol=? ORDER BY date DESC").all(symbol);
     }
