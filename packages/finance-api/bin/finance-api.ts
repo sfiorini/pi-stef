@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 // finance-api service entry point
-import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets, buildDefaultRegistry } from "../src/index";
+import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets } from "../src/index";
 
 const log = createLogger();
 
@@ -23,9 +23,6 @@ async function main() {
     // Load secrets
     const secrets = loadSecrets(config.secretsPath);
     log.info("Secrets loaded", { providerCount: Object.keys(secrets).length });
-    
-    // Build provider registry
-    const registry = buildDefaultRegistry();
     
     // Start server
     const server = await startServer({

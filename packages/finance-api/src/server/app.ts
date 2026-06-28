@@ -12,6 +12,7 @@ import { importRoutes } from "./routes/import-route";
 import { historyRoutes } from "./routes/history";
 import { healthRoutes } from "./health";
 import { exportRoutes } from "./routes/export";
+import { driftRoutes } from "./routes/drift";
 
 export interface AppDeps {
   db: Database.Database;
@@ -38,6 +39,7 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/v1/import", importRoutes(deps.db));
   app.route("/v1/history", historyRoutes(deps.db));
   app.route("/v1/export", exportRoutes(deps.db));
+  app.route("/v1/drift", driftRoutes(deps.db));
   
   return app;
 }
