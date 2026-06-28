@@ -28,11 +28,18 @@ export function computeRebalance(
     // distribute the class diff proportionally across that class's holdings
     const classHoldings = holdings.filter((h) => h.assetClass === cls);
     const classValue = classHoldings.reduce((a, h) => a + h.quantity * h.price, 0) || 1;
-    for (const h of classHoldings) {
-      const share = (h.quantity * h.price) / classValue;
-      const d = diff * share;
-      if (Math.abs(d) < input.minTradeDollars) continue;
-      orders.push({ symbol: h.symbol, side: d > 0 ? "buy" : "sell", dollars: Math.abs(d), estQty: Math.abs(d) / h.price });
+    
+    if (classHoldings.length === 0 && diff > input.minTradeDollars) {
+      // No holdings in this class yet — emit a placeholder buy order
+      // The agent will need to recommend a specific instrument
+      orders.push({ symbol: `[${cls}]`, side: "buy", dollars: diff, estQty: 0 });
+    } else {
+      for (const h of classHoldings) {
+        const share = (h.quantity * h.price) / classValue;
+        const d = diff * share;
+        if (Math.abs(d) < input.minTradeDollars) continue;
+        orders.push({ symbol: h.symbol, side: d > 0 ? "buy" : "sell", dollars: Math.abs(d), estQty: Math.abs(d) / h.price });
+      }
     }
   }
   return orders;

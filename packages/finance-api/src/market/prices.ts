@@ -15,7 +15,9 @@ export async function fetchClose(symbol: string, deps: PriceDeps = {}): Promise<
 
   const feed = deps.feed ?? "stooq";
   if (feed === "stooq") {
-    const res = await fetcher(`https://stooq.com/q/l/?s=${symbol.toLowerCase()}&f=sd2t2ohlcv&h&e=csv`, {});
+    // Stooq requires .us suffix for US equities
+    const stooqSymbol = symbol.includes(".") ? symbol.toLowerCase() : `${symbol.toLowerCase()}.us`;
+    const res = await fetcher(`https://stooq.com/q/l/?s=${stooqSymbol}&f=sd2t2ohlcv&h&e=csv`, {});
     if (!res.ok) throw new Error(`stooq ${symbol} ${res.status}`);
     const text = await res.text();
     const row = text.trim().split(/\r?\n/)[1]?.split(",") ?? [];
