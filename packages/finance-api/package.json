@@ -36,7 +36,8 @@
     "@pi-stef/paths": "^0.3.0",
     "@sinclair/typebox": "*",
     "better-sqlite3": "^12.11.1",
-    "hono": "^4.6.0"
+    "hono": "^4.6.0",
+    "tsx": "^4.0.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11"
