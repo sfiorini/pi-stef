@@ -6,7 +6,7 @@ services:
       context: ../..  # Repo root
       dockerfile: packages/finance-api/docker/Dockerfile
     ports:
-      - "7780:7780"
+      - "127.0.0.1:7780:7780"  # Localhost only for security
     volumes:
       - finance-data:/data
       - finance-config:/root/.pi/sf/finance
