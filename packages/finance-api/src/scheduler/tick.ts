@@ -3,13 +3,13 @@ import type { AdapterRegistry, IngestCreds } from "../ingest/registry";
 import { runIngest } from "../ingest/registry";
 import { classifySession, type Session } from "../market/session";
 import { fetchClose } from "../market/prices";
-import { listHoldings, listAccounts, insertSuggestion, upsertGoal, listGoals } from "../store/repo";
+import { listHoldings, listAccounts, insertSuggestion, listGoals } from "../store/repo";
 import { computeDrift, type HoldingValued } from "../quant/drift";
 import { computeRebalance } from "../quant/rebalance";
 import { checkRisk } from "../quant/risk";
 import { nextDcaBuy } from "../quant/dca";
 import { buildSuggestions } from "../quant/suggestions";
-import { isCrypto, CRYPTO_PREFIX } from "../store/symbols";
+import { isCrypto } from "../store/symbols";
 import type { Logger } from "../server/logger";
 
 export interface TickDeps {
@@ -33,7 +33,7 @@ export interface TickResult {
 export async function runTick(deps: TickDeps): Promise<TickResult> {
   const { db, registry, creds, log } = deps;
   const now = deps.now ?? Date.now();
-  const fetcher = deps.fetcher ?? ((url: string, init?: RequestInit) => fetch(url, init));
+  const fetcher = deps.fetcher ?? fetch;
 
   // Classify current market session
   const session = classifySession(new Date(now));
@@ -105,7 +105,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const risk = checkRisk(holdingsValued, { riskLimits, cashAvailable: 0 });
 
   // Check DCA
-  const dcaResults = goals.map((g) => {
+  const dcaResults = goals.map(() => {
     const dcaConfig = { amount: 1000, cadence: "monthly" as const, lastBuyAt: undefined };
     return nextDcaBuy(dcaConfig, now);
   });
