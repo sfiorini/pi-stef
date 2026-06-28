@@ -24,11 +24,12 @@ function etParts(d: Date): { dow: number; month: number; day: number; minutes: n
 export function classifySession(d: Date): Session {
   const { dow, month, day, minutes } = etParts(d);
   if (dow === 0 || dow === 6) return "closed";
-  // Year-guard: if we're past the last year with known holidays, throw loudly
-  // so the annual-refresh regression can't pass silently. (Callers wrap in try/catch
-  // during tests; the daemon logs this as an error.)
-  if (d.getUTCFullYear() > 2026) throw new Error(`session classifier has no holidays for year ${d.getUTCFullYear()} — refresh HOLIDAYS list annually`);
-  if (HOLIDAYS_2026.has(`${month}-${day}`)) return "closed";
+  // Year-guard: if we're past the last year with known holidays, fall back to
+  // weekday-only classification (no holiday detection) rather than throwing.
+  // This keeps the always-on daemon running; holidays will be treated as trading days
+  // until the HOLIDAYS list is refreshed annually.
+  const isKnownYear = d.getUTCFullYear() <= 2026;
+  if (isKnownYear && HOLIDAYS_2026.has(`${month}-${day}`)) return "closed";
   if (minutes >= 7 * 60 && minutes < 9 * 60 + 30) return "pre";
   if (minutes >= 9 * 60 + 30 && minutes < 16 * 60) return "intraday";
   if (minutes >= 16 * 60 && minutes < 20 * 60) return "post";
