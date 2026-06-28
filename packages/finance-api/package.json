@@ -32,6 +32,7 @@
     "serve": "node bin/finance-api.mjs"
   },
   "dependencies": {
+    "@hono/node-server": "^2.0.6",
     "@pi-stef/paths": "^0.3.0",
     "@sinclair/typebox": "*",
     "better-sqlite3": "^12.11.1",
