@@ -37,6 +37,11 @@ describe("runTick", () => {
     expect(result.session).toBe("intraday");
     expect(result.pricesUpdated).toBeGreaterThanOrEqual(0);
     expect(result.suggestionsCreated).toBeGreaterThanOrEqual(0);
+    
+    // Verify market_sessions was persisted
+    const sessions = db.prepare("SELECT * FROM market_sessions").all();
+    expect(sessions.length).toBeGreaterThan(0);
+    expect((sessions[0] as { session: string }).session).toBe("intraday");
   });
 
   it("on closed sessions, only refreshes crypto prices", async () => {

@@ -20,7 +20,7 @@ export interface DaemonHandle {
 const MS_MINUTE = 60_000;
 const MS_HOUR = 3_600_000;
 
-function getNextTickDelay(session: string): number {
+export function getNextTickDelay(session: string): number {
   switch (session) {
     case "pre":
       return 30 * MS_MINUTE; // Light: every 30 min
