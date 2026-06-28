@@ -1,6 +1,6 @@
-#!/usr/bin/env node
+#!/usr/bin/env tsx
 // finance-api service entry point
-import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets, buildDefaultRegistry } from "../src/index.ts";
+import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets, buildDefaultRegistry } from "../src/index";
 
 const log = createLogger();
 

@@ -29,7 +29,7 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "serve": "node bin/finance-api.mjs"
+    "serve": "tsx bin/finance-api.ts"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",

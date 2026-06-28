@@ -4,6 +4,18 @@ import type { ProviderAdapter, ProviderKind, Credentials, Session, RawAccount, R
 import { parsePositionsCsv } from "./csv";
 import { parseOfx } from "./ofx";
 
+/**
+ * Parse OFX date format (YYYYMMDD or YYYYMMDDHHMMSS) into unix ms.
+ * OFX dates are in the format: 20260101 or 20260101120000
+ */
+function parseOfxDate(dateStr: string): number {
+  if (!dateStr || dateStr.length < 8) return 0;
+  const year = parseInt(dateStr.slice(0, 4), 10);
+  const month = parseInt(dateStr.slice(4, 6), 10) - 1; // 0-indexed
+  const day = parseInt(dateStr.slice(6, 8), 10);
+  return new Date(year, month, day).getTime();
+}
+
 export function createFileAdapter(providerId: string, kind: ProviderKind): ProviderAdapter {
   return {
     kind, providerId,
@@ -28,7 +40,12 @@ export function createFileAdapter(providerId: string, kind: ProviderKind): Provi
       const buf = await readFile(filePath, "utf8");
       if (buf.includes("OFXHEADER")) {
         const ofx = parseOfx(buf);
-        return ofx.transactions.map((t, i) => ({ id: `${i}`, date: Number(t.date), type: t.amount >= 0 ? "credit" : "debit", fees: 0 }));
+        return ofx.transactions.map((t, i) => ({
+          id: `${i}`,
+          date: parseOfxDate(t.date),
+          type: t.amount >= 0 ? "credit" : "debit",
+          fees: 0,
+        }));
       }
       return [];
     },
