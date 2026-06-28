@@ -1,4 +1,4 @@
-import { openSync, closeSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { openSync, closeSync, readFileSync, writeFileSync, mkdirSync, chmodSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname } from "node:path";
 
@@ -13,12 +13,14 @@ export async function ensureToken(tokenPath: string): Promise<string> {
   const token = randomUUID();
   try {
     // Atomic create-exclusive: O_CREAT | O_EXCL fails with EEXIST if file exists
-    const fd = openSync(tokenPath, "wx");
+    const fd = openSync(tokenPath, "wx", 0o600);
     try {
       writeFileSync(fd, token, "utf8");
     } finally {
       closeSync(fd);
     }
+    // Ensure permissions are restrictive (in case umask modified them)
+    try { chmodSync(tokenPath, 0o600); } catch { /* best effort */ }
     return token;
   } catch (e) {
     if (e instanceof Error && "code" in e && (e as { code: string }).code === "EEXIST") {

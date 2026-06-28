@@ -11,7 +11,10 @@ export function netWorthRoutes(db: Database.Database) {
     for (const a of accounts) {
       const holdings = listHoldings(db, a.id);
       for (const h of holdings) {
-        totalValue += h.quantity * (h.avg_cost ?? 0);
+        // Use latest price from prices table if available, otherwise fall back to avg_cost
+        const priceRow = db.prepare("SELECT close FROM prices WHERE symbol=? ORDER BY date DESC LIMIT 1").get(h.symbol) as { close: number } | undefined;
+        const price = priceRow?.close ?? h.avg_cost ?? 0;
+        totalValue += h.quantity * price;
       }
     }
     return c.json(ok({ netWorth: totalValue, accountCount: accounts.length }));
