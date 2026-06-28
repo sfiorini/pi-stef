@@ -80,4 +80,69 @@ describe("server", () => {
     expect(body.ok).toBe(true);
     expect(body.data.session).toBeDefined();
   });
+
+  it("GET /v1/net-worth returns net worth", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 150, asset_class: "equity", as_of: 1 });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/net-worth", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.netWorth).toBe(1500); // 10 * 150
+  });
+
+  it("GET /v1/allocation returns allocation by asset class", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 100, asset_class: "equity", as_of: 1 });
+    upsertHolding(db, { account_id: "fid-1", symbol: "BOND", quantity: 5, avg_cost: 200, asset_class: "bonds", as_of: 1 });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/allocation", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.allocation.equity).toBeCloseTo(0.5, 2); // 1000/2000
+    expect(body.data.allocation.bonds).toBeCloseTo(0.5, 2); // 1000/2000
+  });
+
+  it("POST /v1/suggestions/dismiss requires id", async () => {
+    const db = openDb(":memory:");
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/suggestions/dismiss", {
+      method: "POST",
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({}),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /v1/export with json format returns all tables", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/export", {
+      method: "POST",
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ format: "json" }),
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.ok).toBe(true);
+    expect(body.data.accounts).toHaveLength(1);
+  });
 });
