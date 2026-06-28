@@ -31,7 +31,7 @@ export async function loadFinanceApiConfig(
   const envPort = Number.isFinite(rawPort) && rawPort! > 0 ? rawPort : undefined;
 
   return {
-    host: "127.0.0.1",
+    host: env.SF_FINANCE_HOST ?? fileConfig.host ?? defaults.host,
     port: envPort ?? fileConfig.port ?? defaults.port,
     dbPath: env.SF_FINANCE_DB ?? fileConfig.dbPath ?? defaults.dbPath,
     secretsPath: fileConfig.secretsPath ?? defaults.secretsPath,

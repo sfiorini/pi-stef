@@ -32,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 COPY --from=build /app /app
 
 # Set environment
-ENV SF_FINANCE_HOST=127.0.0.1
+ENV SF_FINANCE_HOST=0.0.0.0
 ENV SF_FINANCE_PORT=7780
 EXPOSE 7780
 
