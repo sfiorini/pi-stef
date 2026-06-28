@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
-import { globalConfig } from "@pi-stef/paths";
+import path from "node:path";
+import { globalConfig, globalDir } from "@pi-stef/paths";
 
 export interface FinanceConfig {
   apiUrl: string;
@@ -19,8 +20,20 @@ export async function loadFinanceConfig(
   } catch (e) {
     if (!(e instanceof Error && "code" in e && (e as { code: string }).code === "ENOENT")) throw e;
   }
+  
+  // Try to read auto-generated token from ~/.pi/sf/finance/token
+  let autoToken = "";
+  if (!fileToken && !env.SF_FINANCE_TOKEN) {
+    try {
+      const tokenPath = path.join(globalDir("finance", homeDir), "token");
+      autoToken = (await readFile(tokenPath, "utf8")).trim();
+    } catch {
+      // Token file doesn't exist yet (service not started)
+    }
+  }
+  
   return {
     apiUrl: env.SF_FINANCE_API_URL || fileUrl || "http://127.0.0.1:7780",
-    token: env.SF_FINANCE_TOKEN || fileToken || "",
+    token: env.SF_FINANCE_TOKEN || fileToken || autoToken || "",
   };
 }

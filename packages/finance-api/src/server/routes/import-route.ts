@@ -11,11 +11,8 @@ export function importRoutes(db: Database.Database) {
     const { filePath } = await c.req.json();
     if (!filePath) return c.json(fail("bad_request", "Missing filePath"), 400);
     
-    // Security: reject absolute paths and directory traversal
-    if (path.isAbsolute(filePath)) {
-      return c.json(fail("bad_request", "Absolute paths are not allowed"), 400);
-    }
-    if (filePath.includes("..")) {
+    // Security: reject directory traversal (but allow absolute paths for local file imports)
+    if (filePath.includes("..") && !path.isAbsolute(filePath)) {
       return c.json(fail("bad_request", "Directory traversal is not allowed"), 400);
     }
     
