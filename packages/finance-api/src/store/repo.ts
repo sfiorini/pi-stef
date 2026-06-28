@@ -28,3 +28,12 @@ export function listHoldings(db: Database.Database, accountId: string): HoldingR
 export function listAccounts(db: Database.Database): AccountRow[] {
   return db.prepare("SELECT * FROM accounts").all() as AccountRow[];
 }
+
+export interface LotRow { id: string; holding_key: string; open_date: number; qty: number; cost_basis: number }
+
+export function upsertLot(db: Database.Database, lot: LotRow): void {
+  db.prepare(`INSERT INTO lots (id, holding_key, open_date, qty, cost_basis)
+              VALUES (@id, @holding_key, @open_date, @qty, @cost_basis)
+              ON CONFLICT(id) DO UPDATE SET qty=@qty, cost_basis=@cost_basis`)
+    .run(lot);
+}

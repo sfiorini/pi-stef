@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import type { ProviderAdapter, Credentials } from "./contract";
 import { normalizeHolding } from "./normalizer";
-import { upsertAccount, upsertHolding, markStale, listHoldings, listAccounts } from "../store/repo";
+import { upsertAccount, upsertHolding, upsertLot, markStale, listHoldings, listAccounts } from "../store/repo";
 
 export type AdapterRegistry = Map<string, ProviderAdapter>;
 
@@ -40,6 +40,16 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
             const { lots, ...row } = n;
             upsertHolding(db, row);
             holdings++;
+            // Persist tax lots if provided
+            if (lots) {
+              for (const lot of lots) {
+                upsertLot(db, {
+                  id: `${id}:${n.symbol}:${lot.open_date}`,
+                  holding_key: `${id}:${n.symbol}`,
+                  ...lot,
+                });
+              }
+            }
           }
         } catch (e) {
           markStale(db, id, Date.now(), e instanceof Error ? e.message : String(e));
