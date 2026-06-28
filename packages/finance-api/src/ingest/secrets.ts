@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, chmodSync } from "node:fs";
 import type { IngestCreds } from "./registry";
 
 /**
@@ -23,4 +23,6 @@ export function loadSecrets(secretsPath: string): IngestCreds {
  */
 export function saveSecrets(secretsPath: string, creds: IngestCreds): void {
   writeFileSync(secretsPath, JSON.stringify(creds, null, 2), { encoding: "utf8", mode: 0o600 });
+  // Ensure permissions are 0600 even if file already existed with broader perms
+  try { chmodSync(secretsPath, 0o600); } catch { /* best effort */ }
 }
