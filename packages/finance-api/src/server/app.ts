@@ -17,6 +17,8 @@ import { driftRoutes } from "./routes/drift";
 export interface AppDeps {
   db: Database.Database;
   token: string;
+  registry?: import("../ingest/registry").AdapterRegistry;
+  creds?: import("../ingest/registry").IngestCreds;
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -35,7 +37,10 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/v1/allocation", allocationRoutes(deps.db));
   app.route("/v1/goals", goalsRoutes(deps.db));
   app.route("/v1/suggestions", suggestionsRoutes(deps.db));
-  app.route("/v1/sync", syncRoutes(deps.db));
+  app.route("/v1/sync", syncRoutes(deps.db, {
+    registry: deps.registry ?? new Map(),
+    creds: deps.creds ?? {},
+  }));
   app.route("/v1/import", importRoutes(deps.db));
   app.route("/v1/history", historyRoutes(deps.db));
   app.route("/v1/export", exportRoutes(deps.db));

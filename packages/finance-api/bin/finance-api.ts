@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 // finance-api service entry point
-import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets } from "../src/index";
+import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets, buildDefaultRegistry, startDaemon } from "../src/index";
 
 const log = createLogger();
 
@@ -35,9 +35,22 @@ async function main() {
     
     log.info("Server started", { host: config.host, port: server.port });
     
+    // Build provider registry
+    const registry = buildDefaultRegistry();
+    
+    // Start scheduler daemon
+    const daemon = startDaemon({
+      db,
+      registry,
+      creds: secrets,
+      log,
+    });
+    log.info("Daemon started");
+    
     // Graceful shutdown
     const shutdown = () => {
       log.info("Shutting down...");
+      daemon.stop();
       server.close();
       db.close();
       process.exit(0);

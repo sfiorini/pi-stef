@@ -1,13 +1,23 @@
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
+import type { AdapterRegistry, IngestCreds } from "../../ingest/registry";
+import { runTick } from "../../scheduler/tick";
 import { ok } from "../errors";
 
-export function syncRoutes(_db: Database.Database) {
+export interface SyncDeps {
+  registry: AdapterRegistry;
+  creds: IngestCreds;
+}
+
+export function syncRoutes(db: Database.Database, deps: SyncDeps) {
   const r = new Hono();
   r.post("/", async (c) => {
-    // Sync is handled by the scheduler; this endpoint triggers an immediate tick
-    // For now, return success (actual sync logic wired in M9)
-    return c.json(ok({ message: "Sync triggered" }));
+    const result = await runTick({
+      db,
+      registry: deps.registry,
+      creds: deps.creds,
+    });
+    return c.json(ok({ message: "Sync complete", ...result }));
   });
   return r;
 }
