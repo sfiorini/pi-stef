@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { backupDb, exportJson } from "../src/store/backup";
 import { applyMigrations } from "../src/store/migrations";
 import { upsertAccount, upsertHolding } from "../src/store/repo";
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
