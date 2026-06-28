@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  finance-api:
+    build:
+      context: ../..  # Repo root
+      dockerfile: packages/finance-api/docker/Dockerfile
+    ports:
+      - "7780:7780"
+    volumes:
+      - finance-data:/data
+    environment:
+      - SF_FINANCE_DB=/data/finance.db
+      - SF_FINANCE_HOST=127.0.0.1
+      - SF_FINANCE_PORT=7780
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7780/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  finance-data:
