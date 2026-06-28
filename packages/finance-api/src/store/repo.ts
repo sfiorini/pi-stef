@@ -37,3 +37,32 @@ export function upsertLot(db: Database.Database, lot: LotRow): void {
               ON CONFLICT(id) DO UPDATE SET qty=@qty, cost_basis=@cost_basis`)
     .run(lot);
 }
+
+export interface SuggestionRow { id: string; created_at: number; market_session: string; kind: string; payload: string; status: string }
+
+export function insertSuggestion(db: Database.Database, s: SuggestionRow): void {
+  db.prepare(`INSERT INTO suggestion_records (id, created_at, market_session, kind, payload, status)
+              VALUES (@id, @created_at, @market_session, @kind, @payload, @status)`)
+    .run(s);
+}
+
+export function listPendingSuggestions(db: Database.Database): SuggestionRow[] {
+  return db.prepare("SELECT * FROM suggestion_records WHERE status='pending' ORDER BY created_at").all() as SuggestionRow[];
+}
+
+export function dismissSuggestion(db: Database.Database, id: string): void {
+  db.prepare("UPDATE suggestion_records SET status='dismissed' WHERE id=?").run(id);
+}
+
+export interface GoalRow { id: string; name: string; target_allocation: string; risk_limits: string; horizon_years?: number | null }
+
+export function upsertGoal(db: Database.Database, g: GoalRow): void {
+  db.prepare(`INSERT INTO goals (id, name, target_allocation, risk_limits, horizon_years)
+              VALUES (@id, @name, @target_allocation, @risk_limits, @horizon_years)
+              ON CONFLICT(id) DO UPDATE SET name=@name, target_allocation=@target_allocation, risk_limits=@risk_limits, horizon_years=@horizon_years`)
+    .run({ ...g, horizon_years: g.horizon_years ?? null });
+}
+
+export function listGoals(db: Database.Database): GoalRow[] {
+  return db.prepare("SELECT * FROM goals").all() as GoalRow[];
+}
