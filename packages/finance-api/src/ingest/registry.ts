@@ -36,20 +36,30 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
         try {
           const asOf = Date.now();
           const raws = await adapter.getHoldings(session, acc.providerAccountId);
+          
+          // Clear existing holdings for this account before re-inserting
+          // This prevents stale holdings from accumulating when positions are sold
+          db.prepare("DELETE FROM holdings WHERE account_id=?").run(id);
+          
           for (const raw of raws) {
-            const n = normalizeHolding({ providerId, accountId: id, asOf }, raw);
-            const { lots, ...row } = n;
-            upsertHolding(db, row);
-            holdings++;
-            // Persist tax lots if provided
-            if (lots) {
-              for (const lot of lots) {
-                upsertLot(db, {
-                  id: `${id}:${n.symbol}:${lot.open_date}`,
-                  holding_key: `${id}:${n.symbol}`,
-                  ...lot,
-                });
+            try {
+              const n = normalizeHolding({ providerId, accountId: id, asOf }, raw);
+              const { lots, ...row } = n;
+              upsertHolding(db, row);
+              holdings++;
+              // Persist tax lots if provided
+              if (lots) {
+                for (const lot of lots) {
+                  upsertLot(db, {
+                    id: `${id}:${n.symbol}:${lot.open_date}`,
+                    holding_key: `${id}:${n.symbol}`,
+                    ...lot,
+                  });
+                }
               }
+            } catch (e) {
+              // Log individual holding errors but continue with others
+              log?.warn("holding ingest failed", { accountId: id, symbol: raw.symbol, error: e instanceof Error ? e.message : String(e) });
             }
           }
         } catch (e) {
