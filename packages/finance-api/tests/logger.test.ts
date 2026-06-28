@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createLogger } from "../src/server/logger";
 import { loadSecrets, saveSecrets } from "../src/ingest/secrets";
-import { mkdtempSync, rmSync, readFileSync, statSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 

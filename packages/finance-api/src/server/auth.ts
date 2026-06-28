@@ -6,7 +6,7 @@ import type { Context, Next } from "hono";
  * Compares the Authorization header against the expected token using constant-time comparison.
  */
 export function bearerAuth(token: string) {
-  return async (c: Context, next: Next) => {
+  return async (c: Context, next: Next): Promise<Response | void> => {
     const auth = c.req.header("Authorization") ?? "";
     const match = auth.match(/^Bearer\s+(.+)$/i);
     if (!match) {

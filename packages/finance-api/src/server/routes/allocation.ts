@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
-import { listHoldings } from "../../store/repo";
+// listHoldings not needed - using direct SQL query
 import { ok } from "../errors";
 
 export function allocationRoutes(db: Database.Database) {

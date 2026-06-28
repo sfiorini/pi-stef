@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { ok, fail } from "../errors";
 
-export function importRoutes(db: Database.Database) {
+export function importRoutes(_db: Database.Database) {
   const r = new Hono();
   r.post("/", async (c) => {
     const { filePath } = await c.req.json();

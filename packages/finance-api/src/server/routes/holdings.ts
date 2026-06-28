@@ -9,8 +9,6 @@ export function holdingsRoutes(db: Database.Database) {
     const accounts = listAccounts(db).map((a) => ({
       ...a,
       holdings: listHoldings(db, a.id),
-      staleAt: a.stale_at,
-      staleReason: a.stale_reason,
     }));
     return c.json(ok({ accounts }));
   });
