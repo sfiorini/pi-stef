@@ -1,5 +1,4 @@
 // Format structured service JSON → agent-readable text
-import type { CallResult } from "./client";
 
 export function formatHoldings(data: { accounts: { id: string; name: string; holdings: { symbol: string; quantity: number; asset_class: string }[] }[] }): string {
   const lines: string[] = [];

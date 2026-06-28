@@ -125,7 +125,7 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async (params) => {
       const client = await getClient();
-      const data = await client.callOp<{ id: string }>("set_target", params as Record<string, unknown>);
+      const data = await client.callOp<{ id: string }>("set_target", params as unknown as Record<string, unknown>);
       return { content: [{ type: "text", text: `Goal ${data.id} saved` }], details: { implemented: true } };
     },
   });
@@ -161,7 +161,7 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async (params) => {
       const client = await getClient();
-      await client.callOp("dismiss_suggestion", params as Record<string, unknown>);
+      await client.callOp("dismiss_suggestion", params as unknown as Record<string, unknown>);
       return { content: [{ type: "text", text: `Suggestion dismissed` }], details: { implemented: true } };
     },
   });
@@ -197,7 +197,7 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async (params) => {
       const client = await getClient();
-      const data = await client.callOp<{ message: string; filePath: string }>("import_file", params as Record<string, unknown>);
+      const data = await client.callOp<{ message: string; filePath: string }>("import_file", params as unknown as Record<string, unknown>);
       return { content: [{ type: "text", text: `${data.message}: ${data.filePath}` }], details: { implemented: true } };
     },
   });
@@ -219,7 +219,7 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async (params) => {
       const client = await getClient();
-      const data = await client.callOp("history", params as Record<string, unknown>);
+      const data = await client.callOp("history", params as unknown as Record<string, unknown>);
       return { content: [{ type: "text", text: formatGeneric(data) }], details: { implemented: true } };
     },
   });

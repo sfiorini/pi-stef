@@ -10,12 +10,12 @@ describe("finance client", () => {
 
     // GET operation
     await client.callOp("get_holdings");
-    expect(fetcher.mock.calls[0][1].method).toBe("GET");
+    expect((fetcher.mock.calls[0] as unknown[])[1]).toHaveProperty("method", "GET");
 
     // POST operation
     await client.callOp("set_target", { id: "g1", name: "test" });
-    expect(fetcher.mock.calls[1][1].method).toBe("POST");
-    expect(JSON.parse(fetcher.mock.calls[1][1].body)).toEqual({ id: "g1", name: "test" });
+    expect((fetcher.mock.calls[1] as unknown[])[1]).toHaveProperty("method", "POST");
+    expect(JSON.parse(((fetcher.mock.calls[1] as unknown[])[1] as { body: string }).body)).toEqual({ id: "g1", name: "test" });
   });
 
   it("callOp includes Authorization header", async () => {
@@ -25,7 +25,7 @@ describe("finance client", () => {
     const client = createFinanceClient({ apiUrl: "http://localhost:7780", token: "my-token" });
     await client.callOp("market_status");
 
-    expect(fetcher.mock.calls[0][1].headers.Authorization).toBe("Bearer my-token");
+    expect(((fetcher.mock.calls[0] as unknown[])[1] as { headers: { Authorization: string } }).headers.Authorization).toBe("Bearer my-token");
   });
 
   it("callOp throws on {ok:false}", async () => {
