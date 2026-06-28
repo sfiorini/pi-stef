@@ -34,7 +34,7 @@
   "dependencies": {
     "@pi-stef/paths": "^0.3.0",
     "@sinclair/typebox": "*",
-    "better-sqlite3": "^11.3.0",
+    "better-sqlite3": "^12.11.1",
     "hono": "^4.6.0"
   },
   "devDependencies": {

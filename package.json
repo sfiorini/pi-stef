@@ -20,6 +20,10 @@
     "vitepress": "^1.6.3",
     "vitest": "^4.0.0"
   },
+  "onlyBuiltDependencies": [
+    "better-sqlite3",
+    "esbuild"
+  ],
   "dependencies": {
     "@pi-stef/agent-workflows": "workspace:^0.3.0",
     "@pi-stef/atlassian": "workspace:^0.3.0",
