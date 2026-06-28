@@ -30,6 +30,8 @@
     "@pi-stef/pair": "workspace:^0.1.0",
     "@pi-stef/paths": "workspace:^0.3.0",
     "@pi-stef/team": "workspace:^0.3.0",
-    "@pi-stef/web": "workspace:^0.3.0"
+    "@pi-stef/web": "workspace:^0.3.0",
+    "@pi-stef/finance": "workspace:^0.1.0",
+    "@pi-stef/finance-api": "workspace:^0.1.0"
   }
 }
