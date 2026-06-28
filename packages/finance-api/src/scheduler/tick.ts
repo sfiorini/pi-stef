@@ -134,6 +134,18 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     suggestionsCreated++;
   }
 
+  // Persist market session snapshot
+  const sessionDate = new Date(now).toISOString().split("T")[0];
+  db.prepare("INSERT OR REPLACE INTO market_sessions (date, session, snapshot) VALUES (?, ?, ?)")
+    .run(sessionDate, session, JSON.stringify({
+      timestamp: now,
+      accountsIngested: ingestResult.accounts,
+      holdingsIngested: ingestResult.holdings,
+      pricesUpdated,
+      suggestionsCreated,
+      errors: ingestResult.errors,
+    }));
+
   log?.info("tick complete", {
     session,
     accountsIngested: ingestResult.accounts,

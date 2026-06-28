@@ -9,6 +9,8 @@ export interface StartServerDeps {
   host?: string;
   port?: number;
   log?: Logger;
+  registry?: import("../ingest/registry").AdapterRegistry;
+  creds?: import("../ingest/registry").IngestCreds;
 }
 
 export interface ServerHandle {
@@ -20,7 +22,7 @@ export async function startServer(deps: StartServerDeps): Promise<ServerHandle> 
   const host = deps.host ?? "127.0.0.1";
   const port = deps.port ?? 7780;
   
-  const app = createApp({ db: deps.db, token: deps.token });
+  const app = createApp({ db: deps.db, token: deps.token, registry: deps.registry, creds: deps.creds });
   
   return new Promise((resolve, reject) => {
     try {

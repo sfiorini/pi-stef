@@ -24,6 +24,9 @@ async function main() {
     const secrets = loadSecrets(config.secretsPath);
     log.info("Secrets loaded", { providerCount: Object.keys(secrets).length });
     
+    // Build provider registry
+    const registry = buildDefaultRegistry();
+    
     // Start server
     const server = await startServer({
       db,
@@ -31,12 +34,11 @@ async function main() {
       host: config.host,
       port: config.port,
       log,
+      registry,
+      creds: secrets,
     });
     
     log.info("Server started", { host: config.host, port: server.port });
-    
-    // Build provider registry
-    const registry = buildDefaultRegistry();
     
     // Start scheduler daemon
     const daemon = startDaemon({
