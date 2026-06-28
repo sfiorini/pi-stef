@@ -1,3 +1,5 @@
-// Temporary stub — replaced in M8 with the real client + tool registry.
+// Finance extension exports
 export { loadFinanceConfig } from "./config";
-export function registerFinanceTools(_pi: unknown): void { /* M8 */ }
+export { registerFinanceTools } from "./tools";
+export { createFinanceClient, OP_METHOD } from "./client";
+export type { FinanceClient, FinanceClientConfig } from "./client";
