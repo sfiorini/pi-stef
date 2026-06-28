@@ -53,10 +53,16 @@ export function startDaemon(deps: DaemonDeps): DaemonHandle {
     if (!running) return;
 
     // Schedule next tick based on current session
-    const session = classifySession(new Date());
-    const delay = getNextTickDelay(session);
-    log?.info("next tick scheduled", { session, delayMs: delay });
-    timeoutId = setTimeout(tick, delay);
+    try {
+      const session = classifySession(new Date());
+      const delay = getNextTickDelay(session);
+      log?.info("next tick scheduled", { session, delayMs: delay });
+      timeoutId = setTimeout(tick, delay);
+    } catch (err) {
+      // If session classification fails (e.g., unsupported year), fall back to hourly
+      log?.error("session classification failed, falling back to hourly", { error: err instanceof Error ? err.message : String(err) });
+      timeoutId = setTimeout(tick, MS_HOUR);
+    }
   }
 
   // Start first tick immediately
