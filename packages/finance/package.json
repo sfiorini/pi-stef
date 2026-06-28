@@ -1,0 +1,46 @@
+{
+  "name": "@pi-stef/finance",
+  "version": "0.1.0",
+  "description": "Pi extension client for @pi-stef/finance-api: exposes portfolio state, drift, and deterministic suggestions to the pi agent.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/finance"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/finance.html",
+  "files": [
+    "src/",
+    "extensions/"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "finance",
+    "portfolio",
+    "investing"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@pi-stef/paths": "^0.3.0",
+    "@pi-stef/finance-api": "workspace:^0.1.0",
+    "@sinclair/typebox": "*"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions"
+    ]
+  }
+}

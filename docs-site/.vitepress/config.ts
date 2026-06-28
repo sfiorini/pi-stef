@@ -37,6 +37,7 @@ export default defineConfig({
           { text: "atlassian", link: "/packages/atlassian" },
           { text: "figma", link: "/packages/figma" },
           { text: "web", link: "/packages/web" },
+          { text: "finance", link: "/packages/finance" },
           { text: "paths", link: "/packages/paths" },
         ],
       },

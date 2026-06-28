@@ -1,0 +1,71 @@
+#!/usr/bin/env tsx
+// finance-api service entry point
+import { loadFinanceApiConfig, ensureToken, openDb, startServer, createLogger, loadSecrets, buildDefaultRegistry, startDaemon } from "../src/index";
+
+const log = createLogger();
+
+async function main() {
+  try {
+    log.info("Starting finance-api service...");
+    
+    // Load config
+    const config = await loadFinanceApiConfig();
+    log.info("Config loaded", { port: config.port, dbPath: config.dbPath });
+    
+    // Ensure bearer token
+    const token = await ensureToken(config.tokenPath);
+    log.info("Token ready");
+    
+    // Open database
+    const db = openDb(config.dbPath);
+    log.info("Database opened");
+    
+    // Load secrets
+    const secrets = loadSecrets(config.secretsPath);
+    log.info("Secrets loaded", { providerCount: Object.keys(secrets).length });
+    
+    // Build provider registry
+    const registry = buildDefaultRegistry();
+    
+    // Start server
+    const server = await startServer({
+      db,
+      token,
+      host: config.host,
+      port: config.port,
+      log,
+      registry,
+      creds: secrets,
+    });
+    
+    log.info("Server started", { host: config.host, port: server.port });
+    
+    // Start scheduler daemon
+    const daemon = startDaemon({
+      db,
+      registry,
+      creds: secrets,
+      log,
+      dataFeed: config.dataFeed,
+    });
+    log.info("Daemon started");
+    
+    // Graceful shutdown
+    const shutdown = () => {
+      log.info("Shutting down...");
+      daemon.stop();
+      server.close();
+      db.close();
+      process.exit(0);
+    };
+    
+    process.on("SIGINT", shutdown);
+    process.on("SIGTERM", shutdown);
+    
+  } catch (err) {
+    log.error("Failed to start", { error: err instanceof Error ? err.message : String(err) });
+    process.exit(1);
+  }
+}
+
+main();
