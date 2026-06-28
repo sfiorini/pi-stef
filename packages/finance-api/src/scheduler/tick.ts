@@ -19,6 +19,7 @@ export interface TickDeps {
   fetcher?: typeof fetch;
   log?: Logger;
   now?: number;
+  dataFeed?: "stooq" | "yfinance";
 }
 
 export interface TickResult {
@@ -61,7 +62,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
 
   for (const symbol of symbolsToRefresh) {
     try {
-      const close = await fetchClose(symbol, { fetcher });
+      const close = await fetchClose(symbol, { fetcher, feed: deps.dataFeed });
       // Store price
       db.prepare("INSERT OR REPLACE INTO prices (symbol, date, close, source) VALUES (?, ?, ?, ?)")
         .run(symbol, Math.floor(now / 86400000), close, "tick");
