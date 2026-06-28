@@ -41,7 +41,9 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
           // This prevents stale holdings from accumulating when positions are sold
           // Wrap in a transaction so either all holdings are replaced or none are
           const replaceHoldings = db.transaction(() => {
+            // Delete existing holdings and lots for this account
             db.prepare("DELETE FROM holdings WHERE account_id=?").run(id);
+            db.prepare("DELETE FROM lots WHERE holding_key LIKE ?").run(`${id}:%`);
             
             for (const raw of raws) {
               try {
