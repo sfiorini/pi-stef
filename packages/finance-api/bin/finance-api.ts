@@ -46,6 +46,7 @@ async function main() {
       registry,
       creds: secrets,
       log,
+      dataFeed: config.dataFeed,
     });
     log.info("Daemon started");
     

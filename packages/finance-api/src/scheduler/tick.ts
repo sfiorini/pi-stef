@@ -7,7 +7,7 @@ import { listHoldings, listAccounts, insertSuggestion, listGoals } from "../stor
 import { computeDrift, type HoldingValued } from "../quant/drift";
 import { computeRebalance } from "../quant/rebalance";
 import { checkRisk } from "../quant/risk";
-import { nextDcaBuy } from "../quant/dca";
+// DCA not used until config is stored in schema
 import { buildSuggestions } from "../quant/suggestions";
 import { isCrypto } from "../store/symbols";
 import type { Logger } from "../server/logger";
@@ -105,11 +105,9 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   // Check risk
   const risk = checkRisk(holdingsValued, { riskLimits, cashAvailable: 0 });
 
-  // Check DCA
-  const dcaResults = goals.map(() => {
-    const dcaConfig = { amount: 1000, cadence: "monthly" as const, lastBuyAt: undefined };
-    return nextDcaBuy(dcaConfig, now);
-  });
+  // Check DCA - only if goals have DCA config (skip hardcoded defaults)
+  // For now, skip DCA suggestions until DCA config is stored in the schema
+  const dcaResults: { due: boolean; amount: number; nextDueAt: number }[] = [];
 
   // Build suggestions
   const suggestions = buildSuggestions({

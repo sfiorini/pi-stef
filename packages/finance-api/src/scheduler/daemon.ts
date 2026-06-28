@@ -10,6 +10,7 @@ export interface DaemonDeps {
   creds: IngestCreds;
   fetcher?: typeof fetch;
   log?: Logger;
+  dataFeed?: "stooq" | "yfinance";
 }
 
 export interface DaemonHandle {
@@ -43,7 +44,7 @@ export function startDaemon(deps: DaemonDeps): DaemonHandle {
     if (!running) return;
 
     try {
-      const result = await runTick(deps);
+      const result = await runTick({ ...deps, dataFeed: deps.dataFeed });
       log?.info("daemon tick complete", result);
     } catch (err) {
       log?.error("daemon tick failed", { error: err instanceof Error ? err.message : String(err) });
