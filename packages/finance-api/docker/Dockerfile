@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y python3 make g++ && rm -rf /var/lib/apt
 RUN corepack enable && corepack prepare pnpm@10 --activate
 
 # Copy workspace root files (build context = repo root)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/finance-api/package.json ./packages/finance-api/package.json
 COPY packages/paths/package.json ./packages/paths/package.json
 
