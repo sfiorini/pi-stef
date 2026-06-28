@@ -19,7 +19,8 @@ export async function fetchClose(symbol: string, deps: PriceDeps = {}): Promise<
     if (!res.ok) throw new Error(`stooq ${symbol} ${res.status}`);
     const text = await res.text();
     const row = text.trim().split(/\r?\n/)[1]?.split(",") ?? [];
-    const close = Number(row[4]);
+    // stooq CSV layout: Symbol,Date,Time,Open,High,Low,Close,Volume
+    const close = Number(row[6]);
     if (!Number.isFinite(close)) throw new Error(`stooq ${symbol}: no close`);
     return close;
   }

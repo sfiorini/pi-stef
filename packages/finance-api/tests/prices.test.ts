@@ -3,7 +3,8 @@ import { fetchClose } from "../src/market/prices";
 
 describe("fetchClose", () => {
   it("returns a numeric close from stooq CSV", async () => {
-    const fetcher = vi.fn(async () => new Response("Date,Open,High,Low,Close,Volume\n20260316,1,2,0.5,1.9,100\n", { status: 200 }));
+    // Real stooq CSV layout: Symbol,Date,Time,Open,High,Low,Close,Volume
+    const fetcher = vi.fn(async () => new Response("Symbol,Date,Time,Open,High,Low,Close,Volume\nAAPL,20260316,1100,1,2,0.5,1.9,100\n", { status: 200 }));
     const close = await fetchClose("AAPL", { fetcher: fetcher as never, feed: "stooq" });
     expect(close).toBe(1.9);
   });

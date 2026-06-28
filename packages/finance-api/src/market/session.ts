@@ -6,7 +6,7 @@ export type Session = "pre" | "intraday" | "post" | "closed";
 // future holidays as trading days). Add 2027+ entries before Jan 1 each year.
 // TODO(future): fetch from a holiday-data source keyed by year. Tracked in Open Items.
 const HOLIDAYS_2026 = new Set([
-  "1-1", "1-19", "2-16", "4-3", "5-25", "7-3", "9-7", "11-26", "12-25",
+  "1-1", "1-19", "2-16", "4-3", "5-25", "6-19", "7-3", "9-7", "11-26", "12-25",
 ]);
 
 function etParts(d: Date): { dow: number; month: number; day: number; minutes: number } {
