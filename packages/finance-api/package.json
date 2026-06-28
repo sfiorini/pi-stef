@@ -1,0 +1,44 @@
+{
+  "name": "@pi-stef/finance-api",
+  "version": "0.1.0",
+  "description": "Always-on local service for @pi-stef/finance: ingests financial-account data, stores locally, runs a deterministic quant engine and market-aware scheduler.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sfiorini/pi-stef.git",
+    "directory": "packages/finance-api"
+  },
+  "homepage": "https://sfiorini.github.io/pi-stef/packages/finance-api.html",
+  "files": [
+    "src/",
+    "bin/",
+    "docker/"
+  ],
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-library",
+    "finance-api",
+    "portfolio",
+    "sqlite"
+  ],
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "serve": "node bin/finance-api.mjs"
+  },
+  "dependencies": {
+    "@pi-stef/paths": "^0.3.0",
+    "@sinclair/typebox": "*",
+    "better-sqlite3": "^11.3.0",
+    "hono": "^4.6.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11"
+  },
+  "pi": {}
+}
