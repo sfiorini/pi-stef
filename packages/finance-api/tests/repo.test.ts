@@ -20,4 +20,18 @@ describe("repo", () => {
     const a = db.prepare("SELECT stale_reason FROM accounts WHERE id=?").get("boa-1") as { stale_reason: string };
     expect(a.stale_reason).toBe("file not found");
   });
+
+  it("clears stale flags on successful re-ingest", () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    markStale(db, "fid-1", 1000, "connection timeout");
+    const before = db.prepare("SELECT stale_reason FROM accounts WHERE id=?").get("fid-1") as { stale_reason: string };
+    expect(before.stale_reason).toBe("connection timeout");
+
+    // Re-ingest succeeds
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    const after = db.prepare("SELECT stale_at, stale_reason FROM accounts WHERE id=?").get("fid-1") as { stale_at: number | null; stale_reason: string | null };
+    expect(after.stale_at).toBeNull();
+    expect(after.stale_reason).toBeNull();
+  });
 });

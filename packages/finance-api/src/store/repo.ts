@@ -6,7 +6,7 @@ export interface HoldingRow { account_id: string; symbol: string; quantity: numb
 export function upsertAccount(db: Database.Database, a: AccountRow): void {
   db.prepare(`INSERT INTO accounts (id,provider_id,kind,name,mask_last4,currency,stale_at,stale_reason)
               VALUES (@id,@provider_id,@kind,@name,@mask_last4,@currency,NULL,NULL)
-              ON CONFLICT(id) DO UPDATE SET provider_id=@provider_id, kind=@kind, name=@name, mask_last4=@mask_last4, currency=@currency`)
+              ON CONFLICT(id) DO UPDATE SET provider_id=@provider_id, kind=@kind, name=@name, mask_last4=@mask_last4, currency=@currency, stale_at=NULL, stale_reason=NULL`)
     .run({ ...a, mask_last4: a.mask_last4 ?? null, currency: a.currency ?? "USD" });
 }
 
