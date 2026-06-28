@@ -30,7 +30,7 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       if (!creds.keyName || !creds.privateKey) throw new Error("coinbase requires keyName + privateKey");
       return { providerId: "coinbase", creds };
     },
-    listAccounts: async (s: Session): Promise<RawAccount[]> => [{ providerAccountId: "spot", kind: "crypto", name: "Coinbase Spot", currency: "USD" }],
+    listAccounts: async (_s: Session): Promise<RawAccount[]> => [{ providerAccountId: "spot", kind: "crypto", name: "Coinbase Spot", currency: "USD" }],
     getHoldings: async (s: Session): Promise<RawHolding[]> => {
       const creds = s.creds ?? {};  // creds attached to Session by runIngest (see contract.ts Session.creds)
       const body = (await signedRequest(creds, "/accounts")) as { accounts?: { currency: string; available_balance?: { value: string } }[] };
