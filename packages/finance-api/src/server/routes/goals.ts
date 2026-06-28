@@ -17,8 +17,16 @@ export function goalsRoutes(db: Database.Database) {
   r.post("/", async (c) => {
     const body = await c.req.json();
     
+    // Validate required fields
+    if (!body.id || !body.name) {
+      return c.json(fail("bad_request", "Missing required fields: id, name"), 400);
+    }
+    if (!body.targetAllocation || typeof body.targetAllocation !== "object") {
+      return c.json(fail("bad_request", "Missing or invalid targetAllocation"), 400);
+    }
+    
     // Validate goal configuration
-    const errors = validateGoal({ targetAllocation: body.targetAllocation ?? {}, riskLimits: body.riskLimits ?? {} });
+    const errors = validateGoal({ targetAllocation: body.targetAllocation, riskLimits: body.riskLimits ?? {} });
     if (errors.length > 0) {
       return c.json(fail("validation_error", errors.join("; ")), 400);
     }

@@ -7,6 +7,8 @@ import { ok } from "../errors";
 export interface SyncDeps {
   registry: AdapterRegistry;
   creds: IngestCreds;
+  fetcher?: typeof fetch;
+  dataFeed?: "stooq" | "yfinance";
 }
 
 export function syncRoutes(db: Database.Database, deps: SyncDeps) {
@@ -16,6 +18,8 @@ export function syncRoutes(db: Database.Database, deps: SyncDeps) {
       db,
       registry: deps.registry,
       creds: deps.creds,
+      fetcher: deps.fetcher,
+      dataFeed: deps.dataFeed,
     });
     return c.json(ok({ message: "Sync complete", ...result }));
   });

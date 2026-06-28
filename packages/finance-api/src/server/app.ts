@@ -19,6 +19,8 @@ export interface AppDeps {
   token: string;
   registry?: import("../ingest/registry").AdapterRegistry;
   creds?: import("../ingest/registry").IngestCreds;
+  fetcher?: typeof fetch;
+  dataFeed?: "stooq" | "yfinance";
 }
 
 export function createApp(deps: AppDeps): Hono {
@@ -40,6 +42,8 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/v1/sync", syncRoutes(deps.db, {
     registry: deps.registry ?? new Map(),
     creds: deps.creds ?? {},
+    fetcher: deps.fetcher,
+    dataFeed: deps.dataFeed,
   }));
   app.route("/v1/import", importRoutes(deps.db));
   app.route("/v1/history", historyRoutes(deps.db));
