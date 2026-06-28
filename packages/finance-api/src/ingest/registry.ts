@@ -7,10 +7,10 @@ export type AdapterRegistry = Map<string, ProviderAdapter>;
 
 export interface IngestCreds { [providerId: string]: Credentials }
 
-export interface IngestResult { accounts: number; holdings: number; errors: number }
+export interface IngestResult { accounts: number; holdings: number; transactions: number; errors: number }
 
 export async function runIngest(db: Database.Database, registry: AdapterRegistry, creds: IngestCreds, log?: { warn: (m: string, ctx?: unknown) => void }): Promise<IngestResult> {
-  let accounts = 0, holdings = 0, errors = 0;
+  let accounts = 0, holdings = 0, transactions = 0, errors = 0;
   for (const [providerId, adapter] of registry) {
     const c = creds[providerId];
     if (!c) continue;
@@ -34,9 +34,10 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
         upsertAccount(db, { id, provider_id: providerId, kind: acc.kind, name: acc.name, mask_last4: acc.maskLast4 ?? null, currency: acc.currency });
         accounts++;
         try {
+          const asOf = Date.now();
           const raws = await adapter.getHoldings(session, acc.providerAccountId);
           for (const raw of raws) {
-            const n = normalizeHolding({ providerId, accountId: id }, raw);
+            const n = normalizeHolding({ providerId, accountId: id, asOf }, raw);
             const { lots, ...row } = n;
             upsertHolding(db, row);
             holdings++;
@@ -55,6 +56,19 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
           markStale(db, id, Date.now(), e instanceof Error ? e.message : String(e));
           errors++;
         }
+        // Exercise getTransactions/getBalances to validate the adapter contract
+        // (persistence of transactions/balances deferred to later milestones)
+        try {
+          const txns = await adapter.getTransactions(session, acc.providerAccountId);
+          transactions += txns.length;
+        } catch {
+          // Transaction fetch failures are non-fatal for ingest
+        }
+        try {
+          await adapter.getBalances(session, acc.providerAccountId);
+        } catch {
+          // Balance fetch failures are non-fatal for ingest
+        }
       }
     } catch (e) {
       // listAccounts-level failure: account rows may not exist yet to mark stale; log + count.
@@ -62,7 +76,7 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
       errors++;
     }
   }
-  return { accounts, holdings, errors };
+  return { accounts, holdings, transactions, errors };
 }
 
 // re-exports for convenience

@@ -27,7 +27,8 @@ export async function loadFinanceApiConfig(
   }
 
   const envFeed: DataFeed | undefined = env.SF_FINANCE_DATA_FEED === "yfinance" ? "yfinance" : env.SF_FINANCE_DATA_FEED === "stooq" ? "stooq" : undefined;
-  const envPort = env.SF_FINANCE_PORT ? Number(env.SF_FINANCE_PORT) : undefined;
+  const rawPort = env.SF_FINANCE_PORT ? Number(env.SF_FINANCE_PORT) : undefined;
+  const envPort = Number.isFinite(rawPort) && rawPort! > 0 ? rawPort : undefined;
 
   return {
     host: "127.0.0.1",

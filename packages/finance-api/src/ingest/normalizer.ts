@@ -2,7 +2,7 @@ import type { RawHolding } from "./contract";
 import { canonicalSymbol } from "../store/symbols";
 import type { HoldingRow } from "../store/repo";
 
-export interface NormalizeCtx { providerId: string; accountId: string }
+export interface NormalizeCtx { providerId: string; accountId: string; asOf?: number }
 
 export function normalizeHolding(ctx: NormalizeCtx, raw: RawHolding): HoldingRow & { lots?: { open_date: number; qty: number; cost_basis: number }[] } {
   if (raw.quantity < 0) throw new Error(`negative quantity for ${raw.symbol}`);
@@ -15,7 +15,7 @@ export function normalizeHolding(ctx: NormalizeCtx, raw: RawHolding): HoldingRow
     avg_cost: raw.avgCost ?? null,
     asset_class: raw.assetClass,
     subclass: raw.subclass ?? null,
-    as_of: Date.now(),
+    as_of: ctx.asOf ?? Date.now(),
     lots,
   };
 }
