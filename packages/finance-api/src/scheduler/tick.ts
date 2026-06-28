@@ -36,8 +36,14 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   const now = deps.now ?? Date.now();
   const fetcher = deps.fetcher ?? fetch;
 
-  // Classify current market session
-  const session = classifySession(new Date(now));
+  // Classify current market session (fall back to "closed" if year-guard throws)
+  let session: Session;
+  try {
+    session = classifySession(new Date(now));
+  } catch (err) {
+    log?.warn("session classification failed, falling back to closed", { error: err instanceof Error ? err.message : String(err) });
+    session = "closed";
+  }
   log?.info("tick start", { session, now });
 
   // Ingest data from providers
