@@ -53,7 +53,7 @@ Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600).
 
 | Provider | Kind | Status |
 |----------|------|--------|
-| File Import (CSV/OFX) | brokerage/banking | ✅ Working |
+| [File Import](./finance-api-file-import) | brokerage/banking | ✅ Working |
 | Coinbase | crypto | ⚠️ Stub |
 | [SnapTrade](./finance-api-snaptrade) | brokerage | ✅ Working |
 | SimpleFIN | banking | ⚠️ Stub |
@@ -95,7 +95,7 @@ Fidelity exports positions with the exact headers the parser expects: `Account,S
 | Bank of America | ❌ Not supported for CSV (exports activity) | Use OFX/QFX download instead |
 | Vanguard, Schwab, others | ⚠️ Untested | Try it — if headers match, it should work |
 
-> **Full details:** See the [Data Import guide](./finance-api-data-import) — exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and a troubleshooting table with 8 common scenarios.
+> **Full details:** See the [File Import guide](./finance-api-file-import) — exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and a troubleshooting table with 8 common scenarios.
 
 ## HTTP API
 

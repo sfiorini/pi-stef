@@ -40,7 +40,7 @@ export default defineConfig({
           { text: "finance", link: "/packages/finance" },
           { text: "finance-api", link: "/packages/finance-api" },
           { text: "finance-api Docker", link: "/packages/finance-api-docker" },
-          { text: "finance-api Data Import", link: "/packages/finance-api-data-import" },
+          { text: "finance-api File Import", link: "/packages/finance-api-file-import" },
           { text: "finance-api SnapTrade", link: "/packages/finance-api-snaptrade" },
           { text: "paths", link: "/packages/paths" },
         ],

@@ -1,6 +1,6 @@
-# finance-api Data Import
+# File Import provider
 
-How to import financial data into the `@pi-stef/finance-api` service. Covers the exact CSV/OFX formats accepted, step-by-step export instructions for supported services, and what to do when your provider isn't supported yet.
+Import financial data from CSV and OFX files. This is the primary ingestion path for most users — download a positions export from your brokerage (Fidelity, Vanguard, Schwab, …) or a transaction export from your bank, then upload it to the service.
 
 ## Supported formats
 
@@ -106,7 +106,7 @@ The file adapter transforms parsed OFX data before it reaches the API:
 | Field | Parser layer | Adapter layer (API response) |
 |-------|-------------|------------------------------|
 | Balance | `parseOfx().balance` | `{ cash: balance, marketValue: 0, asOf: Date.now() }` — treated as cash |
-| Transactions | `parseOfx().transactions` | `{ id: "${arrayIndex}", date: unixMs, type: "credit"|"debit", fees: 0 }` |
+| Transactions | `parseOfx().transactions` | `{ id: "${arrayIndex}", date: unixMs, type: "credit"\|"debit", fees: 0 }` |
 | Payee (`<NAME>`) | ✅ Parsed by `parseOfx` | ❌ **Discarded** — not present in API response |
 | Fees | Not parsed | Hardcoded to `0` |
 | Symbol/quantity | N/A | N/A — OFX imports transactions, not holdings |
@@ -161,7 +161,7 @@ curl -X GET http://127.0.0.1:7780/v1/holdings \
 
 ---
 
-## Services not currently supported
+## Services not currently supported via File Import
 
 ### Coinbase
 
@@ -183,7 +183,7 @@ No `Symbol` column — the data represents buys/sells/transfers, not current hol
    ```
 3. Import with `POST /v1/import`.
 
-**Future:** The Coinbase API aggregator (direct API key integration) is planned for a future release.
+**Alternative:** The Coinbase API aggregator (direct API key integration) is a stub in the current release.
 
 ### Bank of America
 
@@ -204,9 +204,7 @@ curl -X POST http://127.0.0.1:7780/v1/import \
   -d '{"filePath":"/Users/me/Downloads/boa-activity.ofx"}'
 ```
 
-For brokerage positions held in Merrill Edge / BoA investing, download a **positions export** from the investment section — these typically follow the `Symbol,Quantity,Last Price` format the parser accepts.
-
-**Future:** The SnapTrade aggregator is planned for a future release (API access to BoA/Merrill accounts).
+For brokerage positions held in Merrill Edge / BoA investing, download a **positions export** from the investment section — these typically follow the `Symbol,Quantity,Last Price` format the parser accepts. Alternatively, use [SnapTrade](./finance-api-snaptrade) for live brokerage sync.
 
 ### Other brokerages (Vanguard, Schwab, Robinhood, E*TRADE)
 
@@ -258,3 +256,5 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 | Imported OFX transactions show `1970-01-01` | `<DTPOSTED>` is empty or malformed | Verify the file is valid — real bank exports always include dates |
 | No merchant name on OFX transactions | Payee `<NAME>` is parsed but discarded by the adapter | Known limitation — transaction descriptions are not persisted |
 | `401 Unauthorized` on import | Token missing or wrong | Retrieve it: `cat ~/.pi/sf/finance/token` (native) or `docker compose exec finance-api cat /root/.pi/sf/finance/token` (Docker) |
+
+See the [finance-api page](./finance-api) for the HTTP API and [SnapTrade](./finance-api-snaptrade) for live brokerage aggregation.

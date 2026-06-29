@@ -59,4 +59,4 @@ The scheduler ingests on each tick; trigger an immediate sync with `POST /v1/syn
 | `429` / throttled | Customer limit is 250 req/min; the next scheduler tick retries automatically. |
 | Missing positions | Only `units > 0` positions import; shorts and zero-share rows are skipped. |
 
-See the [finance-api page](./finance-api) for the HTTP API and [Data Import](./finance-api-data-import) for CSV/OFX alternatives.
+See the [finance-api page](./finance-api) for the HTTP API and [File Import](./finance-api-file-import) for CSV/OFX alternatives.
