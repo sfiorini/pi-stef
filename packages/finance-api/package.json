@@ -37,6 +37,7 @@
     "@sinclair/typebox": "*",
     "better-sqlite3": "^12.11.1",
     "hono": "^4.6.0",
+    "snaptrade-typescript-sdk": "^10.0.17",
     "tsx": "^4.0.0"
   },
   "devDependencies": {
