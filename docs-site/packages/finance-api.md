@@ -11,7 +11,7 @@ cd packages/finance-api/docker
 docker compose up -d
 ```
 
-Pulls the multi-arch image `ghcr.io/sfiorini/pi-stef/finance-api:latest` and serves the API at `http://127.0.0.1:7780`. See the [Docker guide](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api/docker) for volumes, image tags, and token retrieval.
+Pulls the multi-arch image `ghcr.io/sfiorini/pi-stef/finance-api:latest` and serves the API at `http://127.0.0.1:7780`. See the [Docker guide](./finance-api-docker) for volumes, image tags, and token retrieval.
 
 ### Native
 
@@ -47,7 +47,7 @@ Override with the `SF_FINANCE_TOKEN` env var to pin a token.
 | `SF_FINANCE_TOKEN` | (auto-generated) | Bearer token |
 | `SF_FINANCE_DATA_FEED` | `stooq` | Price data feed |
 
-Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600). See the [service README](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api) for the full reference.
+Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600).
 
 ## Providers
 
@@ -95,7 +95,7 @@ Fidelity exports positions with the exact headers the parser expects: `Account,S
 | Bank of America | ❌ Not supported for CSV (exports activity) | Use OFX/QFX download instead |
 | Vanguard, Schwab, others | ⚠️ Untested | Try it — if headers match, it should work |
 
-> **Full details:** See the [Data Import guide](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api#data-import) in the service README — includes exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, and a troubleshooting table with 9 common scenarios.
+> **Full details:** See the [Data Import guide](./finance-api-data-import) — exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and a troubleshooting table with 8 common scenarios.
 
 ## HTTP API
 
@@ -118,7 +118,7 @@ Base URL `http://127.0.0.1:7780`. Responses are `{ "ok": true, "data": {...} }`.
 | GET | `/v1/history?symbol=` | Price history |
 | POST | `/v1/export` | Export (json/sqlite) |
 
-See the [service README](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api) for per-endpoint request/response schemas.
+See the [API reference](./finance-api#http-api) for per-endpoint request/response schemas.
 
 ## Data model
 

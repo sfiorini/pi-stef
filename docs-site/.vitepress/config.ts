@@ -39,6 +39,8 @@ export default defineConfig({
           { text: "web", link: "/packages/web" },
           { text: "finance", link: "/packages/finance" },
           { text: "finance-api", link: "/packages/finance-api" },
+          { text: "finance-api Docker", link: "/packages/finance-api-docker" },
+          { text: "finance-api Data Import", link: "/packages/finance-api-data-import" },
           { text: "paths", link: "/packages/paths" },
         ],
       },

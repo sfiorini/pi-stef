@@ -25,7 +25,7 @@ Or via catalog:
 
 ## Prerequisites
 
-The `@pi-stef/finance-api` service must be running. See the [finance-api guide](./finance-api.md) or the [service README](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api) for Docker/native setup.
+The `@pi-stef/finance-api` service must be running. See the [finance-api guide](./finance-api.md) for Docker/native setup.
 
 ## Configuration
 
