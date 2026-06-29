@@ -63,39 +63,16 @@ Import a CSV via the API: `POST /v1/import {"filePath": "/path/to/positions.csv"
 
 ## Data Import
 
-The service supports **CSV** (holdings/positions) and **OFX** (transactions/balances).
-
-### Supported formats
-
-| Format | Accepts | Data imported |
-|--------|----------|---------------|
-| CSV | `.csv` | Holdings (Symbol + Quantity + optional Price) |
-| OFX | `.ofx`, `.qfx` | Transactions + cash balance |
-
-### Quick CSV import
-
-Your CSV must have a header row with columns for `Symbol` (or `symbol`) and `Quantity` (or `shares` / `qty`). A `Last Price` or `Price` column is optional.
+The service supports **CSV** (holdings/positions) and **OFX** (transactions/balances). Import a file via the API:
 
 ```bash
 curl -X POST http://127.0.0.1:7780/v1/import \
   -H "Authorization: Bearer $(cat ~/.pi/sf/finance/token)" \
   -H "Content-Type: application/json" \
-  -d '{"filePath":"/path/to/fidelity-positions.csv"}'
+  -d '{"filePath":"/path/to/positions.csv"}'
 ```
 
-### Fidelity export (verified)
-
-Fidelity exports positions with the exact headers the parser expects: `Account,Symbol,Description,Quantity,Last Price`. Export from **Accounts & Trade** → **Portfolio** → **Download** → CSV.
-
-### Other services
-
-| Service | Status | Alternative |
-|---------|--------|-------------|
-| Coinbase | ❌ Not supported (exports transactions, not positions) | Manually create a `Symbol,Quantity` CSV |
-| Bank of America | ❌ Not supported for CSV (exports activity) | Use OFX/QFX download instead |
-| Vanguard, Schwab, others | ⚠️ Untested | Try it — if headers match, it should work |
-
-> **Full details:** See the [File Import guide](./finance-api-file-import) — exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and a troubleshooting table with 8 common scenarios.
+> **Full details:** exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and troubleshooting — see the [File Import guide](./finance-api-file-import).
 
 ## HTTP API
 
