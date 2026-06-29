@@ -61,6 +61,42 @@ Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600). See th
 
 Import a CSV via the API: `POST /v1/import {"filePath": "/path/to/positions.csv"}`.
 
+## Data Import
+
+The service supports **CSV** (holdings/positions) and **OFX** (transactions/balances).
+
+### Supported formats
+
+| Format | Accepts | Data imported |
+|--------|----------|---------------|
+| CSV | `.csv` | Holdings (Symbol + Quantity + optional Price) |
+| OFX | `.ofx`, `.qfx` | Transactions + cash balance |
+
+### Quick CSV import
+
+Your CSV must have a header row with columns for `Symbol` (or `symbol`) and `Quantity` (or `shares` / `qty`). A `Last Price` or `Price` column is optional.
+
+```bash
+curl -X POST http://127.0.0.1:7780/v1/import \
+  -H "Authorization: Bearer $(cat ~/.pi/sf/finance/token)" \
+  -H "Content-Type: application/json" \
+  -d '{"filePath":"/path/to/fidelity-positions.csv"}'
+```
+
+### Fidelity export (verified)
+
+Fidelity exports positions with the exact headers the parser expects: `Account,Symbol,Description,Quantity,Last Price`. Export from **Accounts & Trade** → **Portfolio** → **Download** → CSV.
+
+### Other services
+
+| Service | Status | Alternative |
+|---------|--------|-------------|
+| Coinbase | ❌ Not supported (exports transactions, not positions) | Manually create a `Symbol,Quantity` CSV |
+| Bank of America | ❌ Not supported for CSV (exports activity) | Use OFX/QFX download instead |
+| Vanguard, Schwab, others | ⚠️ Untested | Try it — if headers match, it should work |
+
+> **Full details:** See the [Data Import guide](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api#data-import) in the service README — includes exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, and a troubleshooting table with 9 common scenarios.
+
 ## HTTP API
 
 Base URL `http://127.0.0.1:7780`. Responses are `{ "ok": true, "data": {...} }`.
