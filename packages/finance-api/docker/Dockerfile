@@ -23,7 +23,14 @@ COPY packages/paths/src ./packages/paths/src
 
 # ---- runtime stage: slim, no build tooling ----
 FROM node:20-slim AS runtime
+ARG OCI_VERSION=dev
 WORKDIR /app
+
+# OCI labels for traceability (populated by buildx from metadata-action in CI)
+LABEL org.opencontainers.image.title="@pi-stef/finance-api" \
+      org.opencontainers.image.source="https://github.com/sfiorini/pi-stef" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${OCI_VERSION}"
 
 # Install curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*

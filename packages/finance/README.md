@@ -15,7 +15,9 @@ Or via catalog:
 
 ## Prerequisites
 
-The `@pi-stef/finance-api` service must be running (Docker or native). See the [finance-api README](../finance-api/README.md) for setup.
+The `@pi-stef/finance-api` service must be running (Docker or native). See the [finance-api README](../finance-api/README.md) or the [docs-site guide](../../docs-site/packages/finance-api.md) for setup.
+
+> **Full documentation:** [docs-site/packages/finance.md](../../docs-site/packages/finance.md)
 
 ## Configuration
 

@@ -46,4 +46,12 @@ features:
     title: Azure Foundry
     details: Connect Azure Foundry and Azure OpenAI deployments as native Pi providers with config-driven setup
     link: /packages/azure-foundry
+  - icon: 💰
+    title: Finance
+    details: Portfolio tracking, allocation drift, and deterministic rebalance suggestions from brokerage, banking, and crypto accounts.
+    link: /packages/finance
+  - icon: 📊
+    title: finance-api
+    details: Always-on local service for financial data ingestion, SQLite storage, and a deterministic quant engine — Docker image on GHCR.
+    link: /packages/finance-api
 ---

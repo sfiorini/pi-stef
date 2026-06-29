@@ -1,10 +1,12 @@
-version: "3.8"
-
 services:
   finance-api:
-    build:
-      context: ../..  # Repo root
-      dockerfile: packages/finance-api/docker/Dockerfile
+    # Pull the published image from GHCR (default):
+    image: ghcr.io/sfiorini/pi-stef/finance-api:latest
+    # To build from local source instead, comment out `image:` above and run:
+    #   docker compose up --build
+    # build:
+    #   context: ../..
+    #   dockerfile: packages/finance-api/docker/Dockerfile
     ports:
       - "127.0.0.1:7780:7780"  # Localhost only for security
     volumes:

@@ -38,6 +38,7 @@ export default defineConfig({
           { text: "figma", link: "/packages/figma" },
           { text: "web", link: "/packages/web" },
           { text: "finance", link: "/packages/finance" },
+          { text: "finance-api", link: "/packages/finance-api" },
           { text: "paths", link: "/packages/paths" },
         ],
       },

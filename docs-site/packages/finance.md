@@ -25,7 +25,7 @@ Or via catalog:
 
 ## Prerequisites
 
-The `@pi-stef/finance-api` service must be running. See the [finance-api README](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api) for Docker/native setup.
+The `@pi-stef/finance-api` service must be running. See the [finance-api guide](./finance-api.md) or the [service README](https://github.com/sfiorini/pi-stef/tree/main/packages/finance-api) for Docker/native setup.
 
 ## Configuration
 
@@ -45,20 +45,98 @@ Set environment variables or create `~/.pi/sf/finance/config.json`:
 
 ## Tools
 
-| Tool | Description |
-|------|-------------|
-| `sf_fin_market_status` | Get current US market session |
-| `sf_fin_get_holdings` | Get all account holdings |
-| `sf_fin_get_net_worth` | Get total portfolio value |
-| `sf_fin_get_drift` | Get allocation drift vs target |
-| `sf_fin_get_allocation` | Get current asset allocation |
-| `sf_fin_list_goals` | List investment goals |
-| `sf_fin_set_target` | Create/update investment goal |
-| `sf_fin_get_suggestions` | Get pending suggestions |
-| `sf_fin_dismiss_suggestion` | Dismiss a suggestion |
-| `sf_fin_sync_now` | Trigger immediate data sync |
-| `sf_fin_import_file` | Import holdings from CSV/OFX |
-| `sf_fin_history` | Get price history |
+The extension exposes 12 tools to the pi agent. Parameters marked **required** must be provided; others are optional.
+
+### `sf_fin_market_status`
+Get the current US market session (`pre` / `regular` / `post` / `closed`).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_get_holdings`
+All account holdings with quantities and asset classes.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_get_net_worth`
+Total portfolio value across all accounts.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_get_drift`
+Allocation drift vs the configured target.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_get_allocation`
+Current asset allocation breakdown by class.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_list_goals`
+List configured investment goals and their target allocations.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_set_target`
+Create or update an investment goal.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | **yes** | Goal identifier |
+| `name` | string | **yes** | Display name |
+| `targetAllocation` | object | **yes** | Asset-class weights (must sum to ~1.0) |
+| `riskLimits` | object | no | Risk limits (e.g. `maxSinglePosition`, `maxCashDrag`) |
+| `horizonYears` | number | no | Investment horizon in years |
+
+### `sf_fin_get_suggestions`
+Pending deterministic suggestions from the quant engine (drift, rebalance, risk, DCA).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_dismiss_suggestion`
+Dismiss a suggestion that's been addressed.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `id` | string | **yes** | Suggestion ID to dismiss |
+
+### `sf_fin_sync_now`
+Trigger an immediate data sync (ingest + prices + recompute).
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| *(none)* | | | |
+
+### `sf_fin_import_file`
+Import holdings from a CSV/OFX export.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filePath` | string | **yes** | Path to the CSV/OFX file |
+
+### `sf_fin_history`
+Price history for a symbol, newest first.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `symbol` | string | **yes** | Ticker (e.g. `AAPL`, `CRYPTO:BTC`) |
+| `accountId` | string | no | Filter to prices relevant to an account |
+
+> **Guideline:** All numbers come from the service. Never recompute prices, allocations, or drift yourself — cite the returned values verbatim.
 
 ## Usage Examples
 
