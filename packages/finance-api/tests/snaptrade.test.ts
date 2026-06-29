@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { createSnaptradeAdapter } from "../src/ingest/aggregator/snaptrade";
 import type { Credentials } from "../src/ingest/contract";
+import { openDb } from "../src/store/db";
+import { runIngest, type AdapterRegistry } from "../src/ingest/registry";
 
 describe("snaptrade adapter — identity & auth", () => {
   it("kind/providerId set correctly", () => {
@@ -116,5 +118,33 @@ describe("snaptrade adapter — mapping", () => {
     expect(b.cash).toBe(123.45);
     expect(b.marketValue).toBe(5250);
     expect(typeof b.asOf).toBe("number");
+  });
+});
+
+describe("snaptrade adapter — ingest integration", () => {
+  it("flows through runIngest into SQLite (holdings, transactions, balances, watermark)", async () => {
+    const db = openDb(":memory:");
+    const client = fakeClient({
+      accounts: [{ id: "acct-1", name: "Brokerage", number: "1", institution_name: "Fidelity" }],
+      positions: [{ symbol: { symbol: { symbol: "AAPL" } }, units: 10, average_purchase_price: 150 }],
+      activities: { data: [{ id: "t1", trade_date: "2026-01-01", symbol: { symbol: "AAPL" }, units: 1, price: 10, type: "BUY", fee: 0 }], pagination: {} },
+      balances: [{ currency: { code: "USD" }, cash: 200 }],
+      details: { balance: { total: { amount: 1700 } } },
+    });
+    const registry: AdapterRegistry = new Map([["snaptrade", createSnaptradeAdapter({ createClient: () => client }) as never]]);
+    const res = await runIngest(db, registry, { snaptrade: { ...CREDS } });
+    expect(res.accounts).toBe(1);
+    expect(res.holdings).toBe(1);
+    expect(res.transactions).toBe(1);
+    const h = db.prepare("SELECT * FROM holdings WHERE account_id=?").get("snaptrade:acct-1") as { symbol: string; quantity: number };
+    expect(h.symbol).toBe("AAPL");
+    expect(h.quantity).toBe(10);
+    const t = db.prepare("SELECT * FROM transactions WHERE account_id=?").get("snaptrade:acct-1") as { type: string };
+    expect(t.type).toBe("buy");
+    const b = db.prepare("SELECT * FROM balances WHERE account_id=?").get("snaptrade:acct-1") as { cash: number; market_value: number };
+    expect(b.cash).toBe(200);
+    expect(b.market_value).toBe(1700);
+    const acct = db.prepare("SELECT last_txn_sync_at AS w FROM accounts WHERE id=?").get("snaptrade:acct-1") as { w: number };
+    expect(typeof acct.w).toBe("number");
   });
 });

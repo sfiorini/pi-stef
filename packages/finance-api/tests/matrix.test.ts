@@ -7,7 +7,8 @@ describe("buildDefaultRegistry", () => {
     expect(reg.get("fidelity")?.providerId).toBe("fidelity");
     expect(reg.get("boa")?.providerId).toBe("boa");
     expect(reg.get("coinbase")?.providerId).toBe("coinbase");
-    expect(reg.get("fidelity-snaptrade")).toBeDefined();
+    expect(reg.get("snaptrade")?.providerId).toBe("snaptrade");
+    expect(reg.get("fidelity-snaptrade")).toBeUndefined();
     expect(reg.get("boa-simplefin")).toBeDefined();
     expect(reg.get("boa-teller")).toBeDefined();
   });
