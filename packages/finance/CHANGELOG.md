@@ -1,0 +1,21 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+## [0.1.1] - 2026-06-29
+### Changed
+- fix(finance): read auto-generated token + allow absolute paths in import
+- docs(finance): add package READMEs
+- fix(finance): fix client↔server route contract mismatch (explicit path table)
+- fix(finance): fix typecheck errors in tools and client
+- test(finance): add client↔server integration test
+- feat(finance): add sf_fin_* tool registry + output formatting
+- feat(finance): add service HTTP client (GET/POST contract)
+- chore(finance): wire finance + finance-api into workspace and tsconfig
+- feat(finance): add config loader with defaults/file/env merge
+- feat(finance): scaffold extension package skeleton
