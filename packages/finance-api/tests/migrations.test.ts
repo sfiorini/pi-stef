@@ -7,8 +7,11 @@ describe("applyMigrations", () => {
     const db = new Database(":memory:");
     applyMigrations(db);
     const versions = db.prepare("SELECT version FROM schema_versions ORDER BY version").all() as { version: number }[];
-    expect(versions.at(-1)!.version).toBe(8);
+    expect(versions.at(-1)!.version).toBe(9);
     expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'").get()).toBeTruthy();
+    expect(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='balances'").get()).toBeTruthy();
+    const acctCols = db.prepare("PRAGMA table_info(accounts)").all() as { name: string }[];
+    expect(acctCols.map(c => c.name)).toContain("last_txn_sync_at");
   });
 
   it("is idempotent and incremental — a second call adds nothing", () => {

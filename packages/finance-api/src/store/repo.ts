@@ -29,6 +29,41 @@ export function listAccounts(db: Database.Database): AccountRow[] {
   return db.prepare("SELECT * FROM accounts").all() as AccountRow[];
 }
 
+export interface TransactionRow { id: string; account_id: string; date: number; symbol?: string | null; qty?: number | null; price?: number | null; type: string; fees?: number | null }
+
+export function upsertTransaction(db: Database.Database, t: TransactionRow): void {
+  db.prepare(`INSERT INTO transactions (id, account_id, date, symbol, qty, price, type, fees)
+              VALUES (@id, @account_id, @date, @symbol, @qty, @price, @type, @fees)
+              ON CONFLICT(id) DO UPDATE SET account_id=@account_id, date=@date, symbol=@symbol, qty=@qty, price=@price, type=@type, fees=@fees`)
+    .run({ ...t, symbol: t.symbol ?? null, qty: t.qty ?? null, price: t.price ?? null, fees: t.fees ?? null });
+}
+
+export function listTransactions(db: Database.Database, accountId: string): TransactionRow[] {
+  return db.prepare("SELECT * FROM transactions WHERE account_id=? ORDER BY date").all(accountId) as TransactionRow[];
+}
+
+export interface BalanceRow { account_id: string; cash: number; market_value: number; as_of: number }
+
+export function upsertBalance(db: Database.Database, b: BalanceRow): void {
+  db.prepare(`INSERT INTO balances (account_id, cash, market_value, as_of)
+              VALUES (@account_id, @cash, @market_value, @as_of)
+              ON CONFLICT(account_id) DO UPDATE SET cash=@cash, market_value=@market_value, as_of=@as_of`)
+    .run(b);
+}
+
+export function getBalance(db: Database.Database, accountId: string): BalanceRow | undefined {
+  return db.prepare("SELECT * FROM balances WHERE account_id=?").get(accountId) as BalanceRow | undefined;
+}
+
+export function getTxnWatermark(db: Database.Database, accountId: string): number | null {
+  const row = db.prepare("SELECT last_txn_sync_at AS w FROM accounts WHERE id=?").get(accountId) as { w: number | null } | undefined;
+  return row?.w ?? null;
+}
+
+export function setTxnWatermark(db: Database.Database, accountId: string, ts: number): void {
+  db.prepare("UPDATE accounts SET last_txn_sync_at=? WHERE id=?").run(ts, accountId);
+}
+
 export interface LotRow { id: string; holding_key: string; open_date: number; qty: number; cost_basis: number }
 
 export function upsertLot(db: Database.Database, lot: LotRow): void {
