@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-29
+### Changed
+- feat(finance-api): GHCR Docker publish workflow + comprehensive docs
+
+
 ## [0.1.1] - 2026-06-29
 ### Changed
 - fix(finance-api): bind Docker to localhost only
