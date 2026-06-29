@@ -97,7 +97,7 @@ Each provider's required credentials are documented under [Providers](#providers
 |----------|------|--------------------------|--------|
 | File Import (CSV/OFX) | brokerage/banking | `filePath` | ✅ Working |
 | Coinbase | crypto | `keyName` + `privateKey` | ⚠️ Stub (HMAC not implemented) |
-| SnapTrade | brokerage | `clientId` + `consumerKey` | ⚠️ Stub |
+| SnapTrade | brokerage | `clientId` + `consumerKey` | ✅ Working |
 | SimpleFIN | banking | `accessKey` | ⚠️ Stub |
 | Teller | banking | `token` | ⚠️ Stub |
 
@@ -105,7 +105,36 @@ Each provider's required credentials are documented under [Providers](#providers
 
 > **Primary ingestion path:** File import (CSV for holdings, OFX for transactions). See the complete [Data Import guide](#data-import) below.
 
-**Coinbase / SnapTrade / SimpleFIN / Teller** — Stubs in the current release. Credentials are accepted and validated against the contract, but live API calls are not yet implemented. Tracked for a future release.
+**SimpleFIN / Teller** — Stubs in the current release. Credentials are accepted and validated against the contract, but live API calls are not yet implemented. Tracked for a future release.
+
+### SnapTrade setup
+
+SnapTrade aggregates brokerage accounts (Fidelity, Vanguard, Schwab, Robinhood, and 30+ others) behind a unified API. The service polls your positions, transactions, and cash balance on each scheduler tick.
+
+**Credentials** go in `~/.pi/sf/finance/secrets.json` (chmod 600) under the `snaptrade` key:
+
+```json
+{
+  "snaptrade": {
+    "clientId": "your-developer-client-id",
+    "consumerKey": "your-developer-consumer-key",
+    "userId": "an-immutable-id-you-chose",
+    "userSecret": "server-generated-per-user-secret"
+  }
+}
+```
+
+**Self-provision once** at [snaptrade.com](https://snaptrade.com):
+1. Create a developer account and obtain your `clientId` + `consumerKey`.
+2. Register a SnapTrade user (POST `/snapTrade/registerUser` with your chosen `userId`) — store the returned `userSecret` (it is generated once; if lost, rotate via `/snapTrade/resetUserSecret`).
+3. Open the Connection Portal (`/snapTrade/login`) in a browser and connect each brokerage. The URL expires in 5 minutes.
+4. Copy all four values into `secrets.json` as above.
+
+**What is synced:** positions (equities/ETFs/mutual funds/crypto — options/futures are out of scope), transactions (incremental, id-keyed — only new activity since the last tick is fetched), and cash balance.
+
+**Polling & rate limits:** the scheduler tick serializes accounts; SnapTrade's customer-level limit is 250 requests/minute. A `429` surfaces as a normal ingest error and is retried on the next tick — no special throttling is required for v1.
+
+**Limitations (v1):** short positions are skipped (the data model cannot represent negative quantity); the SnapTrade payee/description field is not captured on transactions; connection management (register/login/revoke) happens out-of-band at snaptrade.com — there are no in-service endpoints for it. The imported `balance.marketValue` is the SnapTrade-reported **total account value** (cash + positions), not the position-only market value.
 
 ---
 
@@ -304,7 +333,7 @@ No `Symbol` column. No `Quantity` column. The data is a transaction ledger, not 
   ```
 - **For positions** (securities held in Merrill Edge / BoA investing), download a positions export from the investment section — these typically follow the same `Symbol,Quantity,Last Price` format that the parser accepts.
 
-**Future:** The SnapTrade aggregator stub is planned for a future release. When implemented, it will provide API access to BoA/Merrill accounts.
+**SnapTrade** now provides live brokerage aggregation (see [SnapTrade setup](#snaptrade-setup) above). Connect your BoA/Merrill brokerage account via SnapTrade for automatic sync.
 
 #### Other brokerages (Vanguard, Schwab, Robinhood, E*TRADE)
 
@@ -604,7 +633,8 @@ Structured logs are emitted to stdout (JSON) with `level`, `msg`, and contextual
 
 - **Free tier:** File imports (CSV/OFX) and `stooq` prices — no API costs.
 - **Optional:** Coinbase API (free, view-only scope) — currently a stub.
-- **Optional:** SnapTrade / SimpleFIN / Teller aggregators (may have fees) — currently stubs.
+- **SnapTrade:** live brokerage aggregation (Fidelity, Vanguard, Schwab, Robinhood, 30+ others — see [SnapTrade setup](#snaptrade-setup)).
+- **Optional:** SimpleFIN / Teller aggregators (may have fees) — currently stubs.
 
 ---
 

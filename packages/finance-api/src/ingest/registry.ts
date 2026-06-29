@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 import type { ProviderAdapter, Credentials } from "./contract";
 import { normalizeHolding } from "./normalizer";
-import { upsertAccount, upsertHolding, upsertLot, markStale, listHoldings, listAccounts } from "../store/repo";
+import { upsertAccount, upsertHolding, upsertLot, markStale, listHoldings, listAccounts, upsertTransaction, upsertBalance, getTxnWatermark, setTxnWatermark } from "../store/repo";
 
 export type AdapterRegistry = Map<string, ProviderAdapter>;
 
@@ -72,18 +72,35 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
           markStale(db, id, Date.now(), e instanceof Error ? e.message : String(e));
           errors++;
         }
-        // Exercise getTransactions/getBalances to validate the adapter contract
-        // (persistence of transactions/balances deferred to later milestones)
+        // Persist transactions incrementally (id-keyed upsert) using the per-account watermark.
         try {
-          const txns = await adapter.getTransactions(session, acc.providerAccountId);
+          const lastSync = getTxnWatermark(db, id);
+          // null watermark (first sync) → undefined, matching the contract's optional `since?: number`
+          const txns = await adapter.getTransactions(session, acc.providerAccountId, lastSync ?? undefined);
+          for (const t of txns) {
+            try {
+              upsertTransaction(db, {
+                id: t.id, account_id: id, date: t.date,
+                symbol: t.symbol ?? null, qty: t.qty ?? null, price: t.price ?? null,
+                type: t.type, fees: t.fees ?? 0,
+              });
+            } catch (e) {
+              log?.warn("transaction ingest failed", { accountId: id, txnId: t.id, error: e instanceof Error ? e.message : String(e) });
+            }
+          }
           transactions += txns.length;
-        } catch {
+          setTxnWatermark(db, id, Date.now());
+        } catch (e) {
           // Transaction fetch failures are non-fatal for ingest
+          log?.warn("transactions fetch failed", { accountId: id, error: e instanceof Error ? e.message : String(e) });
         }
+        // Persist the latest balance snapshot (one row per account).
         try {
-          await adapter.getBalances(session, acc.providerAccountId);
-        } catch {
+          const bal = await adapter.getBalances(session, acc.providerAccountId);
+          upsertBalance(db, { account_id: id, cash: bal.cash, market_value: bal.marketValue, as_of: bal.asOf });
+        } catch (e) {
           // Balance fetch failures are non-fatal for ingest
+          log?.warn("balance fetch failed", { accountId: id, error: e instanceof Error ? e.message : String(e) });
         }
       }
     } catch (e) {

@@ -8,7 +8,7 @@ export const MIGRATIONS_V1: Migration[] = [
     `CREATE TABLE IF NOT EXISTS accounts (
        id TEXT PRIMARY KEY, provider_id TEXT NOT NULL, kind TEXT NOT NULL,
        name TEXT NOT NULL, mask_last4 TEXT, currency TEXT NOT NULL DEFAULT 'USD',
-       stale_at INTEGER, stale_reason TEXT)` },
+       stale_at INTEGER, stale_reason TEXT, last_txn_sync_at INTEGER)` },
   { version: 2, statement:
     `CREATE TABLE IF NOT EXISTS holdings (
        account_id TEXT NOT NULL, symbol TEXT NOT NULL, quantity REAL NOT NULL,
@@ -37,4 +37,8 @@ export const MIGRATIONS_V1: Migration[] = [
   { version: 8, statement:
     `CREATE TABLE IF NOT EXISTS market_sessions (
        date TEXT PRIMARY KEY, session TEXT NOT NULL, snapshot TEXT NOT NULL)` },
+  { version: 9, statement:
+    `CREATE TABLE IF NOT EXISTS balances (
+       account_id TEXT PRIMARY KEY, cash REAL NOT NULL,
+       market_value REAL NOT NULL DEFAULT 0, as_of INTEGER NOT NULL)` },
 ];

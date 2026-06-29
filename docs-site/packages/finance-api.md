@@ -55,7 +55,7 @@ Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600).
 |----------|------|--------|
 | File Import (CSV/OFX) | brokerage/banking | ✅ Working |
 | Coinbase | crypto | ⚠️ Stub |
-| SnapTrade | brokerage | ⚠️ Stub |
+| [SnapTrade](./finance-api-snaptrade) | brokerage | ✅ Working |
 | SimpleFIN | banking | ⚠️ Stub |
 | Teller | banking | ⚠️ Stub |
 
