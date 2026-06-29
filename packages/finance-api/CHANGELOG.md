@@ -1,0 +1,81 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+
+## [0.1.1] - 2026-06-29
+### Changed
+- fix(finance-api): bind Docker to localhost only
+- fix(finance): read auto-generated token + allow absolute paths in import
+- fix(finance-api): persist token/config in Docker volume
+- docs(finance): add package READMEs
+- fix(finance-api): add pnpm-workspace.yaml to Dockerfile
+- fix(finance-api): delete orphaned lots when replacing holdings
+- fix(finance-api): add tsx as dependency for Docker/native execution
+- fix(finance-api): read SF_FINANCE_HOST from env for Docker deployment
+- docs(finance-api): add native run + launchd/systemd docs
+- feat(finance-api): add Dockerfile + docker-compose
+- test(finance-api): add daemon test + improve tick test assertions
+- fix(finance-api): wrap holdings replacement in transaction
+- fix(finance-api): clear stale holdings, thread dataFeed, per-holding error handling
+- fix(finance-api): thread dataFeed through sync + validate goal required fields
+- fix(finance-api): catch classifySession in runTick, fall back to closed
+- fix(finance-api): wrap daemon scheduling in try/catch to prevent crash on year-guard
+- fix(finance-api): restore year-guard throw as plan specifies
+- fix(finance-api): fix saveSecrets to chmod existing files to 0600
+- fix(finance-api): skip DCA spam, thread dataFeed through daemon
+- fix(finance-api): validate import path, thread dataFeed, fix ET year guard
+- fix(finance-api): fix rebalance zero-holdings + Stooq .us suffix
+- fix(finance-api): persist market_sessions + thread registry/creds through server
+- fix(finance-api): wire daemon in bin, fix import/sync routes to actually run
+- feat(finance-api): add scheduler daemon loop
+- feat(finance-api): add session-aware tick runner
+- fix(finance-api): remove classifySession year-guard throw (fallback to weekday-only)
+- fix(finance-api): fix history accountId filter + wrap classifySession try/catch
+- fix(finance-api): add drift route, fix secrets perms, include bin in typecheck
+- fix(finance-api): fix bin entry (use tsx), OFX dates, goal validation
+- fix(finance-api): restrict export path + wire bin entry + add route tests
+- fix(finance-api): secure token file (0600) + use market value for net worth/allocation
+- fix(finance-api): fix typecheck errors in server code
+- feat(finance-api): add startServer + secrets loader
+- feat(finance-api): add structured logger + 0600 secrets hardening
+- feat(finance-api): add Hono /v1 routes (GET reads / POST writes) + auth + staleness
+- feat(finance-api): add bearer-token bootstrap (race-safe) + auth middleware
+- feat(finance-api): add suggestion + goal repo helpers
+- feat(finance-api): add suggestion-record assembler
+- feat(finance-api): add risk checks + acceptance-band (limit) prices
+- feat(finance-api): add DCA schedule computation
+- feat(finance-api): add rebalance plan computation
+- feat(finance-api): add allocation drift computation
+- feat(finance-api): add goal-config validation
+- fix(finance-api): fix stooq Close column (row[6]) + add Juneteenth holiday
+- fix(finance-api): fix typecheck error in prices test
+- feat(finance-api): add price feed (stooq default, coinbase ticker for crypto)
+- feat(finance-api): add market session classifier (US, holidays)
+- fix(finance-api): remove unused parameter in coinbase adapter
+- feat(finance-api): add default provider registry (matrix)
+- feat(finance-api): add Teller aggregator adapter stub (BoA)
+- feat(finance-api): add SimpleFIN aggregator adapter stub (BoA)
+- feat(finance-api): add SnapTrade aggregator adapter stub (Fidelity)
+- feat(finance-api): add Coinbase Advanced Trade adapter (fetcher-injected)
+- feat(finance-api): add file-import provider adapter (CSV+OFX)
+- feat(finance-api): add BoA OFX/Quicken parser
+- feat(finance-api): add Fidelity/BoA positions CSV parser
+- fix(finance-api): validate port, thread asOf, exercise getTransactions/getBalances
+- fix(finance-api): persist tax lots + add stub bin/docker directories
+- fix(finance-api): clear stale flags on successful re-ingest
+- feat(finance-api): add ingest registry + runIngest (staleness on error)
+- feat(finance-api): add raw→canonical normalizer
+- feat(finance-api): define ProviderAdapter contract
+- fix(finance-api): remove unused import in backup test
+- feat(finance-api): add SQLite backup + JSON export
+- feat(finance-api): add canonical symbol mapping (CRYPTO: namespace)
+- feat(finance-api): add db open + repo UPSERT/query helpers
+- feat(finance-api): add versioned, incremental migration runner
+- feat(finance-api): add SQLite schema DDL as numbered migrations
+- feat(finance-api): add config loader (defaults/file/env)
+- feat(finance-api): scaffold package skeleton
