@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-30
+### Changed
+- docs: exhaustive finance/finance-api overhaul — co-equal providers, genericized File Import, SnapTrade client config
+- feat(finance): SnapTrade Personal-only auth + provider-scoped sync
+
+
 ## [0.1.2] - 2026-06-29
 ### Changed
 - feat(finance-api): GHCR Docker publish workflow + comprehensive docs
