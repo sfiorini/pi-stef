@@ -145,4 +145,59 @@ describe("server", () => {
     expect(body.ok).toBe(true);
     expect(body.data.accounts).toHaveLength(1);
   });
+
+  it("POST /v1/sync uses request credentials when server has none", async () => {
+    const db = openDb(":memory:");
+    let seenCreds: Record<string, unknown> | undefined;
+    const snaptrade = {
+      kind: "brokerage" as const, providerId: "snaptrade",
+      authenticate: async (c: any) => { seenCreds = c; return { providerId: "snaptrade", creds: c }; },
+      listAccounts: async () => [],
+      getHoldings: async () => [], getTransactions: async () => [], getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 0 }),
+    };
+    const app = createApp({
+      db, token,
+      registry: new Map([["snaptrade", snaptrade as never]]) as never,
+      creds: {},   // server has NO snaptrade creds
+    });
+    const res = await app.request("/v1/sync", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        providers: ["snaptrade"],
+        credentials: { snaptrade: { clientId: "from-request", consumerKey: "req-key" } },
+      }),
+    });
+    expect(res.status).toBe(200);
+    expect(seenCreds).toMatchObject({ clientId: "from-request", consumerKey: "req-key" });
+  });
+
+  it("POST /v1/sync merges request credentials over server creds (request wins) without mutating server creds", async () => {
+    const db = openDb(":memory:");
+    let seenCreds: Record<string, unknown> | undefined;
+    const snaptrade = {
+      kind: "brokerage" as const, providerId: "snaptrade",
+      authenticate: async (c: any) => { seenCreds = c; return { providerId: "snaptrade", creds: c }; },
+      listAccounts: async () => [],
+      getHoldings: async () => [], getTransactions: async () => [], getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 0 }),
+    };
+    const serverCreds = { snaptrade: { clientId: "from-server", consumerKey: "server-key" } };
+    const app = createApp({
+      db, token,
+      registry: new Map([["snaptrade", snaptrade as never]]) as never,
+      creds: serverCreds as never,
+    });
+    const res = await app.request("/v1/sync", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        credentials: { snaptrade: { clientId: "from-request", consumerKey: "req-key" } },
+      }),
+    });
+    expect(res.status).toBe(200);
+    // Adapter received the REQUEST creds, not the server's.
+    expect(seenCreds).toMatchObject({ clientId: "from-request", consumerKey: "req-key" });
+    // Server's creds object was NOT mutated by the merge.
+    expect(serverCreds.snaptrade).toMatchObject({ clientId: "from-server", consumerKey: "server-key" });
+  });
 });

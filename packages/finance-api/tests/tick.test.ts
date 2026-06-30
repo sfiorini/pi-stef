@@ -81,4 +81,31 @@ describe("runTick", () => {
     expect(fetchedSymbols).toContain("CRYPTO:BTC");
     expect(fetchedSymbols).not.toContain("aapl");
   });
+
+  it("threads opts.providers into runIngest so only scoped adapters run", async () => {
+    const db = openDb(":memory:");
+    let alphaRan = false;
+    let betaRan = false;
+    const alpha = {
+      kind: "crypto" as const, providerId: "alpha",
+      authenticate: async () => ({ providerId: "alpha" }),
+      listAccounts: async () => { alphaRan = true; return []; },
+      getHoldings: async () => [], getTransactions: async () => [], getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 0 }),
+    };
+    const beta = {
+      kind: "crypto" as const, providerId: "beta",
+      authenticate: async () => ({ providerId: "beta" }),
+      listAccounts: async () => { betaRan = true; return []; },
+      getHoldings: async () => [], getTransactions: async () => [], getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 0 }),
+    };
+    await runTick({
+      db,
+      registry: new Map([["alpha", alpha as never], ["beta", beta as never]]) as AdapterRegistry,
+      creds: { alpha: {}, beta: {} },
+      providers: ["alpha"],
+      now: new Date("2026-06-29T15:00:00Z").getTime(),
+    });
+    expect(alphaRan).toBe(true);
+    expect(betaRan).toBe(false);
+  });
 });

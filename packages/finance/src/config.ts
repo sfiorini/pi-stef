@@ -2,9 +2,18 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { globalConfig, globalDir } from "@pi-stef/paths";
 
+export interface SnaptradeProviderConfig {
+  clientId: string;
+  consumerKey: string;
+}
+
 export interface FinanceConfig {
   apiUrl: string;
   token: string;
+  /** Per-provider credentials, supplied per-call so one finance-api can serve different users. */
+  providers?: {
+    snaptrade?: SnaptradeProviderConfig;
+  };
 }
 
 export async function loadFinanceConfig(
@@ -13,10 +22,12 @@ export async function loadFinanceConfig(
 ): Promise<FinanceConfig> {
   let fileToken = "";
   let fileUrl = "";
+  let fileProviders: FinanceConfig["providers"];
   try {
     const raw = JSON.parse(await readFile(globalConfig("finance", homeDir), "utf8")) as Partial<FinanceConfig>;
     fileToken = raw.token ?? "";
     fileUrl = raw.apiUrl ?? "";
+    fileProviders = raw.providers;
   } catch (e) {
     if (!(e instanceof Error && "code" in e && (e as { code: string }).code === "ENOENT")) throw e;
   }
@@ -35,5 +46,6 @@ export async function loadFinanceConfig(
   return {
     apiUrl: env.SF_FINANCE_API_URL || fileUrl || "http://127.0.0.1:7780",
     token: env.SF_FINANCE_TOKEN || fileToken || autoToken || "",
+    providers: fileProviders,
   };
 }

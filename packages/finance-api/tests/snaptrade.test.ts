@@ -11,19 +11,20 @@ describe("snaptrade adapter — identity & auth", () => {
     expect(a.providerId).toBe("snaptrade");
   });
 
-  it("authenticate throws if any of the 4 required credentials is missing", async () => {
+  it("authenticate throws if clientId or consumerKey is missing (Personal-only — no userId/userSecret required)", async () => {
     const a = createSnaptradeAdapter();
     await expect(a.authenticate({})).rejects.toThrow(/snaptrade requires clientId/i);
     await expect(a.authenticate({ clientId: "c" })).rejects.toThrow(/consumerKey/i);
-    await expect(a.authenticate({ clientId: "c", consumerKey: "k" })).rejects.toThrow(/userId/i);
-    await expect(a.authenticate({ clientId: "c", consumerKey: "k", userId: "u" })).rejects.toThrow(/userSecret/i);
+    // userId/userSecret are NOT required — a Personal key authenticates with just the two.
+    await expect(a.authenticate({ clientId: "c", consumerKey: "k" })).resolves.toBeDefined();
   });
 
-  it("authenticate returns a session tagged with providerId when all creds present", async () => {
+  it("authenticate returns a session tagged with providerId when clientId+consumerKey present", async () => {
     const a = createSnaptradeAdapter({ createClient: () => ({}) as never });
-    const s = await a.authenticate({ clientId: "c", consumerKey: "k", userId: "u", userSecret: "s" });
+    const s = await a.authenticate({ clientId: "c", consumerKey: "k" });
     expect(s.providerId).toBe("snaptrade");
-    expect(s.creds?.userId).toBe("u");
+    expect(s.creds?.clientId).toBe("c");
+    expect(s.creds?.consumerKey).toBe("k");
   });
 });
 
@@ -40,7 +41,34 @@ function fakeClient(responses: Record<string, unknown>) {
   } as never;
 }
 
-const CREDS: Credentials = { clientId: "c", consumerKey: "k", userId: "u", userSecret: "s" };
+const CREDS: Credentials = { clientId: "c", consumerKey: "k" };
+
+describe("snaptrade adapter — Personal-key SDK invocation", () => {
+  it("calls the SDK with empty userId/userSecret (server ignores them for a Personal key)", async () => {
+    const seen: Record<string, unknown>[] = [];
+    const client = {
+      accountInformation: {
+        listUserAccounts: async (p: any) => { seen.push({ op: "listUserAccounts", ...p }); return { data: [] }; },
+        getUserAccountPositions: async (p: any) => { seen.push({ op: "getUserAccountPositions", ...p }); return { data: [] }; },
+        getAccountActivities: async (p: any) => { seen.push({ op: "getAccountActivities", ...p }); return { data: { data: [], pagination: {} } }; },
+        getUserAccountBalance: async (p: any) => { seen.push({ op: "getUserAccountBalance", ...p }); return { data: [] }; },
+        getUserAccountDetails: async (p: any) => { seen.push({ op: "getUserAccountDetails", ...p }); return { data: { balance: { total: { amount: 0 } } } }; },
+      },
+    } as never;
+    const a = createSnaptradeAdapter({ createClient: () => client });
+    const s = await a.authenticate(CREDS);
+    await a.listAccounts(s);
+    await a.getHoldings(s, "acct-1");
+    await a.getTransactions(s, "acct-1");
+    await a.getBalances(s, "acct-1");
+    // Every SDK call must carry userId:"" and userSecret:"".
+    expect(seen.length).toBeGreaterThanOrEqual(5);
+    for (const call of seen) {
+      expect(call.userId).toBe("");
+      expect(call.userSecret).toBe("");
+    }
+  });
+});
 
 describe("snaptrade adapter — mapping", () => {
   it("listAccounts maps id/name/maskLast4", async () => {

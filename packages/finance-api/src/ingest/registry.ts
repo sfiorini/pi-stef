@@ -9,9 +9,11 @@ export interface IngestCreds { [providerId: string]: Credentials }
 
 export interface IngestResult { accounts: number; holdings: number; transactions: number; errors: number }
 
-export async function runIngest(db: Database.Database, registry: AdapterRegistry, creds: IngestCreds, log?: { warn: (m: string, ctx?: unknown) => void }): Promise<IngestResult> {
+export async function runIngest(db: Database.Database, registry: AdapterRegistry, creds: IngestCreds, log?: { warn: (m: string, ctx?: unknown) => void }, opts?: { providers?: string[] }): Promise<IngestResult> {
+  const scope = opts?.providers ? new Set(opts.providers) : null;
   let accounts = 0, holdings = 0, transactions = 0, errors = 0;
   for (const [providerId, adapter] of registry) {
+    if (scope && !scope.has(providerId)) continue;   // skip out-of-scope providers (e.g. a single-provider sync)
     const c = creds[providerId];
     if (!c) continue;
     let session;

@@ -170,13 +170,31 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "sf_fin_sync_now",
     label: "Sync Now",
-    description: "Trigger immediate data sync from all providers",
-    parameters: {},
+    description: "Trigger a data sync. Pass provider to sync one provider (e.g. 'snaptrade'); omit to sync all providers.",
+    parameters: {
+      type: "object",
+      properties: {
+        provider: { type: "string", description: "Provider ID to sync (e.g. 'snaptrade'). Omit to sync all providers." },
+      },
+      required: [],
+    },
     promptSnippet: "Force an immediate sync of account data.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async () => {
-      const client = await getClient();
-      const data = await client.callOp<{ message: string }>("sync_now");
+    execute: async (params) => {
+      // Diverges from the getClient() helper used by other tools: this tool needs
+      // access to config.providers.snaptrade to attach per-call credentials.
+      const config = await loadFinanceConfig();
+      const client = createFinanceClient({ apiUrl: config.apiUrl, token: config.token });
+      // Build request body: scope to one provider when requested; attach per-call credentials
+      // (Personal SnapTrade key) when configured. One finance-api can serve different users
+      // because identity flows per-request, not from server-side storage.
+      const body: Record<string, unknown> = {};
+      const provider = (params as { provider?: string })?.provider;
+      if (provider) body.providers = [provider];
+      if (config.providers?.snaptrade) {
+        body.credentials = { snaptrade: config.providers.snaptrade };
+      }
+      const data = await client.callOp<{ message: string }>("sync_now", Object.keys(body).length ? body : undefined);
       return { content: [{ type: "text", text: data.message }], details: { implemented: true } };
     },
   });

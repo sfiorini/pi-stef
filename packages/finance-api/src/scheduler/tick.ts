@@ -20,6 +20,8 @@ export interface TickDeps {
   log?: Logger;
   now?: number;
   dataFeed?: "stooq" | "yfinance";
+  /** Scope ingest to a subset of providers (e.g. a single-provider sync). Omit = all. */
+  providers?: string[];
 }
 
 export interface TickResult {
@@ -47,7 +49,7 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
   log?.info("tick start", { session, now });
 
   // Ingest data from providers
-  const ingestResult = await runIngest(db, registry, creds, log);
+  const ingestResult = await runIngest(db, registry, creds, log, { providers: deps.providers });
   log?.info("ingest complete", ingestResult);
 
   // Refresh prices for held symbols

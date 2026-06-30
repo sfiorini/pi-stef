@@ -80,4 +80,22 @@ describe("runIngest", () => {
     await runIngest(db, registry, { demo: {} });
     expect(sinceSeen).toBe(9999);
   });
+
+  it("scopes to a subset of providers when opts.providers is set", async () => {
+    const db = openDb(":memory:");
+    let alphaRan = false;
+    let betaRan = false;
+    const alpha = { ...fakeAdapter([{ symbol: "a", quantity: 1, assetClass: "equity" }]), providerId: "alpha",
+      listAccounts: async () => { alphaRan = true; return []; } };
+    const beta = { ...fakeAdapter([{ symbol: "b", quantity: 1, assetClass: "equity" }]), providerId: "beta",
+      listAccounts: async () => { betaRan = true; return []; } };
+    const registry: AdapterRegistry = new Map([
+      ["alpha", alpha as never],
+      ["beta", beta as never],
+    ]);
+    const result = await runIngest(db, registry, { alpha: {}, beta: {} }, undefined, { providers: ["alpha"] });
+    expect(alphaRan).toBe(true);
+    expect(betaRan).toBe(false);
+    expect(result.accounts).toBe(0);
+  });
 });

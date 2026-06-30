@@ -93,13 +93,13 @@ Each provider's required credentials are documented under [Providers](#providers
 
 ## Providers
 
-| Provider | Kind | Auth (in `secrets.json`) | Status |
-|----------|------|--------------------------|--------|
-| File Import (CSV/OFX) | brokerage/banking | `filePath` | ✅ Working |
-| Coinbase | crypto | `keyName` + `privateKey` | ⚠️ Stub (HMAC not implemented) |
-| SnapTrade | brokerage | `clientId` + `consumerKey` | ✅ Working |
-| SimpleFIN | banking | `accessKey` | ⚠️ Stub |
-| Teller | banking | `token` | ⚠️ Stub |
+| Provider | Kind | Auth | Status |
+|----------|------|------|--------|
+| File Import (CSV/OFX) | brokerage/banking | `filePath` (per-request) | ✅ Working |
+| Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ⚠️ Stub (HMAC not implemented) |
+| SnapTrade | brokerage | `clientId` + `consumerKey` (in client `config.json`, passed per-request) | ✅ Working |
+| SimpleFIN | banking | `accessKey` (in `secrets.json`) | ⚠️ Stub |
+| Teller | banking | `token` (in `secrets.json`) | ⚠️ Stub |
 
 **Provider setup:**
 
@@ -109,32 +109,42 @@ Each provider's required credentials are documented under [Providers](#providers
 
 ### SnapTrade setup
 
-SnapTrade aggregates brokerage accounts (Fidelity, Vanguard, Schwab, Robinhood, and 30+ others) behind a unified API. The service polls your positions, transactions, and cash balance on each scheduler tick.
+SnapTrade aggregates brokerage accounts (Fidelity, Vanguard, Schwab, Robinhood, and 30+ others) behind a unified API. This integration uses a **Personal API key** — your brokerage connections live under your own SnapTrade Personal account, and identity is resolved from the signed `consumerKey` on every request.
 
-**Credentials** go in `~/.pi/sf/finance/secrets.json` (chmod 600) under the `snaptrade` key:
+> **v1 supports Personal accounts only.** The Commercial model (`userId`/`userSecret` via `registerSnapTradeUser`) is intentionally not supported.
+
+**Credentials live in the client config** (`~/.pi/sf/finance/config.json`, alongside the service `token`), **not** in the server's `secrets.json`. This keeps one finance-api deployment able to serve different SnapTrade users — each caller passes its own key per request.
 
 ```json
 {
-  "snaptrade": {
-    "clientId": "your-developer-client-id",
-    "consumerKey": "your-developer-consumer-key",
-    "userId": "an-immutable-id-you-chose",
-    "userSecret": "server-generated-per-user-secret"
+  "apiUrl": "http://127.0.0.1:7780",
+  "token": "<service bearer token>",
+  "providers": {
+    "snaptrade": {
+      "clientId": "PERS-...",
+      "consumerKey": "<your personal consumer key>"
+    }
   }
 }
 ```
 
 **Self-provision once** at [snaptrade.com](https://snaptrade.com):
-1. Create a developer account and obtain your `clientId` + `consumerKey`.
-2. Register a SnapTrade user (POST `/snapTrade/registerUser` with your chosen `userId`) — store the returned `userSecret` (it is generated once; if lost, rotate via `/snapTrade/resetUserSecret`).
-3. Open the Connection Portal (`/snapTrade/login`) in a browser and connect each brokerage. The URL expires in 5 minutes.
-4. Copy all four values into `secrets.json` as above.
+1. Create a **Personal** account.
+2. Open the Connection Portal and connect each of your brokerage accounts (Fidelity, Vanguard, Schwab, …). Connections are managed out-of-band on the SnapTrade dashboard — there are no in-service endpoints for it.
+3. Copy your Personal `clientId` + `consumerKey` from the dashboard.
+4. Add them to the client `config.json` under `providers.snaptrade` as above.
 
-**What is synced:** positions (equities/ETFs/mutual funds/crypto — options/futures are out of scope), transactions (incremental, id-keyed — only new activity since the last tick is fetched), and cash balance.
+**How a sync works:** SnapTrade is **on-demand only** — the always-on server daemon does not poll SnapTrade on its own (it has no server-side key). Trigger a sync from the `finance` extension:
+- `sf_fin_sync_now` (no args) → syncs **all** providers, attaching your Personal SnapTrade key.
+- `sf_fin_sync_now({ provider: "snaptrade" })` → syncs **only** SnapTrade.
 
-**Polling & rate limits:** the scheduler tick serializes accounts; SnapTrade's customer-level limit is 250 requests/minute. A `429` surfaces as a normal ingest error and is retried on the next tick — no special throttling is required for v1.
+The client sends `clientId` + `consumerKey` in the request body of `/v1/sync`; the server uses them for that single tick and stores nothing.
 
-**Limitations (v1):** short positions are skipped (the data model cannot represent negative quantity); the SnapTrade payee/description field is not captured on transactions; connection management (register/login/revoke) happens out-of-band at snaptrade.com — there are no in-service endpoints for it. The imported `balance.marketValue` is the SnapTrade-reported **total account value** (cash + positions), not the position-only market value.
+**What is synced:** positions (equities/ETFs/mutual funds/crypto — options/futures are out of scope), transactions (incremental, id-keyed — only new activity since the last sync is fetched), and cash balance.
+
+**Polling & rate limits:** each sync serializes accounts; SnapTrade's customer-level limit is 250 requests/minute. A `429` surfaces as a normal ingest error and is retried on the next sync — no special throttling is required for v1.
+
+**Limitations (v1):** short positions are skipped (the data model cannot represent negative quantity); the SnapTrade payee/description field is not captured on transactions; connection management (connect/revoke) happens out-of-band at snaptrade.com. The imported `balance.marketValue` is the SnapTrade-reported **total account value** (cash + positions), not the position-only market value. Only Personal accounts are supported.
 
 ---
 
@@ -509,7 +519,23 @@ Dismiss a suggestion by id.
 
 ### `POST /v1/sync`
 
-Trigger a full scheduler tick: ingest from all configured providers, refresh prices, recompute suggestions.
+Trigger a scheduler tick: ingest from providers, refresh prices, recompute suggestions.
+
+**Optional request body:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `providers` | `string[]` | Scope ingest to a subset of providers (e.g. `["snaptrade"]`). Omit to ingest from all configured providers. |
+| `credentials` | `object` | Per-provider credentials supplied per-call (request creds override server-side `secrets.json` creds for this tick; nothing is persisted). Used for Personal SnapTrade keys. |
+
+Example — sync SnapTrade with a per-call Personal key:
+
+```bash
+curl -X POST http://127.0.0.1:7780/v1/sync \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"providers":["snaptrade"],"credentials":{"snaptrade":{"clientId":"PERS-...","consumerKey":"..."}}}'
+```
 
 ```json
 { "ok": true, "data": {
@@ -623,7 +649,7 @@ Structured logs are emitted to stdout (JSON) with `level`, `msg`, and contextual
 |---------|-----|
 | `401 Unauthorized` | Retrieve/regenerate the token (see [Authentication](#authentication)); check `SF_FINANCE_TOKEN` |
 | Port already in use | Change `SF_FINANCE_PORT` and the compose port mapping |
-| Stale holdings | Run `POST /v1/sync`; check provider credentials in `secrets.json` |
+| Stale holdings | Run `POST /v1/sync`; check provider credentials (SnapTrade → client `config.json`, others → `secrets.json`) |
 | `better-sqlite3` build fails (native) | Use the Docker image, or ensure `python3 make g++` are installed |
 | No suggestions after sync | Set a goal via `POST /v1/goals` — drift/rebalance need a target |
 
