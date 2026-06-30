@@ -15,29 +15,41 @@ Or via catalog:
 
 ## Prerequisites
 
-The `@pi-stef/finance-api` service must be running (Docker or native). See the [finance-api README](../finance-api/README.md) or the [docs-site guide](../../docs-site/packages/finance-api.md) for setup.
+The `@pi-stef/finance-api` service must be running (Docker or native) and you must have its bearer token. See the [finance-api README](../finance-api/README.md) for service setup, or the [docs-site guide](../../docs-site/packages/finance-api.md).
 
 > **Full documentation:** [docs-site/packages/finance.md](../../docs-site/packages/finance.md)
 
 ## Configuration
 
-Set environment variables or create `~/.pi/sf/finance/config.json`:
+The extension reads its config from `~/.pi/sf/finance/config.json`, or from environment variables (prefix `SF_FINANCE_`):
 
 ```json
 {
   "apiUrl": "http://127.0.0.1:7780",
-  "token": "your-bearer-token"
+  "token": "your-bearer-token",
+  "providers": {
+    "snaptrade": {
+      "clientId": "PERS-...",
+      "consumerKey": "<your personal consumer key>"
+    }
+  }
 }
 ```
 
-Environment variables (prefix `SF_FINANCE_`):
+| Field | Env override | Default | Description |
+|-------|--------------|---------|-------------|
+| `apiUrl` | `SF_FINANCE_API_URL` | `http://127.0.0.1:7780` | finance-api service URL |
+| `token` | `SF_FINANCE_TOKEN` | (auto-read from `~/.pi/sf/finance/token`) | Bearer token for API auth |
+| `providers.snaptrade.clientId` | — | — | Personal SnapTrade client ID (see [SnapTrade setup](../finance-api/README.md#snaptrade-setup)) |
+| `providers.snaptrade.consumerKey` | — | — | Personal SnapTrade consumer key |
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SF_FINANCE_API_URL` | `http://127.0.0.1:7780` | Finance API URL |
-| `SF_FINANCE_TOKEN` | (from `~/.pi/sf/finance/token`) | Bearer token for API auth |
+**Where does the token come from?** The finance-api service auto-generates a token on first start and writes it to `~/.pi/sf/finance/token`. When the extension runs on the same host, it reads that file automatically — you usually don't need to set `token` at all. In Docker, retrieve it with `docker compose exec finance-api cat /root/.pi/sf/finance/token` and copy it into `config.json`.
+
+**SnapTrade credentials live here, not in the server.** SnapTrade uses a Personal API key that flows per-call: the extension attaches `clientId` + `consumerKey` to each `/v1/sync` request, and the server uses them for that single tick and stores nothing. This lets one finance-api deployment serve different SnapTrade users. See [SnapTrade setup](../finance-api/README.md#snaptrade-setup) for how to obtain them.
 
 ## Tools
+
+The extension exposes these tools to the pi agent:
 
 | Tool | Description |
 |------|-------------|
@@ -50,9 +62,30 @@ Environment variables (prefix `SF_FINANCE_`):
 | `sf_fin_set_target` | Create/update investment goal |
 | `sf_fin_get_suggestions` | Get pending suggestions |
 | `sf_fin_dismiss_suggestion` | Dismiss a suggestion |
-| `sf_fin_sync_now` | Trigger immediate data sync |
-| `sf_fin_import_file` | Import holdings from CSV/OFX |
+| `sf_fin_sync_now` | Trigger a data sync (all providers, or one via `provider`) |
+| `sf_fin_import_file` | Import holdings/transactions from a CSV/OFX file |
 | `sf_fin_history` | Get price history |
+
+### `sf_fin_sync_now`
+
+Triggers a data sync: ingest from providers, refresh prices, recompute suggestions.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `provider` | string | no | Provider ID to sync (e.g. `snaptrade`). Omit to sync **all** providers. |
+
+Behavior:
+- **No `provider` arg** → syncs all providers. If `providers.snaptrade` is configured, your Personal SnapTrade key is attached so SnapTrade runs alongside any server-side providers.
+- **`provider: "snaptrade"`** → syncs **only** SnapTrade, attaching your key.
+- **`provider: "snaptrade"` but no key configured** → sends the scoped request with no credentials; the server skips SnapTrade (silent no-op).
+
+### `sf_fin_import_file`
+
+Imports holdings (CSV) or transactions + balance (OFX) from a file. The format is detected from the extension/contents. See the [File Import guide](../finance-api/README.md#file-import-csvofx) for accepted formats.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `filePath` | string | **yes** | Absolute or relative path to the CSV/OFX file |
 
 ## Usage
 
@@ -60,7 +93,8 @@ Ask the pi agent:
 - "What's my current portfolio allocation?"
 - "How far am I from my target allocation?"
 - "What should I buy/sell to rebalance?"
-- "Import my Fidelity positions from ~/Downloads/positions.csv"
+- "Sync my SnapTrade accounts"
+- "Import the positions CSV at ~/Downloads/positions.csv"
 
 ## Disclaimer
 

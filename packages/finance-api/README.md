@@ -70,19 +70,13 @@ All configuration is via environment variables (prefix `SF_FINANCE_`):
 
 ### Secrets (`secrets.json`)
 
-Create `~/.pi/sf/finance/secrets.json` with provider credentials. The file is `chmod 600` on creation.
+Some providers authenticate with server-side credentials stored in `~/.pi/sf/finance/secrets.json` (the file is `chmod 600` on creation). **Not every provider uses this file** — SnapTrade, for example, is client-supplied (see its setup below). The table under [Providers](#providers) shows where each provider's credentials live.
 
 ```json
 {
   "coinbase": {
     "keyName": "your-api-key",
     "privateKey": "your-private-key"
-  },
-  "fidelity": {
-    "filePath": "~/Downloads/fidelity-positions.csv"
-  },
-  "boa": {
-    "filePath": "~/Downloads/boa-transactions.ofx"
   }
 }
 ```
@@ -103,7 +97,12 @@ Each provider's required credentials are documented under [Providers](#providers
 
 **Provider setup:**
 
-> **Primary ingestion path:** File import (CSV for holdings, OFX for transactions). See the complete [Data Import guide](#data-import) below.
+Providers are **co-equal** — you can enable any combination, and multiple providers can run side by side (e.g. SnapTrade for live brokerage sync *and* File Import for a bank OFX export). Each provider is documented on its own page:
+
+- [File Import](#file-import-csvofx) — manual CSV/OFX uploads via `/v1/import`
+- [SnapTrade](#snaptrade-setup) — live brokerage aggregation (30+ brokers)
+
+> **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers (e.g. imported via CSV *and* synced via SnapTrade), it appears as **two separate accounts** — there is no mechanism today to recognize and merge them. This is tracked for a future release. For now, use one provider per account to avoid double-counting.
 
 **SimpleFIN / Teller** — Stubs in the current release. Credentials are accepted and validated against the contract, but live API calls are not yet implemented. Tracked for a future release.
 
@@ -148,15 +147,17 @@ The client sends `clientId` + `consumerKey` in the request body of `/v1/sync`; t
 
 ---
 
-## Data Import
+## File Import (CSV/OFX)
 
-This section covers everything you need to know about importing financial data into the service — the exact formats accepted, how to export from supported services, and what to do when your provider isn't supported yet.
+File Import is a co-equal provider that ingests holdings and transactions from manual file uploads via `POST /v1/import`. It covers two formats: CSV (for holdings/positions from any brokerage export) and OFX (for transactions + cash balance from bank exports). This is a good fit for institutions not covered by SnapTrade, or when you prefer not to grant API access.
+
+This section covers everything you need to know — the exact formats accepted, how to export from common brokerages and banks, and what to do when your export isn't directly supported.
 
 ### Supported formats
 
 | Format | Extension | Data imported | Use case |
 |--------|-----------|---------------|----------|
-| CSV | `.csv` | Holdings (positions) | Brokerage exports (Fidelity, Vanguard, Schwab) |
+| CSV | `.csv` | Holdings (positions) | Brokerage exports (any broker that exports a positions CSV) |
 | OFX | `.ofx`, `.qfx` | Transactions + balances | Bank exports (checking, savings) |
 
 The service detects the format automatically: `.csv` → positions, OFX → transactions + cash balance.
@@ -220,15 +221,15 @@ AAPL,10
 FXAIX,5.123
 ```
 
-#### Fully specified CSV (matching Fidelity export)
+#### Fully specified CSV (typical brokerage export)
 
 ```csv
 Account,Symbol,Description,Quantity,Last Price
 Brokerage,AAPL,Apple Inc.,10,190.50
-Brokerage,FXAIX,Fidelity 500 Index,5.123,180.00
+Brokerage,VTI,Total Stock Market,5.123,180.00
 ```
 
-This is the exact format exported by Fidelity and verified in the test suite.
+Most brokerages export positions with a header row like `Account,Symbol,Description,Quantity,Last Price` (sometimes `Shares` instead of `Quantity`, or `Price` instead of `Last Price`). The parser accepts all of these.
 
 ### OFX format specification
 
@@ -272,37 +273,40 @@ OFX dates are parsed as `YYYYMMDD` or `YYYYMMDDHHMMSS`. If the date string is em
 
 > ⚠️ **The payee name (`<NAME>`) is parsed from the OFX file but discarded by the adapter.** Imported transactions have no payee/description field. This is a known gap.
 
-### How to export from Fidelity
+### How to export from your brokerage
 
-Fidelity is the only upstream service whose export format is **verified working** with the current CSV parser. Here's how to get your positions out:
+The CSV parser accepts any positions export with a `Symbol` column and a `Quantity`/`Shares`/`Qty` column (an optional `Last Price`/`Price` column is read as average cost). The exact menu path varies by brokerage, but the steps are the same everywhere:
 
-1. **Log into** [fidelity.com](https://www.fidelity.com) and navigate to your Portfolio.
-2. Go to **Accounts & Trade** → **Portfolio** (or use the **All Accounts** view).
-3. Select the account you want to export (e.g., "Individual - TOD").
-4. Look for **Download** or **Export** — typically a down-arrow icon or a link near the positions table header.
-5. Choose **CSV format** (not PDF, not Excel).
-6. Save the file. It typically downloads as `Portfolio_Positions_<date>.csv`.
-7. **Expected headers:** `Account,Symbol,Description,Quantity,Last Price` — this is the exact format the parser accepts.
-8. **Import the file:**
+1. **Log into your brokerage's website** and navigate to your Portfolio / Positions / Holdings page.
+2. **Select the account** you want to export.
+3. **Look for Download / Export** — typically a down-arrow icon or a link near the positions table header.
+4. **Choose CSV format** (not PDF, not Excel).
+5. **Save the file** — it typically downloads as `Positions_<date>.csv` or similar.
+6. **Check the headers** — you need `Symbol` and one of `Quantity`/`Shares`/`Qty`. A `Last Price`/`Price` column is optional. Extra columns (Description, Account, Cost Basis, …) are ignored.
+7. **Import the file:**
    ```bash
    curl -X POST http://127.0.0.1:7780/v1/import \
      -H "Authorization: Bearer $(cat ~/.pi/sf/finance/token)" \
      -H "Content-Type: application/json" \
-     -d '{"filePath":"/Users/me/Downloads/Portfolio_Positions_2026-06-29.csv"}'
+     -d '{"filePath":"/Users/me/Downloads/positions.csv"}'
    ```
-9. **Verify the import worked:**
+8. **Verify the import worked:**
    ```bash
    curl -X GET http://127.0.0.1:7780/v1/holdings \
      -H "Authorization: Bearer $(cat ~/.pi/sf/finance/token)"
    ```
 
-> **Note:** The Fidelity export header uses `Last Price` (not `Price`). The parser accepts both. The price is stored as `avgCost` on the holding — the `/v1/net-worth` endpoint computes value using the latest price from the price feed, not this field.
+> **Tip:** The price column (`Last Price` or `Price`) is stored as `avgCost` on the holding — the `/v1/net-worth` endpoint computes value using the latest price from the price feed, not this field. So a missing or stale price column is harmless.
+>
+> **Prefer live sync?** If your brokerage is one of the 30+ supported by SnapTrade (Fidelity, Vanguard, Schwab, Robinhood, …), [SnapTrade](#snaptrade-setup) gives you automatic live sync with no manual exports.
 
-### Services not currently supported
+### Exports that need adjustment
 
-#### Coinbase
+Some institutions export data in a shape the CSV parser can't read directly. This is not an exhaustive list — the same patterns apply to any similar export.
 
-**Reason:** Coinbase exports **transaction history**, not portfolio positions. A typical Coinbase CSV export has columns like:
+#### Crypto exchanges (e.g. Coinbase)
+
+**Reason:** Crypto exchanges export **transaction history**, not portfolio positions. A typical CSV has columns like:
 
 ```
 Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price,Subtotal,Total,Notes
@@ -311,8 +315,8 @@ Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price,Subtotal,Total,N
 There is no `Symbol` column (the parser's required key). Even if renamed, the data represents *transactions* (buys/sells/transfers), not *current holdings*. The parser would need significant changes to aggregate transactions into a portfolio snapshot.
 
 **What you can do today:**
-1. Manually create a CSV with `Symbol,Quantity` columns from your Coinbase portfolio.
-2. Get your current balances from the Coinbase UI (Dashboard → each asset → balance).
+1. Manually create a CSV with `Symbol,Quantity` columns from your exchange balances.
+2. Get your current balances from the exchange UI (Dashboard → each asset → balance).
 3. Write a CSV like:
    ```csv
    Symbol,Quantity
@@ -321,11 +325,11 @@ There is no `Symbol` column (the parser's required key). Even if renamed, the da
    ```
 4. Import with `POST /v1/import`.
 
-**Future:** The Coinbase API aggregator stub (`src/ingest/direct/coinbase.ts`) is planned for a future release. When implemented, it will pull positions directly via API key (HMAC-signed).
+**Future:** A direct Coinbase API aggregator stub (`src/ingest/direct/coinbase.ts`) is planned for a future release. When implemented, it will pull positions directly via API key (HMAC-signed).
 
-#### Bank of America
+#### Banks (e.g. Bank of America)
 
-**Reason:** Bank of America exports **account activity** (transactions), not portfolio positions. A typical BoA CSV has columns like:
+**Reason:** Banks export **account activity** (transactions), not portfolio positions. A typical bank CSV has columns like:
 
 ```
 Date,Description,Amount,Running Bal.
@@ -334,20 +338,19 @@ Date,Description,Amount,Running Bal.
 No `Symbol` column. No `Quantity` column. The data is a transaction ledger, not a position list.
 
 **What you can do today:**
-- **OFX/QFX:** Bank of America supports OFX download (via "Download Transactions" → choose "Microsoft Money" or "Quicken" format). This is the **recommended path** — the OFX parser handles these files correctly for transaction history and cash balance.
+- **OFX/QFX:** Most banks support OFX download (via "Download Transactions" → choose "Microsoft Money" or "Quicken" format). This is the **recommended path** — the OFX parser handles these files correctly for transaction history and cash balance.
   ```bash
   curl -X POST http://127.0.0.1:7780/v1/import \
     -H "Authorization: Bearer $(cat ~/.pi/sf/finance/token)" \
     -H "Content-Type: application/json" \
-    -d '{"filePath":"/Users/me/Downloads/boa-activity.ofx"}'
+    -d '{"filePath":"/Users/me/Downloads/bank-activity.ofx"}'
   ```
-- **For positions** (securities held in Merrill Edge / BoA investing), download a positions export from the investment section — these typically follow the same `Symbol,Quantity,Last Price` format that the parser accepts.
+- **For positions** held in a bank's investing arm (e.g. Merrill Edge for BoA), download a positions export from the investment section — these typically follow the `Symbol,Quantity,Last Price` format the parser accepts.
+- **Live sync:** If the brokerage side is supported by SnapTrade, [SnapTrade](#snaptrade-setup) gives you automatic sync.
 
-**SnapTrade** now provides live brokerage aggregation (see [SnapTrade setup](#snaptrade-setup) above). Connect your BoA/Merrill brokerage account via SnapTrade for automatic sync.
+#### If your CSV doesn't match
 
-#### Other brokerages (Vanguard, Schwab, Robinhood, E*TRADE)
-
-Most brokerages export positions in a format similar to Fidelity's: `Symbol`, `Quantity`/`Shares`, and optionally a `Last Price`/`Price` column. If your brokerage's CSV export has these columns (under any of the accepted header names), it will import successfully. Try it — if the import returns empty holdings, check that your CSV has `Symbol` and `Quantity`/`Shares` columns in the header row.
+Most brokerages export positions with `Symbol`, `Quantity`/`Shares`, and optionally a `Last Price`/`Price` column. If your export has these columns under any accepted header name, it will import. If the import returns empty holdings, check that your CSV has `Symbol` and `Quantity`/`Shares`/`Qty` in the header row (`head -1 your-file.csv`).
 
 ### curl examples
 
@@ -426,8 +429,8 @@ Accounts and their holdings.
 
 ```json
 { "ok": true, "data": { "accounts": [
-  { "id": "fidelity", "provider_id": "import", "kind": "brokerage", "name": "Fidelity",
-    "holdings": [ { "account_id": "fidelity", "symbol": "AAPL", "quantity": 10, "asset_class": "equity", "as_of": 1782000000000 } ] }
+  { "id": "snaptrade:acct-1", "provider_id": "snaptrade", "kind": "brokerage", "name": "Brokerage",
+    "holdings": [ { "account_id": "snaptrade:acct-1", "symbol": "AAPL", "quantity": 10, "asset_class": "equity", "as_of": 1782000000000 } ] }
 ] } }
 ```
 
@@ -553,7 +556,7 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 
 Import holdings from a local file (CSV or OFX). Absolute paths are allowed (single-user local service); relative paths containing `..` are rejected.
 
-**Request body:** `{ "filePath": "/Users/me/Downloads/fidelity-positions.csv" }`
+**Request body:** `{ "filePath": "/Users/me/Downloads/positions.csv" }`
 
 ```json
 { "ok": true, "data": { "message": "Import complete", "filePath": "...", "accounts": 1 } }

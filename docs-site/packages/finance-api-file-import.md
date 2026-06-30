@@ -1,12 +1,14 @@
 # File Import provider
 
-Import financial data from CSV and OFX files. This is the primary ingestion path for most users — download a positions export from your brokerage (Fidelity, Vanguard, Schwab, …) or a transaction export from your bank, then upload it to the service.
+File Import is a co-equal provider that ingests holdings and transactions from manual file uploads via `POST /v1/import`. It covers two formats: CSV (for holdings/positions from any brokerage export) and OFX (for transactions + cash balance from bank exports). This is a good fit for institutions not covered by SnapTrade, or when you prefer not to grant API access.
+
+Providers can be combined — e.g. SnapTrade for live brokerage sync *and* File Import for a bank OFX export. (Cross-provider account deduplication is not supported yet; see the [finance-api page](./finance-api) for the limitation.)
 
 ## Supported formats
 
 | Format | Extension | Data imported | Use case |
 |--------|-----------|---------------|----------|
-| CSV | `.csv` | Holdings (positions) | Brokerage exports (Fidelity, Vanguard, Schwab) |
+| CSV | `.csv` | Holdings (positions) | Brokerage exports (any broker that exports a positions CSV) |
 | OFX | `.ofx`, `.qfx` | Transactions + balances | Bank exports (checking, savings) |
 
 The service detects the format automatically: `.csv` → positions, OFX → transactions + cash balance.
@@ -21,7 +23,7 @@ The CSV parser expects a **positions-style CSV** — one row per holding, with a
 
 | Column | Accepted header names (case-insensitive, trimmed) | Example value | Notes |
 |--------|---------------------------------------------------|---------------|-------|
-| **Symbol** | `symbol` | `AAPL`, `FXAIX`, `VTI` | Must be non-empty. Any string works — no ticker validation. |
+| **Symbol** | `symbol` | `AAPL`, `VTI`, `FXAIX` | Must be non-empty. Any string works — no ticker validation. |
 | **Quantity** | `quantity`, `shares`, `qty` | `10`, `5.123`, `100` | Must be a non-zero number. Whitespace/symbols stripped (see below). |
 
 ### Optional column
@@ -70,18 +72,18 @@ This strips **everything** except digits (`0-9`), dot (`.`), and hyphen (`-`). T
 ```csv
 Symbol,Quantity
 AAPL,10
-FXAIX,5.123
+VTI,5.123
 ```
 
-### Fully specified CSV (Fidelity export)
+### Fully specified CSV (typical brokerage export)
 
 ```csv
 Account,Symbol,Description,Quantity,Last Price
 Brokerage,AAPL,Apple Inc.,10,190.50
-Brokerage,FXAIX,Fidelity 500 Index,5.123,180.00
+Brokerage,VTI,Total Stock Market,5.123,180.00
 ```
 
-This matches the exact format exported by Fidelity and verified in the test suite.
+Most brokerages export positions with a header row like `Account,Symbol,Description,Quantity,Last Price` (sometimes `Shares` instead of `Quantity`, or `Price` instead of `Last Price`). The parser accepts all of these.
 
 ---
 
@@ -127,17 +129,16 @@ OFX dates are parsed as `YYYYMMDD` or `YYYYMMDDHHMMSS`. If the date string is em
 
 ---
 
-## How to export from Fidelity
+## How to export from your brokerage
 
-Fidelity positions export is the only upstream service format **verified working** with the current CSV parser.
+The CSV parser accepts any positions export with a `Symbol` column and a `Quantity`/`Shares`/`Qty` column (an optional `Last Price`/`Price` column is read as average cost). The exact menu path varies by brokerage, but the steps are the same everywhere:
 
-1. Log into [fidelity.com](https://www.fidelity.com) and navigate to your Portfolio.
-2. Go to **Accounts & Trade** → **Portfolio** (or use the **All Accounts** view).
-3. Select the account you want to export (e.g. "Individual - TOD").
-4. Look for **Download** or **Export** — typically a down-arrow icon near the positions table header.
-5. Choose **CSV format** (not PDF, not Excel).
-6. Save the file — typically `Portfolio_Positions_<date>.csv`.
-7. **Expected headers:** `Account,Symbol,Description,Quantity,Last Price`.
+1. **Log into your brokerage's website** and navigate to your Portfolio / Positions / Holdings page.
+2. **Select the account** you want to export.
+3. **Look for Download / Export** — typically a down-arrow icon or a link near the positions table header.
+4. **Choose CSV format** (not PDF, not Excel).
+5. **Save the file** — it typically downloads as `Positions_<date>.csv` or similar.
+6. **Check the headers** — you need `Symbol` and one of `Quantity`/`Shares`/`Qty`. A `Last Price`/`Price` column is optional. Extra columns (Description, Account, Cost Basis, …) are ignored.
 
 ### Import the file
 
@@ -147,7 +148,7 @@ TOKEN=$(docker compose -f packages/finance-api/docker/docker-compose.yml exec -T
 curl -X POST http://127.0.0.1:7780/v1/import \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"filePath":"/Users/me/Downloads/Portfolio_Positions_2026-06-29.csv"}'
+  -d '{"filePath":"/Users/me/Downloads/positions.csv"}'
 ```
 
 ### Verify the import
@@ -157,15 +158,19 @@ curl -X GET http://127.0.0.1:7780/v1/holdings \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-> **Note:** The price column (`Last Price`) is stored as `avgCost` on the holding. The `/v1/net-worth` endpoint computes value using the latest price from the price feed, not this column.
+> **Tip:** The price column (`Last Price` or `Price`) is stored as `avgCost` on the holding. The `/v1/net-worth` endpoint computes value using the latest price from the price feed, not this column — so a missing or stale price column is harmless.
+>
+> **Prefer live sync?** If your brokerage is one of the 30+ supported by [SnapTrade](./finance-api-snaptrade), that gives you automatic live sync with no manual exports.
 
 ---
 
-## Services not currently supported via File Import
+## Exports that need adjustment
 
-### Coinbase
+Some institutions export data in a shape the CSV parser can't read directly. This is not an exhaustive list — the same patterns apply to any similar export.
 
-**Why not:** Coinbase exports **transaction history**, not positions. A typical CSV has columns:
+### Crypto exchanges (e.g. Coinbase)
+
+**Reason:** Crypto exchanges export **transaction history**, not portfolio positions. A typical CSV has columns:
 
 ```
 Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price,Subtotal,Total,Notes
@@ -174,7 +179,7 @@ Timestamp,Transaction Type,Asset,Quantity Transacted,Spot Price,Subtotal,Total,N
 No `Symbol` column — the data represents buys/sells/transfers, not current holdings.
 
 **Manual workaround:**
-1. Get current balances from the Coinbase UI (Dashboard → each asset → balance).
+1. Get current balances from the exchange UI (Dashboard → each asset → balance).
 2. Create a CSV:
    ```csv
    Symbol,Quantity
@@ -183,11 +188,11 @@ No `Symbol` column — the data represents buys/sells/transfers, not current hol
    ```
 3. Import with `POST /v1/import`.
 
-**Alternative:** The Coinbase API aggregator (direct API key integration) is a stub in the current release.
+**Alternative:** A direct Coinbase API aggregator is a stub in the current release.
 
-### Bank of America
+### Banks (e.g. Bank of America)
 
-**Why not:** BoA account-activity CSV has entirely different columns:
+**Reason:** Banks export **account activity** (transactions), not portfolio positions. A typical bank CSV has columns:
 
 ```
 Date,Description,Amount,Running Bal.
@@ -195,20 +200,20 @@ Date,Description,Amount,Running Bal.
 
 No `Symbol`. No `Quantity`. This is a transaction ledger, not a position list.
 
-**OFX is the recommended path:** Bank of America supports OFX/QFX download. Go to **Download Transactions** → choose **Microsoft Money** or **Quicken** format → import the `.ofx` file:
+**OFX is the recommended path:** Most banks support OFX/QFX download (via "Download Transactions" → choose "Microsoft Money" or "Quicken" format). Import the `.ofx` file:
 
 ```bash
 curl -X POST http://127.0.0.1:7780/v1/import \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"filePath":"/Users/me/Downloads/boa-activity.ofx"}'
+  -d '{"filePath":"/Users/me/Downloads/bank-activity.ofx"}'
 ```
 
-For brokerage positions held in Merrill Edge / BoA investing, download a **positions export** from the investment section — these typically follow the `Symbol,Quantity,Last Price` format the parser accepts. Alternatively, use [SnapTrade](./finance-api-snaptrade) for live brokerage sync.
+For brokerage positions held in a bank's investing arm (e.g. Merrill Edge for BoA), download a **positions export** from the investment section — these typically follow the `Symbol,Quantity,Last Price` format the parser accepts. Alternatively, use [SnapTrade](./finance-api-snaptrade) for live brokerage sync.
 
-### Other brokerages (Vanguard, Schwab, Robinhood, E*TRADE)
+### If your CSV doesn't match
 
-Most brokerages export positions in a format similar to Fidelity's: `Symbol`, `Quantity`/`Shares`, and optionally a `Last Price`/`Price`. If your export has these columns under any accepted header name, it should import. Try it — if the import returns empty holdings, check that your CSV has `Symbol` and `Quantity`/`Shares`/`Qty` in the header row.
+Most brokerages export positions with `Symbol`, `Quantity`/`Shares`, and optionally a `Last Price`/`Price` column. If your export has these columns under any accepted header name, it should import. Try it — if the import returns empty holdings, check that your CSV has `Symbol` and `Quantity`/`Shares`/`Qty` in the header row (`head -1 your-file.csv`).
 
 ---
 

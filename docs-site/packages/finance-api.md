@@ -47,9 +47,11 @@ Override with the `SF_FINANCE_TOKEN` env var to pin a token.
 | `SF_FINANCE_TOKEN` | (auto-generated) | Bearer token |
 | `SF_FINANCE_DATA_FEED` | `stooq` | Price data feed |
 
-Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600).
+Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600) for server-side providers, or in the client config for client-supplied providers (SnapTrade).
 
 ## Providers
+
+Providers are **co-equal** — enable any combination, and multiple providers run side by side (e.g. SnapTrade for live brokerage sync *and* File Import for a bank OFX export).
 
 | Provider | Kind | Status |
 |----------|------|--------|
@@ -59,11 +61,11 @@ Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600).
 | SimpleFIN | banking | ⚠️ Stub |
 | Teller | banking | ⚠️ Stub |
 
-Import a CSV via the API: `POST /v1/import {"filePath": "/path/to/positions.csv"}`.
+> **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers, it appears as two separate accounts — there is no merge logic today. Use one provider per account for now.
 
-## Data Import
+## File Import
 
-The service supports **CSV** (holdings/positions) and **OFX** (transactions/balances). Import a file via the API:
+Import **CSV** (holdings/positions) or **OFX** (transactions/balances) via the API:
 
 ```bash
 curl -X POST http://127.0.0.1:7780/v1/import \
