@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/finance-api",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Always-on local service for @pi-stef/finance: ingests financial-account data, stores locally, runs a deterministic quant engine and market-aware scheduler.",
   "type": "module",
   "license": "MIT",

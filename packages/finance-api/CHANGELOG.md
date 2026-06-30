@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-30
+### Changed
+- docs: exhaustive finance/finance-api overhaul — co-equal providers, genericized File Import, SnapTrade client config
+- feat(finance): SnapTrade Personal-only auth + provider-scoped sync
+- docs: milestone 4 — SnapTrade provider documentation (README + docs-site page + sidebar)
+- feat(finance-api): milestone 3 — registry wiring (snaptrade key) + end-to-end ingest integration
+- feat(finance-api): milestone 2 — SnapTrade adapter over official SDK with injectable client seam
+- feat(finance-api): add snaptrade-typescript-sdk dependency
+- feat(finance-api): milestone 1 — persistence framework (balances table, txn/balance/watermark repo, runIngest persistence)
+- docs(finance-api): exhaustive data import guide with CSV/OFX specs and per-service export instructions
+
+
 ## [0.1.2] - 2026-06-29
 ### Changed
 - feat(finance-api): GHCR Docker publish workflow + comprehensive docs
