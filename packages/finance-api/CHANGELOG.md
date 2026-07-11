@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-11
+### Changed
+- fix(finance-api): Docker tsx binary not found in pnpm workspace layout
+
+
 ## [0.2.1] - 2026-07-10
 ### Fixed
 - fix(finance-api): Docker image could not start — `npx tsx` failed in pnpm workspace layout (tsx binary lives in `packages/finance-api/node_modules/.bin/`, not the workspace root). Switched CMD to use explicit `./node_modules/.bin/tsx` with WORKDIR set to the package directory.
