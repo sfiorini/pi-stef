@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-11
+### Changed
+- feat(finance): add gain/loss to holdings output
+
+
 ## [0.2.1] - 2026-07-11
 ### Changed
 - fix(finance-api): correct net worth, asset classification, add per-account valuations
