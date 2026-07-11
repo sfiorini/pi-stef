@@ -1,7 +1,7 @@
 import type Database from "better-sqlite3";
 
 export interface AccountRow { id: string; provider_id: string; kind: string; name: string; mask_last4?: string | null; currency?: string; }
-export interface HoldingRow { account_id: string; symbol: string; quantity: number; avg_cost?: number | null; asset_class: string; subclass?: string | null; as_of: number; }
+export interface HoldingRow { account_id: string; symbol: string; quantity: number; avg_cost?: number | null; asset_class: string; subclass?: string | null; price?: number | null; security_type?: string | null; as_of: number; }
 
 export function upsertAccount(db: Database.Database, a: AccountRow): void {
   db.prepare(`INSERT INTO accounts (id,provider_id,kind,name,mask_last4,currency,stale_at,stale_reason)
@@ -15,10 +15,10 @@ export function markStale(db: Database.Database, id: string, staleAt: number, re
 }
 
 export function upsertHolding(db: Database.Database, h: HoldingRow): void {
-  db.prepare(`INSERT INTO holdings (account_id,symbol,quantity,avg_cost,asset_class,subclass,as_of)
-              VALUES (@account_id,@symbol,@quantity,@avg_cost,@asset_class,@subclass,@as_of)
-              ON CONFLICT(account_id,symbol) DO UPDATE SET quantity=@quantity,avg_cost=@avg_cost,asset_class=@asset_class,subclass=@subclass,as_of=@as_of`)
-    .run({ ...h, avg_cost: h.avg_cost ?? null, subclass: h.subclass ?? null });
+  db.prepare(`INSERT INTO holdings (account_id,symbol,quantity,avg_cost,asset_class,subclass,price,security_type,as_of)
+              VALUES (@account_id,@symbol,@quantity,@avg_cost,@asset_class,@subclass,@price,@security_type,@as_of)
+              ON CONFLICT(account_id,symbol) DO UPDATE SET quantity=@quantity,avg_cost=@avg_cost,asset_class=@asset_class,subclass=@subclass,price=@price,security_type=@security_type,as_of=@as_of`)
+    .run({ ...h, avg_cost: h.avg_cost ?? null, subclass: h.subclass ?? null, price: h.price ?? null, security_type: h.security_type ?? null });
 }
 
 export function listHoldings(db: Database.Database, accountId: string): HoldingRow[] {

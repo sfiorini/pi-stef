@@ -10,4 +10,11 @@ describe("schema DDL", () => {
       expect(m.statement.length).toBeGreaterThan(0);
     }
   });
+
+  it("holdings table includes price and security_type columns", () => {
+    const holdingMigration = MIGRATIONS_V1.find(m => m.statement.includes("CREATE TABLE IF NOT EXISTS holdings"));
+    expect(holdingMigration).toBeDefined();
+    expect(holdingMigration!.statement).toContain("price REAL");
+    expect(holdingMigration!.statement).toContain("security_type TEXT");
+  });
 });

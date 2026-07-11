@@ -11,4 +11,24 @@ describe("normalizer", () => {
   it("rejects negative quantity", () => {
     expect(() => normalizeHolding({ providerId: "x", accountId: "a" }, { symbol: "AAPL", quantity: -1, assetClass: "equity" })).toThrow();
   });
+
+  it("passes through price and securityType", () => {
+    const n = normalizeHolding({ providerId: "snaptrade", accountId: "a" }, { symbol: "FDGRX", quantity: 10, assetClass: "equity", price: 250.5, securityType: "oef" });
+    expect(n.price).toBe(250.5);
+    expect(n.security_type).toBe("oef");
+  });
+
+  it("overrides assetClass to 'cash' when cashEquivalent is true", () => {
+    const n = normalizeHolding({ providerId: "snaptrade", accountId: "a" }, { symbol: "FDRXX", quantity: 214.31, assetClass: "equity", cashEquivalent: true, price: 1, securityType: "oef" });
+    expect(n.asset_class).toBe("cash");
+    expect(n.price).toBe(1);
+    expect(n.security_type).toBe("oef");
+  });
+
+  it("does not override assetClass when cashEquivalent is false or absent", () => {
+    const n1 = normalizeHolding({ providerId: "snaptrade", accountId: "a" }, { symbol: "AAPL", quantity: 10, assetClass: "equity", cashEquivalent: false });
+    expect(n1.asset_class).toBe("equity");
+    const n2 = normalizeHolding({ providerId: "snaptrade", accountId: "a" }, { symbol: "AAPL", quantity: 10, assetClass: "fixed_income", securityType: "bnd" });
+    expect(n2.asset_class).toBe("fixed_income");
+  });
 });

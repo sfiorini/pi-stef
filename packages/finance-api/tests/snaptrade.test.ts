@@ -86,7 +86,7 @@ describe("snaptrade adapter — mapping", () => {
 
   it("getHoldings maps ticker/units/avgCost and skips zero + short positions", async () => {
     const a = createSnaptradeAdapter({ createClient: () => fakeClient({ positions: [
-      { symbol: { symbol: { symbol: "AAPL", raw_symbol: "AAPL" } }, units: 10, average_purchase_price: 150 },
+      { symbol: { symbol: { symbol: "AAPL", type: { code: "cs" } } }, units: 10, average_purchase_price: 150, price: 180, cash_equivalent: false },
       { symbol: { symbol: { symbol: "CASH" } }, units: 0, average_purchase_price: 1 },          // skipped (zero)
       { symbol: { symbol: { symbol: "SHORT" } }, units: -5, average_purchase_price: 20 },        // skipped (short)
       { symbol: { id: "FALLBACK" }, units: 2, average_purchase_price: null },                    // ticker fallback to id
@@ -94,9 +94,28 @@ describe("snaptrade adapter — mapping", () => {
     const s = await a.authenticate(CREDS);
     const holdings = await a.getHoldings(s, "acct-1");
     expect(holdings).toEqual([
-      { symbol: "AAPL", quantity: 10, avgCost: 150, assetClass: "equity", subclass: "us" },
-      { symbol: "FALLBACK", quantity: 2, avgCost: undefined, assetClass: "equity", subclass: "us" },
+      { symbol: "AAPL", quantity: 10, avgCost: 150, assetClass: "equity", subclass: "us", price: 180, securityType: "cs", cashEquivalent: undefined },
+      { symbol: "FALLBACK", quantity: 2, avgCost: undefined, assetClass: "equity", subclass: "us", price: undefined, securityType: undefined, cashEquivalent: undefined },
     ]);
+  });
+
+  it("getHoldings classifies cash_equivalent, bonds, and crypto correctly", async () => {
+    const a = createSnaptradeAdapter({ createClient: () => fakeClient({ positions: [
+      { symbol: { symbol: { symbol: "SPAXX", type: { code: "oef" } } }, units: 5000, average_purchase_price: 1, price: 1, cash_equivalent: true },
+      { symbol: { symbol: { symbol: "BOND", type: { code: "bnd" } } }, units: 100, average_purchase_price: 95, price: 98, cash_equivalent: false },
+      { symbol: { symbol: { symbol: "BTC", type: { code: "crypto" } } }, units: 0.5, average_purchase_price: 40000, price: 65000, cash_equivalent: false },
+      { symbol: { symbol: { symbol: "FDGRX", type: { code: "oef" } } }, units: 100, average_purchase_price: 200, price: 250, cash_equivalent: false },
+    ] }) });
+    const s = await a.authenticate(CREDS);
+    const holdings = await a.getHoldings(s, "acct-1");
+    // cash_equivalent → cash (adapter sets assetClass but normalizer will override to "cash")
+    expect(holdings[0]).toMatchObject({ symbol: "SPAXX", cashEquivalent: true, price: 1 });
+    // bnd → fixed_income
+    expect(holdings[1]).toMatchObject({ symbol: "BOND", assetClass: "fixed_income", securityType: "bnd" });
+    // crypto → crypto
+    expect(holdings[2]).toMatchObject({ symbol: "BTC", assetClass: "crypto", securityType: "crypto" });
+    // oef (mutual fund, not cash) → equity
+    expect(holdings[3]).toMatchObject({ symbol: "FDGRX", assetClass: "equity", securityType: "oef", price: 250 });
   });
 
   it("getTransactions paginates the .data.data envelope and maps fields; respects 'since'", async () => {

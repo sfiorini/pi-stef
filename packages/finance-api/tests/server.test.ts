@@ -39,6 +39,61 @@ describe("server", () => {
     expect(body.data.accounts[0].holdings).toHaveLength(1);
   });
 
+  it("GET /v1/holdings enriches with price, market_value, and account total_value", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
+    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 150, asset_class: "equity", price: 200, security_type: "cs", as_of: 1 });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/holdings", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    const h = body.data.accounts[0].holdings[0];
+    expect(h.price).toBe(200);     // resolved price (provider price, no Stooq)
+    expect(h.market_value).toBe(2000); // 10 * 200
+    expect(h.security_type).toBe("cs");
+    expect(body.data.accounts[0].total_value).toBe(2000);
+  });
+
+  it("GET /v1/holdings?accountId= filters to a single account", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "acct-a", provider_id: "p", kind: "brokerage", name: "A", currency: "USD" });
+    upsertAccount(db, { id: "acct-b", provider_id: "p", kind: "brokerage", name: "B", currency: "USD" });
+    upsertHolding(db, { account_id: "acct-a", symbol: "AAPL", quantity: 10, asset_class: "equity", price: 100, as_of: 1 });
+    upsertHolding(db, { account_id: "acct-b", symbol: "MSFT", quantity: 5, asset_class: "equity", price: 200, as_of: 1 });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/holdings?accountId=acct-a", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    expect(body.data.accounts).toHaveLength(1);
+    expect(body.data.accounts[0].id).toBe("acct-a");
+  });
+
+  it("GET /v1/holdings?symbol= filters to a single ticker across all accounts", async () => {
+    const db = openDb(":memory:");
+    upsertAccount(db, { id: "acct-a", provider_id: "p", kind: "brokerage", name: "A", currency: "USD" });
+    upsertAccount(db, { id: "acct-b", provider_id: "p", kind: "brokerage", name: "B", currency: "USD" });
+    upsertHolding(db, { account_id: "acct-a", symbol: "AAPL", quantity: 10, asset_class: "equity", price: 100, as_of: 1 });
+    upsertHolding(db, { account_id: "acct-b", symbol: "AAPL", quantity: 5, asset_class: "equity", price: 100, as_of: 1 });
+    upsertHolding(db, { account_id: "acct-b", symbol: "MSFT", quantity: 3, asset_class: "equity", price: 200, as_of: 1 });
+    
+    const app = createApp({ db, token });
+    const res = await app.request("/v1/holdings?symbol=AAPL", {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const body = await res.json();
+    // Both accounts returned, but only AAPL holdings
+    expect(body.data.accounts).toHaveLength(2);
+    expect(body.data.accounts[0].holdings).toHaveLength(1);
+    expect(body.data.accounts[0].holdings[0].symbol).toBe("AAPL");
+    expect(body.data.accounts[1].holdings).toHaveLength(1);
+    expect(body.data.accounts[1].holdings[0].symbol).toBe("AAPL");
+  });
+
   it("POST /v1/goals upserts a goal and GET /v1/goals returns it", async () => {
     const db = openDb(":memory:");
     const app = createApp({ db, token });

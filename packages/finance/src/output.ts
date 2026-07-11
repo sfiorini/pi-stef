@@ -1,11 +1,14 @@
 // Format structured service JSON → agent-readable text
 
-export function formatHoldings(data: { accounts: { id: string; name: string; holdings: { symbol: string; quantity: number; asset_class: string }[] }[] }): string {
+export function formatHoldings(data: { accounts: { id: string; name: string; total_value?: number; holdings: { symbol: string; quantity: number; asset_class: string; price?: number | null; market_value?: number }[] }[] }): string {
   const lines: string[] = [];
   for (const account of data.accounts) {
-    lines.push(`Account: ${account.name} (${account.id})`);
+    const total = account.total_value != null ? ` — $${account.total_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "";
+    lines.push(`Account: ${account.name} (${account.id})${total}`);
     for (const h of account.holdings) {
-      lines.push(`  ${h.symbol}: ${h.quantity} shares (${h.asset_class})`);
+      const mv = h.market_value != null ? ` ($${h.market_value.toLocaleString(undefined, { maximumFractionDigits: 2 })})` : "";
+      const px = h.price != null ? ` @ $${h.price.toFixed(2)}` : "";
+      lines.push(`  ${h.symbol}: ${h.quantity} shares (${h.asset_class})${px}${mv}`);
     }
   }
   return lines.join("\n") || "No holdings found";

@@ -6,11 +6,13 @@ describe("repo", () => {
   it("upserts accounts + holdings and lists them", () => {
     const db = openDb(":memory:");
     upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity Brokerage", mask_last4: "1234", currency: "USD" });
-    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 150, asset_class: "equity", subclass: "us", as_of: 1 });
-    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 12, avg_cost: 151, asset_class: "equity", subclass: "us", as_of: 2 });
+    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 150, asset_class: "equity", subclass: "us", price: 180, security_type: "cs", as_of: 1 });
+    upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 12, avg_cost: 151, asset_class: "equity", subclass: "us", price: 182, security_type: "cs", as_of: 2 });
     const h = listHoldings(db, "fid-1");
     expect(h).toHaveLength(1);
     expect(h[0].quantity).toBe(12);
+    expect(h[0].price).toBe(182);
+    expect(h[0].security_type).toBe("cs");
   });
 
   it("marks an account stale with a reason", () => {

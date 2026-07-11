@@ -30,6 +30,9 @@ export const holdingSchema = z.object({
   avg_cost: z.number().nullable().optional(),
   asset_class: z.string(),
   subclass: z.string().nullable().optional(),
+  price: z.number().nullable().optional(),
+  security_type: z.string().nullable().optional(),
+  market_value: z.number().optional(),
   as_of: z.number(),
 });
 
@@ -40,6 +43,7 @@ export const accountSchema = z.object({
   name: z.string(),
   mask_last4: z.string().nullable().optional(),
   currency: z.string().optional(),
+  total_value: z.number().optional(),
   holdings: z.array(holdingSchema),
 });
 

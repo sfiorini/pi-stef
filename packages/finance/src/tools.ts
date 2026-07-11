@@ -31,13 +31,21 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "sf_fin_get_holdings",
     label: "Get Holdings",
-    description: "Get all account holdings with quantities and asset classes",
-    parameters: {},
-    promptSnippet: "Retrieve current portfolio holdings across all accounts.",
+    description: "All account holdings with quantities, prices, and market values. Supports optional filtering by accountId or symbol.",
+    parameters: {
+      type: "object",
+      properties: {
+        accountId: { type: "string", description: "Filter to a single account ID" },
+        symbol: { type: "string", description: "Filter to a single ticker symbol (e.g. AAPL) across all accounts" },
+      },
+      required: [],
+    },
+    promptSnippet: "Retrieve portfolio holdings with prices and market values, optionally filtered by account or symbol.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async () => {
+    execute: async (_toolCallId, params) => {
+      const p = (params ?? {}) as { accountId?: string; symbol?: string };
       const client = await getClient();
-      const data = await client.callOp("get_holdings");
+      const data = await client.callOp("get_holdings", { accountId: p.accountId, symbol: p.symbol });
       return { content: [{ type: "text", text: formatHoldings(data as Parameters<typeof formatHoldings>[0]) }], details: { implemented: true } };
     },
   });

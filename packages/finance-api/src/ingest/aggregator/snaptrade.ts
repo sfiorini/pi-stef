@@ -63,12 +63,16 @@ export function createSnaptradeAdapter(deps: SnaptradeAdapterDeps = {}): Provide
         if (!(units > 0)) continue;
         const ticker = p?.symbol?.symbol?.symbol ?? p?.symbol?.symbol?.raw_symbol ?? p?.symbol?.id ?? "";
         if (!ticker) continue;
+        const typeCode = typeof p?.symbol?.symbol?.type?.code === "string" ? p.symbol.symbol.type.code : undefined;
         out.push({
           symbol: String(ticker),
           quantity: units,
           avgCost: typeof p.average_purchase_price === "number" ? p.average_purchase_price : undefined,
-          assetClass: "equity",
+          price: typeof p.price === "number" ? p.price : undefined,
+          assetClass: classifySnaptradeSecurity(typeCode),
           subclass: "us",
+          securityType: typeCode,
+          cashEquivalent: p?.cash_equivalent === true ? true : undefined,
         });
       }
       return out;
@@ -119,4 +123,15 @@ function mapActivity(accountId: string, a: any, index: number): RawTxn {
     type: String(a?.type ?? "unknown").toLowerCase(),
     fees: typeof a?.fee === "number" ? a.fee : 0,
   };
+}
+
+/** Map SnapTrade SecurityType.code to a provider-generic asset class. */
+function classifySnaptradeSecurity(typeCode: string | undefined): string {
+  switch (typeCode) {
+    case "bnd": return "fixed_income";
+    case "crypto": return "crypto";
+    // cs (common stock), et (ETF), oef (mutual fund), ad (ADR), cef, ps, etc.
+    // are all equity-like for allocation purposes.
+    default: return "equity";
+  }
 }

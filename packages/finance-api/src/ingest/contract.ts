@@ -6,6 +6,7 @@ export interface Session { providerId: string; expiresAt?: number; creds?: Crede
 export interface RawAccount { providerAccountId: string; kind: ProviderKind; name: string; maskLast4?: string; currency: string }
 export interface RawHolding {
   symbol: string; quantity: number; avgCost?: number; assetClass: string; subclass?: string;
+  price?: number; securityType?: string; cashEquivalent?: boolean;
   lots?: { openDate: number; qty: number; costBasis: number }[];
 }
 export interface RawTxn { id: string; date: number; symbol?: string; qty?: number; price?: number; type: string; fees?: number }

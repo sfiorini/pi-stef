@@ -12,7 +12,8 @@ export const MIGRATIONS_V1: Migration[] = [
   { version: 2, statement:
     `CREATE TABLE IF NOT EXISTS holdings (
        account_id TEXT NOT NULL, symbol TEXT NOT NULL, quantity REAL NOT NULL,
-       avg_cost REAL, asset_class TEXT NOT NULL, subclass TEXT, as_of INTEGER NOT NULL,
+       avg_cost REAL, asset_class TEXT NOT NULL, subclass TEXT,
+       price REAL, security_type TEXT, as_of INTEGER NOT NULL,
        PRIMARY KEY (account_id, symbol))` },
   { version: 3, statement:
     `CREATE TABLE IF NOT EXISTS transactions (
