@@ -33,6 +33,7 @@ export const holdingSchema = z.object({
   price: z.number().nullable().optional(),
   security_type: z.string().nullable().optional(),
   market_value: z.number().optional(),
+  gain_loss: z.number().nullable().optional(),
   as_of: z.number(),
 });
 

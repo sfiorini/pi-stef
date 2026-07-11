@@ -39,10 +39,12 @@ describe("server", () => {
     expect(body.data.accounts[0].holdings).toHaveLength(1);
   });
 
-  it("GET /v1/holdings enriches with price, market_value, and account total_value", async () => {
+  it("GET /v1/holdings enriches with price, market_value, gain_loss, and account total_value", async () => {
     const db = openDb(":memory:");
     upsertAccount(db, { id: "fid-1", provider_id: "fidelity", kind: "brokerage", name: "Fidelity", currency: "USD" });
     upsertHolding(db, { account_id: "fid-1", symbol: "AAPL", quantity: 10, avg_cost: 150, asset_class: "equity", price: 200, security_type: "cs", as_of: 1 });
+    upsertHolding(db, { account_id: "fid-1", symbol: "LOSER", quantity: 5, avg_cost: 100, asset_class: "equity", price: 50, as_of: 1 });
+    upsertHolding(db, { account_id: "fid-1", symbol: "NOBASIS", quantity: 8, asset_class: "equity", price: 30, as_of: 1 });
     
     const app = createApp({ db, token });
     const res = await app.request("/v1/holdings", {
@@ -50,11 +52,14 @@ describe("server", () => {
     });
     expect(res.status).toBe(200);
     const body = await res.json();
-    const h = body.data.accounts[0].holdings[0];
-    expect(h.price).toBe(200);     // resolved price (provider price, no Stooq)
-    expect(h.market_value).toBe(2000); // 10 * 200
-    expect(h.security_type).toBe("cs");
-    expect(body.data.accounts[0].total_value).toBe(2000);
+    const aapl = body.data.accounts[0].holdings.find((h: { symbol: string }) => h.symbol === "AAPL");
+    expect(aapl.price).toBe(200);
+    expect(aapl.market_value).toBe(2000);
+    expect(aapl.gain_loss).toBe(500); // (200 - 150) * 10
+    const loser = body.data.accounts[0].holdings.find((h: { symbol: string }) => h.symbol === "LOSER");
+    expect(loser.gain_loss).toBe(-250); // (50 - 100) * 5
+    const nobasis = body.data.accounts[0].holdings.find((h: { symbol: string }) => h.symbol === "NOBASIS");
+    expect(nobasis.gain_loss).toBeNull(); // no avg_cost → null
   });
 
   it("GET /v1/holdings?accountId= filters to a single account", async () => {

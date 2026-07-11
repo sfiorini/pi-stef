@@ -1,14 +1,18 @@
 // Format structured service JSON → agent-readable text
 
-export function formatHoldings(data: { accounts: { id: string; name: string; total_value?: number; holdings: { symbol: string; quantity: number; asset_class: string; price?: number | null; market_value?: number }[] }[] }): string {
+export function formatHoldings(data: { accounts: { id: string; name: string; total_value?: number; holdings: { symbol: string; quantity: number; asset_class: string; price?: number | null; market_value?: number; gain_loss?: number | null }[] }[] }): string {
+  const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const lines: string[] = [];
   for (const account of data.accounts) {
-    const total = account.total_value != null ? ` — $${account.total_value.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "";
+    const total = account.total_value != null ? ` \u2014 $${fmt(account.total_value)}` : "";
     lines.push(`Account: ${account.name} (${account.id})${total}`);
     for (const h of account.holdings) {
-      const mv = h.market_value != null ? ` ($${h.market_value.toLocaleString(undefined, { maximumFractionDigits: 2 })})` : "";
+      const mv = h.market_value != null ? ` ($${fmt(h.market_value)})` : "";
       const px = h.price != null ? ` @ $${h.price.toFixed(2)}` : "";
-      lines.push(`  ${h.symbol}: ${h.quantity} shares (${h.asset_class})${px}${mv}`);
+      const gl = h.gain_loss != null
+        ? ` ${h.gain_loss >= 0 ? "+" : "-"}$${fmt(Math.abs(h.gain_loss))}`
+        : "";
+      lines.push(`  ${h.symbol}: ${h.quantity} shares (${h.asset_class})${px}${mv}${gl}`);
     }
   }
   return lines.join("\n") || "No holdings found";

@@ -47,6 +47,7 @@ export function holdingsRoutes(db: Database.Database) {
 
       const valued = holdings.map(h => {
         const v = valueHolding(db, h);
+        const costBasis = h.avg_cost != null ? h.avg_cost * h.quantity : null;
         return {
           account_id: h.account_id,
           symbol: h.symbol,
@@ -57,6 +58,7 @@ export function holdingsRoutes(db: Database.Database) {
           price: v.price,
           security_type: h.security_type ?? null,
           market_value: v.marketValue,
+          gain_loss: costBasis != null ? v.marketValue - costBasis : null,
           as_of: h.as_of,
         };
       });
