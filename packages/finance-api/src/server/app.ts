@@ -1,6 +1,8 @@
-import { Hono } from "hono";
+import { OpenAPIHono } from "@hono/zod-openapi";
+import { swaggerUI } from "@hono/swagger-ui";
 import type Database from "better-sqlite3";
 import { bearerAuth } from "./auth";
+import { FINANCE_API_VERSION } from "../version";
 import { marketStatusRoutes } from "./routes/market-status";
 import { holdingsRoutes } from "./routes/holdings";
 import { netWorthRoutes } from "./routes/net-worth";
@@ -23,15 +25,22 @@ export interface AppDeps {
   dataFeed?: "stooq" | "yfinance";
 }
 
-export function createApp(deps: AppDeps): Hono {
-  const app = new Hono();
-  
+export function createApp(deps: AppDeps): OpenAPIHono {
+  const app = new OpenAPIHono();
+
+  // Register security scheme
+  app.openAPIRegistry.registerComponent("securitySchemes", "BearerAuth", {
+    type: "http",
+    scheme: "bearer",
+    description: "Bearer token from ~/.pi/sf/finance/token",
+  });
+
   // Health endpoint is public (no auth)
   app.route("/v1/health", healthRoutes());
-  
+
   // All other /v1 routes require bearer token
   app.use("/v1/*", bearerAuth(deps.token));
-  
+
   // Mount routes
   app.route("/v1/market-status", marketStatusRoutes());
   app.route("/v1/holdings", holdingsRoutes(deps.db));
@@ -49,6 +58,21 @@ export function createApp(deps: AppDeps): Hono {
   app.route("/v1/history", historyRoutes(deps.db));
   app.route("/v1/export", exportRoutes(deps.db));
   app.route("/v1/drift", driftRoutes(deps.db));
-  
+
+  // OpenAPI spec endpoint
+  app.doc("/openapi.json", {
+    openapi: "3.1.0",
+    info: {
+      title: "finance-api",
+      version: FINANCE_API_VERSION,
+      description:
+        "Always-on local service for portfolio tracking, drift analysis, and investment suggestions.",
+    },
+    servers: [{ url: "http://127.0.0.1:7780", description: "Local" }],
+  });
+
+  // Swagger UI
+  app.get("/docs", swaggerUI({ url: "/openapi.json" }));
+
   return app;
 }

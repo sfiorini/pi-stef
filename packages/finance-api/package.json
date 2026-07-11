@@ -33,15 +33,19 @@
   },
   "dependencies": {
     "@hono/node-server": "^2.0.6",
+    "@hono/swagger-ui": "^0.5.0",
+    "@hono/zod-openapi": "^0.18.0",
     "@pi-stef/paths": "^0.3.0",
     "@sinclair/typebox": "*",
     "better-sqlite3": "^12.11.1",
     "hono": "^4.6.0",
     "snaptrade-typescript-sdk": "^10.0.17",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11"
+    "@types/better-sqlite3": "^7.6.11",
+    "openapi-to-postmanv2": "^4.0.0"
   },
   "pi": {}
 }
