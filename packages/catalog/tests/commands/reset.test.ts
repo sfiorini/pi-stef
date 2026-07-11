@@ -4,7 +4,6 @@ import path from "node:path";
 import os from "node:os";
 
 import type { CatalogYaml } from "../../src/config/schema.js";
-import type { CommandCtx } from "../../src/commands/types.js";
 import { resetCommand, type ResetCtx } from "../../src/commands/reset.js";
 import { writeCatalog } from "../../src/config/io.js";
 import { catalogDir, catalogFile, lockFile } from "../../src/config/paths.js";
