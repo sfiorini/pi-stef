@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-11
+### Changed
+- fix(finance-api): correct net worth, asset classification, add per-account valuations
+
+
 ## [0.2.0] - 2026-06-30
 ### Changed
 - docs: exhaustive finance/finance-api overhaul — co-equal providers, genericized File Import, SnapTrade client config
