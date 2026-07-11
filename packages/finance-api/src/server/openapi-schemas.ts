@@ -141,14 +141,23 @@ export const suggestionsListResponse = okEnvelope(
 
 export const importResponse = okEnvelope(
   z.object({
-    imported: z.number(),
-    skipped: z.number(),
+    message: z.string(),
+    filePath: z.string(),
+    accounts: z.number(),
+    holdings: z.number(),
+    transactions: z.number(),
+    errors: z.number(),
   }),
 );
 
 export const syncResponse = okEnvelope(
   z.object({
-    synced: z.boolean(),
+    message: z.string(),
+    session: z.string(),
+    accountsIngested: z.number(),
+    holdingsIngested: z.number(),
+    pricesUpdated: z.number(),
+    suggestionsCreated: z.number(),
   }),
 );
 
