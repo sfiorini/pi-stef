@@ -27,27 +27,53 @@ curl http://127.0.0.1:7780/v1/health
 # {"ok":true,"data":{"status":"ok","uptimeS":0}}
 ```
 
+## Architecture: server vs client
+
+finance-api is a **server** that typically runs in Docker on a machine you control (your laptop, a home server, a VPS). The **client** is the `finance` extension, which runs wherever you use pi.
+
+| Component | Runs where | Config location |
+|-----------|-----------|-----------------|
+| **finance-api** (this package) | Docker container or native on a server | Environment variables + `/data/` volume (Docker) or `~/.pi/sf/finance/` (native) |
+| **finance** (client extension) | Inside pi, on your workstation | `~/.pi/sf/finance/config.json` on **your** machine |
+
+When the server runs in Docker, its filesystem is inside the container — the paths below starting with `~/.pi/sf/finance/` refer to the **container's** filesystem (mapped to the `finance-config` Docker volume), not your local machine.
+
 ## Authentication
 
-All endpoints except `/v1/health` require `Authorization: Bearer <token>`. On first start a random token is generated and written to `~/.pi/sf/finance/token` (`chmod 600`); it persists across restarts. In Docker:
+All endpoints except `/v1/health` require `Authorization: Bearer <token>`. On first start the server generates a random token and writes it to `~/.pi/sf/finance/token` inside the container (`chmod 600`). In Docker, retrieve it with:
 
 ```bash
 docker compose exec finance-api cat /root/.pi/sf/finance/token
 ```
 
-Override with the `SF_FINANCE_TOKEN` env var to pin a token.
+Copy this token into the client's `config.json` on your workstation (see [finance extension](./finance#configuration)). Override with `SF_FINANCE_TOKEN` to pin a token.
 
 ## Configuration
+
+### Server settings (env vars)
+
+These configure the **server** — set them in `docker-compose.yml` (environment section) or your shell:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SF_FINANCE_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Server bind host |
 | `SF_FINANCE_PORT` | `7780` | Server port |
-| `SF_FINANCE_DB` | `~/.pi/sf/finance/finance.db` | SQLite database path |
+| `SF_FINANCE_DB` | `~/.pi/sf/finance/finance.db` (`/data/finance.db` in Docker) | SQLite database path |
 | `SF_FINANCE_TOKEN` | (auto-generated) | Bearer token |
 | `SF_FINANCE_DATA_FEED` | `stooq` | Price data feed |
 
-Provider credentials live in `~/.pi/sf/finance/secrets.json` (chmod 600) for server-side providers, or in the client config for client-supplied providers (SnapTrade).
+### Client settings (config.json)
+
+The **client extension** reads its config from `~/.pi/sf/finance/config.json` on the machine running pi — this is **your workstation**, not the server. See [finance extension docs](./finance#configuration) for the full schema.
+
+### Provider credentials
+
+Working providers in this release do **not** use the server's `secrets.json`:
+
+- **SnapTrade** — credentials live in the **client's** `config.json` and are sent per-request. See the [SnapTrade guide](./finance-api-snaptrade).
+- **File Import** — no stored credentials; the file path is provided per-request.
+
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is reserved for future server-side providers (Coinbase, SimpleFIN, Teller) that are currently stubs.
 
 ## Providers
 

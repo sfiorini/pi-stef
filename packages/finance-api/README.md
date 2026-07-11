@@ -33,6 +33,17 @@ curl http://127.0.0.1:7780/v1/health
 
 ---
 
+## Architecture: server vs client
+
+finance-api is a **server** that typically runs in Docker on a machine you control. The **client** is the `finance` extension, which runs wherever you use pi. Their files live on **different machines**:
+
+| Component | Runs where | Files |
+|-----------|-----------|-------|
+| **finance-api** (server) | Docker container or native on a server | Token, SQLite DB, `secrets.json` — inside the container (`/root/.pi/sf/finance/` or `/data/`) or on the server (`~/.pi/sf/finance/`) |
+| **finance** (client) | Inside pi, on your workstation | `config.json` — at `~/.pi/sf/finance/config.json` on **your** machine |
+
+When the docs say `~/.pi/sf/finance/`, check whether they're referring to the **server** (inside the Docker container) or the **client** (your workstation). The sections below make this explicit.
+
 ## Authentication
 
 All endpoints except `/v1/health` require a bearer token via the `Authorization` header:
@@ -68,9 +79,14 @@ All configuration is via environment variables (prefix `SF_FINANCE_`):
 | `SF_FINANCE_TOKEN` | (auto-generated) | Bearer token (overrides the token file) |
 | `SF_FINANCE_DATA_FEED` | `stooq` | Price data feed (`stooq`) |
 
-### Secrets (`secrets.json`)
+### Provider credentials
 
-Some providers authenticate with server-side credentials stored in `~/.pi/sf/finance/secrets.json` (the file is `chmod 600` on creation). **Not every provider uses this file** — SnapTrade, for example, is client-supplied (see its setup below). The table under [Providers](#providers) shows where each provider's credentials live.
+Working providers in this release do **not** use the server's `secrets.json`:
+
+- **SnapTrade** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SnapTrade setup](#snaptrade-setup) below.
+- **File Import** — no stored credentials; the file path is provided per-request.
+
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, SimpleFIN, Teller) that are currently stubs:
 
 ```json
 {
@@ -112,7 +128,7 @@ SnapTrade aggregates brokerage accounts (Fidelity, Vanguard, Schwab, Robinhood, 
 
 > **v1 supports Personal accounts only.** The Commercial model (`userId`/`userSecret` via `registerSnapTradeUser`) is intentionally not supported.
 
-**Credentials live in the client config** (`~/.pi/sf/finance/config.json`, alongside the service `token`), **not** in the server's `secrets.json`. This keeps one finance-api deployment able to serve different SnapTrade users — each caller passes its own key per request.
+**Credentials live in the client config** on the machine where you run pi (`~/.pi/sf/finance/config.json` on **your workstation**, not the finance-api server), **not** in the server's `secrets.json`. This keeps one finance-api deployment able to serve different SnapTrade users — each caller passes its own key per request.
 
 ```json
 {

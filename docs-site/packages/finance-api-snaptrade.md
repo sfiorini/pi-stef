@@ -6,7 +6,7 @@ SnapTrade aggregates 30+ brokerage accounts (Fidelity, Vanguard, Schwab, Robinho
 
 ## Credentials
 
-Credentials live in the **client config** (`~/.pi/sf/finance/config.json`, alongside the service `token`), **not** in the server's `secrets.json`. The `finance` extension sends them in the body of each `/v1/sync` request; the server uses them for that single tick and stores nothing.
+Credentials live in the **client config** on the machine where you run pi (`~/.pi/sf/finance/config.json` on **your workstation**, not the finance-api server), **not** in the server's `secrets.json`. The `finance` extension sends them in the body of each `/v1/sync` request; the server uses them for that single tick and stores nothing.
 
 | Field | What it is | Where it comes from |
 |-------|------------|---------------------|
