@@ -9,13 +9,40 @@ cd packages/finance-api/docker
 docker compose up -d
 ```
 
-This pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service at `http://127.0.0.1:7780`.
+This pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service.
 
 Check it's running:
 
 ```bash
 curl http://127.0.0.1:7780/v1/health
 # {"ok":true,"data":{"status":"ok","uptimeS":0}}
+```
+
+## Port binding: same machine vs remote server
+
+The default compose file binds to `127.0.0.1:7780:7780` — **localhost only**. This is the right choice when the pi client and the finance-api service run on the same host. The service is invisible to the LAN.
+
+If the finance-api service runs on a **different machine** (e.g. a home server) and the pi client connects to it over the network, change the port mapping so the service is reachable from the LAN:
+
+```yaml
+ports:
+  # Same machine (default, most secure):
+  - "127.0.0.1:7780:7780"
+  # Remote server (LAN-accessible) — comment the line above, uncomment this:
+  # - "7780:7780"
+```
+
+With `"7780:7780"` the service listens on all interfaces. The bearer token still protects every API endpoint, so this is safe on a trusted LAN. For untrusted networks, keep `127.0.0.1` and use an SSH tunnel instead:
+
+```bash
+ssh -L 7780:127.0.0.1:7780 your-server
+# Then access the service at http://127.0.0.1:7780
+```
+
+When using the remote-server mode, set the client's `apiUrl` to the server's hostname or IP:
+
+```json
+{ "apiUrl": "http://your-server:7780", "token": "..." }
 ```
 
 ## Image
@@ -115,6 +142,7 @@ The first push creates the package under the `sfiorini` namespace on GHCR. By de
 | `401 Unauthorized` | Token mismatch — retrieve it from the container (above) and update client config |
 | Port already in use | Change `SF_FINANCE_PORT` and the compose port mapping |
 | `better-sqlite3` build fails | Use the prebuilt registry image; building from source requires the build stage's toolchain |
+| Can't reach service from another machine | Port bound to `127.0.0.1` only — change to `"7780:7780"` in docker-compose.yml (see [Port binding](#port-binding-same-machine-vs-remote-server) above) |
 | Can't reach service from another container | Use the service name `finance-api` as the hostname, or set `SF_FINANCE_HOST=0.0.0.0` and join the same Docker network |
 | Healthcheck never goes healthy | Check `docker compose logs finance-api`; ensure the DB volume is writable |
 

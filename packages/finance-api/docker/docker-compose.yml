@@ -8,7 +8,11 @@ services:
     #   context: ../..
     #   dockerfile: packages/finance-api/docker/Dockerfile
     ports:
-      - "127.0.0.1:7780:7780"  # Localhost only for security
+      # Same machine (default): client and server on one host. Most secure.
+      - "127.0.0.1:7780:7780"
+      # Remote server (LAN-accessible): client on a different machine.
+      # Comment the line above and uncomment this instead:
+      # - "7780:7780"
     volumes:
       - finance-data:/data
       - finance-config:/root/.pi/sf/finance

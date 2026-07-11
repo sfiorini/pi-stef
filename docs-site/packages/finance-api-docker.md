@@ -9,13 +9,40 @@ cd packages/finance-api/docker
 docker compose up -d
 ```
 
-Pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and serves the API at `http://127.0.0.1:7780`.
+Pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service.
 
 Check it's running:
 
 ```bash
 curl http://127.0.0.1:7780/v1/health
 # {"ok":true,"data":{"status":"ok","uptimeS":0}}
+```
+
+## Port binding: same machine vs remote server
+
+The default compose file binds to `127.0.0.1:7780:7780` — **localhost only**. This is the right choice when the pi client and the finance-api service run on the same host. The service is invisible to the LAN.
+
+If the finance-api service runs on a **different machine** (e.g. a home server) and the pi client connects to it over the network, change the port mapping so the service is reachable from the LAN:
+
+```yaml
+ports:
+  # Same machine (default, most secure):
+  - "127.0.0.1:7780:7780"
+  # Remote server (LAN-accessible) — comment the line above, uncomment this:
+  # - "7780:7780"
+```
+
+With `"7780:7780"` the service listens on all interfaces. The bearer token still protects every API endpoint, so this is safe on a trusted LAN. For untrusted networks, keep `127.0.0.1` and use an SSH tunnel instead:
+
+```bash
+ssh -L 7780:127.0.0.1:7780 your-server
+# Then access the service at http://127.0.0.1:7780
+```
+
+When using remote-server mode, set the client's `apiUrl` to the server's hostname or IP:
+
+```json
+{ "apiUrl": "http://your-server:7780", "token": "..." }
 ```
 
 ## Image
@@ -64,7 +91,10 @@ services:
     image: ghcr.io/sfiorini/pi-stef/finance-api:latest
     # build: .  # uncomment to build from source instead of pulling
     ports:
+      # Same machine (default, most secure):
       - "127.0.0.1:7780:7780"
+      # Remote server (LAN-accessible) — comment above, uncomment this:
+      # - "7780:7780"
     environment:
       SF_FINANCE_HOST: "0.0.0.0"
       SF_FINANCE_PORT: "7780"
@@ -79,7 +109,7 @@ volumes:
   finance-config:
 ```
 
-The compose file binds to `127.0.0.1` only — the service is not exposed to the LAN.
+The compose file defaults to `127.0.0.1` only. See [Port binding](#port-binding-same-machine-vs-remote-server) above to expose the service to the LAN.
 
 ## Configuration
 
@@ -142,6 +172,7 @@ The first push creates the package under the `sfiorini` namespace on GHCR. By de
 | `401 Unauthorized` | Token mismatch — retrieve it from the container and update client config |
 | Port already in use | Change `SF_FINANCE_PORT` and the compose port mapping (`7780:7780`) |
 | `better-sqlite3` build fails (building from source) | Use the prebuilt GHCR image; building from source needs `python3`, `make`, `g++` |
+| Can't reach service from another machine | Port bound to `127.0.0.1` only — change to `"7780:7780"` in docker-compose.yml (see [Port binding](#port-binding-same-machine-vs-remote-server) above) |
 | Can't reach service from another container | Use `finance-api` as the hostname on the same Docker network, or set `SF_FINANCE_HOST=0.0.0.0` |
 | Healthcheck never goes healthy | Check `docker compose logs finance-api`; ensure the `finance-data` volume is writable |
 | Image pull fails (private package) | Make the GHCR package public (see [GHCR visibility](#ghcr-visibility) above) |

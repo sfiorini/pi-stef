@@ -13,7 +13,7 @@ cd packages/finance-api/docker
 docker compose up -d
 ```
 
-Pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service at `http://127.0.0.1:7780`. See the [Docker guide](docker/README.md) for image tags, volumes, and retrieving the token.
+Pulls `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service. By default it binds to `127.0.0.1:7780` (localhost only) — if the pi client runs on a **different machine**, change the port mapping to `"7780:7780"` in `docker-compose.yml`. See the [Docker guide](docker/README.md#port-binding-same-machine-vs-remote-server) for details, image tags, volumes, and retrieving the token.
 
 ### Native
 
@@ -638,7 +638,7 @@ Structured logs are emitted to stdout (JSON) with `level`, `msg`, and contextual
 
 ## Security model
 
-- **Local-first:** bind to `127.0.0.1` by default. Docker maps `127.0.0.1:7780:7780` (localhost only) so the service is not exposed to the LAN.
+- **Local-first:** bind to `127.0.0.1` by default. Docker maps `127.0.0.1:7780:7780` (localhost only) so the service is not exposed to the LAN. For remote-server deployments, change to `"7780:7780"` — see the [Docker guide](docker/README.md#port-binding-same-machine-vs-remote-server).
 - **Bearer auth:** every non-health endpoint requires a token; compared with `timingSafeEqual`.
 - **Secrets:** `secrets.json` is `chmod 600`; provider credentials never leave the host.
 - **File imports:** absolute paths are allowed (local file access by design); relative `..` traversal is rejected.

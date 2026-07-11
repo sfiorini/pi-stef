@@ -11,7 +11,7 @@ cd packages/finance-api/docker
 docker compose up -d
 ```
 
-Pulls the multi-arch image `ghcr.io/sfiorini/pi-stef/finance-api:latest` and serves the API at `http://127.0.0.1:7780`. See the [Docker guide](./finance-api-docker) for volumes, image tags, and token retrieval.
+Pulls the multi-arch image `ghcr.io/sfiorini/pi-stef/finance-api:latest` and starts the service. By default it binds to `127.0.0.1:7780` (localhost only) — if the pi client runs on a **different machine**, change the port mapping to `"7780:7780"`. See the [Docker guide](./finance-api-docker#port-binding-same-machine-vs-remote-server) for details, volumes, image tags, and token retrieval.
 
 ### Native
 
