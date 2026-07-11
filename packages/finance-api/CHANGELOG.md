@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-07-11
+### Changed
+- feat(finance): add gain/loss to holdings output
+
+
 ## [0.3.2] - 2026-07-11
 ### Changed
 - chore(finance-api): regenerate Postman collection with holdings query params
