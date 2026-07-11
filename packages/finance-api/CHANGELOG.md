@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-07-11
+### Changed
+- chore(finance-api): regenerate Postman collection with holdings query params
+- fix(finance-api): correct net worth, asset classification, add per-account valuations
+- docs(finance-api): clarify server vs client paths and SnapTrade credential location
+
+
 ## [0.2.2] - 2026-07-11
 ### Changed
 - fix(finance-api): Docker tsx binary not found in pnpm workspace layout
