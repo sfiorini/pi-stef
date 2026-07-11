@@ -80,6 +80,26 @@ curl -X POST http://127.0.0.1:7780/v1/import \
 
 Base URL `http://127.0.0.1:7780`. Responses are `{ "ok": true, "data": {...} }`.
 
+### Interactive docs
+
+The API ships with auto-generated OpenAPI 3.1 documentation:
+
+- **Swagger UI**: `http://127.0.0.1:7780/docs` — interactive API explorer (try requests live)
+- **OpenAPI JSON**: `http://127.0.0.1:7780/openapi.json` — raw spec for importing into Postman, Insomnia, etc.
+
+Both endpoints are public (no auth) and generated from Zod route schemas, so they're always in sync.
+
+### Postman collection
+
+Import the collection and environment from the finance-api `postman/` directory:
+1. Postman → Import → select `postman/finance-api.postman_collection.json`
+2. Import → select `postman/finance-api.postman_environment.json`
+3. Set the `token` variable to your bearer token
+
+Regenerate after route changes: `npx tsx packages/finance-api/scripts/gen-postman.mjs`
+
+### Endpoints
+
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/v1/health` | Health check (public) |

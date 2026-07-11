@@ -405,6 +405,33 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 
 Base URL: `http://127.0.0.1:7780`. All endpoints return `{ "ok": true, "data": {...} }` on success or `{ "ok": false, "error": { "code": "...", "message": "..." } }` on failure.
 
+### Interactive docs
+
+The API ships with auto-generated OpenAPI 3.1 documentation:
+
+| Resource | URL | Description |
+|----------|-----|-------------|
+| **Swagger UI** | `http://127.0.0.1:7780/docs` | Interactive API explorer — try requests live |
+| **OpenAPI JSON** | `http://127.0.0.1:7780/openapi.json` | Raw OpenAPI 3.1 spec (import into Postman, Insomnia, etc.) |
+
+Both endpoints are public (no auth required) and are generated from the Zod route schemas, so they're always in sync with the code.
+
+### Postman collection
+
+A ready-to-import Postman collection and environment template are in the [`postman/`](postman/) directory:
+
+1. Open Postman → Import
+2. Select `postman/finance-api.postman_collection.json`
+3. Import `postman/finance-api.postman_environment.json` as an environment
+4. Set the `token` variable to your bearer token
+5. All requests are pre-configured with `{{base_url}}` and `{{token}}` variables
+
+To regenerate the collection after adding/changing routes:
+
+```bash
+npx tsx packages/finance-api/scripts/gen-postman.mjs
+```
+
 ### `GET /v1/health` *(public)*
 
 Health check; no auth required.
