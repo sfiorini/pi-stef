@@ -1,7 +1,7 @@
 {
   "item": [
     {
-      "id": "72590f83-1d56-45ad-909d-498bf9fea743",
+      "id": "70a07264-a7f0-4dbb-ad8e-c422b7278a00",
       "name": "System",
       "description": {
         "content": "",
@@ -9,7 +9,7 @@
       },
       "item": [
         {
-          "id": "e55852b8-81cd-42ac-89a7-cad55f5f96b6",
+          "id": "92e391e3-bfe2-4774-98a2-4f55ec56f983",
           "name": "Health check",
           "request": {
             "name": "Health check",
@@ -36,7 +36,7 @@
           },
           "response": [
             {
-              "id": "e02db1b0-51f9-47ad-aca6-24e8627e40bc",
+              "id": "d5ec3feb-e713-4397-8b40-1168c472c23b",
               "name": "Service is healthy",
               "originalRequest": {
                 "url": {
@@ -67,7 +67,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"status\": \"laborum qui cupidatat nostrud\",\n    \"uptimeS\": -39407208.901582494\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"status\": \"eu voluptate labore ut\",\n    \"uptimeS\": -25897194.031168208\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -90,7 +90,7 @@
           }
         },
         {
-          "id": "aa362524-ae9f-44d0-a258-9eb20d44733d",
+          "id": "6a943ca3-d44e-4094-9a3a-c06f7d80c4e6",
           "name": "Get current market session",
           "request": {
             "name": "Get current market session",
@@ -117,7 +117,7 @@
           },
           "response": [
             {
-              "id": "8a109b03-0ba7-4a78-a117-16c8b84d27fa",
+              "id": "e6e52319-4a05-413a-996f-8c732a88e812",
               "name": "Current market session",
               "originalRequest": {
                 "url": {
@@ -156,12 +156,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"session\": \"occaecat quis fugiat\",\n    \"timestamp\": -23849512.073711872\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"session\": \"eiusmod in aliquip\",\n    \"timestamp\": 76717872.44156852\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "d78c16fe-1e18-4aa8-9143-946157450eec",
+              "id": "c417fa96-0b47-4a8c-addf-efdad75fa229",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -200,12 +200,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "7f466c8c-1421-48ed-a5e1-6ec973245d9c",
+              "id": "53ea2c99-06b5-4835-90ac-ec1bcdd71f12",
               "name": "Session classification unavailable",
               "originalRequest": {
                 "url": {
@@ -244,7 +244,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -258,7 +258,7 @@
       "event": []
     },
     {
-      "id": "638e6081-147d-420d-92c4-9163ec37e715",
+      "id": "bfc164c4-df10-4318-a72c-318fa83e7022",
       "name": "Portfolio",
       "description": {
         "content": "",
@@ -266,7 +266,7 @@
       },
       "item": [
         {
-          "id": "fb1623f9-19d1-49df-a102-203aa9ecc4c3",
+          "id": "875453a4-c39a-4b12-ac81-8ef2560bcd7c",
           "name": "Get all account holdings",
           "request": {
             "name": "Get all account holdings",
@@ -279,9 +279,20 @@
               "host": [
                 "{{base_url}}"
               ],
-              "query": [],
+              "query": [
+                {
+                  "disabled": false,
+                  "key": "accountId",
+                  "value": "<string>"
+                },
+                {
+                  "disabled": false,
+                  "key": "symbol",
+                  "value": "<string>"
+                }
+              ],
               "variable": [],
-              "raw": "{{base_url}}/v1/holdings"
+              "raw": "{{base_url}}/v1/holdings?accountId=<string>&symbol=<string>"
             },
             "header": [
               {
@@ -293,8 +304,8 @@
           },
           "response": [
             {
-              "id": "79e9d40f-de63-4c53-869d-d9abec361b48",
-              "name": "All accounts with their holdings",
+              "id": "462dfdb5-b0ed-4dfc-87d2-5d449ef4d82f",
+              "name": "All accounts with their holdings (including price, marketValue, and account totalValue)",
               "originalRequest": {
                 "url": {
                   "path": [
@@ -304,7 +315,16 @@
                   "host": [
                     "{{baseUrl}}"
                   ],
-                  "query": [],
+                  "query": [
+                    {
+                      "key": "accountId",
+                      "value": "<string>"
+                    },
+                    {
+                      "key": "symbol",
+                      "value": "<string>"
+                    }
+                  ],
                   "variable": []
                 },
                 "header": [
@@ -332,12 +352,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"accounts\": [\n      {\n        \"id\": \"ut ea non\",\n        \"provider_id\": \"in tempor cupidatat dolor pariatur\",\n        \"kind\": \"cillum esse reprehenderit\",\n        \"name\": \"laborum nulla\",\n        \"holdings\": [\n          {\n            \"account_id\": \"nisi\",\n            \"symbol\": \"sunt minim\",\n            \"quantity\": 88938431.27925387,\n            \"asset_class\": \"ut\",\n            \"as_of\": -21964861.419469535,\n            \"avg_cost\": 44878188.05879155,\n            \"subclass\": \"Duis laboris sed id\"\n          },\n          {\n            \"account_id\": \"in ullamco\",\n            \"symbol\": \"aliquip sit ad occaecat minim\",\n            \"quantity\": -15569776.091417238,\n            \"asset_class\": \"Duis\",\n            \"as_of\": -74570671.18507001,\n            \"avg_cost\": 43601670.319253266,\n            \"subclass\": \"magna tempor nostrud Duis\"\n          }\n        ],\n        \"mask_last4\": \"dolore id\",\n        \"currency\": \"Excepteur veniam eu occaecat\"\n      },\n      {\n        \"id\": \"sed et mollit\",\n        \"provider_id\": \"Excepteur do amet \",\n        \"kind\": \"veniam sed nisi consectetur tempor\",\n        \"name\": \"ullamco in aute pariatur nulla\",\n        \"holdings\": [\n          {\n            \"account_id\": \"amet exercita\",\n            \"symbol\": \"laboris adipisicing \",\n            \"quantity\": -19711988.726686686,\n            \"asset_class\": \"Duis ullamco est reprehenderit\",\n            \"as_of\": -28557085.163311124,\n            \"avg_cost\": 86410225.63917857,\n            \"subclass\": \"nulla\"\n          },\n          {\n            \"account_id\": \"Ut laboris\",\n            \"symbol\": \"ips\",\n            \"quantity\": -82055627.09958696,\n            \"asset_class\": \"magna consectetur sit of\",\n            \"as_of\": -4966443.5174087435,\n            \"avg_cost\": -46004586.01124704,\n            \"subclass\": \"Ut aliquip\"\n          }\n        ],\n        \"mask_last4\": \"ad sed id\",\n        \"currency\": \"est sed\"\n      }\n    ]\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"accounts\": [\n      {\n        \"id\": \"in dolore id Ut in\",\n        \"provider_id\": \"dolore est\",\n        \"kind\": \"eiusmod dolor \",\n        \"name\": \"dolore\",\n        \"holdings\": [\n          {\n            \"account_id\": \"culpa\",\n            \"symbol\": \"consequat\",\n            \"quantity\": -24768158.839730576,\n            \"asset_class\": \"tempor amet in sed\",\n            \"as_of\": 27345446.848801762,\n            \"avg_cost\": -46298410.11251097,\n            \"subclass\": \"amet dolor nulla nisi\",\n            \"price\": 43764223.52929354,\n            \"security_type\": \"ea dolore aliquip amet\",\n            \"market_value\": 42247314.42884162\n          },\n          {\n            \"account_id\": \"cupidatat Duis non cillum\",\n            \"symbol\": \"tempor exercitation consequat culpa\",\n            \"quantity\": 4393438.065034956,\n            \"asset_class\": \"commodo in veniam\",\n            \"as_of\": -32153568.303356156,\n            \"avg_cost\": -55234789.27163956,\n            \"subclass\": \"nisi exercitation\",\n            \"price\": 94897396.02619743,\n            \"security_type\": \"anim laboris elit\",\n            \"market_value\": 82784441.99931839\n          }\n        ],\n        \"mask_last4\": \"aliquip adipisicing est magna\",\n        \"currency\": \"dolore veniam sint\",\n        \"total_value\": -19012059.50643225\n      },\n      {\n        \"id\": \"ut ex amet\",\n        \"provider_id\": \"Excepteur commodo\",\n        \"kind\": \"anim sunt culpa officia et\",\n        \"name\": \"ut\",\n        \"holdings\": [\n          {\n            \"account_id\": \"aute ut cupidatat\",\n            \"symbol\": \"dolore\",\n            \"quantity\": -28559119.19446148,\n            \"asset_class\": \"cillum ex\",\n            \"as_of\": -14898245.993743211,\n            \"avg_cost\": 36520111.72662538,\n            \"subclass\": \"amet proident id deserunt\",\n            \"price\": -52575172.26702073,\n            \"security_type\": \"minim id ullamco\",\n            \"market_value\": 63035313.1280902\n          },\n          {\n            \"account_id\": \"ipsum laboris non aute dolor\",\n            \"symbol\": \"quis proident sint non\",\n            \"quantity\": 78025195.9778764,\n            \"asset_class\": \"dolore l\",\n            \"as_of\": -27284623.317273974,\n            \"avg_cost\": 97014973.05404457,\n            \"subclass\": \"occaecat nulla voluptate aute\",\n            \"price\": -37606260.014832094,\n            \"security_type\": \"dolor ex\",\n            \"market_value\": -11652017.789053872\n          }\n        ],\n        \"mask_last4\": \"nisi nulla\",\n        \"currency\": \"pariatur anim nisi officia\",\n        \"total_value\": -81759228.96262358\n      }\n    ]\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "2658e641-aad8-4dfa-b15c-bc4cbbd5c28b",
+              "id": "84a2a765-105e-466a-9942-339c166a2fb2",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -348,7 +368,16 @@
                   "host": [
                     "{{baseUrl}}"
                   ],
-                  "query": [],
+                  "query": [
+                    {
+                      "key": "accountId",
+                      "value": "<string>"
+                    },
+                    {
+                      "key": "symbol",
+                      "value": "<string>"
+                    }
+                  ],
                   "variable": []
                 },
                 "header": [
@@ -376,7 +405,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -387,7 +416,7 @@
           }
         },
         {
-          "id": "bf819d6a-406f-4b8d-a017-1475bca295c7",
+          "id": "49b50d0f-ec62-40ba-a196-8195c8392aab",
           "name": "Get total net worth across all accounts",
           "request": {
             "name": "Get total net worth across all accounts",
@@ -414,7 +443,7 @@
           },
           "response": [
             {
-              "id": "6960f6e8-158d-43be-a353-cd69eca37b86",
+              "id": "e7bf3bb8-3bdc-48af-9cb5-effa30b67936",
               "name": "Net worth and account count",
               "originalRequest": {
                 "url": {
@@ -453,12 +482,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"netWorth\": 80675030.46664289,\n    \"accountCount\": -8518594.58628425\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"netWorth\": -15708486.38303721,\n    \"accountCount\": -60106515.27318251\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "ecc7c884-fe77-432c-845c-fad4182dc9b8",
+              "id": "c7764b25-9abc-4382-9957-35dec4019982",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -497,7 +526,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -508,7 +537,7 @@
           }
         },
         {
-          "id": "5b88c837-e611-49ae-b23f-00c2928bc7ff",
+          "id": "5e45761f-90e0-4556-a726-3c8c6973b484",
           "name": "Get allocation breakdown by asset class",
           "request": {
             "name": "Get allocation breakdown by asset class",
@@ -535,7 +564,7 @@
           },
           "response": [
             {
-              "id": "a9cd11f2-7c91-4c19-b875-b75d5732a08b",
+              "id": "006888c5-65e7-4f1b-8c06-7a52b16ac82d",
               "name": "Allocation by asset class and total value",
               "originalRequest": {
                 "url": {
@@ -574,12 +603,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"allocation\": {\n      \"Ut_13\": -32142715.63290119\n    },\n    \"totalValue\": 58780367.48922548\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"allocation\": {\n      \"sed_147\": 44002676.84097302,\n      \"fugiat_ff\": -65324474.63854405,\n      \"cillum_9\": -85526517.86444278\n    },\n    \"totalValue\": -18279906.805898532\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "a92d35ed-3101-4291-8f80-62ffef1acd4d",
+              "id": "41f65d94-44ce-44c0-af51-bd47b09ed041",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -618,7 +647,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -629,7 +658,7 @@
           }
         },
         {
-          "id": "698ade0b-c215-437a-bf9d-878d3d98a484",
+          "id": "3b9a46bb-7833-421c-8afb-f4cff84ff766",
           "name": "Get price history for a symbol",
           "request": {
             "name": "Get price history for a symbol",
@@ -668,7 +697,7 @@
           },
           "response": [
             {
-              "id": "ccbca2ae-7c09-48b7-b878-30472925cdf8",
+              "id": "df529e7e-4a17-4117-beae-81f366ff4676",
               "name": "Price history rows",
               "originalRequest": {
                 "url": {
@@ -716,12 +745,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"history\": [\n      {\n        \"symbol\": \"dolor ullamco aliquip\",\n        \"date\": -24309654.183758214,\n        \"close\": 19728552.981954724,\n        \"source\": \"aliquip exercitation cupidatat Excepteur\"\n      },\n      {\n        \"symbol\": \"ad ut enim laboris\",\n        \"date\": 17087071.474181294,\n        \"close\": 73921378.88005671,\n        \"source\": \"aliqua ut occaecat dolor\"\n      }\n    ]\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"history\": [\n      {\n        \"symbol\": \"ipsum fugiat eiusmod\",\n        \"date\": -22730706.91811341,\n        \"close\": 71351691.29538968,\n        \"source\": \"mollit eiusmod nostrud aute\"\n      },\n      {\n        \"symbol\": \"consectetur esse enim\",\n        \"date\": -68896255.67128122,\n        \"close\": 59819150.34912607,\n        \"source\": \"proident sint magna dolore ad\"\n      }\n    ]\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "2b9c9252-3f36-40f5-af09-a4db85481c7a",
+              "id": "736c222a-7890-4848-af18-0ae7a5c49e3b",
               "name": "Missing symbol query param",
               "originalRequest": {
                 "url": {
@@ -769,12 +798,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "5cb5251a-b9ae-4f86-bff8-39db6e0e4bd3",
+              "id": "a018da32-6259-4898-a280-b74c8ba9d1c4",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -822,7 +851,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -833,7 +862,7 @@
           }
         },
         {
-          "id": "8c3c137d-f5dd-4dfb-a7ee-e39fac631ce7",
+          "id": "612a5bbe-a30e-4cc2-9ec0-739dfb15fc30",
           "name": "Get allocation drift vs target",
           "request": {
             "name": "Get allocation drift vs target",
@@ -860,7 +889,7 @@
           },
           "response": [
             {
-              "id": "0718b319-a4b9-4ab8-b556-a653cc54d1ed",
+              "id": "94928782-03f9-4204-856f-dda39a53af61",
               "name": "Drift analysis by asset class",
               "originalRequest": {
                 "url": {
@@ -899,12 +928,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"drift\": [\n      {\n        \"class\": \"reprehenderit occaecat anim sed aute\",\n        \"currentPct\": -41995022.989486784,\n        \"targetPct\": -35544161.46357988,\n        \"deltaPct\": -37194093.23402374,\n        \"value\": -15699027.367904454\n      },\n      {\n        \"class\": \"ad esse\",\n        \"currentPct\": 72441840.24110994,\n        \"targetPct\": 71900230.68888795,\n        \"deltaPct\": -93506580.3712349,\n        \"value\": -88496064.83106576\n      }\n    ]\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"drift\": [\n      {\n        \"class\": \"ipsum nulla aliquip\",\n        \"currentPct\": -83573357.76185231,\n        \"targetPct\": -11320718.475726113,\n        \"deltaPct\": 53466484.88894832,\n        \"value\": 72486093.52347422\n      },\n      {\n        \"class\": \"enim cillum\",\n        \"currentPct\": -20374183.636770993,\n        \"targetPct\": 60766085.84899932,\n        \"deltaPct\": 47786638.26610151,\n        \"value\": 67840806.19929776\n      }\n    ]\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "141b9bf0-37c6-448a-8df3-3057aedfd145",
+              "id": "6f0109ee-5f7e-43c8-bc6a-feb4fea2689d",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -943,7 +972,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -957,7 +986,7 @@
       "event": []
     },
     {
-      "id": "758eace2-2db0-4b7a-a81f-aba93900a246",
+      "id": "eb08bb7f-b922-427f-9a20-58f9b0f84316",
       "name": "Goals",
       "description": {
         "content": "",
@@ -965,7 +994,7 @@
       },
       "item": [
         {
-          "id": "b31a328b-4c8f-44d3-8e9f-a2e6ef1b49cc",
+          "id": "dfe7d58b-c6ac-4736-ad70-5dbe1a991714",
           "name": "List all goals",
           "request": {
             "name": "List all goals",
@@ -992,7 +1021,7 @@
           },
           "response": [
             {
-              "id": "eec2bcc0-e5af-4c28-b722-cc67ebdb1bd5",
+              "id": "f4ae0b56-322f-4b53-9aa6-21c2ae2774c3",
               "name": "All configured goals",
               "originalRequest": {
                 "url": {
@@ -1031,12 +1060,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"goals\": [\n      {\n        \"id\": \"esse Duis Excepteur\",\n        \"name\": \"sint incididunt Lorem sed\",\n        \"targetAllocation\": {\n          \"occaecat090\": -99224256.02706423\n        },\n        \"riskLimits\": {\n          \"minim18d\": 92341775.15008539,\n          \"sit04f\": -55164085.95047424\n        },\n        \"horizon_years\": -48207874.037128426\n      },\n      {\n        \"id\": \"ullamco volupt\",\n        \"name\": \"culpa\",\n        \"targetAllocation\": {\n          \"nulla_64\": -31361409.252627045\n        },\n        \"riskLimits\": {\n          \"minima\": 67427453.65147671\n        },\n        \"horizon_years\": 2542465.6052986234\n      }\n    ]\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"goals\": [\n      {\n        \"id\": \"sit\",\n        \"name\": \"deserunt enim\",\n        \"targetAllocation\": {\n          \"dolore51\": 5229650.128311887,\n          \"proidentd\": 14891869.92599611\n        },\n        \"riskLimits\": {\n          \"adipisicing_92_\": -80340612.95037447,\n          \"in4\": 68781931.40746573,\n          \"ex_b\": 90160067.01366016\n        },\n        \"horizon_years\": 97261874.27092084\n      },\n      {\n        \"id\": \"aliquip ex\",\n        \"name\": \"est deserunt\",\n        \"targetAllocation\": {\n          \"Lorem0\": 8050528.912529245,\n          \"adipisicingcb\": -11448355.343636647\n        },\n        \"riskLimits\": {\n          \"sint_7c\": 19554043.224784866,\n          \"ad13\": 87440920.8960219,\n          \"voluptate9c8\": -10466939.963981286\n        },\n        \"horizon_years\": 92727855.19223729\n      }\n    ]\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "ec378f1e-da07-4691-abd9-ea8b66d3a2ad",
+              "id": "68ca5691-dafb-4919-b1df-9607211cea86",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1075,7 +1104,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1086,7 +1115,7 @@
           }
         },
         {
-          "id": "73655d59-6499-4108-ad86-26da8f218d5a",
+          "id": "c7887312-0c0c-4fb9-85f8-c0a934435091",
           "name": "Create or update a goal",
           "request": {
             "name": "Create or update a goal",
@@ -1116,7 +1145,7 @@
             "method": "POST",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"ipsum_1_a\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"occaecatc3d\": \"<number>\",\n    \"proident8\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
+              "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"incididunt_e\": \"<number>\",\n    \"nisi_3\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"aute92\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1126,7 +1155,7 @@
           },
           "response": [
             {
-              "id": "594b8a89-e956-49c0-a5be-62443179888f",
+              "id": "2355944b-9b1e-4dbc-9b93-ea30c712837f",
               "name": "Goal upserted",
               "originalRequest": {
                 "url": {
@@ -1157,7 +1186,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"elita\": \"<number>\",\n    \"ad346\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"laboruma20\": \"<number>\",\n    \"Duis_19\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
+                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"ex5\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"sed_d9d\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1173,12 +1202,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"id\": \"quis laborum fugiat\"\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"id\": \"in labore est quis\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "54d8fe65-48a6-48b8-aaf4-51830146d655",
+              "id": "3bdd7d51-5259-43e5-9eae-b9cac8d2f241",
               "name": "Validation error",
               "originalRequest": {
                 "url": {
@@ -1209,7 +1238,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"elita\": \"<number>\",\n    \"ad346\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"laboruma20\": \"<number>\",\n    \"Duis_19\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
+                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"ex5\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"sed_d9d\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1225,12 +1254,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "839a2ae7-10a9-4dbe-8a24-c5b61a988029",
+              "id": "207d13a8-9aa3-4701-b599-d20f767eac88",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1261,7 +1290,7 @@
                 "method": "POST",
                 "body": {
                   "mode": "raw",
-                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"elita\": \"<number>\",\n    \"ad346\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"laboruma20\": \"<number>\",\n    \"Duis_19\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
+                  "raw": "{\n  \"id\": \"<string>\",\n  \"name\": \"<string>\",\n  \"targetAllocation\": {\n    \"ex5\": \"<number>\"\n  },\n  \"riskLimits\": {\n    \"sed_d9d\": \"<number>\"\n  },\n  \"horizonYears\": \"<number>\"\n}",
                   "options": {
                     "raw": {
                       "language": "json"
@@ -1277,7 +1306,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1291,7 +1320,7 @@
       "event": []
     },
     {
-      "id": "1d1e5bad-3f5f-4f11-941b-671c80cd75ee",
+      "id": "36b6a2dc-3da9-4af4-819f-dc6655149cd0",
       "name": "Suggestions",
       "description": {
         "content": "",
@@ -1299,7 +1328,7 @@
       },
       "item": [
         {
-          "id": "c9657e88-5727-409b-a8ab-9ef30589aa6b",
+          "id": "26e21217-26c5-4760-b047-c8e0a013a180",
           "name": "List pending suggestions",
           "request": {
             "name": "List pending suggestions",
@@ -1326,7 +1355,7 @@
           },
           "response": [
             {
-              "id": "0b7af09e-c68c-4bda-988b-128f0ac5e19a",
+              "id": "8d755570-612f-42e4-aae5-fade922b5396",
               "name": "Pending suggestions",
               "originalRequest": {
                 "url": {
@@ -1365,12 +1394,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"suggestions\": [\n      {\n        \"id\": \"veniam commodo non in\",\n        \"created_at\": 15609369.907366097,\n        \"market_session\": \"aute commodo\",\n        \"kind\": \"Lorem\",\n        \"status\": \"ven\",\n        \"payload\": {}\n      },\n      {\n        \"id\": \"id adipisicing exercitation aute\",\n        \"created_at\": 35982033.689104855,\n        \"market_session\": \"dolor minim est\",\n        \"kind\": \"Lorem exercitation labore\",\n        \"status\": \"eiusmod nisi in\",\n        \"payload\": {}\n      }\n    ]\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"suggestions\": [\n      {\n        \"id\": \"aute aliqua consectetur dolor\",\n        \"created_at\": 12062436.038181528,\n        \"market_session\": \"irure nostrud veniam\",\n        \"kind\": \"non fugiat\",\n        \"status\": \"voluptate lab\",\n        \"payload\": {}\n      },\n      {\n        \"id\": \"\",\n        \"created_at\": 50438651.16447088,\n        \"market_session\": \"sunt nulla ullamco nisi Duis\",\n        \"kind\": \"adipisicing laborum Duis eu\",\n        \"status\": \"amet in sed\",\n        \"payload\": {}\n      }\n    ]\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "04bd8957-4a82-4a88-a4b1-fbbdbc8beb24",
+              "id": "30d090ba-077e-488e-a637-e73d952af540",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1409,7 +1438,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1420,7 +1449,7 @@
           }
         },
         {
-          "id": "ae2c1a23-782c-43e9-bb5c-a19ba879e4c7",
+          "id": "db7f7ad4-1a8b-4b05-99e2-24be4e1eb0f4",
           "name": "Dismiss a suggestion",
           "request": {
             "name": "Dismiss a suggestion",
@@ -1461,7 +1490,7 @@
           },
           "response": [
             {
-              "id": "d58d367c-8066-4691-a16b-6e90a0f4f82b",
+              "id": "2197cf83-9d59-4d8c-9ca6-d0db031d462c",
               "name": "Suggestion dismissed",
               "originalRequest": {
                 "url": {
@@ -1509,12 +1538,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"dismissed\": \"sunt in laborum eiusmod\"\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"dismissed\": \"reprehenderit\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "e2b9a2ea-9769-4d2f-aec0-ded98fdd6bc8",
+              "id": "07eb56c0-742e-4011-a139-4899e86964c3",
               "name": "Missing id",
               "originalRequest": {
                 "url": {
@@ -1562,12 +1591,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "180277f6-ee8c-4d72-a938-738758c15446",
+              "id": "3c617a89-493a-4b17-8a4e-237a523503da",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1615,7 +1644,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1629,7 +1658,7 @@
       "event": []
     },
     {
-      "id": "700c3390-5734-48fe-a8ea-02d1bdb5eb96",
+      "id": "17446029-4cec-4ede-83c8-4fa46de7c452",
       "name": "Data",
       "description": {
         "content": "",
@@ -1637,7 +1666,7 @@
       },
       "item": [
         {
-          "id": "22c5595f-cd67-404d-ae01-686a87600cff",
+          "id": "ae454f76-afb0-4eef-97a0-8fdd325acc6d",
           "name": "Trigger a sync tick (ingest + prices + quant)",
           "request": {
             "name": "Trigger a sync tick (ingest + prices + quant)",
@@ -1677,7 +1706,7 @@
           },
           "response": [
             {
-              "id": "45ee670e-d340-4939-a41b-7dddfd36e16d",
+              "id": "c1f6aa34-2ff1-4bb7-bcc6-a51f8f81cd4a",
               "name": "Sync complete",
               "originalRequest": {
                 "url": {
@@ -1724,12 +1753,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"message\": \"Lorem do Duis fugiat\",\n    \"session\": \"eiusmod ad\",\n    \"accountsIngested\": -21515088.925596654,\n    \"holdingsIngested\": 4567038.967925921,\n    \"pricesUpdated\": -85276802.67520157,\n    \"suggestionsCreated\": 75166966.79724509\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"message\": \"esse\",\n    \"session\": \"pariatur nostrud sint ullamco\",\n    \"accountsIngested\": -70805048.83517082,\n    \"holdingsIngested\": -43062909.88668562,\n    \"pricesUpdated\": 35468301.60790843,\n    \"suggestionsCreated\": 63268050.5324333\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "19c2e01d-fa5b-4ea9-bf92-e10fcc47aea4",
+              "id": "4f277539-6157-4cc1-b0db-d2d8b36b2750",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1776,7 +1805,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1787,7 +1816,7 @@
           }
         },
         {
-          "id": "ee95637f-70e3-4df2-86a7-46a1e4237d37",
+          "id": "30db98f5-c600-4505-a10a-538c3ac6d72c",
           "name": "Import holdings from a CSV/OFX file",
           "request": {
             "name": "Import holdings from a CSV/OFX file",
@@ -1827,7 +1856,7 @@
           },
           "response": [
             {
-              "id": "4e73eec0-25a3-4365-947c-d05250bf0e24",
+              "id": "f8ce997a-780b-47d4-894b-db1fb55964eb",
               "name": "Import complete",
               "originalRequest": {
                 "url": {
@@ -1874,12 +1903,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"message\": \"Duis deserunt aute\",\n    \"filePath\": \"ut au\",\n    \"accounts\": -75450668.51112074,\n    \"holdings\": -91243325.57132058,\n    \"transactions\": -50072898.88727873,\n    \"errors\": 25865901.801385477\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"message\": \"veniam irure mollit Ut\",\n    \"filePath\": \"fugiat ut\",\n    \"accounts\": 72674215.17254636,\n    \"holdings\": 57387237.75394505,\n    \"transactions\": 45506091.50798407,\n    \"errors\": 54149896.81516299\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "9027066b-4369-4813-8098-e9167d494fec",
+              "id": "0688e054-e7d9-49d0-bdb0-205ee3a48d9d",
               "name": "Bad request (missing filePath or directory traversal)",
               "originalRequest": {
                 "url": {
@@ -1926,12 +1955,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "bd913041-f6be-4617-9c66-f053519c485d",
+              "id": "7cf5e666-73db-4dee-b7ba-5557583229ee",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -1978,7 +2007,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -1989,7 +2018,7 @@
           }
         },
         {
-          "id": "fd445ca4-42ec-43f4-a584-c3ac4a548513",
+          "id": "94b25205-5bec-4696-878e-f5e87d7a9abe",
           "name": "Export data (JSON dump or SQLite backup)",
           "request": {
             "name": "Export data (JSON dump or SQLite backup)",
@@ -2029,7 +2058,7 @@
           },
           "response": [
             {
-              "id": "9bb31220-d157-4407-a1e1-1f904f346539",
+              "id": "eb7bfb7e-9ff3-474e-a0fd-c28854536676",
               "name": "Export result",
               "originalRequest": {
                 "url": {
@@ -2076,12 +2105,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"ea_6\": {},\n    \"eac\": {}\n  }\n}",
+              "body": "{\n  \"ok\": true,\n  \"data\": {\n    \"amet_7a\": {},\n    \"laborum_f3\": {},\n    \"consectetur_fa\": {}\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "8e569e8e-35dc-41df-9e00-d5c8a5825114",
+              "id": "f2a40ffa-8f4a-4c6d-99a7-80d9c6fb818d",
               "name": "Invalid format",
               "originalRequest": {
                 "url": {
@@ -2128,12 +2157,12 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             },
             {
-              "id": "1c37530e-3df0-4886-9ca8-88dbd60ca2af",
+              "id": "0fa1bfc6-f64b-4f47-8f6e-72119feeb533",
               "name": "Unauthorized",
               "originalRequest": {
                 "url": {
@@ -2180,7 +2209,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"fugiat ipsum irure magna\",\n    \"message\": \"sunt cupidatat incididunt\"\n  }\n}",
+              "body": "{\n  \"ok\": false,\n  \"error\": {\n    \"code\": \"ut officia\",\n    \"message\": \"eu Ut sint minim\"\n  }\n}",
               "cookie": [],
               "_postman_previewlanguage": "json"
             }
@@ -2208,7 +2237,7 @@
     }
   ],
   "info": {
-    "_postman_id": "c3bddda5-7c1b-4216-9833-430d8c4413f1",
+    "_postman_id": "d46a9317-0a65-4d4b-9923-396de37c4f11",
     "name": "finance-api",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "description": {
