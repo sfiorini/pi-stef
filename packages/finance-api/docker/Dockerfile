@@ -47,5 +47,7 @@ EXPOSE 7780
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
   CMD curl -fsS http://127.0.0.1:7780/v1/health || exit 1
 
-# Run with tsx for TypeScript support
-CMD ["npx", "tsx", "packages/finance-api/bin/finance-api.ts"]
+# Run from the package directory so Node resolves the tsx binary that pnpm
+# installs there (filtered installs don't create a workspace-root .bin/tsx).
+WORKDIR /app/packages/finance-api
+CMD ["./node_modules/.bin/tsx", "bin/finance-api.ts"]
