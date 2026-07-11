@@ -122,28 +122,28 @@ importers:
     dependencies:
       '@earendil-works/pi-ai':
         specifier: '*'
-        version: 0.76.0(ws@8.21.0)(zod@4.4.3)
+        version: 0.76.0(ws@8.21.0)(zod@3.25.76)
       '@earendil-works/pi-coding-agent':
         specifier: '*'
-        version: 0.76.0(ws@8.21.0)(zod@4.4.3)
+        version: 0.76.0(ws@8.21.0)(zod@3.25.76)
       '@pi-stef/atlassian':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
       '@pi-stef/catalog':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
       '@pi-stef/figma':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(@sinclair/typebox@0.34.49)
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(@sinclair/typebox@0.34.49)
       '@pi-stef/paths':
         specifier: ^0.3.0
         version: 0.3.0
       '@pi-stef/team':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-tui@0.76.0)
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-tui@0.76.0)
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
 
   packages/catalog:
     dependencies:

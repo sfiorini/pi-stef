@@ -59,16 +59,23 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   app.route("/v1/export", exportRoutes(deps.db));
   app.route("/v1/drift", driftRoutes(deps.db));
 
-  // OpenAPI spec endpoint
-  app.doc("/openapi.json", {
-    openapi: "3.1.0",
-    info: {
-      title: "finance-api",
-      version: FINANCE_API_VERSION,
-      description:
-        "Always-on local service for portfolio tracking, drift analysis, and investment suggestions.",
-    },
-    servers: [{ url: "http://127.0.0.1:7780", description: "Local" }],
+  // OpenAPI spec endpoint — server URL derived from the incoming request
+  // so Swagger UI sends requests to whatever host served the page
+  // (127.0.0.1, liberty, a tunnel, etc.)
+  app.get("/openapi.json", (c) => {
+    const url = new URL(c.req.url);
+    const serverUrl = `${url.protocol}//${url.host}`;
+    const doc = app.getOpenAPIDocument({
+      openapi: "3.1.0",
+      info: {
+        title: "finance-api",
+        version: FINANCE_API_VERSION,
+        description:
+          "Always-on local service for portfolio tracking, drift analysis, and investment suggestions.",
+      },
+      servers: [{ url: serverUrl, description: "Current server" }],
+    });
+    return c.json(doc);
   });
 
   // Swagger UI
