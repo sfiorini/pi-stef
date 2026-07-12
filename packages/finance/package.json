@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/finance",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Pi extension client for @pi-stef/finance-api: exposes portfolio state, drift, and deterministic suggestions to the pi agent.",
   "type": "module",
   "license": "MIT",
