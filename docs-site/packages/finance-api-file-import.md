@@ -26,46 +26,74 @@ The CSV parser expects a **positions-style CSV** — one row per holding, with a
 | **Symbol** | `symbol` | `AAPL`, `VTI`, `FXAIX` | Must be non-empty. Any string works — no ticker validation. |
 | **Quantity** | `quantity`, `shares`, `qty` | `10`, `5.123`, `100` | Must be a non-zero number. Whitespace/symbols stripped (see below). |
 
-### Optional column
+### Optional columns
 
-| Column | Accepted header names | Example value | Notes |
-|--------|----------------------|---------------|-------|
-| **Price** | `last price`, `price` | `190.50`, `$3,450.00` | If absent, holdings import with no average cost. Stored as `avgCost`, not "last price." The net-worth endpoint uses the latest price from the price feed. |
+| Column | Accepted header names (case-insensitive, trimmed) | Example value | Notes |
+|--------|---------------------------------------------------|---------------|-------|
+| **Price** | `last price`, `price` | `190.50`, `"$3,450.00 "` | Stored as `price` on the holding. Used as the `avgCost` fallback for equities when no cost-basis column is present (crypto leaves `avgCost` unset). The net-worth endpoint prefers the latest price from the price feed, falling back to this `price`, then `avgCost`. |
+| **Cost basis** | `average cost basis`, `cost basis` | `"$109,964.80 "` | Maps to the holding's cost basis (`avgCost`). When this column is absent, `avgCost` falls back to the `Last Price`/`Price` column. |
 
 ### How numeric values are parsed
 
-Every numeric field (quantity, price) goes through this transformation:
+Quantity and price/cost columns use two different parsing routines.
+
+**Quantity** keeps only digits, dot, and hyphen, then is forced positive:
 
 ```
-cols[idx].replace(/[^0-9.\-]/g, "")  →  Number(...)  →  Math.abs() (quantity only)
+cols[qtyIdx].replace(/[^0-9.\-]/g, "")  →  Number(...)  →  Math.abs()
 ```
 
-This strips **everything** except digits (`0-9`), dot (`.`), and hyphen (`-`). Then:
+This strips everything except digits (`0-9`), dot (`.`), and hyphen (`-`), then forces the result positive via `Math.abs()`. A value of `-10` becomes `10`; short positions cannot be imported.
 
-- **Quantity is forced positive** via `Math.abs()`. A value of `-10` becomes `10`. Short positions cannot be imported.
-- **Price preserves its sign** (no `abs`), but negative prices are meaningless.
+**Price and cost basis** go through `parseCurrency()`, which strips `$`, commas, and whitespace and honors accounting-style parenthesized negatives:
 
-| Input | After stripping | After `Number()` | Final (qty with `abs`) |
-|--------|-----------------|-------------------|------------------------|
-| `$1,234.56` | `1234.56` | `1234.56` | `1234.56` |
-| `10` | `10` | `10` | `10` |
-| `5.123` | `5.123` | `5.123` | `5.123` |
-| `(190.50)` | `190.50` | `190.50` | `190.50` ⚠️ |
-| `-10` | `-10` | `-10` | `10` ⚠️ |
+```
+parseCurrency("$64,153.56 ")   →  64153.56
+parseCurrency("($4,164.66)")   →  -4164.66
+parseCurrency("")              →  undefined
+```
 
-> ⚠️ **Accounting-style negatives like `(190.50)` are silently parsed as positive.** Parentheses are stripped by the regex. If your CSV uses parentheses for negative values, replace them with a minus sign before importing.
+| Input | Quantity (regex + `abs`) | Price / cost basis (`parseCurrency`) |
+|-------|--------------------------|--------------------------------------|
+| `"$1,234.56"` | `1234.56` | `1234.56` |
+| `"$64,153.56 "` | `64153.56` | `64153.56` |
+| `"10"` | `10` | `10` |
+| `"($4,164.66)"` | `4164.66` ⚠️ | `-4164.66` |
+| `"-10"` | `10` ⚠️ | `-10` |
+
+> ⚠️ **Negative quantities become positive.** If your export uses `-10` for short positions, the parser forces it to `10`. Short positions are not currently supported. This applies to the quantity column only.
 >
-> ⚠️ **Negative quantities become positive.** If your export uses `-10` for short positions, the parser forces it to `10`. Short positions are not currently supported.
+> ℹ️ **Parenthesized negatives are honored for price/cost columns** via `parseCurrency()` — `($4,164.66)` becomes `-4164.66` — but **not for quantity**, where parentheses are stripped and the value is forced positive.
 
-### Known parser limitations
+### Parser behavior notes
 
-1. **No quoted-field support.** The parser uses `split(",")` — any comma inside a value (e.g. `"Apple, Inc."` as a description column) breaks column alignment. Remove commas from text fields before importing.
+1. **Quoted fields are supported.** The parser uses a proper CSV state machine, so quoted values with embedded commas parse correctly — e.g. `"$64,153.56 "` stays a single field rather than being split on the comma. (Commas inside *unquoted* fields still break column alignment.)
 
-2. **`assetClass` is always `"equity"`.** All CSV-imported holdings are tagged as equity. There is no way to import bonds, cash, or crypto via CSV. The `subclass` is always `"us"`.
+2. **UTF-8 BOM is stripped automatically.** Files exported with a leading BOM (common from Excel/Windows) parse without error.
 
-3. **Any column beyond the 3 recognized ones is ignored.** Extra columns like `Description`, `Account`, `Last Price Change`, `Cost Basis` are silently discarded.
+3. **Two asset classes are supported.** Holdings default to `assetClass: "equity"` with `subclass: "us"`. Symbols matching the `XXX/USD` pattern are auto-detected as crypto — see [Crypto symbols (Fidelity Crypto IRA)](#crypto-symbols-fidelity-crypto-ira) below.
 
-4. **Empty/zero-quantity rows are silently skipped.** A CSV with only a header and no data rows returns `[]`.
+4. **Four columns are recognized.** `Symbol`, `Quantity`/`Shares`/`Qty`, `Last Price`/`Price`, and `Average cost basis`/`Cost basis`. Any other column (e.g. `Description`, `Account`, `Last Price Change`) is silently ignored.
+
+5. **Empty/zero-quantity rows are silently skipped.** A CSV with only a header and no data rows returns `[]`.
+
+### Crypto symbols (Fidelity Crypto IRA)
+
+The parser auto-detects crypto symbols matching the `XXX/USD`, `XXX/USDT`, `XXX/EUR`, or `XXX/GBP` pattern (e.g. `BTC/USD`, `ETH/USD`) — the format Fidelity Crypto IRA and many exchanges use for their position exports. For each matched row:
+
+- The `/USD` (or `/USDT`, `/EUR`, `/GBP`) suffix is stripped, so the symbol becomes `BTC`, `ETH`, etc.
+- `assetClass` and `securityType` are both set to `"crypto"`.
+- The normalizer then canonicalizes the symbol to the `CRYPTO:` namespace (e.g. `CRYPTO:BTC`).
+
+A Fidelity Crypto IRA export imports directly with no manual editing:
+
+```csv
+Account,Symbol,Description,Quantity,Last Price,Average cost basis
+Crypto IRA,BTC/USD,BITCOIN,0.09090909,"$64,153.56 ","$109,964.80 "
+Crypto IRA,ETH/USD,ETHEREUM,1.1235955,"$1,812.50 ","$4,449.57 "
+```
+
+Rows with no quantity (e.g. a `USD***` cash row) are skipped automatically.
 
 ### Minimum valid CSV
 
@@ -131,14 +159,14 @@ OFX dates are parsed as `YYYYMMDD` or `YYYYMMDDHHMMSS`. If the date string is em
 
 ## How to export from your brokerage
 
-The CSV parser accepts any positions export with a `Symbol` column and a `Quantity`/`Shares`/`Qty` column (an optional `Last Price`/`Price` column is read as average cost). The exact menu path varies by brokerage, but the steps are the same everywhere:
+The CSV parser accepts any positions export with a `Symbol` column and a `Quantity`/`Shares`/`Qty` column, plus optional `Last Price`/`Price` and `Average cost basis`/`Cost basis` columns. The exact menu path varies by brokerage, but the steps are the same everywhere:
 
 1. **Log into your brokerage's website** and navigate to your Portfolio / Positions / Holdings page.
 2. **Select the account** you want to export.
 3. **Look for Download / Export** — typically a down-arrow icon or a link near the positions table header.
 4. **Choose CSV format** (not PDF, not Excel).
 5. **Save the file** — it typically downloads as `Positions_<date>.csv` or similar.
-6. **Check the headers** — you need `Symbol` and one of `Quantity`/`Shares`/`Qty`. A `Last Price`/`Price` column is optional. Extra columns (Description, Account, Cost Basis, …) are ignored.
+6. **Check the headers** — you need `Symbol` and one of `Quantity`/`Shares`/`Qty`. `Last Price`/`Price` and `Average cost basis`/`Cost basis` are optional. Extra columns (Description, Account, …) are ignored.
 
 ### Import the file
 
@@ -158,7 +186,7 @@ curl -X GET http://127.0.0.1:7780/v1/holdings \
   -H "Authorization: Bearer $TOKEN"
 ```
 
-> **Tip:** The price column (`Last Price` or `Price`) is stored as `avgCost` on the holding. The `/v1/net-worth` endpoint computes value using the latest price from the price feed, not this column — so a missing or stale price column is harmless.
+> **Tip:** The price column (`Last Price` or `Price`) is stored as `price` and used as the `avgCost` fallback (for equities) when no `Average cost basis`/`Cost basis` column is present. The `/v1/net-worth` endpoint computes value using the latest price from the price feed, falling back to `price`, then `avgCost` — so a missing or stale price column is harmless as long as the price feed or cost basis is available.
 >
 > **Prefer live sync?** If your brokerage is one of the 30+ supported by [SnapTrade](./finance-api-snaptrade), that gives you automatic live sync with no manual exports.
 
@@ -169,6 +197,8 @@ curl -X GET http://127.0.0.1:7780/v1/holdings \
 Some institutions export data in a shape the CSV parser can't read directly. This is not an exhaustive list — the same patterns apply to any similar export.
 
 ### Crypto exchanges (e.g. Coinbase)
+
+> ✅ **Fidelity Crypto IRA CSVs import directly — no manual editing needed.** Position exports with `BTC/USD`-style symbols are auto-detected as crypto (see [Crypto symbols (Fidelity Crypto IRA)](#crypto-symbols-fidelity-crypto-ira)). The workaround below is only for exchanges like Coinbase that export *transaction history* rather than positions.
 
 **Reason:** Crypto exchanges export **transaction history**, not portfolio positions. A typical CSV has columns:
 
@@ -257,7 +287,7 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 | `"Directory traversal is not allowed"` | Relative path contains `..` (e.g. `../../data.csv`) | Use an absolute path or a relative path without `..` — absolute paths are always allowed |
 | Import succeeds but holdings are empty | CSV missing `Symbol` or `Quantity`/`Shares`/`Qty` header, or all rows have zero/empty quantities | Check your CSV header: `head -1 your-file.csv` |
 | Imported quantities are wrong | CSV uses `(value)` for negatives (accounting convention) or `-value` for short positions | Short/negative quantities cannot be imported — `Math.abs()` forces all quantities positive. No workaround. Remove negative rows or accept them as positive. |
-| Comma in description breaks the parse | `split(",")` splits on commas inside values (e.g. `"Apple, Inc."`) | Remove commas from all text fields before importing |
+| Comma in a value breaks column alignment | A comma appears inside an *unquoted* field (e.g. `Apple, Inc.` without quotes) | Wrap the value in double quotes (`"Apple, Inc."`). Quoted fields with embedded commas parse correctly. |
 | Imported OFX transactions show `1970-01-01` | `<DTPOSTED>` is empty or malformed | Verify the file is valid — real bank exports always include dates |
 | No merchant name on OFX transactions | Payee `<NAME>` is parsed but discarded by the adapter | Known limitation — transaction descriptions are not persisted |
 | `401 Unauthorized` on import | Token missing or wrong | Retrieve it: `cat ~/.pi/sf/finance/token` (native) or `docker compose exec finance-api cat /root/.pi/sf/finance/token` (Docker) |

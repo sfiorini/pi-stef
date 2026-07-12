@@ -76,11 +76,12 @@ Get the current US market session (`pre` / `regular` / `post` / `closed`).
 | *(none)* | | | |
 
 ### `sf_fin_get_holdings`
-All account holdings with quantities and asset classes.
+All account holdings with quantities, prices, market values, and gain/loss. Supports optional filtering by account or symbol.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| *(none)* | | | |
+| `accountId` | string | no | Filter to a single account ID |
+| `symbol` | string | no | Filter to a single ticker (e.g. `AAPL`) across all accounts |
 
 ### `sf_fin_get_net_worth`
 Total portfolio value across all accounts.
