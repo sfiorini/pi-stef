@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-12
+### Changed
+- fix(finance): client reads file locally and sends content to server
+
+
 ## [0.2.3] - 2026-07-12
 ### Changed
 - fix(finance): CSV crypto import + tool wiring arg-position bug
