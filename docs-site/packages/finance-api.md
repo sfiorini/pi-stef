@@ -100,6 +100,8 @@ curl -X POST http://127.0.0.1:7780/v1/import \
   -d '{"filePath":"/path/to/positions.csv"}'
 ```
 
+> **Remote deployments:** the import endpoint also accepts `{ "content", "filename" }` to send file contents directly (raw UTF-8 text) instead of a server-side `filePath`. This is what the `finance` extension always uses — it reads the file locally on the pi machine and sends `content`, so the file never needs to exist on the server.
+
 > **Full details:** exact CSV column specs, numeric parsing rules, known limitations, OFX format docs, export walkthroughs, and troubleshooting — see the [File Import guide](./finance-api-file-import).
 
 ## HTTP API

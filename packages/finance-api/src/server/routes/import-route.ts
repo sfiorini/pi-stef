@@ -33,7 +33,7 @@ const importRoute = createRoute({
     },
     400: {
       content: { "application/json": { schema: errorResponse } },
-      description: "Bad request (missing filePath or directory traversal)",
+      description: "Bad request (missing filePath/content or directory traversal)",
     },
     401: {
       content: { "application/json": { schema: errorResponse } },

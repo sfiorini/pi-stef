@@ -105,7 +105,7 @@ Each provider's required credentials are documented under [Providers](#providers
 
 | Provider | Kind | Auth | Status |
 |----------|------|------|--------|
-| File Import (CSV/OFX) | brokerage/banking | `filePath` (per-request) | ✅ Working |
+| File Import (CSV/OFX) | brokerage/banking | `filePath` or `content` (per-request) | ✅ Working |
 | Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ⚠️ Stub (HMAC not implemented) |
 | SnapTrade | brokerage | `clientId` + `consumerKey` (in client `config.json`, passed per-request) | ✅ Working |
 | SimpleFIN | banking | `accessKey` (in `secrets.json`) | ⚠️ Stub |
@@ -393,6 +393,20 @@ curl -X POST http://127.0.0.1:7780/v1/import \
   -d '{"filePath":"/absolute/path/to/transactions.ofx"}'
 ```
 
+**Import via `content` (remote deployments):** When the file is not reachable from the server's filesystem — e.g. the `finance` extension runs on a different machine than finance-api — send the file contents directly instead of a path. `content` is the raw (UTF-8) file text; `filename` is optional and used only to detect the format (`.csv` vs `.ofx`):
+
+```bash
+# Use jq to safely embed the file as a JSON string
+jq -n --rawfile content /absolute/path/to/positions.csv \
+      '{filename:"positions.csv", content:$content}' |
+  curl -X POST http://127.0.0.1:7780/v1/import \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d @-
+```
+
+> **`finance` extension:** the extension always reads the file locally on the pi machine and sends `{ content, filename }` to the server — the file never needs to exist on the server. Use `filePath` only for direct API calls when the file lives on the server's filesystem.
+
 **Verify after import:**
 ```bash
 # Check holdings
@@ -412,7 +426,7 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `{"ok":false,"error":{"code":"bad_request","message":"Missing filePath"}}` | No `filePath` in the JSON body | Add `"filePath": "/path/to/file.csv"` to your request body |
+| `{"ok":false,"error":{"code":"bad_request","message":"Either filePath or content is required"}}` | Neither `filePath` nor `content` in the JSON body | Add `"filePath": "/path/to/file.csv"` (file on the server) **or** `"content": "..."` with `"filename": "..."` (file contents) to your request body |
 | `{"ok":false,"error":{"code":"bad_request","message":"Directory traversal is not allowed"}}` | Relative path contains `..` (e.g., `../../data.csv`) | Use an **absolute** path (`/Users/me/...`) or a relative path without `..` (`./data.csv`) — absolute paths are always allowed |
 | Import succeeds but holdings are empty (`[]`) | CSV is missing `Symbol` or `Quantity`/`Shares`/`Qty` column in the header, or all rows have zero/empty quantities | Check your CSV header row — it must contain one of the accepted column names. Run `head -1 your-file.csv` to inspect |
 | Imported quantities are wrong | CSV uses `(value)` for negatives (accounting convention) or `-value` for short positions | Short/negative quantities cannot be imported — `Math.abs()` forces all quantities positive. No workaround in the current parser. Remove negative rows or accept them as positive.
@@ -609,9 +623,12 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 
 ### `POST /v1/import`
 
-Import holdings from a local file (CSV or OFX). Absolute paths are allowed (single-user local service); relative paths containing `..` are rejected.
+Import holdings from a local file (CSV or OFX). Accepts **either** mode in the request body:
 
-**Request body:** `{ "filePath": "/Users/me/Downloads/positions.csv" }`
+- **`filePath`** — the server reads the file from its own filesystem (local deployments). Absolute paths are allowed (single-user local service); relative paths containing `..` are rejected.
+- **`content`** (+ optional `filename`) — the file contents are sent directly as a UTF-8 string (remote deployments). The `finance` extension always uses this mode: it reads the file locally and sends `content`, so the file never needs to exist on the server.
+
+**Request body:** `{ "filePath": "/Users/me/Downloads/positions.csv" }` or `{ "filename": "positions.csv", "content": "Symbol,Quantity\nAAPL,10\n" }`
 
 ```json
 { "ok": true, "data": { "message": "Import complete", "filePath": "...", "accounts": 1 } }

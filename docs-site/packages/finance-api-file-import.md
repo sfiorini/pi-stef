@@ -4,6 +4,8 @@ File Import is a co-equal provider that ingests holdings and transactions from m
 
 Providers can be combined — e.g. SnapTrade for live brokerage sync *and* File Import for a bank OFX export. (Cross-provider account deduplication is not supported yet; see the [finance-api page](./finance-api) for the limitation.)
 
+> **`finance` extension users:** when you call `sf_fin_import_file`, the extension reads the file **locally on the machine running pi** and sends its contents to the server as `content`. The file never needs to exist on the finance-api server — this works even when pi and finance-api run on different machines. The `filePath` and `content` modes shown below are for direct API calls; the extension handles this for you automatically.
+
 ## Supported formats
 
 | Format | Extension | Data imported | Use case |
@@ -265,6 +267,18 @@ curl -X POST http://127.0.0.1:7780/v1/import \
   -d '{"filePath":"/absolute/path/to/transactions.ofx"}'
 ```
 
+**Import via `content` (remote deployments):** When the file is not on the server's filesystem, send its contents directly instead of a path. `content` is the raw (UTF-8) file text; `filename` is optional and only used to detect the format (`.csv` vs `.ofx`). (The `finance` extension always uses this mode automatically — it reads the file locally and sends `content`.)
+
+```bash
+# Use jq to safely embed the file as a JSON string
+jq -n --rawfile content /absolute/path/to/positions.csv \
+      '{filename:"positions.csv", content:$content}' |
+  curl -X POST http://127.0.0.1:7780/v1/import \
+    -H "Authorization: Bearer YOUR_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d @-
+```
+
 **Verify after import:**
 ```bash
 curl -X GET http://127.0.0.1:7780/v1/holdings \
@@ -283,7 +297,7 @@ curl -X POST http://127.0.0.1:7780/v1/sync \
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `"Missing filePath"` | No `filePath` in the JSON body | Add `"filePath": "/path/to/file.csv"` to your request body |
+| `"Either filePath or content is required"` | Neither `filePath` nor `content` in the JSON body | Add `"filePath"` (file on the server) **or** `"content"` + `"filename"` (file contents) to your request body |
 | `"Directory traversal is not allowed"` | Relative path contains `..` (e.g. `../../data.csv`) | Use an absolute path or a relative path without `..` — absolute paths are always allowed |
 | Import succeeds but holdings are empty | CSV missing `Symbol` or `Quantity`/`Shares`/`Qty` header, or all rows have zero/empty quantities | Check your CSV header: `head -1 your-file.csv` |
 | Imported quantities are wrong | CSV uses `(value)` for negatives (accounting convention) or `-value` for short positions | Short/negative quantities cannot be imported — `Math.abs()` forces all quantities positive. No workaround. Remove negative rows or accept them as positive. |
