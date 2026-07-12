@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-07-12
+### Changed
+- fix(finance): CSV crypto import + tool wiring arg-position bug
+
+
 ## [0.3.3] - 2026-07-11
 ### Changed
 - feat(finance): add gain/loss to holdings output
