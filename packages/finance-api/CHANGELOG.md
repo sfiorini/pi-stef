@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-07-12
+### Changed
+- docs: content-based import + Postman + Swagger update
+- fix(finance): client reads file locally and sends content to server
+- docs: update CSV import + holdings docs for crypto, quoted fields, gain/loss
+
+
 ## [0.3.4] - 2026-07-12
 ### Changed
 - fix(finance): CSV crypto import + tool wiring arg-position bug
