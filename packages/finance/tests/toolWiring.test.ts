@@ -111,7 +111,7 @@ describe("sf_fin_sync_now — provider scoping + credentials", () => {
       providers: { snaptrade: { clientId: "PERS-1", consumerKey: "ck" } },
     });
     const tool = getSyncTool();
-    await tool.execute({ provider: "snaptrade" });
+    await tool.execute("test-call", { provider: "snaptrade" });
     const body = lastRequestBody();
     expect(body.providers).toEqual(["snaptrade"]);
     expect(body.credentials).toMatchObject({ snaptrade: { clientId: "PERS-1", consumerKey: "ck" } });
@@ -124,7 +124,7 @@ describe("sf_fin_sync_now — provider scoping + credentials", () => {
       providers: { snaptrade: { clientId: "PERS-1", consumerKey: "ck" } },
     });
     const tool = getSyncTool();
-    await tool.execute({});
+    await tool.execute("test-call", {});
     const body = lastRequestBody();
     expect(body.providers).toBeUndefined();  // all providers
     expect(body.credentials).toMatchObject({ snaptrade: { clientId: "PERS-1", consumerKey: "ck" } });
@@ -133,7 +133,7 @@ describe("sf_fin_sync_now — provider scoping + credentials", () => {
   it("omits credentials key entirely when snaptrade not configured", async () => {
     withConfigHome({ apiUrl: "http://127.0.0.1:7780", token: "tok" });
     const tool = getSyncTool();
-    await tool.execute({ provider: "snaptrade" });
+    await tool.execute("test-call", { provider: "snaptrade" });
     const body = lastRequestBody();
     expect(body.credentials).toBeUndefined();
     expect(body.providers).toEqual(["snaptrade"]);  // scoped, but no creds → server-side no-op

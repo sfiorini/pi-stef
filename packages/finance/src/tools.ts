@@ -131,9 +131,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     },
     promptSnippet: "Create or update an investment goal with target allocation.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async (params) => {
+    execute: async (_toolCallId, params) => {
+      const p = (params ?? {}) as { id?: string; name?: string; targetAllocation?: object; riskLimits?: object; horizonYears?: number };
       const client = await getClient();
-      const data = await client.callOp<{ id: string }>("set_target", params as unknown as Record<string, unknown>);
+      const data = await client.callOp<{ id: string }>("set_target", p as unknown as Record<string, unknown>);
       return { content: [{ type: "text", text: `Goal ${data.id} saved` }], details: { implemented: true } };
     },
   });
@@ -167,9 +168,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     },
     promptSnippet: "Dismiss a suggestion that's been addressed.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async (params) => {
+    execute: async (_toolCallId, params) => {
+      const p = (params ?? {}) as { id?: string };
       const client = await getClient();
-      await client.callOp("dismiss_suggestion", params as unknown as Record<string, unknown>);
+      await client.callOp("dismiss_suggestion", { id: p.id });
       return { content: [{ type: "text", text: `Suggestion dismissed` }], details: { implemented: true } };
     },
   });
@@ -188,16 +190,13 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     },
     promptSnippet: "Force an immediate sync of account data.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async (params) => {
+    execute: async (_toolCallId, params) => {
       // Diverges from the getClient() helper used by other tools: this tool needs
       // access to config.providers.snaptrade to attach per-call credentials.
       const config = await loadFinanceConfig();
       const client = createFinanceClient({ apiUrl: config.apiUrl, token: config.token });
-      // Build request body: scope to one provider when requested; attach per-call credentials
-      // (Personal SnapTrade key) when configured. One finance-api can serve different users
-      // because identity flows per-request, not from server-side storage.
       const body: Record<string, unknown> = {};
-      const provider = (params as { provider?: string })?.provider;
+      const provider = ((params ?? {}) as { provider?: string })?.provider;
       if (provider) body.providers = [provider];
       if (config.providers?.snaptrade) {
         body.credentials = { snaptrade: config.providers.snaptrade };
@@ -221,9 +220,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     },
     promptSnippet: "Import holdings from a file export.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async (params) => {
+    execute: async (_toolCallId, params) => {
+      const p = (params ?? {}) as { filePath?: string };
       const client = await getClient();
-      const data = await client.callOp<{ message: string; filePath: string }>("import_file", params as unknown as Record<string, unknown>);
+      const data = await client.callOp<{ message: string; filePath: string }>("import_file", { filePath: p.filePath });
       return { content: [{ type: "text", text: `${data.message}: ${data.filePath}` }], details: { implemented: true } };
     },
   });
@@ -243,9 +243,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     },
     promptSnippet: "View price history for a security.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
-    execute: async (params) => {
+    execute: async (_toolCallId, params) => {
+      const p = (params ?? {}) as { symbol?: string; accountId?: string };
       const client = await getClient();
-      const data = await client.callOp("history", params as unknown as Record<string, unknown>);
+      const data = await client.callOp("history", { symbol: p.symbol, accountId: p.accountId });
       return { content: [{ type: "text", text: formatGeneric(data) }], details: { implemented: true } };
     },
   });
