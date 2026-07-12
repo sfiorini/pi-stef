@@ -17,7 +17,11 @@ const importRoute = createRoute({
     body: {
       content: {
         "application/json": {
-          schema: z.object({ filePath: z.string().min(1) }),
+          schema: z.object({
+            filePath: z.string().min(1).optional(),
+            content: z.string().min(1).optional(),
+            filename: z.string().optional(),
+          }).refine((v) => v.filePath || v.content, { message: "Either filePath or content is required" }),
         },
       },
     },
@@ -41,10 +45,10 @@ const importRoute = createRoute({
 export function importRoutes(db: Database.Database) {
   const r = createOpenApiSubApp();
   r.openapi(importRoute, async (c) => {
-    const { filePath } = c.req.valid("json");
+    const { filePath, content, filename } = c.req.valid("json");
 
     // Security: reject directory traversal (but allow absolute paths for local file imports)
-    if (filePath.includes("..") && !path.isAbsolute(filePath)) {
+    if (filePath?.includes("..") && !path.isAbsolute(filePath)) {
       return c.json(fail("bad_request", "Directory traversal is not allowed"), 400);
     }
 
@@ -52,10 +56,17 @@ export function importRoutes(db: Database.Database) {
     const fileRegistry: AdapterRegistry = new Map([
       ["import", createFileAdapter("import", "brokerage")],
     ]);
-    const creds = { import: { filePath } };
+    const creds: Record<string, string> = {};
+    if (content) {
+      creds.content = content;
+      if (filename) creds.filename = filename;
+    } else if (filePath) {
+      creds.filePath = filePath;
+    }
+    const importCreds = { import: creds };
 
-    const result = await runIngest(db, fileRegistry, creds);
-    return c.json(ok({ message: "Import complete", filePath, ...result }), 200);
+    const result = await runIngest(db, fileRegistry, importCreds);
+    return c.json(ok({ message: "Import complete", filePath: filePath ?? filename ?? "(content)", ...result }), 200);
   });
   return r;
 }

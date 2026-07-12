@@ -223,8 +223,14 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     execute: async (_toolCallId, params) => {
       const p = (params ?? {}) as { filePath?: string };
       const client = await getClient();
-      const data = await client.callOp<{ message: string; filePath: string }>("import_file", { filePath: p.filePath });
-      return { content: [{ type: "text", text: `${data.message}: ${data.filePath}` }], details: { implemented: true } };
+      // Read the file locally (on the machine running pi) and send contents to the server.
+      // This supports remote finance-api deployments where the file doesn't exist on the server.
+      const { readFile } = await import("node:fs/promises");
+      const { basename } = await import("node:path");
+      const content = await readFile(p.filePath!, "utf8");
+      const filename = basename(p.filePath!);
+      const data = await client.callOp<{ message: string; filePath: string }>("import_file", { content, filename });
+      return { content: [{ type: "text", text: `${data.message}: ${p.filePath}` }], details: { implemented: true } };
     },
   });
 

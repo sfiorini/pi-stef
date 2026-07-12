@@ -16,49 +16,52 @@ function parseOfxDate(dateStr: string): number {
   return new Date(year, month, day).getTime();
 }
 
+/** Detect OFX format from filename extension or content. */
+function isOfx(filename: string | undefined, buf: string): boolean {
+  if (filename && extname(filename).toLowerCase() === ".ofx") return true;
+  return buf.includes("OFXHEADER");
+}
+
+/** Resolve file content from creds: prefer inline content, fall back to server-side file path. */
+async function resolveContent(creds: Credentials): Promise<{ buf: string; filename: string | undefined } | null> {
+  if (creds.content) {
+    return { buf: String(creds.content), filename: creds.filename ?? undefined };
+  }
+  const filePath = creds.filePath ?? "";
+  if (!filePath) return null;
+  const buf = await readFile(filePath, "utf8");
+  return { buf, filename: filePath };
+}
+
 export function createFileAdapter(providerId: string, kind: ProviderKind): ProviderAdapter {
   return {
     kind, providerId,
     authenticate: async (creds: Credentials): Promise<Session> => ({ providerId, expiresAt: undefined, creds }),
     listAccounts: async (): Promise<RawAccount[]> => [{ providerAccountId: "file", kind, name: `${providerId} file import`, currency: "USD" }],
-    getHoldings: async (_s: Session, _id: string): Promise<RawHolding[]> => {
-      // filePath is passed via creds at authenticate time; stored on session.creds by runIngest
-      const creds = _s.creds ?? {};
-      const filePath = creds.filePath ?? "";
-      if (!filePath) return [];
-      const buf = await readFile(filePath, "utf8");
-      if (extname(filePath).toLowerCase() === ".ofx" || buf.includes("OFXHEADER")) {
-        // OFX is banking txns, not holdings; cash handled via getBalances
-        return [];
-      }
-      return parsePositionsCsv(buf);
+    getHoldings: async (s: Session): Promise<RawHolding[]> => {
+      const resolved = await resolveContent(s.creds ?? {});
+      if (!resolved) return [];
+      if (isOfx(resolved.filename, resolved.buf)) return []; // OFX = txns, not holdings
+      return parsePositionsCsv(resolved.buf);
     },
-    getTransactions: async (_s: Session, _id: string): Promise<RawTxn[]> => {
-      const creds = _s.creds ?? {};
-      const filePath = creds.filePath ?? "";
-      if (!filePath) return [];
-      const buf = await readFile(filePath, "utf8");
-      if (buf.includes("OFXHEADER")) {
-        const ofx = parseOfx(buf);
-        return ofx.transactions.map((t, i) => ({
-          id: `${i}`,
-          date: parseOfxDate(t.date),
-          type: t.amount >= 0 ? "credit" : "debit",
-          fees: 0,
-        }));
-      }
-      return [];
+    getTransactions: async (s: Session): Promise<RawTxn[]> => {
+      const resolved = await resolveContent(s.creds ?? {});
+      if (!resolved) return [];
+      if (!isOfx(resolved.filename, resolved.buf)) return [];
+      const ofx = parseOfx(resolved.buf);
+      return ofx.transactions.map((t, i) => ({
+        id: `${i}`,
+        date: parseOfxDate(t.date),
+        type: t.amount >= 0 ? "credit" : "debit",
+        fees: 0,
+      }));
     },
-    getBalances: async (_s: Session, _id: string): Promise<RawBalance> => {
-      const creds = _s.creds ?? {};
-      const filePath = creds.filePath ?? "";
-      if (!filePath) return { cash: 0, marketValue: 0, asOf: Date.now() };
-      const buf = await readFile(filePath, "utf8");
-      if (buf.includes("OFXHEADER")) {
-        const ofx = parseOfx(buf);
-        return { cash: ofx.balance, marketValue: 0, asOf: Date.now() };
-      }
-      return { cash: 0, marketValue: 0, asOf: Date.now() };
+    getBalances: async (s: Session): Promise<RawBalance> => {
+      const resolved = await resolveContent(s.creds ?? {});
+      if (!resolved) return { cash: 0, marketValue: 0, asOf: Date.now() };
+      if (!isOfx(resolved.filename, resolved.buf)) return { cash: 0, marketValue: 0, asOf: Date.now() };
+      const ofx = parseOfx(resolved.buf);
+      return { cash: ofx.balance, marketValue: 0, asOf: Date.now() };
     },
   };
 }
