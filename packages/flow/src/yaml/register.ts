@@ -16,14 +16,27 @@ export function registerGeneratedFlow(pi: ExtensionAPI, flow: FlowYaml): void {
 
   pi.registerCommand(flow.name, {
     description: flow.description,
-    handler: async (args: string) => {
+    handler: async (args: string, ctx) => {
       const trimmed = args.trim();
       const directive =
         trimmed.length > 0
           ? `Invoke the sf_flow_auto tool with workflow="${flow.name}" and input="${trimmed}". Then load the skill named sf-flow-auto.`
           : `Invoke the sf_flow_auto tool with workflow="${flow.name}". Ask for the input first, then load the skill named sf-flow-auto.`;
-      if (send) {
+
+      if (!send) {
+        ctx.ui?.notify?.(
+          `flow: this pi runtime can't post slash-command output. Invoke sf_flow_auto with workflow="${flow.name}" directly.`,
+          "warning",
+        );
+        return;
+      }
+      // When the agent is mid-stream, queue the directive as a follow-up so it
+      // isn't dropped (mirrors pair/team slash-command handlers).
+      const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+      if (idle) {
         send(directive);
+      } else {
+        send(directive, { deliverAs: "followUp" });
       }
     },
   });

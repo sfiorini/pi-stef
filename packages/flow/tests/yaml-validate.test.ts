@@ -57,4 +57,12 @@ describe("validateFlowYaml", () => {
       }).ok,
     ).toBe(false);
   });
+  it("rejects fanout on a skill phase (generator can't honor it)", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        phases: [{ id: "p", skill: "sf-flow-plan", fanout: "files", out: "x" }],
+      }).ok,
+    ).toBe(false);
+  });
 });

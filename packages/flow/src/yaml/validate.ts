@@ -26,6 +26,9 @@ export function validateFlowYaml(input: unknown): ValidationResult {
     if (runKinds.length === 0) errors.push(`phase "${ph.id}": must set one of agent/skill/raw`);
     if (ph.agent && !agentNames.has(ph.agent))
       errors.push(`phase "${ph.id}": agent "${ph.agent}" not defined in agents`);
+    // fanout only applies to agent phases (skill/raw are opaque to the generator).
+    if (ph.fanout && (ph.skill || ph.raw))
+      errors.push(`phase "${ph.id}": fanout is only supported on agent phases`);
     if (ph.fanout && !ph.out)
       errors.push(
         `phase "${ph.id}": fanout requires the phase to declare out (the parallel results must be captured)`,

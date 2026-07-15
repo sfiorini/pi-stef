@@ -6,6 +6,7 @@ function titleCase(s: string): string {
 
 function agentOpts(name: string, def: FlowYaml["agents"][string], phase: string): string {
   const parts: string[] = [`label: "${name}"`, `phase: "${phase}"`, `agentType: "${name}"`];
+  if (def.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
   if (def.model) parts.push(`model: "${def.model}"`);
   if (def.thinking) parts.push(`thinking: "${def.thinking}"`);
   if (def.isolated) parts.push(`isolated: true`);
@@ -54,17 +55,19 @@ export function generateScript(flow: FlowYaml): string {
       // phase / external input is expected to yield an array).
       const mapFn = `${ph.fanout}.map((item) => () => agent(${promptLit}.replace(/{{item}}/g, item), ${opts}))`;
       if (loop?.until_dry) {
+        const dedupKey = JSON.stringify(loop.dedup_key ?? "");
         body.push(
-          `const ${ph.out} = await loopUntilDry({ round: async () => (await parallel(${mapFn})).filter(Boolean), key: (f) => ${JSON.stringify(loop.dedup_key ?? "")}.replace(/{{(\\w+)}}/g, (_m, k) => f[k] ?? ""), consecutiveEmpty: ${loop.consecutive_empty ?? 2}, maxRounds: ${loop.max_rounds ?? 3} });`,
+          `const ${ph.out} = await loopUntilDry({ round: async () => (await parallel(${mapFn})).filter(Boolean), key: (f) => ${dedupKey}.replace(/{{(\\w+)}}/g, (_m, k) => f[k] ?? ""), consecutiveEmpty: ${loop.consecutive_empty ?? 2}, maxRounds: ${loop.max_rounds ?? 3} });`,
         );
-      } else if (loop?.until === "approved") {
-        body.push(`const ${ph.out} = (await parallel(${mapFn})).filter(Boolean);`);
       } else {
         body.push(`const ${ph.out} = (await parallel(${mapFn})).filter(Boolean);`);
       }
     } else if (loop?.until === "approved") {
+      // Gate on the agent's verdict, honoring fail_on: a REVISE verdict only
+      // blocks when at least one finding severity is in fail_on (default P0/P1/P2).
+      const failOn = JSON.stringify(loop.fail_on ?? ["P0", "P1", "P2"]);
       body.push(
-        `const ${ph.out ?? "_"} = await gate(async () => agent(${promptLit}, ${opts}), (r) => (r?.verdict === "APPROVED" ? { ok: true } : { ok: false, feedback: JSON.stringify(r?.findings ?? []) }), { attempts: ${loop.max_rounds ?? 5} });`,
+        `const ${ph.out ?? "_"} = await gate(async () => agent(${promptLit}, ${opts}), (r) => { if (r?.verdict === "APPROVED") return { ok: true }; const failOn = ${failOn}; const findings = (r?.findings ?? []); const blocking = findings.filter((f) => failOn.includes(f.severity)); return blocking.length === 0 ? { ok: true } : { ok: false, feedback: JSON.stringify(findings) }; }, { attempts: ${loop.max_rounds ?? 5} });`,
       );
     } else {
       const assign = ph.out ? `const ${ph.out} = ` : "";
