@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { writeFlowYaml } from "../src/yaml/write.js";
+import { writeFlowYaml, writeFlowYamlAsync } from "../src/yaml/write.js";
 import { validateFlowYaml } from "../src/yaml/validate.js";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -36,5 +36,18 @@ describe("writeFlowYaml", () => {
       phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
     });
     expect(path).toBe(join(dir, "ship-feature.yaml"));
+  });
+
+  it("writeFlowYamlAsync writes the file and returns the path", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-cw-async-"));
+    const path = await writeFlowYamlAsync(dir, {
+      name: "async-demo",
+      description: "d",
+      input: "prompt",
+      agents: { a: { model: "haiku" } },
+      phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
+    });
+    expect(path).toBe(join(dir, "async-demo.yaml"));
+    expect(readFileSync(path, "utf8")).toContain("name: async-demo");
   });
 });

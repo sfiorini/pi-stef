@@ -16,7 +16,9 @@ export function writeFlowYaml(workflowsDir: string, flow: FlowYaml): string {
 }
 
 /**
- * Async variant for tool execute paths. Validates-then-writes; returns the path.
+ * Async variant for tool execute paths. Serializes and writes the FlowYaml to
+ * `<workflowsDir>/<name>.yaml`; returns the path. Does NOT validate — callers
+ * must run `validateFlowYaml` themselves (the wizard does this in Phase 3).
  */
 export async function writeFlowYamlAsync(workflowsDir: string, flow: FlowYaml): Promise<string> {
   await mkdir(workflowsDir, { recursive: true });
