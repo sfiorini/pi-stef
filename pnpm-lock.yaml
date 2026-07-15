@@ -335,7 +335,13 @@ importers:
       '@tintinweb/pi-subagents':
         specifier: '*'
         version: 0.10.3(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-tui@0.76.0)
+      js-yaml:
+        specifier: ^4.1.0
+        version: 4.1.1
     devDependencies:
+      '@types/js-yaml':
+        specifier: '*'
+        version: 4.0.9
       typescript:
         specifier: '*'
         version: 6.0.3

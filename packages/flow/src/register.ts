@@ -40,6 +40,38 @@ export function extractExplorerModelFromPrompt(prompt: string): string | undefin
 }
 
 export function registerSfFlow(pi: ExtensionAPI): void {
+  // sf_flow_create_workflow — interview -> write .pi/workflows/<name>.yaml -> register /<name>.
+  pi.registerTool({
+    name: "sf_flow_create_workflow",
+    label: "sf_flow_create_workflow",
+    description:
+      "Create or validate a reusable flow from a declarative agents/phases/loops definition. Interviews the user, writes .pi/workflows/<name>.yaml, and registers /<name>.",
+    parameters: Type.Object(
+      {
+        name: Type.Optional(Type.String()),
+        description: Type.Optional(Type.String()),
+        input: Type.Optional(
+          Type.Union([
+            Type.Literal("prompt"),
+            Type.Literal("md-file"),
+            Type.Literal("prd"),
+            Type.Literal("jira"),
+          ]),
+        ),
+        agents_yaml: Type.Optional(Type.String({ description: "Pre-formed agents YAML to skip the interview." })),
+        phases_yaml: Type.Optional(Type.String()),
+        loops_yaml: Type.Optional(Type.String()),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async () => {
+      return {
+        content: [{ type: "text" as const, text: "Now load the skill named sf-flow-create-workflow." }],
+        details: { created: false, phase: "wizard" },
+      };
+    },
+  });
+
   // sf_flow_finalize — remove worktree dir, preserve branch (ported from pair).
   pi.registerTool({
     name: "sf_flow_finalize",

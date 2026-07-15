@@ -16,9 +16,11 @@
   },
   "dependencies": {
     "@pi-stef/paths": "workspace:*",
-    "@sinclair/typebox": "*"
+    "@sinclair/typebox": "*",
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "*",
     "typescript": "*",
     "vitest": "*"
   },

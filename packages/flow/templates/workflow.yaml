@@ -1,0 +1,22 @@
+# flow template — the 3 knobs: agents, phases, loops
+# Edit and save as .pi/workflows/<name>.yaml, then run: sf_flow_auto <name> <input>
+name: my-flow
+description: One-line description of what this flow does
+input: prompt   # prompt | md-file | prd | jira
+
+agents:          # KNOB 1
+  worker:
+    tools: [read, grep, find]
+    model: haiku
+    thinking: low
+
+phases:          # KNOB 2 — each phase runs one of: agent / skill / raw
+  - id: do
+    agent: worker
+    prompt: "Describe the task for the worker."
+    out: result
+
+loops:           # KNOB 3 (optional)
+  # do:
+  #   until_dry: true
+  #   max_rounds: 3
