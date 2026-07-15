@@ -8,6 +8,7 @@
     { "path": "packages/catalog" },
     { "path": "packages/cursor" },
     { "path": "packages/figma" },
+    { "path": "packages/flow" },
     { "path": "packages/pair" },
     { "path": "packages/team" },
     { "path": "packages/web" },
