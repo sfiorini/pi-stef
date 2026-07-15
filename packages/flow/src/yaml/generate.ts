@@ -4,6 +4,11 @@ function titleCase(s: string): string {
   return s.replace(/(^|[-_])(\w)/g, (_m, _sep, c) => " " + c.toUpperCase()).trim();
 }
 
+/** Emit a single-quoted JS string literal, escaping backslashes and apostrophes. */
+function singleQuote(s: string): string {
+  return "'" + s.replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
+}
+
 function agentOpts(name: string, def: FlowYaml["agents"][string], phase: string): string {
   const parts: string[] = [
     `label: ${JSON.stringify(name)}`,
@@ -25,7 +30,7 @@ function agentOpts(name: string, def: FlowYaml["agents"][string], phase: string)
  * hardens itself by throwing if it ever sees one.
  */
 export function generateScript(flow: FlowYaml): string {
-  const phaseTitles = flow.phases.map((p) => `{ title: '${titleCase(p.id)}' }`).join(", ");
+  const phaseTitles = flow.phases.map((p) => `{ title: ${singleQuote(titleCase(p.id))} }`).join(", ");
   const body: string[] = [];
 
   for (const ph of flow.phases) {
@@ -88,7 +93,7 @@ export function generateScript(flow: FlowYaml): string {
 
   return [
     `export const meta = {`,
-    `  name: '${flow.name}',`,
+    `  name: ${singleQuote(flow.name)},`,
     `  description: ${JSON.stringify(flow.description)},`,
     `  phases: [${phaseTitles}],`,
     `};`,

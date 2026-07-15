@@ -1,15 +1,22 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { FlowYaml } from "./schema.js";
 import { generateScript } from "./generate.js";
+import { validateFlowYaml } from "./validate.js";
 
 /**
  * Register a generated flow as a `/<name>` slash command. The command delegates
  * to sf_flow_auto (via a user-message directive) with the flow name + user args,
- * so the generated script runs end-to-end under the flow engine. The script is
- * generated eagerly so invalid flows fail at registration (not at run time).
+ * so the generated script runs end-to-end under the flow engine. The flow is
+ * validated + generated eagerly so invalid flows fail at registration (not at
+ * run time).
  */
 export function registerGeneratedFlow(pi: ExtensionAPI, flow: FlowYaml): void {
-  // Generate eagerly so errors surface at registration, not at run time.
+  // Validate eagerly so semantic errors (fanout on skill/raw, missing agent, ...)
+  // surface at registration, not as silently-incorrect generated code at runtime.
+  const result = validateFlowYaml(flow);
+  if (!result.ok) {
+    throw new Error(`Cannot register flow "${flow.name}": ${result.errors.join("; ")}`);
+  }
   generateScript(flow);
   const send =
     typeof pi.sendUserMessage === "function" ? pi.sendUserMessage.bind(pi) : undefined;
