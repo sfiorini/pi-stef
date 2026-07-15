@@ -81,4 +81,15 @@ describe("validateFlowYaml", () => {
       }).ok,
     ).toBe(false);
   });
+  it("rejects duplicate out values across phases", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        phases: [
+          { id: "p1", agent: "a", prompt: "do", out: "dup" },
+          { id: "p2", agent: "a", prompt: "do", out: "dup" },
+        ],
+      }).ok,
+    ).toBe(false);
+  });
 });

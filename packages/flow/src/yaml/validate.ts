@@ -37,6 +37,10 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       );
     if (ph.verify && !outs.has(ph.verify))
       errors.push(`phase "${ph.id}": verify "${ph.verify}" references no prior out`);
+    if (ph.out && outs.has(ph.out))
+      errors.push(
+        `phase "${ph.id}": out "${ph.out}" is already declared by an earlier phase (duplicate const would be emitted)`,
+      );
     if (ph.out) outs.add(ph.out);
   }
 

@@ -69,10 +69,15 @@ export function generateScript(flow: FlowYaml): string {
     } else if (loop?.until === "approved") {
       // Gate on the agent's verdict, honoring fail_on: a REVISE verdict only
       // blocks when at least one finding severity is in fail_on (default P0/P1/P2).
+      // Phases without `out` emit a bare gate() call (no discard const, so two
+      // gate-without-out phases can't collide).
       const failOn = JSON.stringify(loop.fail_on ?? ["P0", "P1", "P2"]);
-      body.push(
-        `const ${ph.out ?? "_"} = await gate(async () => agent(${promptLit}, ${opts}), (r) => { if (r?.verdict === "APPROVED") return { ok: true }; const failOn = ${failOn}; const findings = (r?.findings ?? []); const blocking = findings.filter((f) => failOn.includes(f.severity)); return blocking.length === 0 ? { ok: true } : { ok: false, feedback: JSON.stringify(findings) }; }, { attempts: ${loop.max_rounds ?? 5} });`,
-      );
+      const gateCall = `await gate(async () => agent(${promptLit}, ${opts}), (r) => { if (r?.verdict === "APPROVED") return { ok: true }; const failOn = ${failOn}; const findings = (r?.findings ?? []); const blocking = findings.filter((f) => failOn.includes(f.severity)); return blocking.length === 0 ? { ok: true } : { ok: false, feedback: JSON.stringify(findings) }; }, { attempts: ${loop.max_rounds ?? 5} })`;
+      if (ph.out) {
+        body.push(`const ${ph.out} = ${gateCall};`);
+      } else {
+        body.push(gateCall + ";");
+      }
     } else {
       const assign = ph.out ? `const ${ph.out} = ` : "";
       body.push(`${assign}await agent(${promptLit}, ${opts});`);
