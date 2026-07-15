@@ -1,6 +1,12 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { homedir } from "node:os";
 import { finalizeWorktree } from "./worktree/finalize.js";
+import { createWorktree } from "./worktree/create.js";
+import { loadAndResolveDefaults, resolveReviewerModel } from "./config/load.js";
+import { ensureAgentFiles } from "./agents.js";
+import { buildImplementReadyMessage, buildAutoReadyMessage } from "./messages.js";
+import { classifyInput } from "./auto/input.js";
 
 export const FLOW_TOOL_NAMES = [
   "sf_flow_plan",
@@ -96,6 +102,125 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       return {
         content: [{ type: "text" as const, text: "Now load the skill named sf-flow-audit." }],
         details: { started: true },
+      };
+    },
+  });
+
+  // sf_flow_plan — multi-milestone plan with parallel research + iterative review.
+  pi.registerTool({
+    name: "sf_flow_plan",
+    label: "sf_flow_plan",
+    description:
+      "Create a multi-milestone implementation plan with pi-dynamic-workflows parallel research and iterative reviewer approval. Produces ai_plan/<slug>/.",
+    parameters: Type.Object(
+      {
+        prompt: Type.Optional(Type.String()),
+        reviewer_model: Type.Optional(Type.String()),
+        explorer_model: Type.Optional(Type.String()),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+      const repoRoot = ctx.cwd ?? process.cwd();
+      const defaults = await loadAndResolveDefaults(repoRoot);
+      const prompt = (params as any).prompt ?? "";
+      const reviewerModel = resolveReviewerModel(
+        (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
+        defaults,
+      );
+      if (!reviewerModel) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "No reviewer model configured. Set via prompt, .pi/sf/flow/config.json, or SF_FLOW_REVIEWER_MODEL.",
+            },
+          ],
+          details: { configured: false },
+        };
+      }
+      const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+      const warnText = agentWarnings.length
+        ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
+        : "";
+      return {
+        content: [
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nNow load the skill named sf-flow-plan.${warnText}` },
+        ],
+        details: { configured: true, reviewerModel },
+      };
+    },
+  });
+
+  // sf_flow_implement — ONE worktree at start (flow/<slug>), TDD per story, audit gate before commit.
+  pi.registerTool({
+    name: "sf_flow_implement",
+    label: "sf_flow_implement",
+    description:
+      "Execute a plan: ONE worktree at start (flow/<slug>, git-only), TDD per story, audit triad as a non-optional gate before commit.",
+    parameters: Type.Object(
+      { path: Type.String({ description: "Plan folder slug or path under ai_plan/." }), reviewer_model: Type.Optional(Type.String()) },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+      const repoRoot = ctx.cwd ?? process.cwd();
+      const defaults = await loadAndResolveDefaults(repoRoot);
+      const reviewerModel = resolveReviewerModel((params as any).reviewer_model, defaults);
+      const rawPath = String((params as any).path);
+      const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
+      await ensureAgentFiles(homedir(), repoRoot);
+      let worktree: { worktreePath: string; branchName: string; baseSha: string };
+      try {
+        worktree = await createWorktree({ slug, branchPrefix: defaults.worktree.branch_prefix });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: `Failed to create worktree: ${msg}` }],
+          details: { configured: true, reviewerModel, path: rawPath },
+        };
+      }
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: buildImplementReadyMessage({
+              slug,
+              worktreePath: worktree.worktreePath,
+              reviewerModel,
+              planPath: `ai_plan/${slug}`,
+            }),
+          },
+        ],
+        details: { configured: true, reviewerModel, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
+      };
+    },
+  });
+
+  // sf_flow_auto — run a defined flow end-to-end, no human gates.
+  pi.registerTool({
+    name: "sf_flow_auto",
+    label: "sf_flow_auto",
+    description:
+      "Run a defined flow end-to-end with no human gates. Usage: sf_flow_auto <workflow-name> <prompt | md-file | PRD | jira STORY>. Loads the flow's generated script and executes all phases to a terminal state.",
+    parameters: Type.Object(
+      {
+        workflow: Type.String({ description: "Flow name (matches .pi/workflows/<name>.yaml)." }),
+        input: Type.String({ description: "prompt | path-to-md | prd:<path> | jira STORY-123" }),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params) => {
+      const workflow = (params as any).workflow as string;
+      const input = (params as any).input as string;
+      const classified = classifyInput(input);
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: buildAutoReadyMessage({ workflowName: workflow, inputSummary: `${classified.kind}: ${classified.value}` }),
+          },
+        ],
+        details: { workflow, kind: classified.kind, value: classified.value },
       };
     },
   });
