@@ -72,6 +72,34 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     },
   });
 
+  // sf_flow_audit — CodeRabbit-style audit triad (codereview + auditcode + requestreview + respondreview).
+  pi.registerTool({
+    name: "sf_flow_audit",
+    label: "sf_flow_audit",
+    description:
+      "CodeRabbit-style audit of a diff or codebase. Runs the triad: pi-dw /code-review (7 angles) + audit-code self-checklist (--gate) + request-review dual-blind AND-gate (94%, MAX 5) + respond-review fix-apply. Returns P0-P3 + verdict.",
+    parameters: Type.Object(
+      {
+        target: Type.Optional(
+          Type.String({
+            description: "Diff target: a git ref range, file path, or 'workdir'. Defaults to staged+unstaged diff.",
+          }),
+        ),
+        reviewer_model: Type.Optional(Type.String()),
+        apply_fixes: Type.Optional(
+          Type.Boolean({ description: "If true, run respond-review to apply must-fix/should-fix." }),
+        ),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async () => {
+      return {
+        content: [{ type: "text" as const, text: "Now load the skill named sf-flow-audit." }],
+        details: { started: true },
+      };
+    },
+  });
+
   // sf_flow_finalize — remove worktree dir, preserve branch (ported from pair).
   pi.registerTool({
     name: "sf_flow_finalize",
