@@ -41,6 +41,22 @@ describe("flow config", () => {
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.audit.threshold).toBe(0.97);
   });
+
+  it("accepts a minimal partial config (only reviewer) and fills defaults", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ reviewer: { model: "anthropic/opus" } }),
+    );
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.reviewer.model).toBe("anthropic/opus");
+    // defaults filled for the absent groups
+    expect(cfg.audit).toEqual({ threshold: 0.94, max_rounds: 5 });
+    expect(cfg.tmux).toEqual({ enabled: true, theme: "codex" });
+    expect(cfg.worktree).toEqual({ branch_prefix: "flow/" });
+  });
 });
 
 describe("resolveReviewerModel", () => {

@@ -6,6 +6,7 @@ import {
   ConfigSchema,
   DEFAULT_CONFIG,
   type FlowConfig,
+  type LoadedFlowConfig,
   type ResolvedFlowConfig,
 } from "./schema.js";
 
@@ -42,7 +43,12 @@ async function loadFileOrNull(filePath: string): Promise<FlowConfig | null> {
   }
 }
 
-function merge(base: FlowConfig, over: FlowConfig | null): FlowConfig {
+/**
+ * Deep-merge a loaded (possibly partial) file over the fully-populated base.
+ * `base` groups are always present; `over` groups may be absent, so each group
+ * is merged field-by-field and the result keeps the required LoadedFlowConfig shape.
+ */
+function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfig {
   if (!over) return base;
   return {
     reviewer: { ...base.reviewer, ...over.reviewer },
@@ -56,11 +62,11 @@ function merge(base: FlowConfig, over: FlowConfig | null): FlowConfig {
 export async function loadConfig(
   repoRoot: string,
   opts: { homeDir?: string } = {},
-): Promise<FlowConfig> {
+): Promise<LoadedFlowConfig> {
   const homeDir = opts.homeDir ?? homedir();
   const globalPath = globalConfig("flow", homeDir);
   const projectPath = projectConfig("flow", repoRoot);
-  let cfg: FlowConfig = DEFAULT_CONFIG;
+  let cfg: LoadedFlowConfig = DEFAULT_CONFIG;
   cfg = merge(cfg, await loadFileOrNull(globalPath));
   cfg = merge(cfg, await loadFileOrNull(projectPath));
   return cfg;
@@ -90,11 +96,24 @@ export function resolveExplorerModel(override: string | undefined, cfg: FlowConf
   return null;
 }
 
-export async function loadAndResolveDefaults(repoRoot: string): Promise<ResolvedFlowConfig> {
-  const cfg = await loadConfig(repoRoot);
-  return {
-    ...cfg,
-    reviewerModel: resolveReviewerModel(undefined, cfg),
-    explorerModel: resolveExplorerModel(undefined, cfg),
-  };
+export async function loadAndResolveDefaults(
+  repoRoot: string,
+  opts: { homeDir?: string; notify?: (msg: string, level: string) => void } = {},
+): Promise<ResolvedFlowConfig> {
+  try {
+    const cfg = await loadConfig(repoRoot, { homeDir: opts.homeDir });
+    return {
+      ...cfg,
+      reviewerModel: resolveReviewerModel(undefined, cfg),
+      explorerModel: resolveExplorerModel(undefined, cfg),
+    };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    opts.notify?.(`sf-flow config: ${detail} — falling back to built-in defaults.`, "warning");
+    return {
+      ...DEFAULT_CONFIG,
+      reviewerModel: resolveReviewerModel(undefined, DEFAULT_CONFIG),
+      explorerModel: resolveExplorerModel(undefined, DEFAULT_CONFIG),
+    };
+  }
 }
