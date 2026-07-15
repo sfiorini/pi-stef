@@ -5,10 +5,14 @@ function titleCase(s: string): string {
 }
 
 function agentOpts(name: string, def: FlowYaml["agents"][string], phase: string): string {
-  const parts: string[] = [`label: "${name}"`, `phase: "${phase}"`, `agentType: "${name}"`];
+  const parts: string[] = [
+    `label: ${JSON.stringify(name)}`,
+    `phase: ${JSON.stringify(phase)}`,
+    `agentType: ${JSON.stringify(name)}`,
+  ];
   if (def.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
-  if (def.model) parts.push(`model: "${def.model}"`);
-  if (def.thinking) parts.push(`thinking: "${def.thinking}"`);
+  if (def.model) parts.push(`model: ${JSON.stringify(def.model)}`);
+  if (def.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
   if (def.isolated) parts.push(`isolated: true`);
   if (def.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
   return `{ ${parts.join(", ")} }`;

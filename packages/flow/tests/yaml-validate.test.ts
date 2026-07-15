@@ -19,7 +19,7 @@ describe("validateFlowYaml", () => {
   it("rejects phase.agent not in agents", () => {
     expect(validateFlowYaml({ ...base, phases: [{ id: "p", agent: "ghost", prompt: "do" }] }).ok).toBe(false);
   });
-  it("rejects fanout referencing undefined out var", () => {
+  it("rejects a fanout phase that declares no out", () => {
     expect(
       validateFlowYaml({ ...base, phases: [{ id: "p", agent: "a", fanout: "missing", prompt: "do" }] }).ok,
     ).toBe(false);
@@ -62,6 +62,22 @@ describe("validateFlowYaml", () => {
       validateFlowYaml({
         ...base,
         phases: [{ id: "p", skill: "sf-flow-plan", fanout: "files", out: "x" }],
+      }).ok,
+    ).toBe(false);
+  });
+  it("rejects fanout on a raw phase", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        phases: [{ id: "p", raw: "doStuff()", fanout: "files", out: "x" }],
+      }).ok,
+    ).toBe(false);
+  });
+  it("rejects a phase setting more than one of agent/skill/raw", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        phases: [{ id: "p", agent: "a", skill: "sf-flow-plan", prompt: "do", out: "x" }],
       }).ok,
     ).toBe(false);
   });

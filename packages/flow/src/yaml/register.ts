@@ -34,9 +34,9 @@ export function registerGeneratedFlow(pi: ExtensionAPI, flow: FlowYaml): void {
       // isn't dropped (mirrors pair/team slash-command handlers).
       const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
       if (idle) {
-        send(directive);
+        await send(directive);
       } else {
-        send(directive, { deliverAs: "followUp" });
+        await send(directive, { deliverAs: "followUp" });
       }
     },
   });

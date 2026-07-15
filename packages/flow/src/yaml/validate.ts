@@ -24,6 +24,8 @@ export function validateFlowYaml(input: unknown): ValidationResult {
   for (const ph of flow.phases) {
     const runKinds = [ph.agent, ph.skill, ph.raw].filter(Boolean);
     if (runKinds.length === 0) errors.push(`phase "${ph.id}": must set one of agent/skill/raw`);
+    if (runKinds.length > 1)
+      errors.push(`phase "${ph.id}": set at most one of agent/skill/raw`);
     if (ph.agent && !agentNames.has(ph.agent))
       errors.push(`phase "${ph.id}": agent "${ph.agent}" not defined in agents`);
     // fanout only applies to agent phases (skill/raw are opaque to the generator).
