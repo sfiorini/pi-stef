@@ -1,0 +1,42 @@
+name: auth-audit
+description: Audit auth coverage across route files
+input: prompt
+agents:
+  scanner:
+    tools: [read, grep, find]
+    model: haiku
+    thinking: low
+  auditor:
+    tools: [read, grep, find]
+    model: sonnet
+    thinking: high
+    isolated: true
+    schema:
+      verdict: "APPROVED|REVISE"
+  synth:
+    tools: [read, write]
+    model: sonnet
+phases:
+  - id: scan
+    agent: scanner
+    prompt: "List every route file under src/routes/. Return a newline list."
+    out: files
+  - id: audit
+    agent: auditor
+    fanout: files
+    prompt: "Audit {{item}} for missing auth checks. Return findings."
+    out: findings
+  - id: verify
+    agent: auditor
+    verify: findings
+    threshold: 0.66
+    out: confirmed
+  - id: report
+    agent: synth
+    in: confirmed
+    prompt: "Write a cited report from these findings."
+loops:
+  audit:
+    until_dry: true
+    max_rounds: 3
+    dedup_key: "{{file}}:{{line}}:{{summary}}"

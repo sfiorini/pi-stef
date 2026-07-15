@@ -1,0 +1,15 @@
+name: code-review
+description: CodeRabbit-style review of a diff (audit triad)
+input: prompt
+agents:
+  auditor:
+    model: sonnet
+    thinking: high
+    isolated: true
+    schema:
+      verdict: "APPROVED|REVISE"
+phases:
+  - id: review
+    skill: sf-flow-audit
+    out: report
+loops: {}

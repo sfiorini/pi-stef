@@ -1,0 +1,22 @@
+name: research-report
+description: Multi-perspective research with cross-checking and synthesis
+input: prompt
+agents:
+  researcher:
+    tools: [read, grep, find]
+    model: sonnet
+    thinking: medium
+  synth:
+    tools: [read, write]
+    model: sonnet
+phases:
+  - id: gather
+    agent: researcher
+    fanout: args.angles
+    prompt: "Research angle: {{item}}. Return sources and claims."
+    out: raw
+  - id: synth
+    agent: synth
+    in: raw
+    prompt: "Synthesize a cited report from these findings."
+loops: {}

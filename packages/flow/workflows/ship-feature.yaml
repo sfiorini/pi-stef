@@ -1,0 +1,27 @@
+name: ship-feature
+description: Plan, implement, and audit a feature end-to-end
+input: prompt
+agents:
+  auditor:
+    model: sonnet
+    thinking: high
+    isolated: true
+    schema:
+      verdict: "APPROVED|REVISE"
+phases:
+  - id: plan
+    skill: sf-flow-plan
+    out: plan_path
+  - id: implement
+    skill: sf-flow-implement
+    in: plan_path
+    out: worktree_path
+  - id: audit
+    agent: auditor
+    in: worktree_path
+    prompt: "Review the diff in {{worktree_path}}. Return findings P0-P3 + verdict."
+loops:
+  audit:
+    until: approved
+    fail_on: [P0, P1, P2]
+    max_rounds: 5
