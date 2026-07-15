@@ -17,4 +17,10 @@ describe("auto input", () => {
   it("resolveJiraRef extracts the id", () => {
     expect(resolveJiraRef("jira PROJ-123")).toBe("PROJ-123");
   });
+  it("classifies uppercase .MD extension", () => {
+    expect(classifyInput("NOTES.MD")).toEqual({ kind: "md-file", value: "NOTES.MD" });
+  });
+  it("falls back to prompt for a bare word", () => {
+    expect(classifyInput("ship it")).toEqual({ kind: "prompt", value: "ship it" });
+  });
 });

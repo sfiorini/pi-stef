@@ -166,6 +166,17 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const repoRoot = ctx.cwd ?? process.cwd();
       const defaults = await loadAndResolveDefaults(repoRoot);
       const reviewerModel = resolveReviewerModel((params as any).reviewer_model, defaults);
+      if (!reviewerModel) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: "No reviewer model configured. Set via prompt, .pi/sf/flow/config.json, or SF_FLOW_REVIEWER_MODEL.",
+            },
+          ],
+          details: { configured: false },
+        };
+      }
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
       await ensureAgentFiles(homedir(), repoRoot);
@@ -209,7 +220,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       },
       { additionalProperties: false },
     ) as any,
-    execute: async (_id, params) => {
+    execute: async (_id, params, _signal, _onUpdate, _ctx) => {
       const workflow = (params as any).workflow as string;
       const input = (params as any).input as string;
       const classified = classifyInput(input);
