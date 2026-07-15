@@ -22,8 +22,9 @@ export function sessionName(hex: string): string {
 }
 
 /**
- * Adopt a session only if it was created by THIS launcher (owner-stamp matches).
- * Prevents cross-session adoption (ported from team's @sf-team-owner-of).
+ * Adopt a session only if its name matches THIS launcher's session name.
+ * (M6 ships the name-match guard; a full tmux owner-stamp read via OWNER_OPTION
+ * is layered on once the tmux spawn infrastructure exists.)
  */
 export function shouldAdopt(candidateSession: string, launcherSession: string): boolean {
   return candidateSession === launcherSession;
@@ -54,8 +55,12 @@ export function createFlowTmuxController(cb: FlowTmuxCallbacks): {
 } {
   return {
     emit: (event, payload) => {
-      if (event === "subagents:created") cb.onCreated(payload.id);
-      if (event === "subagents:completed" || event === "subagents:failed") cb.onTerminal(payload.id);
+      try {
+        if (event === "subagents:created") cb.onCreated(payload.id);
+        if (event === "subagents:completed" || event === "subagents:failed") cb.onTerminal(payload.id);
+      } catch {
+        // A misbehaving pane callback must not break the event pipeline.
+      }
     },
   };
 }
