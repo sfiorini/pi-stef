@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { homedir } from "node:os";
 import { finalizeWorktree } from "./worktree/finalize.js";
 import { createWorktree } from "./worktree/create.js";
-import { loadAndResolveDefaults, resolveReviewerModel } from "./config/load.js";
+import { loadAndResolveDefaults, resolveReviewerModel, resolveExplorerModel } from "./config/load.js";
 import { ensureAgentFiles } from "./agents.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
@@ -128,6 +128,10 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
         defaults,
       );
+      const explorerModel = resolveExplorerModel(
+        (params as any).explorer_model ?? extractExplorerModelFromPrompt(prompt),
+        defaults,
+      );
       if (!reviewerModel) {
         return {
           content: [
@@ -145,9 +149,9 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nNow load the skill named sf-flow-plan.${warnText}` },
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow load the skill named sf-flow-plan.${warnText}` },
         ],
-        details: { configured: true, reviewerModel },
+        details: { configured: true, reviewerModel, explorerModel },
       };
     },
   });
@@ -179,7 +183,10 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       }
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
-      await ensureAgentFiles(homedir(), repoRoot);
+      const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+      const warnText = agentWarnings.length
+        ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
+        : "";
       let worktree: { worktreePath: string; branchName: string; baseSha: string };
       try {
         worktree = await createWorktree({ slug, branchPrefix: defaults.worktree.branch_prefix });
@@ -194,12 +201,13 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: buildImplementReadyMessage({
-              slug,
-              worktreePath: worktree.worktreePath,
-              reviewerModel,
-              planPath: `ai_plan/${slug}`,
-            }),
+            text:
+              buildImplementReadyMessage({
+                slug,
+                worktreePath: worktree.worktreePath,
+                reviewerModel,
+                planPath: `ai_plan/${slug}`,
+              }) + warnText,
           },
         ],
         details: { configured: true, reviewerModel, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
