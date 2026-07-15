@@ -27,8 +27,8 @@ loops:
 ```
 
 - **agents** — per-agent `tools`/`model`/`thinking`/`isolated`/`schema`.
-- **phases** — each runs exactly one of `agent` / `skill` / `raw`; supports `prompt`, `fanout` (iterate a list), `verify`, `in`, `out`.
-- **loops** — `until_dry` (discovery loop, requires `fanout`) or `until: approved` (gate loop, requires the agent to declare a verdict `schema`); `fail_on` controls which severities block.
+- **phases** — each runs exactly one of `agent` / `skill` / `raw`; supports `prompt`, `fanout` (iterate a list — a prior phase's `out` var or an `args.*` runtime input), `verify`, `in`, `out`.
+- **loops** — `until_dry` (discovery loop, requires `fanout`; optional `dedup_key`/`consecutive_empty`) or `until: approved` (gate loop, requires the agent to declare a verdict `schema`); `fail_on` controls which severities block; `max_rounds` bounds iterations.
 
 Cross-field rules (enforced by `validateFlowYaml`): exactly one run-kind per phase; `fanout` only on agent phases and requires `out`; `until_dry` requires `fanout`; `until: approved` requires a verdict schema; no loops on skill/raw phases; unique `out` names.
 
