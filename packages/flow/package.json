@@ -1,12 +1,18 @@
 {
   "name": "@pi-stef/flow",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension for reusable multi-agent workflows, CodeRabbit-style code audit, and tmux agent visualization. Built on pi-subagents + pi-dynamic-workflows.",
   "type": "module",
   "pi": {
-    "extensions": ["./extensions"],
-    "skills": ["./skills"],
-    "companions": ["git:github.com/obra/superpowers"]
+    "extensions": [
+      "./extensions"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "companions": [
+      "git:github.com/obra/superpowers"
+    ]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -24,11 +30,26 @@
     "typescript": "*",
     "vitest": "*"
   },
-  "files": ["src/", "extensions/", "skills/", "templates/", "agents/", "workflows/"],
+  "files": [
+    "src/",
+    "extensions/",
+    "skills/",
+    "templates/",
+    "agents/",
+    "workflows/"
+  ],
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
-  "keywords": ["pi-package", "pi-extension", "flow", "workflow", "plan", "implement", "audit"],
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "flow",
+    "workflow",
+    "plan",
+    "implement",
+    "audit"
+  ],
   "license": "MIT"
 }
