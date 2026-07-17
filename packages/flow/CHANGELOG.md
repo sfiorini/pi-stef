@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-07-17
+### Changed
+- fix(flow): load-time workflow registration crashed under pi's extension loader — `Value.Cast` is not callable there (while `Value.Errors`/`Value.Check`, used across pair/team/flow, work fine). Replaced the `Value.Cast` normalization in `loadFlowYaml` with strict `validateFlowYaml`-only validation (also preferable to silent coercion).
+- test(flow): regression guard — `loadFlowYaml` must accept every bundled example workflow (the `Value.Cast` bug slipped through because tests used hand-written YAML, not the shipped files).
+
 ## [0.1.6] - 2026-07-17
 ### Changed
 - feat(flow): global-scoped default workflows — examples now live at `~/.pi/sf/flow/workflows/` (available in every project); a project override at `.pi/sf/flow/workflows/<name>.yaml` shadows a global
