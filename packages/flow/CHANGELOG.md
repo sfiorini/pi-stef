@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-17
+### Changed
+- fix(flow): address review — code-review dead agent, model-source accuracy, test gap
+- feat(flow): auto-seed example workflows into .pi/workflows/
+- docs(flow): add Model precedence + /sf-flow-audit vs code-review flow sections
+- docs(flow): comprehensive rewrite — mental model, agents/workflows/config, 3-knob reference
+
+
 ## [0.1.1] - 2026-07-16
 ### Changed
 - feat(flow): register in catalog + docs-site; README + flow.md + CHANGELOG
