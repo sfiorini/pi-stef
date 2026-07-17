@@ -11,6 +11,7 @@
 
 import { togglePackage, enablePackage, disablePackage } from "../catalog/crud.js";
 import type { CommandArgs, CommandCtx } from "./types.js";
+import { reloadNotice } from "./types.js";
 import { readCatalog, writeCatalog } from "../config/io.js";
 import { piUninstall } from "../util/exec.js";
 
@@ -51,6 +52,15 @@ export async function toggleCommand(
       `Toggled "${name}" — now ${isEnabled ? "enabled" : "disabled"}`,
       "info",
     );
+    // Reload so the enabled/disabled change takes effect immediately
+    if (typeof ctx.reload === "function") {
+      try {
+        await ctx.reload();
+        ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
+      } catch {
+        try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.ui.notify(message, "error");
@@ -90,6 +100,15 @@ export async function enableCommand(
 
     writeCatalog(updated, ctx.home);
     ctx.ui.notify(`Enabled "${name}"`, "info");
+    // Reload so the newly-enabled package's tools are available immediately
+    if (typeof ctx.reload === "function") {
+      try {
+        await ctx.reload();
+        ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
+      } catch {
+        try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
+      }
+    }
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     ctx.ui.notify(message, "error");
@@ -147,7 +166,7 @@ export async function disableCommand(
     ctx.ui.notify("Reloading extensions...", "info");
     try {
       await ctx.reload();
-      ctx.ui.notify("Extensions reloaded.", "info");
+      ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
     } catch {
       try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
     }

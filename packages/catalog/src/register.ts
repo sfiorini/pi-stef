@@ -165,9 +165,10 @@ async function handleSubcommand(
  * user message so extensions/skills hot-reload after the current turn — no
  * manual pi restart. This used to work when tools got a reload-capable ctx.
  */
-export function withToolReload<Ctx>(pi: ExtensionAPI, ctx: Ctx): Ctx & { reload: () => Promise<void> } {
+export function withToolReload<Ctx>(pi: ExtensionAPI, ctx: Ctx): Ctx & { reload: () => Promise<void>; reloadQueued: boolean } {
   return {
     ...ctx,
+    reloadQueued: true,
     reload: async () => {
       pi.sendUserMessage("/reload", { deliverAs: "followUp" });
     },
@@ -303,7 +304,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
     async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
       try {
         const args: CommandArgs = { positional: [params.name], flags: {} };
-        await toggleCommand(args, ctx as unknown as ToggleCtx);
+        await toggleCommand(args, withToolReload(pi, ctx) as unknown as ToggleCtx);
         return { content: [{ type: "text" as const, text: `Toggled ${params.name}.` }], details: undefined as unknown };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Toggle failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };
@@ -355,7 +356,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
         const flags: Record<string, true | string> = {};
         if (params.yes) flags.yes = true;
         const args: CommandArgs = { positional: [], flags };
-        await resetCommand(args, ctx as unknown as ResetCtx);
+        await resetCommand(args, withToolReload(pi, ctx) as unknown as ResetCtx);
         return { content: [{ type: "text" as const, text: "Reset completed." }], details: undefined as unknown };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Reset failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };

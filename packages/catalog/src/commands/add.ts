@@ -11,6 +11,7 @@
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
+import { reloadNotice } from "./types.js";
 import { addPackage } from "../catalog/crud.js";
 import { sourceToKey } from "../catalog/source.js";
 import { checkSetupForSource, formatSetupStatus } from "../catalog/setup.js";
@@ -149,7 +150,7 @@ export async function addCommand(args: CommandArgs, ctx: AddCtx): Promise<void> 
       ctx.ui.notify("Reloading extensions...", "info");
       try {
         await ctx.reload();
-        ctx.ui.notify("Extensions reloaded — new tools are available.", "info");
+        ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded — new tools are available."), "info");
       } catch {
         try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
       }
@@ -239,7 +240,7 @@ export async function addCommand(args: CommandArgs, ctx: AddCtx): Promise<void> 
     ctx.ui.notify("Reloading extensions...", "info");
     try {
       await ctx.reload();
-      ctx.ui.notify("Extensions reloaded — new tools are available.", "info");
+      ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded — new tools are available."), "info");
     } catch {
       // ctx.ui may be invalid after reload; best-effort notify
       try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }

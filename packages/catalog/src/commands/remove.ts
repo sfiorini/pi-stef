@@ -11,6 +11,7 @@
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
+import { reloadNotice } from "./types.js";
 import { removePackage } from "../catalog/crud.js";
 import { isPiStefSource } from "../catalog/packages.js";
 import { readCatalog, writeCatalog, readLock, writeLock } from "../config/io.js";
@@ -124,7 +125,7 @@ export async function removeCommand(
       ctx.ui.notify("Reloading extensions...", "info");
       try {
         await ctx.reload();
-        ctx.ui.notify("Extensions reloaded.", "info");
+        ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
       } catch {
         try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
       }
@@ -210,7 +211,7 @@ export async function removeCommand(
     ctx.ui.notify("Reloading extensions...", "info");
     try {
       await ctx.reload();
-      ctx.ui.notify("Extensions reloaded.", "info");
+      ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
     } catch {
       try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
     }

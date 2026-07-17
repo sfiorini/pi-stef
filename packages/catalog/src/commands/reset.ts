@@ -15,6 +15,7 @@
 
 import fs from "node:fs";
 import type { CommandArgs, CommandCtx } from "./types.js";
+import { reloadNotice } from "./types.js";
 import { isPiStefSource } from "../catalog/packages.js";
 import { catalogDir, catalogFile, lockFile } from "../config/paths.js";
 import { piUninstall } from "../util/exec.js";
@@ -133,4 +134,14 @@ export async function resetCommand(
     `Reset complete: ${parts.join(", ")}${failed > 0 ? ` (${failed} uninstall failed)` : ""}`,
     failed > 0 ? "warning" : "info",
   );
+
+  // Reload so uninstalled packages' tools/skills are removed immediately
+  if (typeof ctx.reload === "function") {
+    try {
+      await ctx.reload();
+      ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
+    } catch {
+      try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
+    }
+  }
 }

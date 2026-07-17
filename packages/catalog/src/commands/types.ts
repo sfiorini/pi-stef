@@ -46,4 +46,19 @@ export interface CommandCtx {
    * command falls back to a "restart required" message.
    */
   reload?: () => Promise<void>;
+  /** True when `reload` only queues a follow-up `/reload` (the LLM tool path —
+   *  see `withToolReload`) rather than reloading synchronously (slash-command
+   *  path). Commands use `reloadNotice()` to phrase the post-reload message. */
+  reloadQueued?: boolean;
+}
+
+/**
+ * Post-reload user message. When `reload` only queued a follow-up `/reload`
+ * (the tool path), say so honestly instead of claiming the reload completed —
+ * the actual reload runs after the current turn.
+ */
+export function reloadNotice(ctx: CommandCtx, doneMessage: string): string {
+  return ctx.reloadQueued
+    ? "Reload queued — new tools available after this turn."
+    : doneMessage;
 }

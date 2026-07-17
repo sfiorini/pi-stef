@@ -11,6 +11,7 @@
  */
 
 import type { CommandArgs, CommandCtx } from "./types.js";
+import { reloadNotice } from "./types.js";
 import { readCatalog } from "../config/io.js";
 import { piUpdate } from "../util/exec.js";
 import { checkSetupForSource, formatSetupStatus } from "../catalog/setup.js";
@@ -71,7 +72,7 @@ export async function updateCommand(
       ctx.ui.notify("Reloading extensions...", "info");
       try {
         await ctx.reload();
-        ctx.ui.notify("Extensions reloaded.", "info");
+        ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
       } catch {
         try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
       }
@@ -145,7 +146,7 @@ export async function updateCommand(
     ctx.ui.notify("Reloading extensions...", "info");
     try {
       await ctx.reload();
-      ctx.ui.notify("Extensions reloaded.", "info");
+      ctx.ui.notify(reloadNotice(ctx, "Extensions reloaded."), "info");
     } catch {
       try { ctx.ui.notify("Extension reload failed — restart pi to pick up changes.", "warning"); } catch { /* runner invalidated */ }
     }

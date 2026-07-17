@@ -6,6 +6,7 @@ import os from "node:os";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 import { registerCatalog, withToolReload } from "../src/register.js";
+import { reloadNotice } from "../src/commands/types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -401,6 +402,7 @@ describe("withToolReload", () => {
     const pi = { sendUserMessage } as unknown as ExtensionAPI;
     const ctx = withToolReload(pi, { ui: { notify: vi.fn() } });
 
+    expect(ctx.reloadQueued).toBe(true);
     expect(typeof ctx.reload).toBe("function");
     await ctx.reload();
 
@@ -415,5 +417,27 @@ describe("withToolReload", () => {
 
     expect(ctx.cwd).toBe("/repo");
     expect(ctx.ui.notify).toBe(notify);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reloadNotice: honest post-reload messaging. The tool path queues /reload
+// (it runs after the turn), so the message must not claim it already happened.
+// ---------------------------------------------------------------------------
+describe("reloadNotice", () => {
+  it("returns the done message when reload is synchronous (slash-command path)", () => {
+    const ctx = { reloadQueued: false } as never;
+    expect(reloadNotice(ctx, "Extensions reloaded.")).toBe("Extensions reloaded.");
+  });
+
+  it("returns the queued message when reload is queued (tool path)", () => {
+    const ctx = { reloadQueued: true } as never;
+    expect(reloadNotice(ctx, "Extensions reloaded.")).toBe(
+      "Reload queued — new tools available after this turn.",
+    );
+  });
+
+  it("treats absent reloadQueued as synchronous (defaults to done message)", () => {
+    expect(reloadNotice({} as never, "Extensions reloaded.")).toBe("Extensions reloaded.");
   });
 });
