@@ -26,9 +26,14 @@ describe("buildImplementReadyMessage", () => {
 });
 
 describe("buildAutoReadyMessage", () => {
-  it("directs the agent to read the sf-flow-auto skill file", () => {
-    const msg = buildAutoReadyMessage({ workflowName: "code-review", inputSummary: "prompt: review" });
+  it("directs the agent to read the sf-flow-auto skill file with the resolved path", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "code-review",
+      inputSummary: "prompt: review",
+      resolvedWorkflowPath: "/h/.pi/sf/flow/workflows/code-review.yaml",
+    });
     expect(msg).toContain("code-review");
+    expect(msg).toContain("/h/.pi/sf/flow/workflows/code-review.yaml");
     expect(msg).toContain(skillDocPath("sf-flow-auto"));
   });
 });

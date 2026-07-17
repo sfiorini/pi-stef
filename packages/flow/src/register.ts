@@ -8,6 +8,9 @@ import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
+import { resolveWorkflowPath, globalWorkflowsDir } from "./paths.js";
+import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
+import { join } from "node:path";
 
 export const FLOW_TOOL_NAMES = [
   "sf_flow_plan",
@@ -16,6 +19,7 @@ export const FLOW_TOOL_NAMES = [
   "sf_flow_auto",
   "sf_flow_create_workflow",
   "sf_flow_finalize",
+  "sf_flow_seed",
 ] as const;
 
 /** Extract reviewer model from a prompt string (e.g. "use opus as reviewer"). Ported from pair. */
@@ -47,12 +51,12 @@ export function extractExplorerModelFromPrompt(prompt: string): string | undefin
 }
 
 export function registerSfFlow(pi: ExtensionAPI): void {
-  // sf_flow_create_workflow — interview -> write .pi/workflows/<name>.yaml -> register /<name>.
+  // sf_flow_create_workflow — interview -> write .pi/sf/flow/workflows/<name>.yaml -> register /<name>.
   pi.registerTool({
     name: "sf_flow_create_workflow",
     label: "sf_flow_create_workflow",
     description:
-      "Create or validate a reusable flow from a declarative agents/phases/loops definition. Interviews the user, writes .pi/workflows/<name>.yaml, and registers /<name>.",
+      "Create or validate a reusable flow from a declarative agents/phases/loops definition. Interviews the user, writes .pi/sf/flow/workflows/<name>.yaml (project-scoped), and registers /<name>.",
     parameters: Type.Object(
       {
         name: Type.Optional(Type.String()),
@@ -145,7 +149,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         };
       }
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
-      await ensureExampleWorkflows(repoRoot);
+      await ensureExampleWorkflows(homedir());
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
@@ -186,7 +190,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
-      await ensureExampleWorkflows(repoRoot);
+      await ensureExampleWorkflows(homedir());
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
@@ -226,7 +230,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       "Run a defined flow end-to-end with no human gates. Usage: sf_flow_auto <workflow-name> <prompt | md-file | PRD | jira STORY>. Loads the flow's generated script and executes all phases to a terminal state.",
     parameters: Type.Object(
       {
-        workflow: Type.String({ description: "Flow name (matches .pi/workflows/<name>.yaml)." }),
+        workflow: Type.String({ description: "Flow name (resolved project→global: .pi/sf/flow/workflows/<name>.yaml overrides ~/.pi/sf/flow/workflows/<name>.yaml)." }),
         input: Type.String({ description: "prompt | path-to-md | prd:<path> | jira STORY-123" }),
       },
       { additionalProperties: false },
@@ -236,16 +240,32 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const input = (params as any).input as string;
       const repoRoot = ctx.cwd ?? process.cwd();
       await ensureAgentFiles(homedir(), repoRoot);
-      await ensureExampleWorkflows(repoRoot);
+      await ensureExampleWorkflows(homedir());
       const classified = classifyInput(input);
+      const resolved = await resolveWorkflowPath(workflow, repoRoot, homedir());
+      if (!resolved) {
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Workflow "${workflow}" was not found in the project (<repo>/.pi/sf/flow/workflows) or global (~/.pi/sf/flow/workflows) workflows dir. Create it via /sf-flow-create-workflow, or run /sf-flow-seed to copy the bundled examples.`,
+            },
+          ],
+          details: { workflow, found: false },
+        };
+      }
       return {
         content: [
           {
             type: "text" as const,
-            text: buildAutoReadyMessage({ workflowName: workflow, inputSummary: `${classified.kind}: ${classified.value}` }),
+            text: buildAutoReadyMessage({
+              workflowName: workflow,
+              inputSummary: `${classified.kind}: ${classified.value}`,
+              resolvedWorkflowPath: resolved,
+            }),
           },
         ],
-        details: { workflow, kind: classified.kind, value: classified.value },
+        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved },
       };
     },
   });
@@ -285,6 +305,25 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     },
   });
 
+  // sf_flow_seed — copy default agents + example workflows to their GLOBAL
+  // locations, with <name>.new for files the user has changed (never clobbers).
+  pi.registerTool({
+    name: "sf_flow_seed",
+    label: "sf_flow_seed",
+    description:
+      "Copy flow's default agents and example workflows to their global locations (~/.pi/agent/agents and ~/.pi/sf/flow/workflows). Existing files are left untouched; if a file differs from the bundled default, the new default is written as <name>.new beside it. Idempotent.",
+    parameters: Type.Object({}, { additionalProperties: false }) as any,
+    execute: async () => {
+      const home = homedir();
+      const agents = await seedAgents(join(home, ".pi", "agent", "agents"), "with-new");
+      const workflows = await seedWorkflows(globalWorkflowsDir(home), "with-new");
+      return {
+        content: [{ type: "text" as const, text: renderSeedReport({ agents, workflows }) }],
+        details: { agents, workflows },
+      };
+    },
+  });
+
   // Register slash commands: route /sf-flow-* to the sf_flow_* tools. The tools do
   // setup (model/worktree/agents) then load the internal skill by path, so the
   // command is the user-facing entry (skills are NOT pi-discovered — pi.skills: []).
@@ -297,6 +336,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     sf_flow_auto: "Run a defined flow end-to-end, no human gates. Args: <workflow> <input>",
     sf_flow_create_workflow: "Create or validate a reusable flow YAML (wizard).",
     sf_flow_finalize: "Remove a flow worktree dir, preserve branch. Args: worktree_path",
+    sf_flow_seed: "Copy flow's default agents + example workflows to their global locations.",
   };
 
   for (const name of FLOW_TOOL_NAMES) {
@@ -331,6 +371,8 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           message = trimmed.length === 0
             ? "Invoke the sf_flow_finalize tool. Ask me first for the worktree path (or provide it now)."
             : `Invoke the sf_flow_finalize tool with worktree_path: ${trimmed}`;
+        } else if (name === "sf_flow_seed") {
+          message = "Invoke the sf_flow_seed tool to copy flow's default agents and example workflows to their global locations.";
         } else {
           // sf_flow_create_workflow (wizard — no positional arg)
           message = "Invoke the sf_flow_create_workflow tool.";

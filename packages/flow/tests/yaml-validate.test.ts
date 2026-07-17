@@ -13,6 +13,10 @@ describe("validateFlowYaml", () => {
   it("passes a valid flow", () => {
     expect(validateFlowYaml(base)).toEqual({ ok: true, errors: [] });
   });
+  it("rejects a reserved name (sf-flow- / sf_flow_ prefix)", () => {
+    expect(validateFlowYaml({ ...base, name: "sf-flow-seed" }).ok).toBe(false);
+    expect(validateFlowYaml({ ...base, name: "sf_flow_audit" }).ok).toBe(false);
+  });
   it("rejects phase with no agent/skill/raw", () => {
     expect(validateFlowYaml({ ...base, phases: [{ id: "p", prompt: "do" }] }).ok).toBe(false);
   });

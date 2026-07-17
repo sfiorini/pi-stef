@@ -27,7 +27,7 @@ describe("flow skills", () => {
     // Regression guard: pi's skill loader requires a `description` in the
     // frontmatter; a SKILL.md starting directly at `# title` logs
     // "description is required" and the skill won't load. Mirrors pair's format.
-    expect(skillDirs.length, "expected the 5 flow skills").toBe(5);
+    expect(skillDirs.length, "expected the 6 flow skills").toBe(6);
     for (const dir of skillDirs) {
       const raw = readFileSync(join(skillsDir, dir, "SKILL.md"), "utf8");
       const fm = frontmatter(raw);

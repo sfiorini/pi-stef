@@ -1,15 +1,7 @@
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { seedAgents } from "./seed.js";
 
-const AGENT_FILES = [
-  "reviewer.md",
-  "explorer.md",
-  "auditor.md",
-  "planner.md",
-  "developer.md",
-  "synth.md",
-] as const;
 const GLOBAL_AGENTS_SUBPATH = [".pi", "agent", "agents"] as const;
 const PROJECT_AGENTS_SUBPATH = [".pi", "agents"] as const;
 const STALE_PLACEHOLDER = "{{REVIEWER_MODEL}}";
@@ -24,13 +16,14 @@ export interface EnsureAgentFilesResult {
  * (`~/.pi/agent/agents/`): reviewer, explorer, auditor, planner, developer, synth.
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
- * edit it. No file carries a `model:` frontmatter field — the model is
- * resolved by flow and passed at dispatch time.
+ * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be
+ * silently clobbered. No file carries a `model:` frontmatter field — the model
+ * is resolved by flow and passed at dispatch time.
  *
- * Also detects a STALE adapter-era project `<cwd>/.pi/agents/reviewer.md`
- * still containing the `{{REVIEWER_MODEL}}` placeholder — such a file would
- * shadow the new global reviewer. It is NOT deleted (user-owned); a warning
- * is returned so the caller can surface it.
+ * Also detects a STALE adapter-era project `<cwd>/.pi/agents/reviewer.md` still
+ * containing the `{{REVIEWER_MODEL}}` placeholder — such a file would shadow the
+ * new global reviewer. It is NOT deleted (user-owned); a warning is returned so
+ * the caller can surface it.
  *
  * @param homeDir The user home directory.
  * @param cwd The current working directory (project root). Defaults to process.cwd().
@@ -40,24 +33,8 @@ export async function ensureAgentFiles(
   cwd: string = process.cwd(),
 ): Promise<EnsureAgentFilesResult> {
   const warnings: string[] = [];
-  const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
   const agentsDir = join(homeDir, ...GLOBAL_AGENTS_SUBPATH);
-  await mkdir(agentsDir, { recursive: true });
-
-  for (const file of AGENT_FILES) {
-    const target = join(agentsDir, file);
-    try {
-      await readFile(target, "utf8");
-      // Already exists — do not clobber user edits.
-      continue;
-    } catch (err: unknown) {
-      if (!(err instanceof Error && (err as NodeJS.ErrnoException).code === "ENOENT")) {
-        throw err;
-      }
-    }
-    const template = await readFile(join(pkgRoot, "agents", file), "utf8");
-    await writeFile(target, template, "utf8");
-  }
+  await seedAgents(agentsDir, "write-once");
 
   // Detect stale adapter-era project reviewer file (project overrides global).
   const projectReviewer = join(cwd, ...PROJECT_AGENTS_SUBPATH, "reviewer.md");

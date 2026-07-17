@@ -6,6 +6,9 @@ export interface ValidationResult {
   errors: string[];
 }
 
+/** Flow's own slash-command namespace — user flows must not shadow these. */
+const RESERVED_NAME = /^sf[_-]flow[_-]/i;
+
 /**
  * Validate a flow YAML object: structural (TypeBox) + cross-field rules the
  * schema can't express. Cross-field rules reject combinations the generator
@@ -18,6 +21,11 @@ export function validateFlowYaml(input: unknown): ValidationResult {
     return { ok: false, errors: typeErrors.map((e) => `${e.path}: ${e.message}`) };
   }
   const flow = input as FlowYaml;
+  if (RESERVED_NAME.test(flow.name)) {
+    errors.push(
+      `name "${flow.name}": reserved (the sf-flow-/sf_flow_ prefix is flow's own command namespace)`,
+    );
+  }
   const agentNames = new Set(Object.keys(flow.agents));
   const outs = new Set<string>();
 

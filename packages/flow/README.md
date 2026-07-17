@@ -21,7 +21,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
 | **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **6 defaults**; you edit/add freely (write-once) |
-| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `.pi/workflows/<name>.yaml` | flow ships skills + **4 auto-seeded example YAMLs**; you add YAMLs |
+| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model an agent runs on, audit thresholds, tmux, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
@@ -46,7 +46,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 /sf-flow-plan add OAuth login
 /sf-flow-implement 2026-07-20-oauth-login
 
-# 3. Run a reusable flow end-to-end (the 4 examples are auto-seeded into .pi/workflows/)
+# 3. Run a reusable flow end-to-end (seed the 4 examples to ~/.pi/sf/flow/workflows via /sf-flow-seed)
 sf_flow_auto code-review "review the auth changes"
 ```
 
@@ -62,7 +62,7 @@ Or in natural language:
 
 ## Built-in agents
 
-Six write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) on first use of a Tier 1 skill:
+Six write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
@@ -83,7 +83,7 @@ Six write-once agent definitions ship in `packages/flow/agents/` and are copied 
 
 ## Built-in workflows (examples)
 
-Four reference flows ship in `packages/flow/workflows/` and are **auto-seeded** into your project's `.pi/workflows/` (write-once) the first time you run `sf_flow_plan`, `sf_flow_implement`, or `sf_flow_auto` — edit or delete them freely; flow never overwrites an existing file.
+Four reference flows ship in `packages/flow/workflows/`. They are **global** defaults — copy them once with `/sf-flow-seed` (or they seed lazily on first use) into `~/.pi/sf/flow/workflows/`, where they're available in **every** project:
 
 | Workflow | File | What it does |
 |----------|------|--------------|
@@ -92,8 +92,13 @@ Four reference flows ship in `packages/flow/workflows/` and are **auto-seeded** 
 | `auth-audit` | `auth-audit.yaml` | Scan route files, fan out audits, dedup, synthesize a report |
 | `research-report` | `research-report.yaml` | Multi-perspective research with cross-checking + synthesis |
 
+- **Global defaults** live at `~/.pi/sf/flow/workflows/`; a **project override** at `<repo>/.pi/sf/flow/workflows/<name>.yaml` shadows the global one (resolved project→global by `sf_flow_auto`).
+- **`/<name>` commands** (`/code-review`, …) register at pi startup from the global + current-project workflow dirs.
+- **Re-seed safely:** `/sf-flow-seed` never clobbers your edits — if a file differs from the bundled default, the new default is written as `<name>.new` beside it.
+
 ```bash
-# Already in .pi/workflows/ after first use — just run it:
+# Seed the defaults globally, then run one from any project:
+/sf-flow-seed
 sf_flow_auto ship-feature "add a rate limiter to the API"
 ```
 
@@ -108,6 +113,7 @@ sf_flow_auto ship-feature "add a rate limiter to the API"
 | Audit | `/sf-flow-audit` | `sf_flow_audit` | CodeRabbit-style audit (7 angles + dual-blind AND-gate + fix-apply) |
 | Auto | `/sf-flow-auto` | `sf_flow_auto` | Run any defined flow end-to-end, no human gates |
 | Create Workflow | `/sf-flow-create-workflow` | `sf_flow_create_workflow` | Wizard: interview → YAML → `/<name>` |
+| Seed | `/sf-flow-seed` | `sf_flow_seed` | Copy default agents + example workflows to their global locations |
 | — | — | `sf_flow_finalize` | Remove a flow worktree dir, preserve its branch |
 
 ### sf_flow_plan
@@ -149,12 +155,12 @@ Run a defined flow end-to-end with **no human gates**.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
-| `workflow` | Yes | Flow name (matches `.pi/workflows/<name>.yaml`) |
+| `workflow` | Yes | Flow name (resolved project→global: `.pi/sf/flow/workflows/<name>.yaml` overrides `~/.pi/sf/flow/workflows/<name>.yaml`) |
 | `input` | Yes | `prompt` · path to a markdown file · `prd:<path>` · `jira STORY-123` |
 
 ### sf_flow_create_workflow
 
-Turn intent into a validated flow. Interviews one question at a time, writes `.pi/workflows/<name>.yaml`, emits write-once agent stubs, validates, and registers `/<name>`.
+Turn intent into a validated flow. Interviews one question at a time, writes `.pi/sf/flow/workflows/<name>.yaml` (project-scoped), emits write-once agent stubs, validates, and registers `/<name>`.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -180,7 +186,7 @@ Remove a flow worktree directory while **preserving** its branch.
 Describe a workflow with three knobs; the generator compiles it into a pi-dynamic-workflows script.
 
 ```yaml
-# .pi/workflows/auth-audit.yaml
+# .pi/sf/flow/workflows/auth-audit.yaml
 name: auth-audit
 description: Audit auth coverage across route files
 input: prompt
@@ -259,7 +265,7 @@ A map of phase-id → loop. Two kinds:
 ### Defining a new flow
 
 - **Wizard** — `/sf-flow-create-workflow` (writes YAML + agent stubs, validates, registers `/<name>`).
-- **By hand** — create `.pi/workflows/<name>.yaml` (or edit one of the auto-seeded examples in `.pi/workflows/`), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
+- **By hand** — create `.pi/sf/flow/workflows/<name>.yaml` (project) or `~/.pi/sf/flow/workflows/<name>.yaml` (global), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
 
 ---
 

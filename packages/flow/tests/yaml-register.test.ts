@@ -1,7 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { registerGeneratedFlow } from "../src/yaml/register.js";
+import { describe, it, expect, vi } from "vitest";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { registerGeneratedFlow, registerDiscoveredFlows } from "../src/yaml/register.js";
 import type { FlowYaml } from "../src/yaml/schema.js";
 import { skillDocPath } from "../src/messages.js";
+import { globalWorkflowsDir, projectWorkflowsDir } from "../src/paths.js";
 
 const validFlow: FlowYaml = {
   name: "auth-audit",
@@ -90,5 +94,68 @@ describe("registerGeneratedFlow", () => {
     expect(notifications).toHaveLength(1);
     expect(notifications[0].level).toBe("warning");
     expect(notifications[0].msg).toContain("sf_flow_auto");
+  });
+});
+
+describe("registerDiscoveredFlows", () => {
+  const VALID = (name: string, desc: string) =>
+    `name: ${name}\ndescription: ${desc}\ninput: prompt\nagents:\n  worker: {}\nphases:\n  - id: do\n    agent: worker\n`;
+
+  function fakePi() {
+    const registered: { name: string; description: string }[] = [];
+    return {
+      pi: {
+        registerCommand: (name: string, opts: { description?: string }) =>
+          registered.push({ name, description: opts.description ?? "" }),
+        sendUserMessage: () => {},
+      } as any,
+      registered,
+    };
+  }
+
+  it("registers a global workflow as a /<name> command", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    mkdirSync(globalWorkflowsDir(home), { recursive: true });
+    writeFileSync(join(globalWorkflowsDir(home), "code-review.yaml"), VALID("code-review", "global default"));
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered).toEqual([{ name: "code-review", description: "global default" }]);
+  });
+
+  it("project workflow overrides a global of the same name", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    mkdirSync(globalWorkflowsDir(home), { recursive: true });
+    writeFileSync(join(globalWorkflowsDir(home), "code-review.yaml"), VALID("code-review", "GLOBAL"));
+    mkdirSync(projectWorkflowsDir(repo), { recursive: true });
+    writeFileSync(join(projectWorkflowsDir(repo), "code-review.yaml"), VALID("code-review", "PROJECT"));
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered).toHaveLength(1);
+    expect(registered[0].description).toBe("PROJECT");
+  });
+
+  it("skips an invalid workflow but still registers the valid one", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    const dir = globalWorkflowsDir(home);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "good.yaml"), VALID("good-flow", "ok"));
+    writeFileSync(join(dir, "bad.yaml"), "name: bad\ndescription: d\ninput: prompt\nagents: {}\nphases: []\n");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered.map((r) => r.name)).toEqual(["good-flow"]);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("no-ops when neither dir exists", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered).toEqual([]);
   });
 });

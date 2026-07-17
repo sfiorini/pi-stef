@@ -47,12 +47,15 @@ export function buildImplementReadyMessage(opts: ImplementReadyInput): string {
 export interface AutoReadyInput {
   workflowName: string;
   inputSummary: string;
+  /** Absolute path resolved by `resolveWorkflowPath` (project override → global). */
+  resolvedWorkflowPath: string;
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
   return [
     `Running flow "${opts.workflowName}" end-to-end.`,
     `Input: ${opts.inputSummary}`,
+    `Workflow file: ${opts.resolvedWorkflowPath}`,
     `No human gates — phases run to completion or a terminal state.`,
     `Now read the skill file at ${skillDocPath("sf-flow-auto")}.`,
   ].join("\n");

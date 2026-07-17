@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/flow",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Pi extension for reusable multi-agent workflows, CodeRabbit-style code audit, and tmux agent visualization. Built on pi-subagents + pi-dynamic-workflows.",
   "type": "module",
   "pi": {

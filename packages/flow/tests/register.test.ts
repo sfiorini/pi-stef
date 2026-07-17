@@ -11,6 +11,7 @@ describe("flow register", () => {
       "sf_flow_auto",
       "sf_flow_create_workflow",
       "sf_flow_finalize",
+      "sf_flow_seed",
     ]);
   });
 
@@ -30,7 +31,7 @@ describe("flow register", () => {
 
     expect([...tools].sort()).toEqual([...FLOW_TOOL_NAMES].sort());
     expect([...commands].sort()).toEqual(
-      ["sf-flow-plan", "sf-flow-implement", "sf-flow-audit", "sf-flow-auto", "sf-flow-create-workflow", "sf-flow-finalize"].sort(),
+      ["sf-flow-plan", "sf-flow-implement", "sf-flow-audit", "sf-flow-auto", "sf-flow-create-workflow", "sf-flow-finalize", "sf-flow-seed"].sort(),
     );
   });
 });

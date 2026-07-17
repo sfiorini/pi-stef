@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-17
+### Changed
+- feat(flow): global-scoped default workflows — examples now live at `~/.pi/sf/flow/workflows/` (available in every project); a project override at `.pi/sf/flow/workflows/<name>.yaml` shadows a global
+- feat(flow): `/sf-flow-seed` command + `sf_flow_seed` tool — copy default agents + example workflows globally; re-seed writes `<name>.new` for changed files (never clobbers edits)
+- feat(flow): load-time registration of `/<name>` workflow commands (`/code-review`, …) — `registerGeneratedFlow` was previously dead code
+- feat(flow): `sf_flow_auto` resolves the workflow file (project→global) in the tool handler and passes the absolute path
+- fix(flow): TOCTOU-safe seeding via exclusive (`wx`) create
+- fix(flow): reject reserved flow names (`sf-flow-`/`sf_flow_` prefix) in `validateFlowYaml`
+- docs(flow): README + docs-site updated for global workflows + `/sf-flow-seed`
+
 ## [0.1.5] - 2026-07-17
 ### Changed
 - fix(flow): add /sf-flow-* slash commands (command -> tool -> skill, like pair)
