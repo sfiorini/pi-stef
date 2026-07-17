@@ -1,6 +1,7 @@
 ---
 name: sf-pair-plan
 description: Use when a user asks to create a structured implementation plan with milestones, stories, and reviewer approval using pi-subagents.
+disable-model-invocation: true
 ---
 
 # sf-pair-plan

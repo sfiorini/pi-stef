@@ -1,6 +1,7 @@
 ---
 name: sf-pair-implement
 description: Use when a plan folder created by sf-pair-plan must be executed milestone-by-milestone in a worktree, with a per-milestone TDD→review→commit→tracker loop, then finalized so the branch is preserved for a PR.
+disable-model-invocation: true
 ---
 
 # sf-pair-implement
