@@ -5,7 +5,7 @@ import os from "node:os";
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { registerCatalog } from "../src/register.js";
+import { registerCatalog, withToolReload } from "../src/register.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,6 +29,7 @@ function mockPi() {
     registerTool: vi.fn((def: Record<string, unknown>) => {
       tools.set(def.name as string, def);
     }),
+    sendUserMessage: vi.fn(),
   } as unknown as ExtensionAPI;
 
   return { pi, commands, tools };
@@ -376,7 +377,6 @@ describe("registerCatalog", () => {
       await execute("id", {}, undefined, undefined, { ui: { notify } });
       expect(notify).toHaveBeenCalled();
     });
-
     it("catches thrown errors gracefully", async () => {
       const { pi, tools } = mockPi();
       registerCatalog(pi);
@@ -387,5 +387,33 @@ describe("registerCatalog", () => {
       const text = (result.content as Array<{ text: string }>)[0].text;
       expect(text).toContain("Status failed:");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tools can't call ctx.reload() directly (pi gives tool handlers ExtensionContext,
+// not ExtensionCommandContext). withToolReload bridges that by queueing the
+// builtin /reload command as a follow-up — see pi docs extensions.md → ctx.reload().
+// ---------------------------------------------------------------------------
+describe("withToolReload", () => {
+  it("returns a ctx whose reload() queues /reload as a follow-up user message", async () => {
+    const sendUserMessage = vi.fn();
+    const pi = { sendUserMessage } as unknown as ExtensionAPI;
+    const ctx = withToolReload(pi, { ui: { notify: vi.fn() } });
+
+    expect(typeof ctx.reload).toBe("function");
+    await ctx.reload();
+
+    expect(sendUserMessage).toHaveBeenCalledTimes(1);
+    expect(sendUserMessage).toHaveBeenCalledWith("/reload", { deliverAs: "followUp" });
+  });
+
+  it("preserves the wrapped ctx's other fields", () => {
+    const pi = { sendUserMessage: vi.fn() } as unknown as ExtensionAPI;
+    const notify = vi.fn();
+    const ctx = withToolReload(pi, { ui: { notify }, cwd: "/repo" });
+
+    expect(ctx.cwd).toBe("/repo");
+    expect(ctx.ui.notify).toBe(notify);
   });
 });

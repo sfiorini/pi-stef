@@ -157,6 +157,23 @@ async function handleSubcommand(
  * - `/ct-sync`, `/ct-init`, … individual alias commands
  * - `ct_sync`, `ct_add`, `ct_remove`, `ct_toggle`, `ct_status` LLM tools
  */
+/**
+ * pi moved `reload()` off the tool-handler context: tools now receive
+ * `ExtensionContext` (no reload); only command handlers
+ * (`ExtensionCommandContext`) have it. Per pi's docs (extensions.md →
+ * "ctx.reload()"), a tool queues the builtin `/reload` command as a follow-up
+ * user message so extensions/skills hot-reload after the current turn — no
+ * manual pi restart. This used to work when tools got a reload-capable ctx.
+ */
+export function withToolReload<Ctx>(pi: ExtensionAPI, ctx: Ctx): Ctx & { reload: () => Promise<void> } {
+  return {
+    ...ctx,
+    reload: async () => {
+      pi.sendUserMessage("/reload", { deliverAs: "followUp" });
+    },
+  };
+}
+
 export function registerCatalog(pi: ExtensionAPI): void {
   // ----- /ct main command --------------------------------------------------
   pi.registerCommand("ct", {
@@ -234,7 +251,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
           positional: params.scope ? [] : [params.source],
           flags,
         };
-        await addCommand(args, ctx as unknown as AddCtx);
+        await addCommand(args, withToolReload(pi, ctx) as unknown as AddCtx);
         return { content: [{ type: "text" as const, text: `Added ${params.source}.` }], details: undefined as unknown };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Add failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };
@@ -262,7 +279,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
           positional: params.name ? [params.name] : [],
           flags,
         };
-        await removeCommand(args, ctx as unknown as RemoveCtx);
+        await removeCommand(args, withToolReload(pi, ctx) as unknown as RemoveCtx);
         const label = params.scope ? `Scope ${params.scope}` : `${params.name}`;
         return { content: [{ type: "text" as const, text: `Removed ${label}.` }], details: undefined as unknown };
       } catch (err) {
@@ -313,7 +330,7 @@ export function registerCatalog(pi: ExtensionAPI): void {
         const flags: Record<string, true | string> = {};
         if (params.all) flags.all = true;
         const args: CommandArgs = { positional, flags };
-        await updateCommand(args, ctx);
+        await updateCommand(args, withToolReload(pi, ctx));
         return { content: [{ type: "text" as const, text: "Update completed." }], details: undefined as unknown };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Update failed: ${err instanceof Error ? err.message : String(err)}` }], details: undefined as unknown };
