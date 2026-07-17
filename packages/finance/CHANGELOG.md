@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-07-17
+### Changed
+- fix(finance): give no-param tools a proper object schema
+
+
 ## [0.2.4] - 2026-07-12
 ### Changed
 - fix(finance): client reads file locally and sends content to server
