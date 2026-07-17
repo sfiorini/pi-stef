@@ -5,6 +5,7 @@ import { finalizeWorktree } from "./worktree/finalize.js";
 import { createWorktree } from "./worktree/create.js";
 import { loadAndResolveDefaults, resolveReviewerModel, resolveExplorerModel } from "./config/load.js";
 import { ensureAgentFiles } from "./agents.js";
+import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
 
@@ -144,6 +145,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         };
       }
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+      await ensureExampleWorkflows(repoRoot);
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
@@ -184,6 +186,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
+      await ensureExampleWorkflows(repoRoot);
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
@@ -228,9 +231,11 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       },
       { additionalProperties: false },
     ) as any,
-    execute: async (_id, params, _signal, _onUpdate, _ctx) => {
+    execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const workflow = (params as any).workflow as string;
       const input = (params as any).input as string;
+      const repoRoot = ctx.cwd ?? process.cwd();
+      await ensureExampleWorkflows(repoRoot);
       const classified = classifyInput(input);
       return {
         content: [

@@ -21,7 +21,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
 | **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **6 defaults**; you edit/add freely (write-once) |
-| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `.pi/workflows/<name>.yaml` | flow ships skills + **4 example YAMLs**; you add YAMLs |
+| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `.pi/workflows/<name>.yaml` | flow ships skills + **4 auto-seeded example YAMLs**; you add YAMLs |
 | **Config** | *Runtime settings* — which model an agent runs on, audit thresholds, tmux, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
@@ -46,8 +46,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 /sf-flow-plan add OAuth login
 /sf-flow-implement 2026-07-20-oauth-login
 
-# 3. Define a reusable flow in ~15 lines of YAML, then run it end-to-end
-cp node_modules/@pi-stef/flow/workflows/code-review.yaml .pi/workflows/
+# 3. Run a reusable flow end-to-end (the 4 examples are auto-seeded into .pi/workflows/)
 sf_flow_auto code-review "review the auth changes"
 ```
 
@@ -84,7 +83,7 @@ Six write-once agent definitions ship in `packages/flow/agents/` and are copied 
 
 ## Built-in workflows (examples)
 
-Four reference flows ship in `packages/flow/workflows/`. They are **not** auto-loaded — copy the one you want into your project:
+Four reference flows ship in `packages/flow/workflows/` and are **auto-seeded** into your project's `.pi/workflows/` (write-once) the first time you run any flow tool — edit or delete them freely; flow never overwrites an existing file.
 
 | Workflow | File | What it does |
 |----------|------|--------------|
@@ -94,7 +93,7 @@ Four reference flows ship in `packages/flow/workflows/`. They are **not** auto-l
 | `research-report` | `research-report.yaml` | Multi-perspective research with cross-checking + synthesis |
 
 ```bash
-cp node_modules/@pi-stef/flow/workflows/ship-feature.yaml .pi/workflows/
+# Already in .pi/workflows/ after first use — just run it:
 sf_flow_auto ship-feature "add a rate limiter to the API"
 ```
 
@@ -260,7 +259,7 @@ A map of phase-id → loop. Two kinds:
 ### Defining a new flow
 
 - **Wizard** — `/sf-flow-create-workflow` (writes YAML + agent stubs, validates, registers `/<name>`).
-- **By hand** — create `.pi/workflows/<name>.yaml` (or copy an example), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
+- **By hand** — create `.pi/workflows/<name>.yaml` (or edit one of the auto-seeded examples in `.pi/workflows/`), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
 
 ---
 
