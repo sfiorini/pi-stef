@@ -25,7 +25,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 **Where the model comes from, per tier:**
 
-- **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — the reviewer model is resolved from `config.json` via a [4-step chain](#configuration) (prompt → config → env → ask).
+- **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — the reviewer model is resolved from `config.json` via a [4-step chain](#configuration) (prompt → config → env → fail with a message).
 - **Tier 2 YAML flows** — each agent sets its `model:` **inline in the YAML** (a fuzzy alias like `sonnet` or `haiku`), independent of `config.json`. Config has no say here.
 
 ---
