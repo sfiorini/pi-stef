@@ -61,6 +61,20 @@ describe("tool wiring", () => {
     }
   });
 
+  it("every tool's parameters schema is a valid object (has type: 'object')", () => {
+    // Regression guard: no-param tools must still declare { type: "object", ... }.
+    // A bare `parameters: {}` has no `type`, which strict providers (deepseek, et al.)
+    // reject with "Invalid schema ... got 'type: null'", breaking subagent dispatch.
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    for (const tool of pi.getTools()) {
+      const params = tool.parameters as Record<string, unknown> | undefined;
+      expect(params, `tool "${tool.name}" has no parameters object`).toBeDefined();
+      expect(params!.type, `tool "${tool.name}" parameters must have type: "object"`).toBe("object");
+    }
+  });
+
   it("each tool has promptGuidelines with never-recompute invariant", () => {
     const pi = createMockPi();
     registerFinanceTools(pi as never);

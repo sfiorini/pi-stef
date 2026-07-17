@@ -17,7 +17,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_market_status",
     label: "Market Status",
     description: "Get current US market session (pre/intraday/post/closed)",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "Check if the US stock market is currently open.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
@@ -55,7 +58,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_get_net_worth",
     label: "Get Net Worth",
     description: "Get total portfolio value across all accounts",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "Calculate total portfolio value.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
@@ -70,7 +76,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_get_drift",
     label: "Get Drift",
     description: "Get allocation drift vs target",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "Check portfolio drift from target allocation.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
@@ -85,7 +94,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_get_allocation",
     label: "Get Allocation",
     description: "Get current asset allocation by class",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "View current asset allocation breakdown.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
@@ -101,7 +113,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_list_goals",
     label: "List Goals",
     description: "List investment goals with target allocations",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "View configured investment goals.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
@@ -144,7 +159,10 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     name: "sf_fin_get_suggestions",
     label: "Get Suggestions",
     description: "Get pending investment suggestions from the quant engine",
-    parameters: {},
+    parameters: {
+      type: "object",
+      properties: {},
+    },
     promptSnippet: "Retrieve deterministic suggestions from the quant engine.",
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async () => {
