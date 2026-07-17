@@ -289,6 +289,24 @@ Two paths to the same result (a `.pi/workflows/<name>.yaml` runnable via `sf_flo
 
 Output is rendered via `renderReport` in pair's `### P0…P3` + `## Verdict` format.
 
+### `/sf-flow-audit` vs the `code-review` flow
+
+Both run the same audit triad, so they look interchangeable — but the wrapper matters:
+
+| | `/sf-flow-audit` | `sf_flow_auto code-review` |
+|---|---|---|
+| Tier | 1 (built-in skill) | 2 (YAML flow) |
+| What runs | the skill inline, in your current session | a generated pi-dw script that spawns a `general-purpose` agent to run the skill |
+| Model source | config (`reviewer.model`) | the flow's `auditor.model` (from the YAML) |
+| Result | findings + verdict into your chat | a flow result — the skill phase's `out` is **opaque** (a placeholder string) |
+| Gated loop | no (one-shot; `apply_fixes` applies once) | **not on a skill phase** (skill phases can't loop) |
+| Extensible | fixed skill steps | edit the YAML: add phases, chain it, version & share it |
+| Input | `target` (git ref / file / `workdir`) | `prompt` · `md-file` · `prd` · `jira` |
+
+Today `code-review.yaml` is a one-phase wrapper around the skill, so functionally they're nearly identical. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact — e.g. chain it after plan + implement (that's `ship-feature.yaml`).
+
+> **Need a gated audit loop in a flow?** A skill phase can't loop (rule #8). Use an **agent** phase with `until: approved` instead — see the `audit` phase in `ship-feature.yaml`, which gates an auditor until `verdict: APPROVED`.
+
 ---
 
 ## tmux visualization
@@ -342,6 +360,22 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 **Explorer model** (optional, plan only): prompt → config → env → **inherits the parent (session) model**.
 
 > Note: Tier 2 YAML agents ignore this chain — they use the inline `model:` field in the YAML.
+
+### Model precedence
+
+A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* First, know that **config is not a per-agent model registry** — its schema allows only `reviewer.model` and `explorer.model` (every group is `additionalProperties: false`), so you cannot set a model for an arbitrary agent in config.
+
+| Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
+|---|---|---|---|---|
+| Tier 1 skill (`reviewer` / `explorer`) | ignored | — | set | **config** |
+| Tier 1 skill | ignored | — | unset | **tool errors** (no fallback to the `.md`) |
+| Tier 2 flow agent | set | set | (no effect) | **YAML** |
+| Tier 2 flow agent | set | omitted | (no effect) | **`.md`** (fallback) |
+| Tier 2 flow agent | omitted | omitted | (no effect) | parent / session model |
+
+**Why config wins for Tier 1:** flow resolves the model via the 4-step chain and passes it *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding anything in the `.md`. The six default agents ship with no `model:` at all; if nothing is configured the tool returns *"No reviewer model configured"* rather than falling back to the `.md`. So for Tier 1, the `.md`'s `model:` is effectively dead.
+
+**Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the parent). Config has no effect on Tier 2 agents.
 
 ---
 
