@@ -285,5 +285,72 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     },
   });
 
-  // Other tools (plan/implement/audit/auto/create_workflow) registered in later milestones.
+  // Register slash commands: route /sf-flow-* to the sf_flow_* tools. The tools do
+  // setup (model/worktree/agents) then load the internal skill by path, so the
+  // command is the user-facing entry (skills are NOT pi-discovered — pi.skills: []).
+  const send = typeof pi.sendUserMessage === "function" ? pi.sendUserMessage.bind(pi) : undefined;
+
+  const slashDescriptions: Record<string, string> = {
+    sf_flow_plan: "Multi-milestone plan with parallel research + iterative review. Args: task description",
+    sf_flow_implement: "Execute a plan in a worktree with an audit gate. Args: plan folder path or slug",
+    sf_flow_audit: "CodeRabbit-style code audit. Args: diff target (ref range, file, or 'workdir')",
+    sf_flow_auto: "Run a defined flow end-to-end, no human gates. Args: <workflow> <input>",
+    sf_flow_create_workflow: "Create or validate a reusable flow YAML (wizard).",
+    sf_flow_finalize: "Remove a flow worktree dir, preserve branch. Args: worktree_path",
+  };
+
+  for (const name of FLOW_TOOL_NAMES) {
+    const slashName = name.replace(/_/g, "-");
+    const desc = slashDescriptions[name] ?? name;
+
+    pi.registerCommand(slashName, {
+      description: desc,
+      handler: async (args, ctx) => {
+        const trimmed = args.trim();
+        let message: string;
+
+        if (name === "sf_flow_plan") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_flow_plan tool. Ask me first what to plan."
+            : `Invoke the sf_flow_plan tool with prompt: ${trimmed}`;
+        } else if (name === "sf_flow_implement") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_flow_implement tool. Ask me first for the plan folder path or slug."
+            : `Invoke the sf_flow_implement tool with path: ${trimmed}`;
+        } else if (name === "sf_flow_audit") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_flow_audit tool (defaults to the staged+unstaged diff)."
+            : `Invoke the sf_flow_audit tool with target: ${trimmed}`;
+        } else if (name === "sf_flow_auto") {
+          // /sf-flow-auto <workflow> <input>
+          const [wf, ...rest] = trimmed.split(/\s+/);
+          message = wf
+            ? `Invoke the sf_flow_auto tool with workflow="${wf}" and input="${rest.join(" ")}".`
+            : "Invoke the sf_flow_auto tool. Ask me first for the workflow name and input.";
+        } else if (name === "sf_flow_finalize") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_flow_finalize tool. Ask me first for the worktree path (or provide it now)."
+            : `Invoke the sf_flow_finalize tool with worktree_path: ${trimmed}`;
+        } else {
+          // sf_flow_create_workflow (wizard — no positional arg)
+          message = "Invoke the sf_flow_create_workflow tool.";
+        }
+
+        if (!send) {
+          ctx.ui?.notify?.(
+            `flow: this pi runtime can't post slash-command output to the agent. Type "${slashName} ${trimmed}" instead.`,
+            "warning",
+          );
+          return;
+        }
+
+        const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+        if (idle) {
+          send(message);
+        } else {
+          send(message, { deliverAs: "followUp" });
+        }
+      },
+    });
+  }
 }
