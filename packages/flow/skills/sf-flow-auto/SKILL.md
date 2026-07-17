@@ -1,3 +1,8 @@
+---
+name: sf-flow-auto
+description: Use when a defined flow (.pi/workflows/<name>.yaml) must be run end-to-end with no human gates. Input may be a prompt, a markdown file, a PRD, or a Jira story.
+---
+
 # sf-flow-auto
 
 ## Purpose

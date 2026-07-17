@@ -1,3 +1,8 @@
+---
+name: sf-flow-create-workflow
+description: Use when a user asks to create or validate a reusable flow from a declarative agents/phases/loops definition. Interviews the user, writes .pi/workflows/<name>.yaml, and registers /<name>.
+---
+
 # sf-flow-create-workflow
 
 ## Purpose

@@ -1,3 +1,8 @@
+---
+name: sf-flow-plan
+description: Use when a user asks to create a structured multi-milestone implementation plan with pi-dynamic-workflows parallel research and iterative reviewer approval. Produces ai_plan/<slug>/.
+---
+
 # sf-flow-plan
 
 ## Prerequisites

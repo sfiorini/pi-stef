@@ -1,3 +1,8 @@
+---
+name: sf-flow-audit
+description: Use when a diff or codebase must receive a CodeRabbit-style audit — 7 finder angles, a dual-blind AND-gate, and fix-apply — returning P0–P3 findings and an APPROVED/REVISE verdict.
+---
+
 # sf-flow-audit
 
 ## Prerequisites

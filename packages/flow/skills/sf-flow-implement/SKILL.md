@@ -1,3 +1,8 @@
+---
+name: sf-flow-implement
+description: Use when a plan folder created by sf-flow-plan must be executed in a single worktree (flow/<slug>) with TDD per story and a non-optional audit gate before commit, then finalized so the branch is preserved for a PR.
+---
+
 # sf-flow-implement
 
 ## Prerequisites
