@@ -87,7 +87,7 @@ Six write-once agent definitions ship in `packages/flow/agents/` and are copied 
 
 ## Built-in workflows (examples)
 
-Four reference flows ship in `packages/flow/workflows/` and are **auto-seeded** into your project's `.pi/workflows/` (write-once) the first time you run any flow tool — edit or delete them freely; flow never overwrites an existing file.
+Four reference flows ship in `packages/flow/workflows/` and are **auto-seeded** into your project's `.pi/workflows/` (write-once) the first time you run `sf_flow_plan`, `sf_flow_implement`, or `sf_flow_auto` — edit or delete them freely; flow never overwrites an existing file.
 
 | Workflow | File | What it does |
 |----------|------|--------------|
@@ -296,13 +296,13 @@ Both run the same audit triad, so they look interchangeable — but the wrapper 
 |---|---|---|
 | Tier | 1 (built-in skill) | 2 (YAML flow) |
 | What runs | the skill inline, in your current session | a generated pi-dw script that spawns a `general-purpose` agent to run the skill |
-| Model source | config (`reviewer.model`) | the flow's `auditor.model` (from the YAML) |
+| Model source | config (`reviewer.model`) | config (`reviewer.model`) — *via the skill* |
 | Result | findings + verdict into your chat | a flow result — the skill phase's `out` is **opaque** (a placeholder string) |
 | Gated loop | no (one-shot; `apply_fixes` applies once) | **not on a skill phase** (skill phases can't loop) |
 | Extensible | fixed skill steps | edit the YAML: add phases, chain it, version & share it |
 | Input | `target` (git ref / file / `workdir`) | `prompt` · `md-file` · `prd` · `jira` |
 
-Today `code-review.yaml` is a one-phase wrapper around the skill, so functionally they're nearly identical. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact — e.g. chain it after plan + implement (that's `ship-feature.yaml`).
+Today `code-review.yaml` is a pure skill wrapper (no agent phases of its own), so functionally it's nearly identical to the skill — including the model source: both resolve the reviewer from config. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: a flow's **agent** phases get their model from the YAML (`agents.<name>.model`); its **skill** phases inherit the skill's config-driven model.
 
 > **Need a gated audit loop in a flow?** A skill phase can't loop (rule #8). Use an **agent** phase with `until: approved` instead — see the `audit` phase in `ship-feature.yaml`, which gates an auditor until `verdict: APPROVED`.
 
@@ -354,7 +354,7 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 1. Prompt argument — e.g. `"use anthropic/sonnet-4-6 as reviewer"`
 2. Config file — `reviewer.model` (project, then global)
 3. Environment — `SF_FLOW_REVIEWER_MODEL`
-4. Ask the user (the tool returns a "not configured" message if all else fails)
+4. Fail with a *"No reviewer model configured"* message (no interactive prompt, no fallback to the agent `.md`)
 
 **Explorer model** (optional, plan only): prompt → config → env → **inherits the parent (session) model**.
 

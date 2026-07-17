@@ -1,13 +1,11 @@
 name: code-review
 description: CodeRabbit-style review of a diff (audit triad)
 input: prompt
-agents:
-  auditor:
-    model: sonnet
-    thinking: high
-    isolated: true
-    schema:
-      verdict: "APPROVED|REVISE"
+# A pure skill wrapper: no agents of its own. The audit triad runs via the
+# sf-flow-audit skill, which resolves its reviewer model from config (same as
+# /sf-flow-audit). Skill phases ignore any declared agent. To gate a review
+# until APPROVED using an agent phase, see ship-feature.yaml.
+agents: {}
 phases:
   - id: review
     skill: sf-flow-audit

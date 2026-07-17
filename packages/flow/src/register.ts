@@ -235,6 +235,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const workflow = (params as any).workflow as string;
       const input = (params as any).input as string;
       const repoRoot = ctx.cwd ?? process.cwd();
+      await ensureAgentFiles(homedir(), repoRoot);
       await ensureExampleWorkflows(repoRoot);
       const classified = classifyInput(input);
       return {

@@ -49,4 +49,14 @@ describe("ensureExampleWorkflows", () => {
     const bundled = readFileSync(join(pkgRoot, "workflows", "ship-feature.yaml"), "utf8");
     expect(seeded).toBe(bundled);
   });
+
+  it("re-throws non-ENOENT read errors (a directory at the target path)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flow-wf-"));
+    const dir = join(root, ".pi", "workflows");
+    mkdirSync(dir, { recursive: true });
+    // A directory where a file is expected -> readFile throws EISDIR (not ENOENT),
+    // which must propagate rather than be treated as "absent".
+    mkdirSync(join(dir, "code-review.yaml"));
+    await expect(ensureExampleWorkflows(root)).rejects.toThrow();
+  });
 });
