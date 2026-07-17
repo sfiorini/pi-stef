@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-17
+### Changed
+- fix(pair): hide skills from model invocation to remove duplicate listing
+
+
 ## [0.2.1] - 2026-06-21
 ### Changed
 - feat(pair): use directive-first result message in sf_pair_implement

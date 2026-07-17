@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/pair",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Pi extension for plan/review/implement workflows using pi-subagents for reviewer spawning.",
   "type": "module",
   "pi": {
