@@ -114,7 +114,7 @@ Five prose skills (fixed, battle-tested step sequences) plus a worktree helper:
 | Audit | `/sf-flow-audit` | `sf_flow_audit` | CodeRabbit-style audit (7 angles + dual-blind AND-gate + fix-apply) |
 | Auto | `/sf-flow-auto` | `sf_flow_auto` | Run any defined flow end-to-end, no human gates |
 | Create Workflow | `/sf-flow-create-workflow` | `sf_flow_create_workflow` | Wizard: interview → agents/phases/loops YAML → `/<name>` |
-| — | — | `sf_flow_finalize` | Remove a flow worktree dir, preserve its branch |
+| — | `/sf-flow-finalize` | `sf_flow_finalize` | Remove a flow worktree dir, preserve its branch |
 
 ### sf_flow_plan
 
