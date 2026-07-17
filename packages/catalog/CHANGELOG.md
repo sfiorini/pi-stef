@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.6] - 2026-07-17
+### Changed
+- refactor(catalog): use reloadNotice in sync.ts for consistency
+- fix(catalog): honest reload messaging + hot-reload for toggle/enable/reset
+- fix(catalog): ct_add/ct_update/ct_remove hot-reload again (no pi restart)
+- test(catalog): expect @pi-stef/flow in --scope batch (8 packages)
+- feat(flow): register in catalog + docs-site; README + flow.md + CHANGELOG
+- fix(catalog): remove unused imports causing typecheck failures
+
+
 ## [0.6.5] - 2026-06-20
 ### Changed
 - fix(catalog): add companions to the catalog after successful install to prevent orphans
