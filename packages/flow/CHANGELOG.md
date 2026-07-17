@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-17
+### Changed
+- fix(flow): add /sf-flow-* slash commands (command -> tool -> skill, like pair)
+
+
 ## [0.1.4] - 2026-07-17
 ### Changed
 - fix(pair,flow): make skills internal (path-loaded) to remove duplicate /skill:* listing
