@@ -39,4 +39,9 @@ describe("flow skills", () => {
       ).toBeGreaterThan(0);
     }
   });
+
+  it("package.json opts out of skill discovery (pi.skills: []) — skills are internal, loaded by tools via path", () => {
+    const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8"));
+    expect(pkg.pi?.skills).toEqual([]);
+  });
 });

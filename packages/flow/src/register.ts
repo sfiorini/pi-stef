@@ -6,7 +6,7 @@ import { createWorktree } from "./worktree/create.js";
 import { loadAndResolveDefaults, resolveReviewerModel, resolveExplorerModel } from "./config/load.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
-import { buildImplementReadyMessage, buildAutoReadyMessage } from "./messages.js";
+import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
 
 export const FLOW_TOOL_NAMES = [
@@ -73,7 +73,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     ) as any,
     execute: async () => {
       return {
-        content: [{ type: "text" as const, text: "Now load the skill named sf-flow-create-workflow." }],
+        content: [{ type: "text" as const, text: `Now read the skill file at ${skillDocPath("sf-flow-create-workflow")}.` }],
         details: { created: false, phase: "wizard" },
       };
     },
@@ -101,7 +101,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     ) as any,
     execute: async () => {
       return {
-        content: [{ type: "text" as const, text: "Now load the skill named sf-flow-audit." }],
+        content: [{ type: "text" as const, text: `Now read the skill file at ${skillDocPath("sf-flow-audit")}.` }],
         details: { started: true },
       };
     },
@@ -151,7 +151,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow load the skill named sf-flow-plan.${warnText}` },
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
         ],
         details: { configured: true, reviewerModel, explorerModel },
       };

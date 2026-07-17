@@ -7,7 +7,7 @@ import {
   resolveExplorerModel,
 } from "./config/load";
 import { ensureAgentFiles } from "./agents";
-import { buildImplementReadyMessage } from "./messages";
+import { buildImplementReadyMessage, skillDocPath } from "./messages";
 
 import { finalizeWorktree } from "./worktree/finalize";
 import { createWorktree } from "./worktree/create";
@@ -121,7 +121,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow load the skill named "sf-pair-plan" and follow its instructions exactly.${warnText}`,
+            text: `Reviewer configured with model: ${reviewerModel}\n${explorerInfo}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow read the skill file at ${skillDocPath("sf-pair-plan")} and follow its instructions exactly.${warnText}`,
           },
         ],
         details: { configured: true, reviewerModel, explorerModel },
@@ -263,7 +263,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         content: [
           {
             type: "text" as const,
-            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow load the skill named "sf-pair-task" and follow its instructions exactly.${warnText}`,
+            text: `Reviewer configured with model: ${model}\nTask: ${(params as any).prompt}\nAgent files ensured at ~/.pi/agent/agents/{reviewer,explorer}.md\n\nNow read the skill file at ${skillDocPath("sf-pair-task")} and follow its instructions exactly.${warnText}`,
           },
         ],
         details: { configured: true, reviewerModel: model, prompt: (params as any).prompt },

@@ -8,6 +8,16 @@
  * after the tool call, so these messages lead with an explicit directive.
  */
 
+import { fileURLToPath } from "node:url";
+import { join, dirname } from "node:path";
+
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Absolute path to an internal pair skill doc (loaded by tools via `read`; NOT pi-discovered — see pi.skills: []). */
+export function skillDocPath(name: string): string {
+  return join(pkgRoot, "skills", name, "SKILL.md");
+}
+
 export interface ImplementReadyInput {
   /** Resolved reviewer model (e.g. "anthropic/claude-opus-4-8"). */
   reviewerModel: string;
@@ -47,7 +57,7 @@ export function buildImplementReadyMessage(input: ImplementReadyInput): string {
     `Continue executing now — do not stop after this tool returns.`,
     ``,
     `1. Run: cd ${worktreePath}`,
-    `2. Load and execute the skill named "sf-pair-implement" in full: implement`,
+    `2. Read and execute the skill file at ${skillDocPath("sf-pair-implement")} in full: implement`,
     `   every milestone with the TDD→review→commit→tracker loop, then call`,
     `   sf_pair_finalize with worktree_path "${worktreePath}".`,
     `   Do not stop between milestones or ask for confirmation.`,

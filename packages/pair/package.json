@@ -7,9 +7,7 @@
     "extensions": [
       "./extensions"
     ],
-    "skills": [
-      "./skills"
-    ],
+    "skills": [],
     "companions": [
       "git:github.com/obra/superpowers"
     ]

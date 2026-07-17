@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildImplementReadyMessage } from "../src/messages";
+import { buildImplementReadyMessage, skillDocPath } from "../src/messages";
 
 describe("buildImplementReadyMessage", () => {
   const base = {
@@ -22,9 +22,9 @@ describe("buildImplementReadyMessage", () => {
     expect(msg).toContain("cd /Users/me/proj/pair-digeng");
   });
 
-  it("tells the agent to load and execute the sf-pair-implement skill in full", () => {
+  it("tells the agent to read and execute the sf-pair-implement skill file in full", () => {
     const msg = buildImplementReadyMessage(base);
-    expect(msg).toContain('"sf-pair-implement"');
+    expect(msg).toContain(skillDocPath("sf-pair-implement"));
     expect(msg).toMatch(/do not stop between milestones|do not ask for confirmation/i);
   });
 

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { registerGeneratedFlow } from "../src/yaml/register.js";
 import type { FlowYaml } from "../src/yaml/schema.js";
+import { skillDocPath } from "../src/messages.js";
 
 const validFlow: FlowYaml = {
   name: "auth-audit",
@@ -52,6 +53,7 @@ describe("registerGeneratedFlow", () => {
     expect(sent).toHaveLength(1);
     expect(sent[0].content).toContain('workflow="auth-audit"');
     expect(sent[0].content).toContain('input="do the thing"');
+    expect(sent[0].content).toContain(skillDocPath("sf-flow-auto"));
     // idle -> no deliverAs option
     expect(sent[0].options).toBeUndefined();
   });
@@ -67,6 +69,7 @@ describe("registerGeneratedFlow", () => {
     } as any;
     registerGeneratedFlow(fakePi, validFlow);
     await captured!("x", { isIdle: () => false, ui: { notify: () => {} } } as any);
+    expect(sent[0].content).toContain(skillDocPath("sf-flow-auto"));
     expect(sent[0].options).toEqual({ deliverAs: "followUp" });
   });
 

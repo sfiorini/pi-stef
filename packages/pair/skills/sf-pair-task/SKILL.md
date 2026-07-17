@@ -1,7 +1,6 @@
 ---
 name: sf-pair-task
 description: Execute a single task end-to-end with plan review, implementation review, verification, and one persistent task-plan artifact.
-disable-model-invocation: true
 ---
 
 # sf-pair-task

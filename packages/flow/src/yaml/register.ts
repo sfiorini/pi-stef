@@ -2,6 +2,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { FlowYaml } from "./schema.js";
 import { generateScript } from "./generate.js";
 import { validateFlowYaml } from "./validate.js";
+import { skillDocPath } from "../messages.js";
 
 /**
  * Register a generated flow as a `/<name>` slash command. The command delegates
@@ -27,8 +28,8 @@ export function registerGeneratedFlow(pi: ExtensionAPI, flow: FlowYaml): void {
       const trimmed = args.trim();
       const directive =
         trimmed.length > 0
-          ? `Invoke the sf_flow_auto tool with workflow="${flow.name}" and input="${trimmed}". Then load the skill named sf-flow-auto.`
-          : `Invoke the sf_flow_auto tool with workflow="${flow.name}". Ask for the input first, then load the skill named sf-flow-auto.`;
+          ? `Invoke the sf_flow_auto tool with workflow="${flow.name}" and input="${trimmed}". Then read the skill file at ${skillDocPath("sf-flow-auto")}.`
+          : `Invoke the sf_flow_auto tool with workflow="${flow.name}". Ask for the input first, then read the skill file at ${skillDocPath("sf-flow-auto")}.`;
 
       if (!send) {
         ctx.ui?.notify?.(
