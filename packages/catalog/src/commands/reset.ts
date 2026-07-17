@@ -27,7 +27,7 @@ import { piUninstall } from "../util/exec.js";
 /** Context for `resetCommand`, extending the base with `confirm`. */
 export interface ResetCtx extends CommandCtx {
   ui: CommandCtx["ui"] & {
-    confirm?: (message: string) => Promise<boolean>;
+    confirm?: (title: string, message: string) => Promise<boolean>;
   };
 }
 
@@ -62,7 +62,8 @@ export async function resetCommand(
   const skipConfirm = "yes" in flags || "y" in flags;
   if (!skipConfirm && ctx.ui.confirm) {
     const confirmed = await ctx.ui.confirm(
-      "This will uninstall all @pi-stef packages and delete all catalog config. Continue?",
+      "Reset catalog?",
+      "This uninstalls all @pi-stef packages and deletes all catalog config. Rebuild with ct init.",
     );
     if (!confirmed) {
       ctx.ui.notify("Reset cancelled", "info");

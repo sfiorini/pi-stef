@@ -250,6 +250,7 @@ describe("profileCommand — delete", () => {
 
     expect(ctx.ui.confirm).toHaveBeenCalledWith(
       expect.stringContaining("personal"),
+      expect.any(String),
     );
     expect(mockedWriteCatalog).toHaveBeenCalledWith(
       expect.objectContaining({

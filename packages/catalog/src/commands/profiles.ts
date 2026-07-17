@@ -23,7 +23,7 @@ import {
 /** Context for profile commands. Extends base with `confirm` for deletion. */
 export interface ProfilesCtx extends CommandCtx {
   ui: CommandCtx["ui"] & {
-    confirm?: (message: string) => Promise<boolean>;
+    confirm?: (title: string, message: string) => Promise<boolean>;
   };
 }
 
@@ -117,7 +117,8 @@ export async function profileCommand(
       // Confirm deletion
       if (ctx.ui.confirm) {
         const confirmed = await ctx.ui.confirm(
-          `Delete profile "${name}"? This cannot be undone.`,
+          `Delete profile "${name}"?`,
+          "This cannot be undone.",
         );
         if (!confirmed) {
           ctx.ui.notify("Cancelled", "info");

@@ -25,7 +25,7 @@ import { piUninstall } from "../util/exec.js";
 /** Context for `removeCommand`, extending the base with `confirm`. */
 export interface RemoveCtx extends CommandCtx {
   ui: CommandCtx["ui"] & {
-    confirm?: (message: string) => Promise<boolean>;
+    confirm?: (title: string, message: string) => Promise<boolean>;
   };
 }
 
@@ -71,6 +71,7 @@ export async function removeCommand(
     if (!skipConfirm && ctx.ui.confirm) {
       const confirmed = await ctx.ui.confirm(
         `Remove ${piStefNames.length} @pi-stef packages from catalog?`,
+        "This uninstalls each package and removes all of them from the catalog.",
       );
       if (!confirmed) {
         ctx.ui.notify("Removal cancelled", "info");
@@ -162,6 +163,7 @@ export async function removeCommand(
     if (ctx.ui.confirm) {
       const confirmed = await ctx.ui.confirm(
         `Remove package "${name}" from catalog?`,
+        `This removes "${name}" from the catalog and runs pi uninstall.`,
       );
       if (!confirmed) {
         ctx.ui.notify("Removal cancelled", "info");

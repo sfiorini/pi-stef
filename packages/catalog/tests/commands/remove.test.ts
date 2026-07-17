@@ -140,6 +140,7 @@ describe("removeCommand", () => {
 
     expect(ui.confirm).toHaveBeenCalledWith(
       expect.stringContaining("my-pkg"),
+      expect.any(String),
     );
     uninstallSpy.mockRestore();
   });
@@ -388,6 +389,7 @@ describe("removeCommand", () => {
 
       expect(ui.confirm).toHaveBeenCalledWith(
         expect.stringContaining("@pi-stef"),
+        expect.any(String),
       );
       uninstallSpy.mockRestore();
     });

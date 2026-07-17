@@ -94,6 +94,7 @@ describe("resetCommand", () => {
     await resetCommand({ positional: [], flags: {} }, ctx);
 
     expect(ui.confirm).toHaveBeenCalledWith(
+      expect.any(String),
       expect.stringContaining("@pi-stef"),
     );
   });
