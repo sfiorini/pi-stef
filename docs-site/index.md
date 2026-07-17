@@ -26,6 +26,10 @@ features:
     title: Pair Workflow
     details: Simplified plan/review/implement with pi-subagents for reviewer spawning. Lighter alternative to team.
     link: /packages/pair
+  - icon: 🌊
+    title: Flow Workflows
+    details: Reusable multi-agent workflows (agents/phases/loops YAML), CodeRabbit-style code audit, and tmux visualization — extends pair on pi-dynamic-workflows.
+    link: /packages/flow
   - icon: 🔍
     title: Web Search & Fetch
     details: No-key web search with provider cascade, URL content extraction, and browser automation sessions.
