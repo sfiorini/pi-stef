@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.7] - 2026-07-17
+### Changed
+- fix(catalog): `ct remove` / `ct reset` / `ct profile --delete` confirmation dialogs showed `undefined` — pi's `confirm` takes `(title, message)`, but the catalog called it with one arg. Fixed all 3 Ctx type signatures + 4 call sites; tests now require both args.
+
 ## [0.6.6] - 2026-07-17
 ### Changed
 - refactor(catalog): use reloadNotice in sync.ts for consistency
