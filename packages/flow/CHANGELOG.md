@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-17
+### Changed
+- fix(flow): add required frontmatter (name+description) to the 5 skills
+
+
 ## [0.1.2] - 2026-07-17
 ### Changed
 - fix(flow): address review — code-review dead agent, model-source accuracy, test gap
