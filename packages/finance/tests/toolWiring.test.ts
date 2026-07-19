@@ -152,4 +152,45 @@ describe("sf_fin_sync_now — provider scoping + credentials", () => {
     expect(body.credentials).toBeUndefined();
     expect(body.providers).toEqual(["snaptrade"]);  // scoped, but no creds → server-side no-op
   });
+
+  it("sends simplefin creds alongside snaptrade creds", async () => {
+    withConfigHome({
+      apiUrl: "http://127.0.0.1:7780",
+      token: "tok",
+      providers: {
+        snaptrade: { clientId: "PERS-1", consumerKey: "ck" },
+        simplefin: { setupToken: "abc123" },
+      },
+    });
+    const tool = getSyncTool();
+    await tool.execute("test-call", {});
+    const body = lastRequestBody();
+    expect(body.credentials).toMatchObject({
+      snaptrade: { clientId: "PERS-1", consumerKey: "ck" },
+      simplefin: { setupToken: "abc123" },
+    });
+  });
+
+  it("persists resolvedCredentials.simplefin.accessUrl to config after sync", async () => {
+    const home = withConfigHome({
+      apiUrl: "http://127.0.0.1:7780",
+      token: "tok",
+      providers: { simplefin: { setupToken: "old-token" } },
+    });
+    // Mock fetch to return resolvedCredentials in the response
+    global.fetch = vi.fn(async () => new Response(JSON.stringify({
+      ok: true,
+      data: { message: "Sync complete", resolvedCredentials: { simplefin: { accessUrl: "https://resolved:url@host/simplefin" } } },
+    }), { status: 200 })) as never;
+
+    const tool = getSyncTool();
+    await tool.execute("test-call", {});
+
+    // Config should now have accessUrl instead of setupToken
+    const { readFileSync } = await import("node:fs");
+    const raw = JSON.parse(readFileSync(path.join(home, ".pi", "sf", "finance", "config.json"), "utf8"));
+    expect(raw.providers.simplefin.accessUrl).toBe("https://resolved:url@host/simplefin");
+    // setupToken should be gone (replaced)
+    expect(raw.providers.simplefin.setupToken).toBeUndefined();
+  });
 });
