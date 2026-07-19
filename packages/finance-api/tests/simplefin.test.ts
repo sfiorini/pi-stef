@@ -142,14 +142,14 @@ describe("simplefin adapter — getTransactions", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("passes start-date from since watermark (ms → s conversion)", async () => {
+  it("fetches all transactions without start-date (DB upsert handles idempotency)", async () => {
     const fetcher = vi.fn(async (_url: string | URL) => {
-      expect(String(_url)).toContain("start-date=1700000000");
+      expect(String(_url)).not.toContain("start-date");
       return new Response(JSON.stringify(TXN_RESPONSE), { status: 200, headers: { "Content-Type": "application/json" } });
     }) as unknown as typeof fetch;
     const a = createSimplefinAdapter({ fetcher });
     const s = await a.authenticate(CREDS_ACCESS);
-    await a.getTransactions(s, "acc-1", 1700000000000);
+    await a.getTransactions(s, "acc-1", 1700000000000); // since param is accepted but unused
   });
 });
 

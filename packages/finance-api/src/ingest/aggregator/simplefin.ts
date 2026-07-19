@@ -126,13 +126,14 @@ export function createSimplefinAdapter(deps: SimplefinAdapterDeps = {}): Provide
       };
     },
 
-    getTransactions: async (s: Session, accountId: string, since?: number): Promise<RawTxn[]> => {
+    getTransactions: async (s: Session, accountId: string, _since?: number): Promise<RawTxn[]> => {
       let cached = txnCache.get(s);
       if (!cached) {
         const { baseUrl, auth } = parseAccessUrl(resolveAccessUrl(s));
-        const params = new URLSearchParams({ version: "2" });
-        if (since) params.set("start-date", String(Math.floor(since / 1000)));
-        const res = await fetcher(`${baseUrl}/accounts?${params}`, {
+        // Always fetch without start-date — SimpleFIN returns all accounts in one response,
+        // and using start-date with per-account caching causes data loss for newly-added accounts.
+        // The DB upsert (id-keyed) handles idempotency.
+        const res = await fetcher(`${baseUrl}/accounts?version=2`, {
           headers: { Authorization: `Basic ${auth}` },
         });
         if (!res.ok) throw new Error(`simplefin: /accounts returned ${res.status}`);
