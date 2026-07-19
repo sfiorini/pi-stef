@@ -81,6 +81,21 @@ describe("runIngest", () => {
     expect(sinceSeen).toBe(9999);
   });
 
+  it("propagates resolvedCredentials from session.resolvedCreds", async () => {
+    const db = openDb(":memory:");
+    const adapter = {
+      kind: "banking" as const, providerId: "fake-resolver",
+      authenticate: async () => ({ providerId: "fake-resolver", resolvedCreds: { accessUrl: "https://resolved" } }),
+      listAccounts: async () => [{ providerAccountId: "a1", kind: "banking" as const, name: "Fake", currency: "USD" }],
+      getHoldings: async () => [],
+      getTransactions: async () => [],
+      getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 1 }),
+    };
+    const registry: AdapterRegistry = new Map([["fake-resolver", adapter as never]]);
+    const result = await runIngest(db, registry, { "fake-resolver": {} });
+    expect(result.resolvedCredentials).toEqual({ "fake-resolver": { accessUrl: "https://resolved" } });
+  });
+
   it("scopes to a subset of providers when opts.providers is set", async () => {
     const db = openDb(":memory:");
     let alphaRan = false;

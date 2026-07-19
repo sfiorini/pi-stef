@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { loadFinanceConfig } from "./config";
+import { loadFinanceConfig, saveProviderConfig } from "./config";
 import { createFinanceClient } from "./client";
 import { formatHoldings, formatDrift, formatSuggestions, formatGeneric } from "./output";
 
@@ -210,16 +210,33 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
     promptGuidelines: [NEVER_RECOMPUTE_GUIDELINE],
     execute: async (_toolCallId, params) => {
       // Diverges from the getClient() helper used by other tools: this tool needs
-      // access to config.providers.snaptrade to attach per-call credentials.
+      // access to config.providers.* to attach per-call credentials.
       const config = await loadFinanceConfig();
       const client = createFinanceClient({ apiUrl: config.apiUrl, token: config.token });
       const body: Record<string, unknown> = {};
       const provider = ((params ?? {}) as { provider?: string })?.provider;
       if (provider) body.providers = [provider];
+      // Send credentials for all configured providers
+      const credentials: Record<string, unknown> = {};
       if (config.providers?.snaptrade) {
-        body.credentials = { snaptrade: config.providers.snaptrade };
+        credentials.snaptrade = config.providers.snaptrade;
       }
-      const data = await client.callOp<{ message: string }>("sync_now", Object.keys(body).length ? body : undefined);
+      if (config.providers?.simplefin) {
+        const sf = config.providers.simplefin;
+        credentials.simplefin = sf.setupToken ? { setupToken: sf.setupToken } : sf.accessUrl ? { accessUrl: sf.accessUrl } : {};
+      }
+      if (Object.keys(credentials).length) {
+        body.credentials = credentials;
+      }
+      const data = await client.callOp<{ message: string; resolvedCredentials?: { simplefin?: { accessUrl?: string } } }>("sync_now", Object.keys(body).length ? body : undefined);
+      // Persist resolved credentials (e.g., SimpleFIN accessUrl after setup token exchange)
+      if (data.resolvedCredentials?.simplefin?.accessUrl) {
+        try {
+          await saveProviderConfig("simplefin", { accessUrl: data.resolvedCredentials.simplefin.accessUrl });
+        } catch {
+          // Best-effort — don't fail the sync if config write fails
+        }
+      }
       return { content: [{ type: "text", text: data.message }], details: { implemented: true } };
     },
   });

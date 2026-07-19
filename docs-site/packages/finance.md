@@ -59,10 +59,14 @@ The extension reads its config from `~/.pi/sf/finance/config.json`, or from envi
 | `token` | `SF_FINANCE_TOKEN` | (auto-read from `~/.pi/sf/finance/token`) | Bearer token |
 | `providers.snaptrade.clientId` | — | — | Personal SnapTrade client ID |
 | `providers.snaptrade.consumerKey` | — | — | Personal SnapTrade consumer key |
+| `providers.simplefin.setupToken` | — | — | One-time SimpleFIN setup token (exchanged on first sync) |
+| `providers.simplefin.accessUrl` | — | — | Persistent SimpleFIN access URL (auto-set after first sync) |
 
 **Token lookup:** when the extension runs on the same host as the service, it reads the auto-generated token from `~/.pi/sf/finance/token` automatically — you usually don't set `token` at all. In Docker, copy the service token into `config.json` (retrieve it with `docker compose exec finance-api cat /root/.pi/sf/finance/token`).
 
 **SnapTrade credentials:** SnapTrade uses a Personal API key that flows per-call — the extension attaches it to each sync request, and the server stores nothing. One finance-api can serve different SnapTrade users. See the [SnapTrade guide](./finance-api-snaptrade) for how to obtain the key.
+
+**SimpleFIN credentials:** SimpleFIN uses a one-time setup token that is exchanged for a persistent access URL on the first sync. The finance extension automatically persists the access URL to config. See the [SimpleFIN guide](./finance-api-simplefin) for details.
 
 ## Tools
 

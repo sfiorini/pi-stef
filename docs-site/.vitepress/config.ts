@@ -43,6 +43,7 @@ export default defineConfig({
           { text: "finance-api Docker", link: "/packages/finance-api-docker" },
           { text: "finance-api File Import", link: "/packages/finance-api-file-import" },
           { text: "finance-api SnapTrade", link: "/packages/finance-api-snaptrade" },
+          { text: "finance-api SimpleFIN", link: "/packages/finance-api-simplefin" },
           { text: "paths", link: "/packages/paths" },
         ],
       },

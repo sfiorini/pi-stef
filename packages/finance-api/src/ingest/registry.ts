@@ -7,11 +7,13 @@ export type AdapterRegistry = Map<string, ProviderAdapter>;
 
 export interface IngestCreds { [providerId: string]: Credentials }
 
-export interface IngestResult { accounts: number; holdings: number; transactions: number; errors: number }
+export interface IngestResult { accounts: number; holdings: number; transactions: number; errors: number; resolvedCredentials?: IngestCreds }
 
 export async function runIngest(db: Database.Database, registry: AdapterRegistry, creds: IngestCreds, log?: { warn: (m: string, ctx?: unknown) => void }, opts?: { providers?: string[] }): Promise<IngestResult> {
   const scope = opts?.providers ? new Set(opts.providers) : null;
+  const resolvedCredentials: IngestCreds = {};
   let accounts = 0, holdings = 0, transactions = 0, errors = 0;
+  let hasResolved = false;
   for (const [providerId, adapter] of registry) {
     if (scope && !scope.has(providerId)) continue;   // skip out-of-scope providers (e.g. a single-provider sync)
     const c = creds[providerId];
@@ -29,6 +31,10 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
     // Attach creds to the session so per-call methods (getHoldings/getTransactions/getBalances)
     // receive them via `session.creds` — the agreed threading pattern for all adapters.
     session = { ...session, creds: c };
+    if (session.resolvedCreds) {
+      resolvedCredentials[providerId] = session.resolvedCreds;
+      hasResolved = true;
+    }
     try {
       const accts = await adapter.listAccounts(session);
       for (const acc of accts) {
@@ -111,7 +117,7 @@ export async function runIngest(db: Database.Database, registry: AdapterRegistry
       errors++;
     }
   }
-  return { accounts, holdings, transactions, errors };
+  return { accounts, holdings, transactions, errors, resolvedCredentials: hasResolved ? resolvedCredentials : undefined };
 }
 
 // re-exports for convenience

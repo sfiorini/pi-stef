@@ -1,7 +1,7 @@
 export type ProviderKind = "brokerage" | "retirement" | "banking" | "crypto";
 
 export interface Credentials { [key: string]: string }
-export interface Session { providerId: string; expiresAt?: number; creds?: Credentials }
+export interface Session { providerId: string; expiresAt?: number; creds?: Credentials; resolvedCreds?: Credentials }
 
 export interface RawAccount { providerAccountId: string; kind: ProviderKind; name: string; maskLast4?: string; currency: string }
 export interface RawHolding {

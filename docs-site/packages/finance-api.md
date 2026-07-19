@@ -71,9 +71,10 @@ The **client extension** reads its config from `~/.pi/sf/finance/config.json` on
 Working providers in this release do **not** use the server's `secrets.json`:
 
 - **SnapTrade** — credentials live in the **client's** `config.json` and are sent per-request. See the [SnapTrade guide](./finance-api-snaptrade).
+- **SimpleFIN** — credentials live in the **client's** `config.json` and are sent per-request. See the [SimpleFIN guide](./finance-api-simplefin).
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is reserved for future server-side providers (Coinbase, SimpleFIN, Teller) that are currently stubs.
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is reserved for future server-side providers (Coinbase, Teller) that are currently stubs.
 
 ## Providers
 
@@ -84,7 +85,7 @@ Providers are **co-equal** — enable any combination, and multiple providers ru
 | [File Import](./finance-api-file-import) | brokerage/banking | ✅ Working |
 | Coinbase | crypto | ⚠️ Stub |
 | [SnapTrade](./finance-api-snaptrade) | brokerage | ✅ Working |
-| SimpleFIN | banking | ⚠️ Stub |
+| [SimpleFIN](./finance-api-simplefin) | banking | ✅ Working |
 | Teller | banking | ⚠️ Stub |
 
 > **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers, it appears as two separate accounts — there is no merge logic today. Use one provider per account for now.

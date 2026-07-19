@@ -84,9 +84,10 @@ All configuration is via environment variables (prefix `SF_FINANCE_`):
 Working providers in this release do **not** use the server's `secrets.json`:
 
 - **SnapTrade** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SnapTrade setup](#snaptrade-setup) below.
+- **SimpleFIN** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SimpleFIN setup](#simplefin-setup) below.
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, SimpleFIN, Teller) that are currently stubs:
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, Teller) that are currently stubs:
 
 ```json
 {
@@ -108,7 +109,7 @@ Each provider's required credentials are documented under [Providers](#providers
 | File Import (CSV/OFX) | brokerage/banking | `filePath` or `content` (per-request) | ✅ Working |
 | Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ⚠️ Stub (HMAC not implemented) |
 | SnapTrade | brokerage | `clientId` + `consumerKey` (in client `config.json`, passed per-request) | ✅ Working |
-| SimpleFIN | banking | `accessKey` (in `secrets.json`) | ⚠️ Stub |
+| SimpleFIN | banking | `setupToken` → `accessUrl` (in client `config.json`, auto-persisted after first sync) | ✅ Working |
 | Teller | banking | `token` (in `secrets.json`) | ⚠️ Stub |
 
 **Provider setup:**
@@ -117,10 +118,11 @@ Providers are **co-equal** — you can enable any combination, and multiple prov
 
 - [File Import](#file-import-csvofx) — manual CSV/OFX uploads via `/v1/import`
 - [SnapTrade](#snaptrade-setup) — live brokerage aggregation (30+ brokers)
+- [SimpleFIN](#simplefin-setup) — live banking data (balances + transactions)
 
 > **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers (e.g. imported via CSV *and* synced via SnapTrade), it appears as **two separate accounts** — there is no mechanism today to recognize and merge them. This is tracked for a future release. For now, use one provider per account to avoid double-counting.
 
-**SimpleFIN / Teller** — Stubs in the current release. Credentials are accepted and validated against the contract, but live API calls are not yet implemented. Tracked for a future release.
+**SimpleFIN / Teller** — Teller is a stub. SimpleFIN is a working provider — see [SimpleFIN setup](#simplefin-setup) below.
 
 ### SnapTrade setup
 
@@ -160,6 +162,93 @@ The client sends `clientId` + `consumerKey` in the request body of `/v1/sync`; t
 **Polling & rate limits:** each sync serializes accounts; SnapTrade's customer-level limit is 250 requests/minute. A `429` surfaces as a normal ingest error and is retried on the next sync — no special throttling is required for v1.
 
 **Limitations (v1):** short positions are skipped (the data model cannot represent negative quantity); the SnapTrade payee/description field is not captured on transactions; connection management (connect/revoke) happens out-of-band at snaptrade.com. The imported `balance.marketValue` is the SnapTrade-reported **total account value** (cash + positions), not the position-only market value. Only Personal accounts are supported.
+
+---
+
+### SimpleFIN setup
+
+SimpleFIN aggregates bank account data (checking, savings, credit cards) via the SimpleFIN Bridge. Unlike SnapTrade (investment positions), SimpleFIN provides **balances and transactions** — no holdings/positions (banking accounts have no equity).
+
+**Credentials live in the client config** on the machine where you run pi (`~/.pi/sf/finance/config.json` on **your workstation**, not the finance-api server), **not** in the server's `secrets.json`.
+
+#### Auth flow (setup token → access URL)
+
+SimpleFIN uses a one-time token exchange:
+
+1. You obtain a **setup token** from the SimpleFIN Bridge (a base64-encoded URL, one-time use).
+2. On the first sync, the finance-api server POSTs to the decoded URL and receives an **access URL** (persistent, embeds Basic Auth credentials).
+3. The server returns the access URL in the sync response. The finance extension automatically writes it to your `config.json`, replacing the setup token.
+4. Future syncs use the access URL directly — no re-exchange.
+
+```json
+{
+  "apiUrl": "http://127.0.0.1:7780",
+  "token": "<service bearer token>",
+  "providers": {
+    "simplefin": {
+      "setupToken": "aHR0cHM6Ly9iZXRhLWJyaWRnZS5zaW1wbGVmaW4ub3JnL3NpbXBsZWZpbi9jbGFpbS8uLi4="
+    }
+  }
+}
+```
+
+After the first sync, config is automatically updated:
+
+```json
+{
+  "providers": {
+    "simplefin": {
+      "accessUrl": "https://user:pass@bridge.simplefin.org/simplefin"
+    }
+  }
+}
+```
+
+> **Note:** Setup tokens are one-time use. Once exchanged, the token is dead. The finance extension handles persistence automatically — you never need to manually update the config.
+
+#### Self-provision once
+
+1. Visit [beta-bridge.simplefin.org](https://beta-bridge.simplefin.org) and create a SimpleFIN account.
+2. Generate a setup token from the SimpleFIN Bridge dashboard.
+3. Add it to your client `config.json` under `providers.simplefin.setupToken`.
+4. Run `sf_fin_sync_now` — the adapter exchanges the token and persists the access URL.
+
+#### What is synced
+
+- **Accounts** — bank accounts (checking, savings, credit cards) with balances.
+- **Balances** — current balance per account, persisted as cash.
+- **Transactions** — deposits, withdrawals, payments (credit/debit classification). Pending transactions are excluded.
+- **No holdings** — banking accounts have no equity positions.
+
+#### Rate limits
+
+SimpleFIN limits to **24 requests per day**. Each sync uses ~1 request (one `/accounts` call that returns all accounts with balances and transactions). This is well within the limit for daily or even hourly syncs.
+
+The transaction date range is limited to **90 days** by the SimpleFIN server. Historical transactions beyond 90 days are not available.
+
+#### curl examples
+
+```bash
+# Sync SimpleFIN (first time — exchanges setup token)
+curl -X POST http://127.0.0.1:7780/v1/sync \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"providers":["simplefin"],"credentials":{"simplefin":{"setupToken":"your-setup-token"}}}'
+
+# Sync SimpleFIN (subsequent — uses persisted access URL)
+curl -X POST http://127.0.0.1:7780/v1/sync \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"providers":["simplefin"],"credentials":{"simplefin":{"accessUrl":"https://user:pass@bridge.simplefin.org/simplefin"}}}'
+
+# Check banking holdings (balances)
+curl -X GET http://127.0.0.1:7780/v1/holdings \
+  -H "Authorization: Bearer $TOKEN"
+
+# Check banking transactions
+curl -X GET http://127.0.0.1:7780/v1/history?symbol=USD \
+  -H "Authorization: Bearer $TOKEN"
+```
 
 ---
 
@@ -735,7 +824,7 @@ Structured logs are emitted to stdout (JSON) with `level`, `msg`, and contextual
 - **Free tier:** File imports (CSV/OFX) and `stooq` prices — no API costs.
 - **Optional:** Coinbase API (free, view-only scope) — currently a stub.
 - **SnapTrade:** live brokerage aggregation (Fidelity, Vanguard, Schwab, Robinhood, 30+ others — see [SnapTrade setup](#snaptrade-setup)).
-- **Optional:** SimpleFIN / Teller aggregators (may have fees) — currently stubs.
+- **SimpleFIN:** live banking data (balances + transactions — see [SimpleFIN setup](#simplefin-setup)). Free tier available; premium features may have fees.
 
 ---
 
