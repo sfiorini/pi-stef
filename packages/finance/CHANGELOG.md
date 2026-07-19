@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-19
+### Changed
+- feat(simplefin): credential resolution pipeline (M2)
+
+
 ## [0.2.5] - 2026-07-17
 ### Changed
 - fix(finance): give no-param tools a proper object schema
