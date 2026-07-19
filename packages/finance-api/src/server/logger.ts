@@ -1,4 +1,4 @@
-const SENSITIVE_KEYS = new Set(["token", "privateKey", "consumerKey", "accessKey", "secret", "password"]);
+const SENSITIVE_KEYS = new Set(["token", "privateKey", "consumerKey", "accessKey", "secret", "password", "accessUrl", "setupToken"]);
 
 function redact(obj: unknown): unknown {
   if (typeof obj !== "object" || obj === null) return obj;
