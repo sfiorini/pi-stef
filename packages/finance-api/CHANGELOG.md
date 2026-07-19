@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-19
+### Changed
+- fix(docs): remove SimpleFIN from secrets.json stubs paragraph
+- docs(simplefin): README, docs-site, Postman collection (M3)
+- fix(logger): redact accessUrl and setupToken from logs
+- feat(sync): propagate resolvedCredentials through TickResult and sync response
+- fix(simplefin): remove start-date from getTransactions to prevent data loss
+- feat(simplefin): full banking adapter implementation
+- feat(ingest): add resolvedCreds to Session + resolvedCredentials to IngestResult
+
+
 ## [0.3.5] - 2026-07-12
 ### Changed
 - docs: content-based import + Postman + Swagger update
