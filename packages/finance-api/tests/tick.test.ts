@@ -82,6 +82,25 @@ describe("runTick", () => {
     expect(fetchedSymbols).not.toContain("aapl");
   });
 
+  it("passes resolvedCredentials through runTick", async () => {
+    const db = openDb(":memory:");
+    const adapter = {
+      kind: "banking" as const, providerId: "simplefin",
+      authenticate: async () => ({ providerId: "simplefin", resolvedCreds: { accessUrl: "https://resolved" } }),
+      listAccounts: async () => [],
+      getHoldings: async () => [],
+      getTransactions: async () => [],
+      getBalances: async () => ({ cash: 0, marketValue: 0, asOf: 1 }),
+    };
+    const result = await runTick({
+      db,
+      registry: new Map([["simplefin", adapter as never]]) as AdapterRegistry,
+      creds: { simplefin: {} },
+      now: new Date("2026-06-29T15:00:00Z").getTime(),
+    });
+    expect(result.resolvedCredentials).toEqual({ simplefin: { accessUrl: "https://resolved" } });
+  });
+
   it("threads opts.providers into runIngest so only scoped adapters run", async () => {
     const db = openDb(":memory:");
     let alphaRan = false;

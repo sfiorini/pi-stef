@@ -163,6 +163,7 @@ export const syncResponse = okEnvelope(
     holdingsIngested: z.number(),
     pricesUpdated: z.number(),
     suggestionsCreated: z.number(),
+    resolvedCredentials: z.record(z.string(), z.record(z.string(), z.string())).optional(),
   }),
 );
 

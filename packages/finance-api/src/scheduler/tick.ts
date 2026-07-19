@@ -32,6 +32,7 @@ export interface TickResult {
   pricesUpdated: number;
   suggestionsCreated: number;
   errors: number;
+  resolvedCredentials?: IngestCreds;
 }
 
 export async function runTick(deps: TickDeps): Promise<TickResult> {
@@ -163,5 +164,6 @@ export async function runTick(deps: TickDeps): Promise<TickResult> {
     pricesUpdated,
     suggestionsCreated,
     errors: ingestResult.errors,
+    resolvedCredentials: ingestResult.resolvedCredentials,
   };
 }
