@@ -87,7 +87,7 @@ Working providers in this release do **not** use the server's `secrets.json`:
 - **SimpleFIN** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SimpleFIN setup](#simplefin-setup) below.
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, SimpleFIN, Teller) that are currently stubs:
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, Teller) that are currently stubs:
 
 ```json
 {
