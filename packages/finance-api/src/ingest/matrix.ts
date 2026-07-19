@@ -11,7 +11,7 @@ export function buildDefaultRegistry(): AdapterRegistry {
     ["boa", createFileAdapter("boa", "banking")],
     ["coinbase", createCoinbaseAdapter()],
     ["snaptrade", createSnaptradeAdapter()],
-    ["boa-simplefin", createSimplefinAdapter()],
+    ["simplefin", createSimplefinAdapter()],
     ["boa-teller", createTellerAdapter()],
   ]);
 }
