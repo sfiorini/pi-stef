@@ -295,12 +295,12 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
   // ── Slash commands: route /sf-fin-* to the sf_fin_* tools ──────────────
   const send =
     typeof pi.sendUserMessage === "function"
-      ? (pi.sendUserMessage as (content: string, opts?: { deliverAs?: "steer" | "followUp" }) => void).bind(pi)
+      ? pi.sendUserMessage.bind(pi) as ((content: string, opts?: { deliverAs?: "steer" | "followUp" }) => void) | undefined
       : undefined;
 
   const slashDescriptions: Record<string, string> = {
     sf_fin_market_status: "Get current US market session (pre/intraday/post/closed)",
-    sf_fin_get_holdings: "Get all account holdings. Args: optional symbol or accountId filter",
+    sf_fin_get_holdings: "Get all account holdings. Args: optional symbol filter",
     sf_fin_get_net_worth: "Get total portfolio value across all accounts",
     sf_fin_get_drift: "Get allocation drift vs target",
     sf_fin_get_allocation: "Get current asset allocation by class",

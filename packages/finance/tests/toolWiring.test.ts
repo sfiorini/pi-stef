@@ -280,6 +280,16 @@ describe("slash commands", () => {
     expect(pi.getSentMessages()[0].content).toContain("symbol: AAPL");
   });
 
+  it("get-holdings without arg delegates directly", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-get-holdings")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toBe("Invoke the sf_fin_get_holdings tool.");
+  });
+
   it("sync-now with provider arg", async () => {
     const pi = createMockPi();
     registerFinanceTools(pi as never);
@@ -330,6 +340,16 @@ describe("slash commands", () => {
     expect(pi.getSentMessages()[0].content).toContain("Ask me for the symbol");
   });
 
+  it("history with arg delegates with symbol", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-history")!;
+    await cmd.handler("AAPL", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("symbol: AAPL");
+  });
+
   it("dismiss-suggestion without arg asks for ID", async () => {
     const pi = createMockPi();
     registerFinanceTools(pi as never);
@@ -338,6 +358,16 @@ describe("slash commands", () => {
     await cmd.handler("", { isIdle: () => true });
 
     expect(pi.getSentMessages()[0].content).toContain("Ask me for the suggestion ID");
+  });
+
+  it("dismiss-suggestion with arg delegates with id", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-dismiss-suggestion")!;
+    await cmd.handler("rebalance-1", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("id: rebalance-1");
   });
 
   it("set-target delegates to wizard (ignores args)", async () => {
