@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-20
+### Changed
+- fix(finance): address reviewer P3s on slash commands
+- feat(finance): add slash commands for all 12 tools
+- docs(finance): add SimpleFIN provider to finance package docs
+
+
 ## [0.3.0] - 2026-07-19
 ### Changed
 - feat(simplefin): credential resolution pipeline (M2)
