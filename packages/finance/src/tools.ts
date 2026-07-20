@@ -1,4 +1,4 @@
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import { loadFinanceConfig, saveProviderConfig } from "./config";
 import { createFinanceClient } from "./client";
 import { formatHoldings, formatDrift, formatSuggestions, formatGeneric } from "./output";
@@ -291,4 +291,90 @@ export function registerFinanceTools(pi: ExtensionAPI): void {
       return { content: [{ type: "text", text: formatGeneric(data) }], details: { implemented: true } };
     },
   });
+
+  // ── Slash commands: route /sf-fin-* to the sf_fin_* tools ──────────────
+  const send =
+    typeof pi.sendUserMessage === "function"
+      ? (pi.sendUserMessage as (content: string, opts?: { deliverAs?: "steer" | "followUp" }) => void).bind(pi)
+      : undefined;
+
+  const slashDescriptions: Record<string, string> = {
+    sf_fin_market_status: "Get current US market session (pre/intraday/post/closed)",
+    sf_fin_get_holdings: "Get all account holdings. Args: optional symbol or accountId filter",
+    sf_fin_get_net_worth: "Get total portfolio value across all accounts",
+    sf_fin_get_drift: "Get allocation drift vs target",
+    sf_fin_get_allocation: "Get current asset allocation by class",
+    sf_fin_list_goals: "List investment goals with target allocations",
+    sf_fin_set_target: "Create or update an investment goal (wizard — agent gathers params)",
+    sf_fin_get_suggestions: "Get pending suggestions from the quant engine",
+    sf_fin_dismiss_suggestion: "Dismiss a pending suggestion. Args: suggestion ID",
+    sf_fin_sync_now: "Trigger a data sync. Args: optional provider (snaptrade, simplefin)",
+    sf_fin_import_file: "Import holdings from a CSV/OFX file. Args: file path",
+    sf_fin_history: "Get price history for a symbol. Args: ticker symbol (e.g. AAPL)",
+  };
+
+  // Tools that take no parameters — the slash command just delegates.
+  const NO_ARG_TOOLS = new Set([
+    "sf_fin_market_status",
+    "sf_fin_get_net_worth",
+    "sf_fin_get_drift",
+    "sf_fin_get_allocation",
+    "sf_fin_list_goals",
+    "sf_fin_get_suggestions",
+  ]);
+
+  for (const name of Object.keys(slashDescriptions)) {
+    const slashName = name.replace(/_/g, "-");
+    const desc = slashDescriptions[name] ?? name;
+
+    pi.registerCommand(slashName, {
+      description: desc,
+      handler: async (args: string, ctx: ExtensionCommandContext) => {
+        const trimmed = args.trim();
+        let message: string;
+
+        if (NO_ARG_TOOLS.has(name)) {
+          message = `Invoke the ${name} tool.`;
+        } else if (name === "sf_fin_get_holdings") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_fin_get_holdings tool."
+            : `Invoke the sf_fin_get_holdings tool with symbol: ${trimmed}`;
+        } else if (name === "sf_fin_sync_now") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_fin_sync_now tool to sync all providers."
+            : `Invoke the sf_fin_sync_now tool with provider: ${trimmed}`;
+        } else if (name === "sf_fin_import_file") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_fin_import_file tool. Ask me for the file path."
+            : `Invoke the sf_fin_import_file tool with filePath: ${trimmed}`;
+        } else if (name === "sf_fin_history") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_fin_history tool. Ask me for the symbol."
+            : `Invoke the sf_fin_history tool with symbol: ${trimmed}`;
+        } else if (name === "sf_fin_dismiss_suggestion") {
+          message = trimmed.length === 0
+            ? "Invoke the sf_fin_dismiss_suggestion tool. Ask me for the suggestion ID."
+            : `Invoke the sf_fin_dismiss_suggestion tool with id: ${trimmed}`;
+        } else {
+          // sf_fin_set_target (wizard — too complex for positional args)
+          message = "Invoke the sf_fin_set_target tool to create or update an investment goal.";
+        }
+
+        if (!send) {
+          ctx.ui?.notify?.(
+            `finance: this pi runtime can't post slash-command output to the agent. Type "${slashName} ${trimmed}" instead.`,
+            "warning",
+          );
+          return;
+        }
+
+        const idle = typeof ctx.isIdle === "function" ? ctx.isIdle() : true;
+        if (idle) {
+          send(message);
+        } else {
+          send(message, { deliverAs: "followUp" });
+        }
+      },
+    });
+  }
 }

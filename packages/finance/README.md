@@ -98,6 +98,25 @@ Imports holdings (CSV) or transactions + balance (OFX) from a file. The format i
 |-----------|------|----------|-------------|
 | `filePath` | string | **yes** | Absolute or relative path to the CSV/OFX file |
 
+## Slash Commands
+
+Every tool has a matching slash command (kebab-case). Type `/sf-fin-` in pi to see autocomplete.
+
+| Command | Args | Example |
+|---------|------|---------|
+| `/sf-fin-market-status` | — | `/sf-fin-market-status` |
+| `/sf-fin-get-holdings` | optional symbol | `/sf-fin-get-holdings AAPL` |
+| `/sf-fin-get-net-worth` | — | `/sf-fin-get-net-worth` |
+| `/sf-fin-get-drift` | — | `/sf-fin-get-drift` |
+| `/sf-fin-get-allocation` | — | `/sf-fin-get-allocation` |
+| `/sf-fin-list-goals` | — | `/sf-fin-list-goals` |
+| `/sf-fin-set-target` | — (wizard) | `/sf-fin-set-target` |
+| `/sf-fin-get-suggestions` | — | `/sf-fin-get-suggestions` |
+| `/sf-fin-dismiss-suggestion` | suggestion ID | `/sf-fin-dismiss-suggestion rebalance-1` |
+| `/sf-fin-sync-now` | optional provider | `/sf-fin-sync-now snaptrade` |
+| `/sf-fin-import-file` | file path | `/sf-fin-import-file ~/Downloads/positions.csv` |
+| `/sf-fin-history` | symbol | `/sf-fin-history AAPL` |
+
 ## Usage
 
 Ask the pi agent:

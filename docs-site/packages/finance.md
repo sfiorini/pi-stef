@@ -197,6 +197,25 @@ The extension syncs data from any providers configured on the service (plus Snap
 "Import the positions CSV at ~/Downloads/positions.csv"
 ```
 
+## Slash Commands
+
+Every tool has a matching slash command (kebab-case). Type `/sf-fin-` in pi to see autocomplete.
+
+| Command | Args | Example |
+|---------|------|---------|
+| `/sf-fin-market-status` | — | `/sf-fin-market-status` |
+| `/sf-fin-get-holdings` | optional symbol | `/sf-fin-get-holdings AAPL` |
+| `/sf-fin-get-net-worth` | — | `/sf-fin-get-net-worth` |
+| `/sf-fin-get-drift` | — | `/sf-fin-get-drift` |
+| `/sf-fin-get-allocation` | — | `/sf-fin-get-allocation` |
+| `/sf-fin-list-goals` | — | `/sf-fin-list-goals` |
+| `/sf-fin-set-target` | — (wizard) | `/sf-fin-set-target` |
+| `/sf-fin-get-suggestions` | — | `/sf-fin-get-suggestions` |
+| `/sf-fin-dismiss-suggestion` | suggestion ID | `/sf-fin-dismiss-suggestion rebalance-1` |
+| `/sf-fin-sync-now` | optional provider | `/sf-fin-sync-now snaptrade` |
+| `/sf-fin-import-file` | file path | `/sf-fin-import-file ~/Downloads/positions.csv` |
+| `/sf-fin-history` | symbol | `/sf-fin-history AAPL` |
+
 ## Disclaimer
 
 **This is not financial advice.** Suggestions are computed deterministically from your configured goals and current holdings. Always consult a qualified financial advisor before making investment decisions.

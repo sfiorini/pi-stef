@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { registerFinanceTools } from "../src/tools";
 
-// Mock ExtensionAPI that captures registerTool calls
+// Mock ExtensionAPI that captures registerTool and registerCommand calls
 interface ToolRegistration {
   name: string;
   label: string;
@@ -15,11 +15,27 @@ interface ToolRegistration {
   execute: Function;
 }
 
+interface CommandRegistration {
+  name: string;
+  description: string;
+  handler: (args: string, ctx: unknown) => Promise<void>;
+}
+
 function createMockPi() {
   const tools: ToolRegistration[] = [];
+  const commands: CommandRegistration[] = [];
+  const sentMessages: { content: string; opts?: { deliverAs?: string } }[] = [];
   return {
     registerTool: (tool: ToolRegistration) => { tools.push(tool); },
+    registerCommand: (name: string, opts: { description: string; handler: (args: string, ctx: unknown) => Promise<void> }) => {
+      commands.push({ name, description: opts.description, handler: opts.handler });
+    },
+    sendUserMessage: (content: string, opts?: { deliverAs?: string }) => {
+      sentMessages.push({ content, opts });
+    },
     getTools: () => tools,
+    getCommands: () => commands,
+    getSentMessages: () => sentMessages,
   };
 }
 
@@ -192,5 +208,172 @@ describe("sf_fin_sync_now — provider scoping + credentials", () => {
     expect(raw.providers.simplefin.accessUrl).toBe("https://resolved:url@host/simplefin");
     // setupToken should be gone (replaced)
     expect(raw.providers.simplefin.setupToken).toBeUndefined();
+  });
+});
+
+describe("slash commands", () => {
+  const expectedCommands = [
+    "sf-fin-market-status",
+    "sf-fin-get-holdings",
+    "sf-fin-get-net-worth",
+    "sf-fin-get-drift",
+    "sf-fin-get-allocation",
+    "sf-fin-list-goals",
+    "sf-fin-set-target",
+    "sf-fin-get-suggestions",
+    "sf-fin-dismiss-suggestion",
+    "sf-fin-sync-now",
+    "sf-fin-import-file",
+    "sf-fin-history",
+  ];
+
+  it("registers a slash command for every tool", () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmdNames = pi.getCommands().map((c) => c.name);
+    for (const expected of expectedCommands) {
+      expect(cmdNames, `missing slash command: ${expected}`).toContain(expected);
+    }
+  });
+
+  it("every slash command has a description", () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    for (const cmd of pi.getCommands()) {
+      expect(cmd.description, `command "${cmd.name}" has no description`).toBeTruthy();
+    }
+  });
+
+  it("one-to-one: every tool has a matching slash command (kebab-case)", () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const toolNames = pi.getTools().map((t) => t.name);
+    const cmdNames = pi.getCommands().map((c) => c.name);
+
+    for (const toolName of toolNames) {
+      const expectedSlash = toolName.replace(/_/g, "-");
+      expect(cmdNames, `tool "${toolName}" has no matching slash command`).toContain(expectedSlash);
+    }
+  });
+
+  it("no-arg tool delegates directly", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-market-status")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()).toHaveLength(1);
+    expect(pi.getSentMessages()[0].content).toBe("Invoke the sf_fin_market_status tool.");
+  });
+
+  it("get-holdings with arg delegates with symbol", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-get-holdings")!;
+    await cmd.handler("AAPL", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("symbol: AAPL");
+  });
+
+  it("sync-now with provider arg", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-sync-now")!;
+    await cmd.handler("snaptrade", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("provider: snaptrade");
+  });
+
+  it("sync-now without args syncs all providers", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-sync-now")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("sync all providers");
+  });
+
+  it("import-file without arg asks for path", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-import-file")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("Ask me for the file path");
+  });
+
+  it("import-file with arg delegates with filePath", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-import-file")!;
+    await cmd.handler("~/Downloads/positions.csv", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("filePath: ~/Downloads/positions.csv");
+  });
+
+  it("history without arg asks for symbol", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-history")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("Ask me for the symbol");
+  });
+
+  it("dismiss-suggestion without arg asks for ID", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-dismiss-suggestion")!;
+    await cmd.handler("", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("Ask me for the suggestion ID");
+  });
+
+  it("set-target delegates to wizard (ignores args)", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-set-target")!;
+    await cmd.handler("anything here", { isIdle: () => true });
+
+    expect(pi.getSentMessages()[0].content).toContain("create or update an investment goal");
+  });
+
+  it("uses followUp delivery when agent is not idle", async () => {
+    const pi = createMockPi();
+    registerFinanceTools(pi as never);
+
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-get-net-worth")!;
+    await cmd.handler("", { isIdle: () => false });
+
+    expect(pi.getSentMessages()[0].opts?.deliverAs).toBe("followUp");
+  });
+
+  it("warns when sendUserMessage is unavailable", async () => {
+    const pi = createMockPi();
+    // Remove sendUserMessage to simulate unsupported runtime
+    (pi as Record<string, unknown>).sendUserMessage = undefined;
+    registerFinanceTools(pi as never);
+
+    const notifications: string[] = [];
+    const cmd = pi.getCommands().find((c) => c.name === "sf-fin-market-status")!;
+    await cmd.handler("", {
+      isIdle: () => true,
+      ui: { notify: (msg: string) => notifications.push(msg) },
+    });
+
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toContain("can't post slash-command output");
   });
 });
