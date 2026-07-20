@@ -48,6 +48,9 @@ The extension reads its config from `~/.pi/sf/finance/config.json`, or from envi
     "snaptrade": {
       "clientId": "PERS-...",
       "consumerKey": "<your personal consumer key>"
+    },
+    "simplefin": {
+      "setupToken": "aHR0cHM6Ly9iZXRhLWJyaWRnZS5zaW1wbGVmaW4ub3JnL3NpbXBsZWZpbi9jbGFpbS8uLi4="
     }
   }
 }
@@ -145,12 +148,16 @@ Trigger a data sync: ingest from providers, refresh prices, recompute suggestion
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `provider` | string | no | Provider ID to sync (e.g. `snaptrade`). Omit to sync **all** providers. |
+| `provider` | string | no | Provider ID to sync (e.g. `snaptrade`, `simplefin`). Omit to sync **all** providers. |
 
 Behavior:
-- **No `provider` arg** → syncs all providers. If `providers.snaptrade` is configured, your Personal SnapTrade key is attached so SnapTrade runs alongside any server-side providers.
+- **No `provider` arg** → syncs all providers. If `providers.snaptrade` and/or `providers.simplefin` are configured, their credentials are attached so they run alongside any server-side providers.
 - **`provider: "snaptrade"`** → syncs **only** SnapTrade, attaching your key.
 - **`provider: "snaptrade"` but no key configured** → scoped request with no credentials; the server skips SnapTrade (silent no-op).
+- **`provider: "simplefin"`** → syncs **only** SimpleFIN, attaching your `setupToken` or `accessUrl`.
+- **`provider: "simplefin"` but no creds configured** → scoped request with no credentials; the server skips SimpleFIN (silent no-op).
+
+> **SimpleFIN auto-persist:** On the first sync with a `setupToken`, the server exchanges it for an `accessUrl` and returns it in the response. The extension automatically writes the `accessUrl` to `config.json`, replacing the `setupToken`. You never need to manually update the config after the first sync.
 
 ### `sf_fin_import_file`
 Import holdings (CSV) or transactions + balance (OFX) from a file export. Format is auto-detected. See the [File Import guide](./finance-api-file-import) for accepted formats.
@@ -171,9 +178,10 @@ Price history for a symbol, newest first.
 
 ## Providers
 
-The extension syncs data from any providers configured on the service (plus SnapTrade, which is client-supplied). Providers are **co-equal** and can be combined — e.g. SnapTrade for live brokerage sync and File Import for a bank OFX export. See the [finance-api providers](./finance-api#providers) for the full list, and the dedicated guides:
+The extension syncs data from any providers configured on the service (plus SnapTrade and SimpleFIN, which are client-supplied). Providers are **co-equal** and can be combined — e.g. SnapTrade for live brokerage sync, SimpleFIN for banking, and File Import for a manual upload. See the [finance-api providers](./finance-api#providers) for the full list, and the dedicated guides:
 
 - [SnapTrade](./finance-api-snaptrade) — live brokerage aggregation (30+ brokers)
+- [SimpleFIN](./finance-api-simplefin) — live banking data (balances + transactions)
 - [File Import](./finance-api-file-import) — manual CSV/OFX uploads
 
 > **Cross-provider deduplication is not supported yet.** If the same account surfaces through two providers, it appears as two separate accounts. Use one provider per account for now.
@@ -185,6 +193,7 @@ The extension syncs data from any providers configured on the service (plus Snap
 "How far am I from my target allocation?"
 "What should I buy/sell to rebalance?"
 "Sync my SnapTrade accounts"
+"Sync my SimpleFIN bank accounts"
 "Import the positions CSV at ~/Downloads/positions.csv"
 ```
 
