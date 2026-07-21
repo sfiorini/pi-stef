@@ -63,3 +63,67 @@ describe("generateScript", () => {
     expect(s).toMatch(/agentType:\s*['"]reviewer['"]/);
   });
 });
+
+describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
+  const skillFlow = {
+    name: "ship-feature",
+    description: "d",
+    input: "prompt" as const,
+    agents: {},
+    phases: [
+      { id: "plan", skill: "sf-flow-plan" },
+      { id: "implement", skill: "sf-flow-implement" },
+      { id: "other", skill: "some-other-skill" },
+    ],
+  };
+  const fullModels = {
+    reviewerModel: "rev-model",
+    explorerModel: "ex-model",
+    developerModel: "dev-model",
+    plannerModel: null,
+    auditorModel: "aud-model",
+    synthModel: null,
+  };
+
+  it("injects args.flow/args.slug into skill-phase prompts (no placeholder const)", () => {
+    const s = generateScript(skillFlow);
+    expect(s).toContain("args.slug");
+    expect(s).toContain("args.flow");
+    expect(s).not.toMatch(/const \w+ = "skill:/);
+  });
+
+  it("bakes the skill-relevant resolved model hint for tier-1 skills", () => {
+    const s = generateScript(skillFlow, { models: fullModels });
+    // plan phase gets reviewer + explorer
+    expect(s).toContain("reviewer=rev-model");
+    expect(s).toContain("explorer=ex-model");
+    // implement phase gets reviewer + developer
+    expect(s).toContain("developer=dev-model");
+    // auditor is NOT hinted into plan/implement (only into sf-flow-audit)
+    expect(s).not.toContain("auditor=aud-model");
+  });
+
+  it("omits the hint entirely (still compiles) when no models provided", () => {
+    const s = generateScript(skillFlow);
+    expect(s).toContain("sf-flow-plan");
+    expect(s).toContain("some-other-skill");
+    expect(s).not.toContain("reviewer=");
+  });
+
+  it("non-tier-1 skill names get NO model hint even when models are provided", () => {
+    const s = generateScript(skillFlow, { models: fullModels });
+    expect(s).toContain("some-other-skill");
+    // the only hints are reviewer/explorer/developer (tier-1); 'some-other-skill'
+    // itself contributes no hint line — confirm no auditor leaked anywhere
+    expect(s).not.toContain("auditor=");
+  });
+
+  it("sf-flow-audit phase gets reviewer + auditor hints (no developer/explorer)", () => {
+    const auditFlow = { ...skillFlow, phases: [{ id: "audit", skill: "sf-flow-audit" }] };
+    const s = generateScript(auditFlow, { models: fullModels });
+    expect(s).toContain("reviewer=rev-model");
+    expect(s).toContain("auditor=aud-model");
+    expect(s).not.toContain("developer=");
+    expect(s).not.toContain("explorer=");
+  });
+});

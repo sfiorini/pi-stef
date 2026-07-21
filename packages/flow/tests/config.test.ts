@@ -139,3 +139,53 @@ describe("resolveFlowModels", () => {
     expect(m.synthModel).toBe("env/s");
   });
 });
+
+describe("resolution parity: tool front-end == skill's documented chain (M5)", () => {
+  // The tool computes models via resolveFlowModels(loadConfig(...)). The tier-1
+  // skills document the SAME chain (project config -> global config -> env ->
+  // null; unset => inherit orchestrator). This test exercises the deterministic
+  // front-end against real fixture FILES so the direct (tool) path and the
+  // delegated (workflow skill) path provably agree. (The .md/orchestrator
+  // inherit step is uniformly pi-subagents' concern, not compared here.)
+  const ROLE_ENVS = ["reviewer", "explorer", "developer", "planner", "auditor", "synth"].map(
+    (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
+  );
+  const orig: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const n of ROLE_ENVS) {
+      orig[n] = process.env[n];
+      delete process.env[n];
+    }
+  });
+  afterEach(() => {
+    for (const n of ROLE_ENVS) {
+      if (orig[n]) process.env[n] = orig[n];
+      else delete process.env[n];
+    }
+  });
+
+  it("project beats global; global-only wins when project absent; env wins when no config; null when nothing set", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-parity-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-parity-root-"));
+    mkdirSync(join(home, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(home, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ reviewer: { model: "global/rev" }, developer: { model: "global/dev" } }),
+    );
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ reviewer: { model: "project/rev" }, explorer: { model: "project/ex" } }),
+    );
+    process.env.SF_FLOW_AUDITOR_MODEL = "env/aud";
+
+    const cfg = await loadConfig(root, { homeDir: home });
+    const m = resolveFlowModels(cfg);
+    expect(m.reviewerModel).toBe("project/rev"); // project beats global
+    expect(m.explorerModel).toBe("project/ex"); // project-only
+    expect(m.developerModel).toBe("global/dev"); // global-only (project absent)
+    expect(m.auditorModel).toBe("env/aud"); // env (no config group)
+    expect(m.plannerModel).toBeNull(); // nothing set
+    expect(m.synthModel).toBeNull(); // nothing set
+  });
+});

@@ -1,5 +1,27 @@
 import type { FlowYaml } from "./schema.js";
+import type { ResolvedModels } from "../config/schema.js";
 import { resolveAgentType } from "../agents.js";
+
+/**
+ * Build a baked model-hint clause for a tier-1 skill phase prompt (belt-and-
+ * suspenders — the skill self-resolves too). Returns "" when no models are
+ * available or the skill names no tier-1 model subset.
+ */
+function tier1Hint(skill: string, models: ResolvedModels | null): string {
+  if (!models) return "";
+  const tier1 =
+    skill === "sf-flow-plan" || skill === "sf-flow-implement" || skill === "sf-flow-audit";
+  if (!tier1) return "";
+  const parts: string[] = [];
+  const push = (label: string, m: string | null) => {
+    if (m) parts.push(`${label}=${m}`);
+  };
+  push("reviewer", models.reviewerModel);
+  if (skill === "sf-flow-plan") push("explorer", models.explorerModel);
+  if (skill === "sf-flow-implement") push("developer", models.developerModel);
+  if (skill === "sf-flow-audit") push("auditor", models.auditorModel);
+  return parts.length ? `Models (config; use unless overridden): ${parts.join(", ")}.` : "";
+}
 
 function titleCase(s: string): string {
   return s.replace(/(^|[-_])(\w)/g, (_m, _sep, c) => " " + c.toUpperCase()).trim();
@@ -35,7 +57,10 @@ function agentOpts(
  * trusts that incompatible loop/phase combos were rejected by validate.ts and
  * hardens itself by throwing if it ever sees one.
  */
-export function generateScript(flow: FlowYaml): string {
+export function generateScript(
+  flow: FlowYaml,
+  genOpts: { models?: ResolvedModels | null } = {},
+): string {
   const phaseTitles = flow.phases.map((p) => `{ title: ${singleQuote(titleCase(p.id))} }`).join(", ");
   const body: string[] = [];
 
@@ -49,10 +74,30 @@ export function generateScript(flow: FlowYaml): string {
           `phase ${ph.id}: loops are not supported on skill phases (validate.ts should have rejected this)`,
         );
       }
+      // Skill phase: the runner agent reads + executes the skill. Pass the
+      // workflow name + a RUNTIME slug reference so the skill writes/reads at
+      // the CONVENTIONAL location keyed by slug — a skill phase cannot know a
+      // concrete path at compile time. args.flow/args.slug are provided by
+      // sf_flow_auto at run time (slug is derived from args.input). The model
+      // hint is belt-and-suspenders; the skill self-resolves if absent.
+      const hint = tier1Hint(ph.skill, genOpts.models ?? null);
+      const promptExpr =
+        "`run skill " +
+        JSON.stringify(ph.skill) +
+        ". Workflow " +
+        JSON.stringify(flow.name) +
+        ". args.flow=${args.flow}, args.slug=${args.slug}. Read/write at the conventional location for this skill. " +
+        hint +
+        "`";
       body.push(
-        `await agent(${JSON.stringify("run skill " + ph.skill)}, { phase: ${JSON.stringify(ph.id)}, agentType: "general-purpose" });`,
+        "await agent(" +
+          promptExpr +
+          ", { phase: " +
+          JSON.stringify(ph.id) +
+          ', agentType: "general-purpose" });',
       );
-      if (ph.out) body.push(`const ${ph.out} = "skill:${ph.skill}";`);
+      // (placeholder const dropped — downstream phases self-discover artifacts
+      // at the conventional slug-keyed location; `in:`/`out:` are informational.)
       continue;
     }
     if (ph.raw) {

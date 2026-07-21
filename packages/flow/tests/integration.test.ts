@@ -14,7 +14,7 @@ const shipFeature: FlowYaml = {
   phases: [
     { id: "plan", skill: "sf-flow-plan", out: "plan_path" },
     { id: "implement", skill: "sf-flow-implement", in: "plan_path", out: "worktree_path" },
-    { id: "audit", agent: "auditor", in: "worktree_path", prompt: "Review {{worktree_path}}." },
+    { id: "audit", agent: "auditor", in: "worktree_path", prompt: "Review the diff produced by the implement phase (the flow/<slug> worktree for this run). Return findings P0-P3 + verdict." },
   ],
   loops: { audit: { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
 };
@@ -49,9 +49,13 @@ describe("end-to-end chain (mocked engine)", () => {
     expect(out).toContain("VERDICT: REVISE");
   });
 
-  it("plan->implement handoff artifact contract: each phase's out var is emitted", () => {
+  it("plan->implement handoff: skill phases use conventional slug-keyed paths (args.flow/args.slug), not placeholder consts", () => {
     const script = generateScript(shipFeature);
-    expect(script).toMatch(/plan_path/);
-    expect(script).toMatch(/worktree_path/);
+    expect(script).toContain("args.slug");
+    expect(script).toContain("args.flow");
+    expect(script).toContain("sf-flow-plan");
+    expect(script).toContain("sf-flow-implement");
+    // the old placeholder const ("const x = \"skill:...\"") must NOT be emitted
+    expect(script).not.toMatch(/const \w+ = "skill:/);
   });
 });

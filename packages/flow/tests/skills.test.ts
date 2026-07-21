@@ -70,4 +70,22 @@ describe("flow skills", () => {
     expect(reviewer).toContain("ZERO remaining design decisions");
     expect(reviewer).toContain("HARD GATE");
   });
+
+  it("tier-1 skills carry the self-resolution + agent-type-resolution instructions (M5)", () => {
+    // Real-shipped-file regression: the model self-resolution preamble + the
+    // agent-type resolution section must remain in every tier-1 skill so that a
+    // workflow `skill:` phase (which cannot call the sf_flow_* tool) still honors
+    // config.json + spawns the right agent type.
+    for (const dir of ["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]) {
+      const raw = readFileSync(join(skillsDir, dir, "SKILL.md"), "utf8");
+      // model self-resolution preamble
+      expect(raw, `${dir} lacks self-resolve preamble`).toContain("self-resolve");
+      expect(raw, `${dir} lacks config.json reference`).toContain("config.json");
+      expect(raw, `${dir} lacks inherit-orchestrator clause`).toContain("inherits the orchestrator");
+      // agent-type resolution section + the Explore anti-guard
+      expect(raw, `${dir} lacks Agent resolution section`).toContain("Agent resolution");
+      expect(raw, `${dir} lacks general-purpose fallback`).toContain("general-purpose");
+      expect(raw, `${dir} lacks Explore anti-guard`).toContain("Explore");
+    }
+  });
 });

@@ -1,3 +1,15 @@
+# ship-feature: plan -> implement -> audit, end-to-end.
+#
+# Flow 0.2.0 model: tier-1 skill phases (sf-flow-plan / sf-flow-implement)
+# self-resolve their models from .pi/sf/flow/config.json (project then global;
+# unset => inherit the orchestrator) and exchange artifacts at CONVENTIONAL
+# slug-keyed locations — there is no compile-time path variable. sf_flow_auto
+# passes args.flow (this workflow's name) + args.slug (derived from args.input)
+# to every phase. So:
+#   plan      -> writes ai_plan/<slug>/
+#   implement -> works in the flow/<slug> git worktree
+#   audit     -> reviews the diff in the flow/<slug> worktree
+# `in:`/`out:` are informational only (echoed for clarity, not dataflow).
 name: ship-feature
 description: Plan, implement, and audit a feature end-to-end
 input: prompt
@@ -19,7 +31,7 @@ phases:
   - id: audit
     agent: auditor
     in: worktree_path
-    prompt: "Review the diff in {{worktree_path}}. Return findings P0-P3 + verdict."
+    prompt: "Review the diff produced by the implement phase (the flow/<slug> worktree for this run; sf_flow_auto passes args.slug). Return findings P0-P3 + verdict."
 loops:
   audit:
     until: approved
