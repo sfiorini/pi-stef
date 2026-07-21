@@ -192,11 +192,12 @@ export function registerSfFlow(pi: ExtensionAPI): void {
                 slug,
                 worktreePath: worktree.worktreePath,
                 reviewerModel,
+                developerModel: defaults.developerModel,
                 planPath: `ai_plan/${slug}`,
               }) + warnText,
           },
         ],
-        details: { configured: true, reviewerModel, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
+        details: { configured: true, reviewerModel, developerModel: defaults.developerModel, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
       };
     },
   });

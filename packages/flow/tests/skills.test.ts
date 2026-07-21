@@ -88,4 +88,14 @@ describe("flow skills", () => {
       expect(raw, `${dir} lacks Explore anti-guard`).toContain("Explore");
     }
   });
+
+  it("sf-flow-implement delegates to the developer per milestone; orchestrator writes no code (M6)", () => {
+    const raw = readFileSync(join(skillsDir, "sf-flow-implement", "SKILL.md"), "utf8");
+    expect(raw).toContain("developer");
+    expect(raw).toContain("write NO code");
+    expect(raw).toContain("delegate");
+    // the missing-developer fallback must not have the orchestrator implement itself
+    expect(raw).toContain("general-purpose");
+    expect(raw).toContain("NEVER falls back to implementing");
+  });
 });

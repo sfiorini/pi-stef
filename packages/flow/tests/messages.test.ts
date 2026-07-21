@@ -7,18 +7,21 @@ describe("buildImplementReadyMessage", () => {
       slug: "oauth",
       worktreePath: "/repo/flow-oauth",
       reviewerModel: "anthropic/sonnet-4-6",
+      developerModel: "anthropic/sonnet-4-6",
       planPath: "ai_plan/2026-07-20-oauth",
     });
     expect(msg).toContain("cd /repo/flow-oauth");
     expect(msg).toContain(skillDocPath("sf-flow-implement"));
     expect(msg).toContain("sf_flow_finalize");
+    expect(msg).toContain("Developer model: anthropic/sonnet-4-6");
   });
 
-  it("notes when the reviewer model is inherited (null)", () => {
+  it("notes when a model is inherited (null)", () => {
     const msg = buildImplementReadyMessage({
       slug: "x",
       worktreePath: "/w",
       reviewerModel: null,
+      developerModel: null,
       planPath: "ai_plan/x",
     });
     expect(msg).toContain("inherits from parent");

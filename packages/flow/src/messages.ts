@@ -20,6 +20,7 @@ export interface ImplementReadyInput {
   slug: string;
   worktreePath: string;
   reviewerModel: string | null;
+  developerModel: string | null;
   planPath: string;
 }
 
@@ -27,6 +28,9 @@ export function buildImplementReadyMessage(opts: ImplementReadyInput): string {
   const reviewerLine = opts.reviewerModel
     ? `Reviewer model: ${opts.reviewerModel}`
     : "Reviewer model: inherits from parent (not configured)";
+  const developerLine = opts.developerModel
+    ? `Developer model: ${opts.developerModel}`
+    : "Developer model: inherits from parent (not configured)";
   return [
     `Continue executing now — do not stop after this tool returns.`,
     ``,
@@ -38,6 +42,7 @@ export function buildImplementReadyMessage(opts: ImplementReadyInput): string {
     ``,
     `Context:`,
     `- ${reviewerLine}`,
+    `- ${developerLine}`,
     `- Plan path: ${opts.planPath}`,
   ]
     .join("\n")
