@@ -8,6 +8,15 @@ description: Use when a defined flow (global ~/.pi/sf/flow/workflows or project 
 ## Purpose
 Run a defined flow end-to-end, no human gates. Input forms: inline prompt, markdown file, PRD, or Jira story (resolved via @pi-stef/atlassian).
 
+## Agent resolution
+Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
+
+For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in `Explore` (which forces Haiku). If no explorer model is configured, omit `model` so it inherits the orchestrator.
+
+Within the generated pi-dw script, each `agent:` phase resolves its agent type by this same rule (a declared agent spawns by name; an undeclared `planner`/`reviewer` falls back to `Plan`/`Reviewer`; anything else → `general-purpose`). `skill:` phases always run as `general-purpose` (the agent that reads + executes the skill file).
+
+Models are resolved by the `sf_flow_*` tool and echoed in its output; pass the echoed model when you spawn an agent. If a model was not echoed, omit `model` to inherit the orchestrator.
+
 ## Process
 
 ### Phase 1: Resolve the flow

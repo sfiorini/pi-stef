@@ -8,10 +8,17 @@ description: Use when a user asks to create a structured multi-milestone impleme
 ## Prerequisites
 Reviewer + explorer agents ensured at `~/.pi/agent/agents/`. Reviewer model resolved by the tool. `ai_plan/` is gitignored.
 
+## Agent resolution
+Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
+
+For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in `Explore` (which forces Haiku). If no explorer model is configured, omit `model` so it inherits the orchestrator.
+
+Models are resolved by the `sf_flow_*` tool and echoed in its output; pass the echoed model when you spawn an agent. If a model was not echoed, omit `model` to inherit the orchestrator.
+
 ## Process
 
 ### Phase 1: Analyze (parallel research)
-Fan out N explorer agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only. Synthesize a codebase map. (Extends pair/plan's single explorer into a fleet.)
+Fan out N `explorer` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "explorer"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single explorer into a fleet.)
 
 ### Phase 2: Gather Requirements
 Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says ready.

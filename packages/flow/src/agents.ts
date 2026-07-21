@@ -55,3 +55,34 @@ export async function ensureAgentFiles(
 
   return { warnings };
 }
+
+/**
+ * Resolve the pi-subagents agent TYPE for a named flow role, given the set of
+ * agent definition files (basenames) that actually exist. This is the single
+ * source of truth for the resolution rule — mirrored verbatim in every tier-1
+ * skill's "Agent resolution" section:
+ *
+ * 1. If a `<name>.md` definition exists → spawn that named agent (`name`).
+ * 2. Else if `name === "planner"` → fall back to the built-in `Plan` agent.
+ * 3. Else if `name === "reviewer"` → fall back to the built-in `Reviewer` agent.
+ * 4. Else → `general-purpose`.
+ *
+ * Matching is case-insensitive (a lowercase `.md` name wins regardless of the
+ * casing used to reference it). Critically, a missing `explorer.md` does NOT
+ * fall back to the built-in `Explore` agent (which forces Haiku) — it yields
+ * `general-purpose` instead, so the orchestrator model is inherited.
+ *
+ * @param name The role name referenced by a phase/skill (e.g. "reviewer").
+ * @param agentFiles The available agent identifiers — either basenames
+ *   (`["reviewer.md", "explorer.md"]`, as used at runtime) OR bare keys
+ *   (`["reviewer", "explorer"]`, as declared in a workflow YAML). A trailing
+ *   `.md` is stripped before comparing, so both forms work.
+ */
+export function resolveAgentType(name: string, agentFiles: string[]): string {
+  const lower = name.toLowerCase();
+  const exists = agentFiles.some((f) => f.toLowerCase().replace(/\.md$/, "") === lower);
+  if (exists) return lower;
+  if (lower === "planner") return "Plan";
+  if (lower === "reviewer") return "Reviewer";
+  return "general-purpose";
+}

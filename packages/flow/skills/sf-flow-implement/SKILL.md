@@ -8,6 +8,13 @@ description: Use when a plan folder created by sf-flow-plan must be executed in 
 ## Prerequisites
 Reviewer agent at `~/.pi/agent/agents/reviewer.md`. Reviewer model resolved by the tool. ONE worktree created at `flow/<slug>` (git-only; non-git targets skip worktree).
 
+## Agent resolution
+Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
+
+For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in `Explore` (which forces Haiku). If no explorer model is configured, omit `model` so it inherits the orchestrator.
+
+Models are resolved by the `sf_flow_*` tool and echoed in its output; pass the echoed model when you spawn an agent. If a model was not echoed, omit `model` to inherit the orchestrator.
+
 ## Process
 
 ### Phase 1: Locate Plan

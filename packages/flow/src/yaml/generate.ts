@@ -1,4 +1,5 @@
 import type { FlowYaml } from "./schema.js";
+import { resolveAgentType } from "../agents.js";
 
 function titleCase(s: string): string {
   return s.replace(/(^|[-_])(\w)/g, (_m, _sep, c) => " " + c.toUpperCase()).trim();
@@ -9,17 +10,22 @@ function singleQuote(s: string): string {
   return "'" + s.replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "'";
 }
 
-function agentOpts(name: string, def: FlowYaml["agents"][string], phase: string): string {
+function agentOpts(
+  name: string,
+  def: FlowYaml["agents"][string] | undefined,
+  phase: string,
+  agentType: string,
+): string {
   const parts: string[] = [
     `label: ${JSON.stringify(name)}`,
     `phase: ${JSON.stringify(phase)}`,
-    `agentType: ${JSON.stringify(name)}`,
+    `agentType: ${JSON.stringify(agentType)}`,
   ];
-  if (def.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
-  if (def.model) parts.push(`model: ${JSON.stringify(def.model)}`);
-  if (def.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
-  if (def.isolated) parts.push(`isolated: true`);
-  if (def.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
+  if (def?.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
+  if (def?.model) parts.push(`model: ${JSON.stringify(def.model)}`);
+  if (def?.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
+  if (def?.isolated) parts.push(`isolated: true`);
+  if (def?.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
   return `{ ${parts.join(", ")} }`;
 }
 
@@ -55,8 +61,13 @@ export function generateScript(flow: FlowYaml): string {
     }
 
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
-    if (!def || !ph.agent) throw new Error(`phase ${ph.id} has no resolvable agent`);
-    const opts = agentOpts(ph.agent, def, ph.id);
+    if (!ph.agent) throw new Error(`phase ${ph.id} has no resolvable agent`);
+    // Resolve the pi-subagents agent type via the shared rule: a declared agent
+    // spawns by name; an undeclared planner/reviewer falls back to the built-in;
+    // anything else undeclared → general-purpose. `def` may be undefined for a
+    // built-in fallback (agentOpts tolerates it).
+    const agentType = resolveAgentType(ph.agent, Object.keys(flow.agents));
+    const opts = agentOpts(ph.agent, def, ph.id, agentType);
     const promptLit = JSON.stringify(ph.prompt ?? "");
 
     if (ph.fanout) {
