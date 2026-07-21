@@ -44,4 +44,30 @@ describe("flow skills", () => {
     const pkg = JSON.parse(readFileSync(join(pkgRoot, "package.json"), "utf8"));
     expect(pkg.pi?.skills).toEqual([]);
   });
+
+  it("enforces the exhaustive-plan standard across the plan skill + planner/reviewer agents (M4)", () => {
+    // Real-shipped-file regression guard (per the Value.Cast lesson: test the
+    // actual shipped files, not hand-written stubs). Both the plan tool AND a
+    // workflow's plan phase execute this same skill, so the standard here
+    // covers both paths.
+    const planSkill = readFileSync(join(skillsDir, "sf-flow-plan", "SKILL.md"), "utf8");
+    const planner = readFileSync(join(pkgRoot, "agents", "planner.md"), "utf8");
+    const reviewer = readFileSync(join(pkgRoot, "agents", "reviewer.md"), "utf8");
+
+    // sf-flow-plan skill defines the standard + a completeness self-check
+    expect(planSkill).toContain("Plan standard");
+    expect(planSkill).toContain("completeness self-check");
+    expect(planSkill).toContain("ZERO remaining design decisions");
+
+    // planner agent mandates the exhaustive 7-field format
+    expect(planner).toContain("exhaustive");
+    expect(planner).toContain("ZERO remaining design decisions");
+    expect(planner).toContain("completeness self-check");
+
+    // reviewer agent treats under-detailed plans as a hard gate (REVISE),
+    // independent of correctness
+    expect(reviewer).toContain("under-detailed");
+    expect(reviewer).toContain("ZERO remaining design decisions");
+    expect(reviewer).toContain("HARD GATE");
+  });
 });
