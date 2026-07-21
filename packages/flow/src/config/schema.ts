@@ -1,7 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 /**
- * Flow config schema. `reviewer`/`explorer`/`audit`/`worktree` are all
+ * Flow config schema. The six agent model groups (`reviewer`/`explorer`/
+ * `developer`/`planner`/`auditor`/`synth`) plus `audit` and `worktree` are all
  * Optional so a minimal user config (e.g. `{"reviewer":{"model":"..."}}`)
  * validates. `loadConfig` deep-merges with DEFAULT_CONFIG, guaranteeing the
  * full shape at runtime (see `LoadedFlowConfig`).
@@ -12,6 +13,18 @@ export const ConfigSchema = Type.Object(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
     explorer: Type.Optional(
+      Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
+    ),
+    developer: Type.Optional(
+      Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
+    ),
+    planner: Type.Optional(
+      Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
+    ),
+    auditor: Type.Optional(
+      Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
+    ),
+    synth: Type.Optional(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
     audit: Type.Optional(
@@ -45,6 +58,10 @@ export type FlowConfig = Static<typeof ConfigSchema>;
 export interface LoadedFlowConfig {
   reviewer: { model?: string };
   explorer: { model?: string };
+  developer: { model?: string };
+  planner: { model?: string };
+  auditor: { model?: string };
+  synth: { model?: string };
   audit: { threshold: number; max_rounds: number };
   worktree: { branch_prefix: string };
 }
@@ -52,12 +69,22 @@ export interface LoadedFlowConfig {
 export const DEFAULT_CONFIG: LoadedFlowConfig = {
   reviewer: {},
   explorer: {},
+  developer: {},
+  planner: {},
+  auditor: {},
+  synth: {},
   audit: { threshold: 0.94, max_rounds: 5 },
   worktree: { branch_prefix: "flow/" },
 };
 
-export interface ResolvedFlowConfig extends LoadedFlowConfig {
-  /** Reviewer model resolved via the 4-step chain, or null if unset. */
+/** The six resolved agent models (deterministic front-end; null ⇒ inherit orchestrator). */
+export interface ResolvedModels {
   reviewerModel: string | null;
   explorerModel: string | null;
+  developerModel: string | null;
+  plannerModel: string | null;
+  auditorModel: string | null;
+  synthModel: string | null;
 }
+
+export interface ResolvedFlowConfig extends LoadedFlowConfig, ResolvedModels {}

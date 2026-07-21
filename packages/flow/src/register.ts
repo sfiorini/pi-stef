@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { homedir } from "node:os";
 import { finalizeWorktree } from "./worktree/finalize.js";
 import { createWorktree } from "./worktree/create.js";
-import { loadAndResolveDefaults, resolveReviewerModel, resolveExplorerModel } from "./config/load.js";
+import { loadAndResolveDefaults } from "./config/load.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
@@ -127,27 +127,15 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     ) as any,
     execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const repoRoot = ctx.cwd ?? process.cwd();
-      const defaults = await loadAndResolveDefaults(repoRoot);
       const prompt = (params as any).prompt ?? "";
-      const reviewerModel = resolveReviewerModel(
-        (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
-        defaults,
-      );
-      const explorerModel = resolveExplorerModel(
-        (params as any).explorer_model ?? extractExplorerModelFromPrompt(prompt),
-        defaults,
-      );
-      if (!reviewerModel) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "No reviewer model configured. Set via prompt, .pi/sf/flow/config.json, or SF_FLOW_REVIEWER_MODEL.",
-            },
-          ],
-          details: { configured: false },
-        };
-      }
+      const defaults = await loadAndResolveDefaults(repoRoot, {
+        overrides: {
+          reviewer: (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
+          explorer: (params as any).explorer_model ?? extractExplorerModelFromPrompt(prompt),
+        },
+      });
+      const reviewerModel = defaults.reviewerModel;
+      const explorerModel = defaults.explorerModel;
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
       await ensureExampleWorkflows(homedir());
       const warnText = agentWarnings.length
@@ -155,7 +143,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
         ],
         details: { configured: true, reviewerModel, explorerModel },
       };
@@ -174,19 +162,10 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     ) as any,
     execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const repoRoot = ctx.cwd ?? process.cwd();
-      const defaults = await loadAndResolveDefaults(repoRoot);
-      const reviewerModel = resolveReviewerModel((params as any).reviewer_model, defaults);
-      if (!reviewerModel) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: "No reviewer model configured. Set via prompt, .pi/sf/flow/config.json, or SF_FLOW_REVIEWER_MODEL.",
-            },
-          ],
-          details: { configured: false },
-        };
-      }
+      const defaults = await loadAndResolveDefaults(repoRoot, {
+        overrides: { reviewer: (params as any).reviewer_model },
+      });
+      const reviewerModel = defaults.reviewerModel;
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
