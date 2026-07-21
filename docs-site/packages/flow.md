@@ -1,10 +1,10 @@
 # flow
 
-> Reusable multi-agent workflows, CodeRabbit-style code audit, and tmux visualization — **making workflows simple.**
+> Reusable multi-agent workflows and CodeRabbit-style code audit — **making workflows simple.**
 
-`flow` lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills and live tmux visualization of every agent.
+`flow` lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills.
 
-It unifies `pair`'s plan/implement/review simplicity with `@quintinshaw/pi-dynamic-workflows`' dynamic orchestration and a CodeRabbit-style audit rigor, plus tmux panes adapted from `team`. It coexists with `pair` and will eventually deprecate `team`.
+It unifies `pair`'s plan/implement/review simplicity with `@quintinshaw/pi-dynamic-workflows`' dynamic orchestration and a CodeRabbit-style audit rigor. It coexists with `pair` and will eventually deprecate `team`.
 
 ---
 
@@ -16,17 +16,17 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 |-------|------------|----------------|---------------|
 | **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **6 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
-| **Config** | *Runtime settings* — which model an agent runs on, audit thresholds, tmux, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
+| **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
-> The **reviewer is defined as an agent** (`~/.pi/agent/agents/reviewer.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** that reviewer runs on (plus `audit` / `tmux` / `worktree` settings). The reviewer's *behavior* lives in the `.md` file — config never describes how an agent thinks.
+> Agents (reviewer, explorer, developer, planner, auditor, synth) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
 >
-> Concretely: `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer.
+> Concretely: `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer. The six model groups (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`) are all optional; an unset model inherits the orchestrator (uniform fallback, no fail-fast).
 
 **Where the model comes from, per tier:**
 
-- **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — the reviewer model is resolved from `config.json` via a [4-step chain](#configuration) (prompt → config → env → fail with a message).
-- **Tier 2 YAML flows** — each agent sets its `model:` **inline in the YAML** (a fuzzy alias like `sonnet` or `haiku`), independent of `config.json`. Config has no say here.
+- **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — models **self-resolved** by the skill from `config.json` (project then global → env → inherit orchestrator). The tool pre-resolves + echoes them (visibility only); the skill is the resolver, so a workflow delegating via a `skill:` phase honors config too.
+- **Tier 2 YAML flows** — each agent sets its `model:` **inline in the YAML** (a fuzzy alias like `sonnet` or `haiku`), independent of `config.json` (falls back to the `.md` `model:`, else the orchestrator).
 
 ---
 
@@ -129,7 +129,7 @@ Create a multi-milestone implementation plan with parallel research and iterativ
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `prompt` | No | The task to plan |
-| `reviewer_model` | No | Override reviewer model (else [4-step chain](#configuration)) |
+| `reviewer_model` | No | Override reviewer model (else self-resolved from [config](#configuration)) |
 | `explorer_model` | No | Override explorer model (inherits parent if unset) |
 
 Phases: (1) fan out N explorers in parallel → codebase map; (2) gather requirements one question at a time; (3) design via brainstorming; (4) plan via writing-plans (milestones + `S-MN{seq}` stories); (5) iterative reviewer loop (fix P0/P1/P2, max 10 rounds); (6) write plan files; (7) optional Telegram notify.
@@ -314,16 +314,21 @@ Today `code-review.yaml` is a pure skill wrapper (no agent phases of its own), s
 
 ---
 
-## tmux visualization
+## Agent resolution
 
-When enabled, each spawned agent gets its own tmux pane, driven by pi-dw's event stream (`subagents:created` opens a pane; `subagents:completed` / `subagents:failed` close it). Two themes:
+When a skill or phase needs to spawn an agent, the type is resolved deterministically:
 
-| Theme | Style |
-|-------|-------|
-| `codex` (default) | ANSI status colors |
-| `plain` | No escape codes (for logs / piped output) |
+1. If an agent definition `<name>.md` exists → spawn that named agent (`name`).
+2. Else `planner` → built-in `Plan`; `reviewer` → built-in `Reviewer`.
+3. Anything else with no `.md` → `general-purpose`.
 
-Escape hatches: `SF_FLOW_NO_TMUX=1` or `tmux.enabled=false`. When disabled, the renderer is a byte-identical no-op (`NOOP_WHEN_DISABLED`). Sessions are named `sf-flow-<hex>` and adoption is name-guarded so flow only touches its own sessions.
+A missing `explorer.md` does **not** fall back to the built-in `Explore` (which forces Haiku) — it yields `general-purpose`, inheriting the orchestrator model. This rule is encoded in code (`resolveAgentType`) + stated verbatim in every tier-1 skill, so the direct (tool) path and the workflow (`skill:` phase) path spawn the same agent type.
+
+The orchestrator is **orchestrator-only**: in `/sf-flow-implement` it writes no code — it delegates each milestone to the `developer` agent and runs the per-milestone reviewer gate.
+
+## Plan standard (exhaustive milestone plans)
+
+Plans are consumed by an implementer that may be a weaker model, so `/sf-flow-plan` enforces an **exhaustive** standard: every story must specify exact files + lines, a precise change (no vague verbs like "refactor"/"improve"), rationale, acceptance criteria, edge cases, test expectations, and dependencies — enough that a less-intelligent model can implement it with **zero remaining design decisions**. A completeness self-check runs before finalizing, and the reviewer gate REVISEs under-detailed stories independent of correctness. (This applies to both the plan tool and a workflow's plan phase — both execute the same skill.)
 
 ---
 
@@ -335,52 +340,50 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 {
   "reviewer": { "model": "anthropic/sonnet-4-6" },
   "explorer": { "model": "anthropic/haiku-4-5" },
+  "developer": { "model": "anthropic/sonnet-4-6" },
+  "planner": { "model": "anthropic/sonnet-4-6" },
+  "auditor": { "model": "anthropic/sonnet-4-6" },
+  "synth": { "model": "anthropic/haiku-4-5" },
   "audit": { "threshold": 0.94, "max_rounds": 5 },
-  "tmux": { "enabled": true, "theme": "codex" },
   "worktree": { "branch_prefix": "flow/" }
 }
 ```
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `reviewer.model` | `string` | — | Model for the reviewer agent (Tier 1 skills). **Required** for plan/implement/audit unless given per-call |
-| `explorer.model` | `string` | — | Model for the explorer agent (inherits parent if unset) |
+| `<role>.model` | `string` | — | Model for one of the six agents: `reviewer`, `explorer`, `developer`, `planner`, `auditor`, `synth`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
-| `tmux.enabled` | `boolean` | `true` | Render agent panes |
-| `tmux.theme` | `codex` \| `plain` | `codex` | Pane style |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
 
-**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_EXPLORER_MODEL`, `SF_FLOW_NO_TMUX=1`.
+**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_EXPLORER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`.
 
 ### Model resolution chain (Tier 1 skills)
 
-**Reviewer model** (required for plan/implement/audit):
+Tier-1 skills **self-resolve** each agent's model:
 
-1. Prompt argument — e.g. `"use anthropic/sonnet-4-6 as reviewer"`
-2. Config file — `reviewer.model` (project, then global)
-3. Environment — `SF_FLOW_REVIEWER_MODEL`
-4. Fail with a *"No reviewer model configured"* message (no interactive prompt, no fallback to the agent `.md`)
+1. A model passed in the invocation context (tool echo / workflow hint) — wins.
+2. Config file — `<role>.model` (project, then global).
+3. Environment — `SF_FLOW_<ROLE>_MODEL`.
+4. **Inherit the orchestrator model** (uniform fallback, no fail-fast). At dispatch, an unset model is *omitted* so pi-subagents applies the agent `.md` `model:` (if any) or inherits the orchestrator.
 
-**Explorer model** (optional, plan only): prompt → config → env → **inherits the parent (session) model**.
-
-> Note: Tier 2 YAML agents ignore this chain — they use the inline `model:` field in the YAML.
+> Note: Tier 2 YAML agents ignore this chain — they use the inline `model:` field in the YAML (else the `.md`, else the orchestrator).
 
 ### Model precedence
 
-A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* First, know that **config is not a per-agent model registry** — its schema allows only `reviewer.model` and `explorer.model` (every group is `additionalProperties: false`), so you cannot set a model for an arbitrary agent in config.
+A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **6-agent model registry** (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`); each group is `additionalProperties: false`.
 
 | Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
 |---|---|---|---|---|
-| Tier 1 skill (`reviewer` / `explorer`) | ignored | — | set | **config** |
-| Tier 1 skill | ignored | — | unset | **tool errors** (no fallback to the `.md`) |
+| Tier 1 skill | (applied by pi-subagents only if config/env unset) | — | set | **config** |
+| Tier 1 skill | (applied if unset) | — | unset | **`.md`** → else **orchestrator** (uniform fallback) |
 | Tier 2 flow agent | set | set | (no effect) | **YAML** |
 | Tier 2 flow agent | set | omitted | (no effect) | **`.md`** (fallback) |
-| Tier 2 flow agent | omitted | omitted | (no effect) | parent / session model |
+| Tier 2 flow agent | omitted | omitted | (no effect) | orchestrator / session model |
 
-**Why config wins for Tier 1:** flow resolves the model via the 4-step chain and passes it *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding anything in the `.md`. The six default agents ship with no `model:` at all; if nothing is configured the tool returns *"No reviewer model configured"* rather than falling back to the `.md`. So for Tier 1, the `.md`'s `model:` is effectively dead.
+**Why config wins for Tier 1 (when set):** the skill self-resolves + passes the model *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding the `.md`. If config/env are both unset, the model is omitted so pi-subagents falls back to the `.md` `model:` (if any), else the orchestrator. The six default agents ship with no `model:` — so an unset config simply inherits the orchestrator (no error).
 
-**Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the parent). Config has no effect on Tier 2 agents.
+**Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the orchestrator). Config has no effect on Tier 2 agents.
 
 ---
 
@@ -388,16 +391,20 @@ A common question: *if an agent `.md` sets a `model:` and config sets a differen
 
 ### Skill-driven design
 
-The five tools are thin: each resolves config + ensures agents exist, then hands off to a `SKILL.md` containing the actual step sequence. The extension provides only config loading, model resolution, write-once agent templates, and worktree helpers.
+The tools are thin: each pre-resolves config + ensures agents exist, then hands off to a `SKILL.md` containing the actual step sequence. The extension provides only config loading, model resolution, write-once agent templates, agent-type resolution, and worktree helpers.
 
-### Agent spawning
+### Model resolution
 
-Agents run as pi-subagents from global definitions at `~/.pi/agent/agents/<name>.md`. Files are write-once and omit `model:` — flow resolves the model and passes it at dispatch (`Agent({ subagent_type: "reviewer", model: "<id>" })`).
+Tier-1 skills **self-resolve** models from `config.json` (project → global → env → inherit orchestrator); the tools pre-resolve + echo them for visibility. Agent types resolve by `.md` filename match (see [Agent resolution](#agent-resolution)).
+
+### Orchestrator-only implement
+
+`/sf-flow-implement` writes no code: it delegates each milestone to the `developer` agent (TDD), runs the per-milestone reviewer gate, then the audit gate. The orchestrator only reads, spawns, parses, and aggregates.
 
 ### Worktree lifecycle (implement)
 
 1. Create one git worktree with branch `flow/<slug>` (git-only; non-git targets skip it).
-2. Per milestone: TDD each story → reviewer loop → commit to the worktree branch → update the tracker.
+2. Per milestone: delegate to the `developer` agent (TDD) → reviewer loop → commit to the worktree branch → update the tracker.
 3. Audit gate on the accumulated diff; on `REVISE`, loop back to the failing story (bounded by `audit.max_rounds`).
 4. `sf_flow_finalize` removes the worktree directory while preserving the `flow/<slug>` branch for a PR.
 
@@ -420,14 +427,13 @@ ai_plan/YYYY-MM-DD-<slug>/
 
 ## Migration from team
 
-`flow` replaces `team`'s tmux visualization + dynamic dispatch + audit on the pi-subagents / pi-dynamic-workflows foundation — **without** subprocess orchestration or milestone/story parallel lanes (deliberately dropped).
+`flow` replaces `team`'s dynamic dispatch + audit on the pi-subagents / pi-dynamic-workflows foundation — **without** subprocess orchestration or milestone/story parallel lanes (deliberately dropped).
 
 | `team` | `flow` |
 |--------|--------|
 | plan / implement | `sf_flow_plan` / `sf_flow_implement` |
 | audit | `sf_flow_audit` |
 | user-defined workflows | Tier 2 YAML flows via `sf_flow_create_workflow` + `sf_flow_auto` |
-| tmux visualization | built-in (`tmux.enabled`) |
 | subprocess orchestration | dropped (pi-subagents instead) |
 | parallel lanes | dropped |
 
@@ -443,5 +449,4 @@ ai_plan/YYYY-MM-DD-<slug>/
 | Implement gate | Reviewer loop | Reviewer loop **+ audit triad** |
 | Custom workflows | — | Tier 2 YAML (agents/phases/loops) |
 | Code audit | — | CodeRabbit-style triad (`sf_flow_audit`) |
-| tmux visualization | — | Built-in |
 | Foundation | pi-subagents | pi-subagents + pi-dynamic-workflows |

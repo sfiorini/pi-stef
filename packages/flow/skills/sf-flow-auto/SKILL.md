@@ -15,7 +15,7 @@ For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in
 
 Within the generated pi-dw script, each `agent:` phase resolves its agent type by this same rule (a declared agent spawns by name; an undeclared `planner`/`reviewer` falls back to `Plan`/`Reviewer`; anything else → `general-purpose`). `skill:` phases always run as `general-purpose` (the agent that reads + executes the skill file).
 
-Models are resolved by the `sf_flow_*` tool and echoed in its output; pass the echoed model when you spawn an agent. If a model was not echoed, omit `model` to inherit the orchestrator.
+Models: tier-1 `skill:` phases (sf-flow-plan/implement/audit) **self-resolve** their models from `.pi/sf/flow/config.json` (project then global → `SF_FLOW_<ROLE>_MODEL` env → inherit orchestrator), so a delegated phase honors config just like the direct tool path. When generating the script you MAY resolve models (`resolveFlowModels`) and pass them to `generateScript(flow, { models })` as a belt-and-suspenders hint baked into the skill-phase prompt — but it is optional, since each skill self-resolves. Non-tier-1 `agent:` phases use their YAML `model:` (else the `.md`, else the orchestrator).
 
 ## Process
 

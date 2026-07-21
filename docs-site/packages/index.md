@@ -15,7 +15,7 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 | [azure-foundry](/packages/azure-foundry) | Azure Foundry and Azure OpenAI deployments as native Pi providers |
 | [catalog](/packages/catalog) | Declarative package manager with cross-machine sync |
 | [cursor](/packages/cursor) | Cursor AI editor as a native Pi stream provider |
-| [flow](/packages/flow) | Reusable multi-agent workflows, CodeRabbit-style audit, tmux visualization |
+| [flow](/packages/flow) | Reusable multi-agent workflows, CodeRabbit-style audit |
 | [team](/packages/team) | Steerable team of role-agents for plan/review/implement |
 | [atlassian](/packages/atlassian) | Jira and Confluence integration |
 | [figma](/packages/figma) | Figma REST API tools and design context |

@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.0] - 2026-07-21
+### Changed (breaking)
+- feat(flow): per-agent model registry — all 6 agents (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`) now have optional config groups; uniform fallback (unset ⇒ inherits the orchestrator model, **no fail-fast**).
+- feat(flow): tier-1 skills (`sf-flow-plan`/`sf-flow-implement`/`sf-flow-audit`) **self-resolve** models from `config.json` (project → global → env → inherit). A workflow delegating via a `skill:` phase now honors config too. Tools pre-resolve + echo (visibility only).
+- feat(flow): deterministic agent-type resolution (`resolveAgentType`) — match-by-`.md`-name; `planner`/`reviewer` fall back to built-in `Plan`/`Reviewer`; anything else → `general-purpose`. A missing `explorer.md` no longer falls back to `Explore` (which forced Haiku). Wired into `generate.ts` for Tier 2 flows.
+- feat(flow): enforce exhaustive milestone-plan generation — the plan standard (7 required per-story fields, no vague verbs, zero-remaining-design-decisions bar) + a completeness self-check + a reviewer gate that REVISEs under-detailed stories. Applies to both the plan tool and workflow plan phases.
+- feat(flow): `/sf-flow-implement` is now orchestrator-only — it delegates each milestone to the `developer` agent (TDD) and runs the per-milestone reviewer gate; the orchestrator writes no code.
+- fix(flow): `skill:`-phase artifact handoff — conventional slug-keyed paths (`ai_plan/<slug>/`, `flow/<slug>` worktree) via `args.flow`/`args.slug`; dropped the broken placeholder const. `generateScript(flow, {models?})` bakes an optional tier-1 model hint.
+- refactor(flow): remove dead tmux visualization (no `src/` imported it; `isEnabled()` read only `SF_FLOW_NO_TMUX`). Use pi-subagents' own visualization.
+
+### ⚠️ Breaking
+- **Remove any `tmux` block from your `.pi/sf/flow/config.json`** — the schema is `additionalProperties: false`, so a `tmux` key now fails validation. (`SF_FLOW_NO_TMUX` is gone too.)
+- An unset reviewer model **no longer errors** — it now inherits the orchestrator model (uniform fallback). The old "No reviewer model configured" tool error is gone.
+
 ## [Unreleased]
 
 ## [0.1.7] - 2026-07-17
