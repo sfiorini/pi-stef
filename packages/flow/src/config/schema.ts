@@ -1,7 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 /**
- * Flow config schema. `reviewer`/`explorer`/`audit`/`tmux`/`worktree` are all
+ * Flow config schema. `reviewer`/`explorer`/`audit`/`worktree` are all
  * Optional so a minimal user config (e.g. `{"reviewer":{"model":"..."}}`)
  * validates. `loadConfig` deep-merges with DEFAULT_CONFIG, guaranteeing the
  * full shape at runtime (see `LoadedFlowConfig`).
@@ -19,15 +19,6 @@ export const ConfigSchema = Type.Object(
         {
           threshold: Type.Number({ default: 0.94 }),
           max_rounds: Type.Integer({ default: 5 }),
-        },
-        { additionalProperties: false }
-      )
-    ),
-    tmux: Type.Optional(
-      Type.Object(
-        {
-          enabled: Type.Boolean({ default: true }),
-          theme: Type.Union([Type.Literal("codex"), Type.Literal("plain")], { default: "codex" }),
         },
         { additionalProperties: false }
       )
@@ -55,7 +46,6 @@ export interface LoadedFlowConfig {
   reviewer: { model?: string };
   explorer: { model?: string };
   audit: { threshold: number; max_rounds: number };
-  tmux: { enabled: boolean; theme: "codex" | "plain" };
   worktree: { branch_prefix: string };
 }
 
@@ -63,7 +53,6 @@ export const DEFAULT_CONFIG: LoadedFlowConfig = {
   reviewer: {},
   explorer: {},
   audit: { threshold: 0.94, max_rounds: 5 },
-  tmux: { enabled: true, theme: "codex" },
   worktree: { branch_prefix: "flow/" },
 };
 

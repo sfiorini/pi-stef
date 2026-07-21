@@ -20,7 +20,7 @@ The sf_flow_auto tool already resolved the workflow file (project `<repo>/.pi/sf
 - `jira` → resolve the story via @pi-stef/atlassian (Jira), pass description+acceptance as `args.input`
 
 ### Phase 3: Run the flow
-Execute the generated pi-dw script with `args.input`. Phases run sequentially; intra-phase fan-out via `parallel()`. Loops (`until_dry` / `until:approved`) run to completion. tmux visualization (if enabled) shows per-agent panes.
+Execute the generated pi-dw script with `args.input`. Phases run sequentially; intra-phase fan-out via `parallel()`. Loops (`until_dry` / `until:approved`) run to completion.
 
 ### Phase 4: Terminal state
 Each phase exits success / no-op / blocked / exhausted. On blocked/exhausted, stop and report. No human gates; on completion return the flow's result.

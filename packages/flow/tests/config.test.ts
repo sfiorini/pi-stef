@@ -21,7 +21,6 @@ describe("flow config", () => {
       join(home, ".pi", "sf", "flow", "config.json"),
       JSON.stringify({
         audit: { threshold: 0.9, max_rounds: 5 },
-        tmux: { enabled: true, theme: "codex" },
         worktree: { branch_prefix: "flow/" },
         reviewer: {},
         explorer: {},
@@ -32,7 +31,6 @@ describe("flow config", () => {
       join(root, ".pi", "sf", "flow", "config.json"),
       JSON.stringify({
         audit: { threshold: 0.97, max_rounds: 5 },
-        tmux: { enabled: true, theme: "codex" },
         worktree: { branch_prefix: "flow/" },
         reviewer: {},
         explorer: {},
@@ -54,7 +52,6 @@ describe("flow config", () => {
     expect(cfg.reviewer.model).toBe("anthropic/opus");
     // defaults filled for the absent groups
     expect(cfg.audit).toEqual({ threshold: 0.94, max_rounds: 5 });
-    expect(cfg.tmux).toEqual({ enabled: true, theme: "codex" });
     expect(cfg.worktree).toEqual({ branch_prefix: "flow/" });
   });
 });

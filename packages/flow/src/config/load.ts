@@ -54,7 +54,6 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
     reviewer: { ...base.reviewer, ...over.reviewer },
     explorer: { ...base.explorer, ...over.explorer },
     audit: { ...base.audit, ...over.audit },
-    tmux: { ...base.tmux, ...over.tmux },
     worktree: { ...base.worktree, ...over.worktree },
   };
 }
