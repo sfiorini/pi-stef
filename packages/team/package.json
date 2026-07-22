@@ -1,7 +1,7 @@
 {
   "name": "@pi-stef/team",
   "version": "0.4.0",
-  "description": "Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
+  "description": "[DEPRECATED \u2014 use @pi-stef/flow] Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -52,5 +52,6 @@
     "companions": [
       "git:github.com/obra/superpowers"
     ]
-  }
+  },
+  "deprecated": true
 }

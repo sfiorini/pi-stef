@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Deprecated
+- `@pi-stef/team` is deprecated in favor of `@pi-stef/flow`; tools now emit a migration banner.
 
 ## [0.4.0] - 2026-06-20
 ### Changed

@@ -1,5 +1,7 @@
 # team
 
+> ⚠️ **DEPRECATED.** `@pi-stef/team` is deprecated in favor of [`@pi-stef/flow`](/packages/flow). See [Migrating from team & pair](/migrating-from-team-and-pair) for the mapping (`sf_team_plan`→`sf_flow_plan`, `sf_team_implement`→`sf_flow_implement`, `sf_team_task`/`sf_team_auto`→`sf_flow_auto`). Resume = re-run `sf_flow_implement <slug>`; steering = native pi steering; parallelism = multi-agent fan-out.
+
 `@pi-stef/team` runs a small **team of role-agents** (planner, developer, reviewer, researcher) as `pi` subprocesses to drive plan / implement / task / auto / followup workflows.
 
 Use it for larger code changes where you want a durable plan folder, reviewer-approved milestones, resumable orchestration, configurable verification gates, and optional tmux side panes without asking a single model to hold the entire workflow in memory.
