@@ -23,6 +23,7 @@ export default defineConfig({
           { text: "Catalog Guide", link: "/catalog-guide" },
           { text: "Profiles & Sharing", link: "/profiles" },
           { text: "Migrating from superpowers-adapter", link: "/migrating-from-superpowers-adapter" },
+          { text: "Migrating from team & pair", link: "/migrating-from-team-and-pair" },
         ],
       },
       {
@@ -33,8 +34,8 @@ export default defineConfig({
           { text: "catalog", link: "/packages/catalog" },
           { text: "cursor", link: "/packages/cursor" },
           { text: "flow", link: "/packages/flow" },
-          { text: "pair", link: "/packages/pair" },
-          { text: "team", link: "/packages/team" },
+          { text: "pair (deprecated)", link: "/packages/pair" },
+          { text: "team (deprecated)", link: "/packages/team" },
           { text: "atlassian", link: "/packages/atlassian" },
           { text: "figma", link: "/packages/figma" },
           { text: "web", link: "/packages/web" },
