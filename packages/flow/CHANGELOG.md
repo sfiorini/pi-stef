@@ -15,6 +15,8 @@
 - An unset reviewer model **no longer errors** — it now inherits the orchestrator model (uniform fallback). The old "No reviewer model configured" tool error is gone.
 
 ## [Unreleased]
+### Changed
+- feat(flow): ship agent definitions for the example-workflow agents — `scanner` (`auth-audit`) and `researcher` (`research-report`) now ship as write-once `.md` files in `agents/` and are seeded by `/sf-flow-seed` + lazy `ensureAgentFiles`. Previously these roles resolved to `general-purpose`. Eight agents now ship (six config-backed + two Tier-2 example agents whose model is set inline in their workflow YAML; `config.json` unchanged at six groups).
 
 ## [0.1.7] - 2026-07-17
 ### Changed
