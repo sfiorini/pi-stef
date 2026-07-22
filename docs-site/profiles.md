@@ -35,7 +35,7 @@ meta:
 
 packages:
   team:
-    source: npm:@pi-stef/team
+    source: npm:@pi-stef/flow
     enabled: true
   web:
     source: npm:@pi-stef/web

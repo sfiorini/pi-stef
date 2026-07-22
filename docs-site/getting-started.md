@@ -46,7 +46,7 @@ This creates a `cat.yaml` file that declares your packages.
 ### Step 4: Add packages
 
 ```bash
-/ct add npm:@pi-stef/team
+/ct add npm:@pi-stef/flow
 /ct add npm:@pi-stef/web
 /ct add npm:@pi-stef/figma
 ```
@@ -66,7 +66,7 @@ If you don't want catalog management, install packages directly:
 ```bash
 pi install npm:@pi-stef/azure-foundry
 pi install npm:@pi-stef/cursor
-pi install npm:@pi-stef/team
+pi install npm:@pi-stef/flow
 pi install npm:@pi-stef/web
 pi install npm:@pi-stef/figma
 pi install npm:@pi-stef/atlassian

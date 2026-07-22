@@ -13,7 +13,7 @@ pi install npm:@pi-stef/catalog
 ```bash
 /ct login          # Authenticate with GitHub (requires gh CLI)
 /ct init           # Initialize catalog from installed packages
-/ct add npm:@pi-stef/team   # Add a package
+/ct add npm:@pi-stef/flow   # Add a package
 /ct sync           # Install + push to gist
 ```
 
@@ -53,11 +53,11 @@ meta:
   activeProfile: default
 
 packages:
-  pair:
-    source: "npm:@pi-stef/pair"
+  flow:
+    source: "npm:@pi-stef/flow"
     type: skill
-  team:
-    source: "npm:@pi-stef/team"
+  cursor:
+    source: "npm:@pi-stef/cursor"
     type: skill
   atlassian:
     source: "npm:@pi-stef/atlassian"

@@ -13,7 +13,7 @@ pi install npm:@pi-stef/catalog
 ```bash
 /ct login          # Authenticate with GitHub
 /ct init           # Create cat.yaml
-/ct add npm:@pi-stef/team   # Add a package
+/ct add npm:@pi-stef/flow   # Add a package
 /ct sync           # Install + push to gist
 ```
 
@@ -59,7 +59,7 @@ packages:
     source: npm:@pi-stef/cursor
     enabled: true
   team:
-    source: npm:@pi-stef/team
+    source: npm:@pi-stef/flow
     enabled: true
   web:
     source: npm:@pi-stef/web
@@ -73,7 +73,7 @@ packages:
 
 | Field | Required | Description |
 |-------|----------|-------------|
-| `source` | Yes | Package source (e.g., `npm:@pi-stef/team`, `git:github.com/user/repo`) |
+| `source` | Yes | Package source (e.g., `npm:@pi-stef/flow`, `git:github.com/user/repo`) |
 | `type` | No | `"skill"` or `"pi-native"` |
 | `enabled` | No | `true` (default) or `false` |
 | `profile` | No | Label for the package (annotation only) |
