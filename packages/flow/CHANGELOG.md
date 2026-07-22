@@ -20,6 +20,7 @@
 
 ### Changed
 - `planner` agent now invokes superpowers:writing-plans (with embedded fallback); retains the 7-field plan standard.
+- sf-flow-plan Phase 4 dispatches the `designer` agent (interactive relay loop); Phase 5 dispatches the `planner` agent.
 
 ## [0.2.1] - 2026-07-22
 ### Changed
