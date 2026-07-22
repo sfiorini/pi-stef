@@ -7,7 +7,6 @@ import { ensureAgentFiles, resolveAgentType } from "../src/agents.js";
 const FLOW_AGENTS = [
   "reviewer.md",
   "designer.md",
-  "explorer.md",
   "auditor.md",
   "planner.md",
   "developer.md",
@@ -50,7 +49,7 @@ describe("ensureAgentFiles", () => {
 
 describe("resolveAgentType", () => {
   it("returns the named agent when a matching .md file exists", () => {
-    expect(resolveAgentType("reviewer", ["reviewer.md", "explorer.md"])).toBe("reviewer");
+    expect(resolveAgentType("reviewer", ["reviewer.md", "researcher.md"])).toBe("reviewer");
     expect(resolveAgentType("developer", ["reviewer.md", "developer.md"])).toBe("developer");
   });
 
@@ -62,8 +61,8 @@ describe("resolveAgentType", () => {
     expect(resolveAgentType("reviewer", ["developer.md"])).toBe("Reviewer");
   });
 
-  it("does NOT fall back to Explore for a missing explorer (avoids Haiku) → general-purpose", () => {
-    expect(resolveAgentType("explorer", ["reviewer.md"])).toBe("general-purpose");
+  it("does NOT fall back to Explore for a missing researcher (avoids Haiku) → general-purpose", () => {
+    expect(resolveAgentType("researcher", ["reviewer.md"])).toBe("general-purpose");
   });
 
   it("returns general-purpose for any other undeclared name", () => {
@@ -73,7 +72,7 @@ describe("resolveAgentType", () => {
 
   it("matches case-insensitively (lowercase .md name wins)", () => {
     expect(resolveAgentType("Reviewer", ["reviewer.md"])).toBe("reviewer");
-    expect(resolveAgentType("PLANNER", ["planner.md"])).toBe("planner");
+    expect(resolveAgentType("PLANNER", ["reviewer.md", "planner.md"])).toBe("planner");
   });
 
   it("built-in fallback still applies case-insensitively", () => {
@@ -81,7 +80,7 @@ describe("resolveAgentType", () => {
   });
 
   it("accepts bare agent keys (no .md) too — used by generate.ts", () => {
-    expect(resolveAgentType("reviewer", ["reviewer", "explorer"])).toBe("reviewer");
+    expect(resolveAgentType("reviewer", ["reviewer", "researcher"])).toBe("reviewer");
     expect(resolveAgentType("planner", ["reviewer"])).toBe("Plan");
   });
 });

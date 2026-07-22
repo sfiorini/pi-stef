@@ -103,7 +103,7 @@ describe("renderSeedReport", () => {
     const out = renderSeedReport({
       agents: [
         { file: "reviewer.md", status: "saved-as-new", newPath: "/h/.pi/agent/agents/reviewer.md.new" },
-        { file: "explorer.md", status: "up-to-date" },
+        { file: "researcher.md", status: "up-to-date" },
       ],
       workflows: [{ file: "code-review.yaml", status: "written" }],
     });
