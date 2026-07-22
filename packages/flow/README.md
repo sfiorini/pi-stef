@@ -20,7 +20,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **8 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **9 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
@@ -129,6 +129,7 @@ Multi-milestone plan with parallel research and iterative reviewer approval. Pro
 | `prompt` | No | The task to plan |
 | `reviewer_model` | No | Override reviewer model (else self-resolved from [config](#configuration)) |
 | `explorer_model` | No | Override explorer model (inherits parent if unset) |
+| `designer_model` | No | Override designer model (inherits parent if unset) |
 
 Phases: fan out N explorers in parallel → codebase map → gather requirements one question at a time → design (brainstorming) → plan (writing-plans: milestones + `S-MN{seq}` stories) → iterative reviewer loop (fix P0/P1/P2, max 10 rounds) → write plan files → optional Telegram notify.
 
