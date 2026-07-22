@@ -18,6 +18,9 @@
 ### Added
 - `designer` agent (7th config-backed group) + config wiring; see sf-flow-plan Phase 4.
 
+### Changed
+- `planner` agent now invokes superpowers:writing-plans (with embedded fallback); retains the 7-field plan standard.
+
 ## [0.2.1] - 2026-07-22
 ### Changed
 - audit(P3): clarify scanner tool-use mandate (grep for patterns, never read whole files)
