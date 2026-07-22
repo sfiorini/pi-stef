@@ -1,8 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 /**
- * Flow config schema. The six agent model groups (`reviewer`/`explorer`/
- * `developer`/`planner`/`auditor`/`synth`) plus `audit` and `worktree` are all
+ * Flow config schema. The seven agent model groups (`reviewer`/`explorer`/
+ * `developer`/`planner`/`auditor`/`synth`/`designer`) plus `audit` and `worktree` are all
  * Optional so a minimal user config (e.g. `{"reviewer":{"model":"..."}}`)
  * validates. `loadConfig` deep-merges with DEFAULT_CONFIG, guaranteeing the
  * full shape at runtime (see `LoadedFlowConfig`).
@@ -25,6 +25,9 @@ export const ConfigSchema = Type.Object(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
     synth: Type.Optional(
+      Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
+    ),
+    designer: Type.Optional(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
     audit: Type.Optional(
@@ -62,6 +65,7 @@ export interface LoadedFlowConfig {
   planner: { model?: string };
   auditor: { model?: string };
   synth: { model?: string };
+  designer: { model?: string };
   audit: { threshold: number; max_rounds: number };
   worktree: { branch_prefix: string };
 }
@@ -73,11 +77,12 @@ export const DEFAULT_CONFIG: LoadedFlowConfig = {
   planner: {},
   auditor: {},
   synth: {},
+  designer: {},
   audit: { threshold: 0.94, max_rounds: 5 },
   worktree: { branch_prefix: "flow/" },
 };
 
-/** The six resolved agent models (deterministic front-end; null ⇒ inherit orchestrator). */
+/** The seven resolved agent models (deterministic front-end; null ⇒ inherit orchestrator). */
 export interface ResolvedModels {
   reviewerModel: string | null;
   explorerModel: string | null;
@@ -85,6 +90,7 @@ export interface ResolvedModels {
   plannerModel: string | null;
   auditorModel: string | null;
   synthModel: string | null;
+  designerModel: string | null;
 }
 
 export interface ResolvedFlowConfig extends LoadedFlowConfig, ResolvedModels {}
