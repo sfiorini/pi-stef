@@ -8,6 +8,7 @@ import {
 } from "./config/load";
 import { ensureAgentFiles } from "./agents";
 import { buildImplementReadyMessage, skillDocPath } from "./messages";
+import { pairDeprecatedDescriptionPrefix, withPairDeprecationNotice } from "./deprecation";
 
 import { finalizeWorktree } from "./worktree/finalize";
 import { createWorktree } from "./worktree/create";
@@ -74,9 +75,10 @@ export function registerSfPair(pi: ExtensionAPI): void {
     name: "sf_pair_plan",
     label: "sf_pair_plan",
     description:
+      pairDeprecatedDescriptionPrefix("sf_pair_plan") +
       "Create a multi-milestone implementation plan with iterative reviewer approval. Produces a plan folder under ai_plan/.",
     parameters: planSchema as any,
-    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+    execute: withPairDeprecationNotice("sf_pair_plan")(async (_id: any, params: any, _signal: any, _onUpdate: any, ctx: any) => {
       const repoRoot = ctx.cwd ?? process.cwd();
       const defaults = await loadAndResolveDefaults(repoRoot);
       const prompt = (params as any).prompt ?? "";
@@ -126,7 +128,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         ],
         details: { configured: true, reviewerModel, explorerModel },
       };
-    },
+    }) as any,
   });
 
   // Register implement tool
@@ -147,9 +149,10 @@ export function registerSfPair(pi: ExtensionAPI): void {
     name: "sf_pair_implement",
     label: "sf_pair_implement",
     description:
+      pairDeprecatedDescriptionPrefix("sf_pair_implement") +
       "Execute an approved plan milestone-by-milestone in a git worktree. Creates worktree, implements all milestones with reviewer approval, then rolls up commits and deletes worktree.",
     parameters: implementSchema as any,
-    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+    execute: withPairDeprecationNotice("sf_pair_implement")(async (_id: any, params: any, _signal: any, _onUpdate: any, ctx: any) => {
       const repoRoot = ctx.cwd ?? process.cwd();
       const defaults = await loadAndResolveDefaults(repoRoot);
       const model = resolveReviewerModel((params as any).reviewer_model, defaults);
@@ -210,7 +213,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
           branchName: worktree.branchName,
         },
       };
-    },
+    }) as any,
   });
 
   // Register task tool
@@ -230,9 +233,10 @@ export function registerSfPair(pi: ExtensionAPI): void {
     name: "sf_pair_task",
     label: "sf_pair_task",
     description:
+      pairDeprecatedDescriptionPrefix("sf_pair_task") +
       "Execute a single task end-to-end: plan, review, implement, verify, commit. Uses current branch (no worktree).",
     parameters: taskSchema as any,
-    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+    execute: withPairDeprecationNotice("sf_pair_task")(async (_id: any, params: any, _signal: any, _onUpdate: any, ctx: any) => {
       const repoRoot = ctx.cwd ?? process.cwd();
       const defaults = await loadAndResolveDefaults(repoRoot);
       const promptModel = extractReviewerModelFromPrompt((params as any).prompt);
@@ -268,7 +272,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         ],
         details: { configured: true, reviewerModel: model, prompt: (params as any).prompt },
       };
-    },
+    }) as any,
   });
 
   // Register finalize tool
@@ -285,9 +289,10 @@ export function registerSfPair(pi: ExtensionAPI): void {
     name: "sf_pair_finalize",
     label: "sf_pair_finalize",
     description:
+      pairDeprecatedDescriptionPrefix("sf_pair_finalize") +
       "Finalize a pair implement run: remove the worktree directory while preserving the pair/<slug> branch for a PR. Call after all milestones are committed to the worktree branch.",
     parameters: finalizeSchema as any,
-    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+    execute: withPairDeprecationNotice("sf_pair_finalize")(async (_id: any, params: any, _signal: any, _onUpdate: any, ctx: any) => {
       const worktreePath = (params as any).worktree_path;
       const cwd = ctx.cwd ?? process.cwd();
       try {
@@ -308,7 +313,7 @@ export function registerSfPair(pi: ExtensionAPI): void {
         ],
         details: { finalized: true, worktreePath },
       };
-    },
+    }) as any,
   });
 
   // Register slash commands
