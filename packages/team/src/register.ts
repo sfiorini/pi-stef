@@ -14,6 +14,7 @@ import { createSfTeamImplement, type SfTeamImplementResult } from "./tools/imple
 import { createDefaultExternalFetcher } from "./research/default-fetcher";
 import { createSfTeamPlan, type SfTeamPlanResult } from "./tools/plan";
 import { createSfTeamSteer, SfTeamSteerSchema, type SfTeamSteerParams, type SfTeamSteerResult } from "./tools/steer";
+import { teamDeprecatedDescriptionPrefix, prependTeamDeprecationNotice } from "./deprecation";
 import { createSfTeamTask, type SfTeamTaskResult } from "./tools/task";
 import { createSfTeamResume } from "./tools/resume-dispatch";
 
@@ -400,11 +401,12 @@ function registerResumeTool(pi: ExtensionAPI): void {
     name: TEAM_RESUME_TOOL_NAME,
     label: TEAM_RESUME_TOOL_NAME,
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_resume") +
       "Resume any in-progress sf-team workflow by slug, path, or latest. Reads workflow.json to determine which tool owns the workflow and dispatches accordingly. Accepts aiPlanPath, gitMode, tddMode.",
     ),
     parameters: resumeSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_resume", r)),
   });
 }
 
@@ -432,11 +434,12 @@ function registerSteerTool(pi: ExtensionAPI): void {
     name: TEAM_STEER_TOOL_NAME,
     label: TEAM_STEER_TOOL_NAME,
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_steer") +
       "Send a steering instruction to an active sf-team workflow. Targets by workflowId, planSlug, or the single active workflow. Standalone ingress only; there is no sf_team_steer_resume.",
     ),
     parameters: SfTeamSteerSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as SfTeamSteerParams, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as SfTeamSteerParams, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_steer", r)),
   });
 }
 
@@ -511,11 +514,12 @@ function registerPlanTool(pi: ExtensionAPI): void {
     name: "sf_team_plan",
     label: "sf_team_plan",
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_plan") +
       "Draft a multi-milestone plan via planner+reviewer agents and write a 5-file plan folder. Begins a new run; required: `title`.",
     ),
     parameters: startSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_plan", r)),
   });
 }
 
@@ -578,11 +582,12 @@ function registerTaskTool(pi: ExtensionAPI): void {
     name: "sf_team_task",
     label: "sf_team_task",
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_task") +
       "End-to-end single-task workflow: plan-review → implement → verify → impl-review → commit. Begins a new run; required: `title`.",
     ),
     parameters: startSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_task", r)),
   });
 }
 
@@ -656,11 +661,12 @@ function registerImplementTool(pi: ExtensionAPI): void {
     name: "sf_team_implement",
     label: "sf_team_implement",
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_implement") +
       "Read an approved plan folder and implement milestones via developer+reviewer agents (D1 default). Begins a new run; required: `slug`.",
     ),
     parameters: startSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_implement", r)),
   });
 }
 
@@ -827,11 +833,12 @@ function registerAutoTool(pi: ExtensionAPI): void {
     name: "sf_team_auto",
     label: "sf_team_auto",
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_auto") +
       "Chain sf_team_plan and sf_team_implement (all-milestones) with no human gates between. Begins a new run; required: `title`.",
     ),
     parameters: startSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_auto", r)),
   });
 }
 
@@ -904,10 +911,11 @@ function registerFollowupTool(pi: ExtensionAPI): void {
     name: "sf_team_followup",
     label: "sf_team_followup",
     description: withCostSummaryGuidance(
+      teamDeprecatedDescriptionPrefix("sf_team_followup") +
       "Draft and implement a follow-up to a completed plan. Creates a new plan folder under `ai_plan/<date>-followup-<slug>/` (e.g. `ai_plan/2026-05-08-followup-better-anim/`). The parent plan is referenced in the planner brief and recorded in `.pi/sf/agent-workflows/workflow.json` as `parentSlug` for resume; the parent folder is not modified. Runs in the current branch (same as `sf_team_task`); switch branches before invoking if a fresh branch is required. Required: `title`.",
     ),
     parameters: startSchema as any,
     execute: (id, params, signal, onUpdate, ctx) =>
-      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)),
+      runExec(wrapped(id, params as Record<string, any>, signal ?? undefined, onUpdate ?? undefined, ctx)).then((r) => prependTeamDeprecationNotice("sf_team_followup", r)),
   });
 }
