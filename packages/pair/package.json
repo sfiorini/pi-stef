@@ -1,7 +1,8 @@
 {
   "name": "@pi-stef/pair",
   "version": "0.2.3",
-  "description": "Pi extension for plan/review/implement workflows using pi-subagents for reviewer spawning.",
+  "description": "[DEPRECATED \u2014 use @pi-stef/flow] Pi extension for plan/review/implement workflows using pi-subagents for reviewer spawning.",
+  "deprecated": true,
   "type": "module",
   "pi": {
     "extensions": [

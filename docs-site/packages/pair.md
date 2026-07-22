@@ -1,5 +1,7 @@
 # pair
 
+> ⚠️ **DEPRECATED.** `@pi-stef/pair` is deprecated in favor of [`@pi-stef/flow`](/packages/flow). See [Migrating from team & pair](/migrating-from-team-and-pair) for the 1:1 tool mapping (`sf_pair_plan`→`sf_flow_plan`, `sf_pair_implement`→`sf_flow_implement`, `sf_pair_task`→`sf_flow_auto`, `sf_pair_finalize`→`sf_flow_finalize`).
+
 A simplified plan/review/implement workflow for Pi using pi-subagents for reviewer spawning.
 
 ## Installation
