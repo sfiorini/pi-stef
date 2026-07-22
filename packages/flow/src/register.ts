@@ -22,6 +22,21 @@ export const FLOW_TOOL_NAMES = [
   "sf_flow_seed",
 ] as const;
 
+const MODEL_ALIASES = new Set([
+  "sonnet", "haiku", "opus", "mini", "flash", "pro", "nano", "air", "turbo",
+  "claude", "gpt", "gemini", "llama", "mistral", "deepseek", "grok",
+]);
+/**
+ * A token looks like a plausible model name/alias if it is a known alias OR
+ * contains a digit / version punctuation (`.`, `/`, `-`). Rejects short/common
+ * English words that regex capture groups can mis-extract (e.g. "and", "or").
+ */
+export function isValidModelToken(token: string | undefined): token is string {
+  if (!token || token.length < 2) return false;
+  if (MODEL_ALIASES.has(token.toLowerCase())) return true;
+  return /[\d/.-]/.test(token);
+}
+
 /** Extract reviewer model from a prompt string (e.g. "use opus as reviewer"). Ported from pair. */
 export function extractReviewerModelFromPrompt(prompt: string): string | undefined {
   const patterns = [
@@ -31,21 +46,21 @@ export function extractReviewerModelFromPrompt(prompt: string): string | undefin
   ];
   for (const pattern of patterns) {
     const match = prompt.match(pattern);
-    if (match) return match[1];
+    if (match && isValidModelToken(match[1])) return match[1];
   }
   return undefined;
 }
 
-/** Extract explorer model from a prompt string. Ported from pair. */
-export function extractExplorerModelFromPrompt(prompt: string): string | undefined {
+/** Extract researcher model from a prompt string (e.g. "use sonnet as researcher"). */
+export function extractResearcherModelFromPrompt(prompt: string): string | undefined {
   const patterns = [
-    /use\s+([\w/.-]+)\s+as\s+explorer/i,
-    /explorer[:\s]+([\w/.-]+)/i,
-    /explore\s+with\s+([\w/.-]+)/i,
+    /use\s+([\w/.-]+)\s+as\s+researcher/i,
+    /researcher[:\s]+([\w/.-]+)/i,
+    /research\s+with\s+([\w/.-]+)/i,
   ];
   for (const pattern of patterns) {
     const match = prompt.match(pattern);
-    if (match) return match[1];
+    if (match && isValidModelToken(match[1])) return match[1];
   }
   return undefined;
 }
@@ -60,7 +75,7 @@ export function extractDesignerModelFromPrompt(prompt: string): string | undefin
   ];
   for (const pattern of patterns) {
     const match = prompt.match(pattern);
-    if (match) return match[1];
+    if (match && isValidModelToken(match[1])) return match[1];
   }
   return undefined;
 }
@@ -136,7 +151,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       {
         prompt: Type.Optional(Type.String()),
         reviewer_model: Type.Optional(Type.String()),
-        explorer_model: Type.Optional(Type.String()),
+        researcher_model: Type.Optional(Type.String()),
         designer_model: Type.Optional(Type.String()),
       },
       { additionalProperties: false },
@@ -147,12 +162,12 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const defaults = await loadAndResolveDefaults(repoRoot, {
         overrides: {
           reviewer: (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
-          explorer: (params as any).explorer_model ?? extractExplorerModelFromPrompt(prompt),
+          researcher: (params as any).researcher_model ?? extractResearcherModelFromPrompt(prompt),
           designer: (params as any).designer_model ?? extractDesignerModelFromPrompt(prompt),
         },
       });
       const reviewerModel = defaults.reviewerModel;
-      const explorerModel = defaults.explorerModel;
+      const researcherModel = defaults.researcherModel;
       const designerModel = defaults.designerModel;
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
       await ensureExampleWorkflows(homedir());
@@ -161,9 +176,9 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nDesigner model: ${designerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nResearcher model: ${researcherModel ?? "inherits from parent (not configured)"}\nDesigner model: ${designerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
         ],
-        details: { configured: true, reviewerModel, explorerModel, designerModel },
+        details: { configured: true, reviewerModel, researcherModel, designerModel },
       };
     },
   });
