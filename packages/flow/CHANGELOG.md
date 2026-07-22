@@ -15,6 +15,18 @@
 - An unset reviewer model **no longer errors** — it now inherits the orchestrator model (uniform fallback). The old "No reviewer model configured" tool error is gone.
 
 ## [Unreleased]
+
+## [0.2.1] - 2026-07-22
+### Changed
+- audit(P3): clarify scanner tool-use mandate (grep for patterns, never read whole files)
+- story-id: S-2.4 CHANGELOG [Unreleased] entry
+- story-id: S-2.3 /sf-flow-seed skill: 6→8 agents
+- story-id: S-2.1 README: 8 agents + config distinction
+- story-id: S-1.4 Update ensureAgentFiles JSDoc (six→eight)
+- story-id: S-1.3 Add scanner/researcher to AGENT_FILES (GREEN)
+- story-id: S-1.2 Create agents/scanner.md + agents/researcher.md
+- story-id: S-1.1 Expand FLOW_AGENTS to 8 (RED)
+
 ### Changed
 - feat(flow): ship agent definitions for the example-workflow agents — `scanner` (`auth-audit`) and `researcher` (`research-report`) now ship as write-once `.md` files in `agents/` and are seeded by `/sf-flow-seed` + lazy `ensureAgentFiles`. Previously these roles resolved to `general-purpose`. Eight agents now ship (six config-backed + two Tier-2 example agents whose model is set inline in their workflow YAML; `config.json` unchanged at six groups).
 
