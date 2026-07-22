@@ -6,14 +6,14 @@ description: Use when a user asks to create a structured multi-milestone impleme
 # sf-flow-plan
 
 ## Prerequisites
-Reviewer + explorer agents ensured at `~/.pi/agent/agents/`. Reviewer model resolved by the tool. `ai_plan/` is gitignored.
+Reviewer + researcher agents ensured at `~/.pi/agent/agents/`. Reviewer model resolved by the tool. `ai_plan/` is gitignored.
 
 ## Agent resolution
 Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
 
-For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in `Explore` (which forces Haiku). If no explorer model is configured, omit `model` so it inherits the orchestrator.
+For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools). If no researcher model is configured, omit `model` so it inherits the orchestrator.
 
-**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver.
+**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver.
 
 ## Plan standard (exhaustive milestone plans)
 Plans are consumed by an implementer that may be a weaker model, so every milestone plan MUST be exhaustive: each story must specify enough that a less-intelligent model can implement it with **ZERO remaining design decisions**. Vague verbs ("refactor", "improve", "handle", "update", "clean up") are FORBIDDEN unless accompanied by a concrete, unambiguous definition of the resulting change.
@@ -35,7 +35,7 @@ For every story, score it against the 7 fields above. If ANY field is missing or
 ## Process
 
 ### Phase 1: Analyze (parallel research)
-Fan out N `explorer` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "explorer"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single explorer into a fleet.)
+Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "researcher"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single researcher into a fleet.)
 
 ### Phase 2: Gather Requirements
 Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says ready.

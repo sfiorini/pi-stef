@@ -7,7 +7,7 @@ description: Use when flow's default agents and example workflows must be copied
 
 ## Purpose
 Copy flow's bundled defaults to their GLOBAL locations so they're available in every project:
-- 8 agents → `~/.pi/agent/agents/` (reviewer, explorer, auditor, planner, developer, synth, scanner, researcher)
+- 8 agents → `~/.pi/agent/agents/` (reviewer, designer, auditor, planner, developer, synth, scanner, researcher)
 - 4 example workflows → `~/.pi/sf/flow/workflows/` (code-review, ship-feature, auth-audit, research-report)
 
 ## Behavior (per file)
@@ -23,5 +23,5 @@ Idempotent: a repeat run reports everything up-to-date (and refreshes any stale 
 - To review a changed default: `diff reviewer.md reviewer.md.new`, merge what you want, then delete the `.new`.
 
 ## Notes
-- Agents `reviewer.md` / `explorer.md` are shared with `@pi-stef/pair`; whichever was written first wins. If flow's version differs from pair's, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare.
+- Agent `reviewer.md` is shared with `@pi-stef/pair`; whichever was written first wins. If flow's version differs from pair's, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare. Flow no longer ships `explorer.md` (consolidated into `researcher.md`, non-isolated, web-capable); pair still ships its own `explorer.md`. To adopt flow's researcher, delete any old seeded `explorer.md` and re-seed.
 - This is GLOBAL seeding. A project can override a global default by placing `<repo>/.pi/sf/flow/workflows/<name>.yaml`.
