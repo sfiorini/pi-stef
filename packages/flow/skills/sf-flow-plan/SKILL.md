@@ -13,7 +13,7 @@ Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, 
 
 For research, use the `explorer` agent (matches `explorer.md`), NOT the built-in `Explore` (which forces Haiku). If no explorer model is configured, omit `model` so it inherits the orchestrator.
 
-**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver.
+**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver.
 
 ## Plan standard (exhaustive milestone plans)
 Plans are consumed by an implementer that may be a weaker model, so every milestone plan MUST be exhaustive: each story must specify enough that a less-intelligent model can implement it with **ZERO remaining design decisions**. Vague verbs ("refactor", "improve", "handle", "update", "clean up") are FORBIDDEN unless accompanied by a concrete, unambiguous definition of the resulting change.
@@ -43,11 +43,26 @@ Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says rea
 ### Phase 3: Resolve Reviewer Model
 (Already resolved by the tool.)
 
-### Phase 4: Design (brainstorming skill)
-Invoke superpowers:brainstorming. Present 2-3 approaches, recommend one.
+### Phase 4: Design (designer agent)
+Dispatch the **designer** agent to produce the design via an interactive loop that YOU (the orchestrator) relay to the user. The designer is a subagent and cannot talk to the user directly.
 
-### Phase 5: Plan (writing-plans skill)
-Invoke superpowers:writing-plans. Milestones + 2-5 min stories (`S-MN{seq}`). **Every story MUST meet the Plan standard** above: all 7 fields, no vague verbs. Run the **completeness self-check** on every story before finalizing the plan.
+Self-resolve the designer model (`.pi/sf/flow/config.json` → `SF_FLOW_DESIGNER_MODEL` → the `designer_model` tool param / prompt extraction → inherit orchestrator) and spawn it with `Agent({ subagent_type: "designer", model: "<designerModel>" })`. Seed it with: the original task, the Phase 1 research synthesis, and the Phase 2 clarifying answers.
+
+The designer returns one of three payloads (a leading `STATUS:` line). Drive this loop:
+
+1. **`STATUS: NEEDS_INFO`** — the designer lists questions. Ask the user those questions (one at a time, multiple-choice when possible), collect the answers, then RE-DISPATCH the designer with its previous context + the questions + the user's answers. Repeat until it has no more questions.
+2. **`STATUS: APPROACHES`** — the designer returns 2–3 approaches with tradeoffs and a recommendation. Present them to the user; the user selects one or comments. RE-DISPATCH the designer with its previous context + the selection/comments. If the selection materially changes the design it returns `APPROACHES` again (revised); otherwise it returns `FINAL_DESIGN`.
+3. **`STATUS: FINAL_DESIGN`** — the structured design doc for the agreed approach. Terminal; proceed to Phase 5.
+
+Rules:
+- YOU own all user interaction; the designer never addresses the user directly.
+- Re-dispatch by spawning the designer fresh with the FULL accumulated context (it retains no state between spawns).
+- On a delegated/auto path with no human gates, answer NEEDS_INFO with sensible defaults and auto-pick the recommended approach.
+
+### Phase 5: Plan (planner agent)
+Dispatch the **planner** agent to turn the approved design into an exhaustive milestone plan. Self-resolve the planner model (`.pi/sf/flow/config.json` → `SF_FLOW_PLANNER_MODEL` → inherit orchestrator) and spawn it with `Agent({ subagent_type: "planner", model: "<plannerModel>" })`, passing the FINAL_DESIGN from Phase 4 + the research synthesis.
+
+The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting the Plan standard (all 7 fields, no vague verbs) and having run its **completeness self-check**. The orchestrator does NOT write the plan inline — it delegates entirely to the planner agent.
 
 ### Phase 6: Iterative Plan Review
 Spawn the reviewer agent (`Agent({ subagent_type: "reviewer", model: "<reviewer_model>" })`). The reviewer returns **REVISE** for ANY story missing required Plan-standard detail — **independent of correctness** — so under-detailed stories are caught even when the plan is technically right. Also parse the verdict for P0/P1/P2; fix + re-submit. Max 10 rounds.
