@@ -50,6 +50,21 @@ export function extractExplorerModelFromPrompt(prompt: string): string | undefin
   return undefined;
 }
 
+
+/** Extract designer model from a prompt string (e.g. "use opus as designer"). */
+export function extractDesignerModelFromPrompt(prompt: string): string | undefined {
+  const patterns = [
+    /use\s+([\w/.-]+)\s+as\s+designer/i,
+    /designer[:\s]+([\w/.-]+)/i,
+    /design\s+with\s+([\w/.-]+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = prompt.match(pattern);
+    if (match) return match[1];
+  }
+  return undefined;
+}
+
 export function registerSfFlow(pi: ExtensionAPI): void {
   // sf_flow_create_workflow — interview -> write .pi/sf/flow/workflows/<name>.yaml -> register /<name>.
   pi.registerTool({
@@ -122,6 +137,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         prompt: Type.Optional(Type.String()),
         reviewer_model: Type.Optional(Type.String()),
         explorer_model: Type.Optional(Type.String()),
+        designer_model: Type.Optional(Type.String()),
       },
       { additionalProperties: false },
     ) as any,
@@ -132,10 +148,12 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         overrides: {
           reviewer: (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
           explorer: (params as any).explorer_model ?? extractExplorerModelFromPrompt(prompt),
+          designer: (params as any).designer_model ?? extractDesignerModelFromPrompt(prompt),
         },
       });
       const reviewerModel = defaults.reviewerModel;
       const explorerModel = defaults.explorerModel;
+      const designerModel = defaults.designerModel;
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
       await ensureExampleWorkflows(homedir());
       const warnText = agentWarnings.length
@@ -143,9 +161,9 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
+          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nExplorer model: ${explorerModel ?? "inherits from parent (not configured)"}\nDesigner model: ${designerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
         ],
-        details: { configured: true, reviewerModel, explorerModel },
+        details: { configured: true, reviewerModel, explorerModel, designerModel },
       };
     },
   });

@@ -49,7 +49,7 @@ Every story MUST include ALL of:
 The bar: *"I can do this story without asking any questions or making any design
 decisions."*
 
-## Completeness self-check (run before returning)
+## completeness self-check (run before returning)
 Score every story against the 7 fields above. If ANY field is missing or uses a
 vague verb without a concrete definition, EXPAND the story in place. Do not
 return the plan until every story passes.
