@@ -15,6 +15,8 @@
 - An unset reviewer model **no longer errors** — it now inherits the orchestrator model (uniform fallback). The old "No reviewer model configured" tool error is gone.
 
 ## [Unreleased]
+### Added
+- `designer` agent (7th config-backed group) + config wiring; see sf-flow-plan Phase 4.
 
 ## [0.2.1] - 2026-07-22
 ### Changed
