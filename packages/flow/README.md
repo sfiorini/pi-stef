@@ -62,7 +62,7 @@ Or in natural language:
 
 ## Built-in agents
 
-Eight write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Nine write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
