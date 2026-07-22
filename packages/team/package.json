@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/team",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "[DEPRECATED \u2014 use @pi-stef/flow] Pi extension that runs a steerable team of role-agents for plan/review/implement workflows, including strategy-aware lanes, resume, and optional tmux panes.",
   "type": "module",
   "license": "MIT",
