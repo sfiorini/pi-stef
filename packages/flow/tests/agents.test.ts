@@ -11,6 +11,8 @@ const FLOW_AGENTS = [
   "planner.md",
   "developer.md",
   "synth.md",
+  "scanner.md",
+  "researcher.md",
 ];
 
 describe("ensureAgentFiles", () => {
