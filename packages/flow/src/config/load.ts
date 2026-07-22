@@ -28,8 +28,8 @@ async function loadFile(filePath: string): Promise<FlowConfig> {
   // Pre-validation migration: rename a legacy "explorer" group to "researcher".
   // JSON.parse returns `any`, so this compiles; the typeof guard defends against
   // a non-object config (null/array/primitive) by skipping to Value.Errors.
-  if (typeof parsed === "object" && parsed !== null && parsed.explorer && !parsed.researcher) {
-    parsed.researcher = parsed.explorer;
+  if (typeof parsed === "object" && parsed !== null && parsed.explorer) {
+    if (!parsed.researcher) parsed.researcher = parsed.explorer;
     delete parsed.explorer;
   }
   const errors = [...Value.Errors(ConfigSchema, parsed)];

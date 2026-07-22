@@ -35,7 +35,7 @@ For every story, score it against the 7 fields above. If ANY field is missing or
 ## Process
 
 ### Phase 1: Analyze (parallel research)
-Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "researcher"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single researcher into a fleet.)
+Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "researcher"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single research agent into a fleet.)
 
 ### Phase 2: Gather Requirements
 Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says ready.

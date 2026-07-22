@@ -63,6 +63,18 @@ describe("flow config", () => {
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.researcher.model).toBe("legacy/rs");
   });
+
+  it("lets 'researcher' win when both 'explorer' and 'researcher' keys are present", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ explorer: { model: "legacy/rs" }, researcher: { model: "winner/rs" } }),
+    );
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.researcher.model).toBe("winner/rs");
+  });
 });
 
 describe("resolveFlowModels", () => {
