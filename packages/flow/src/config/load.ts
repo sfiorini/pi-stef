@@ -58,6 +58,7 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
     planner: { ...base.planner, ...over.planner },
     auditor: { ...base.auditor, ...over.auditor },
     synth: { ...base.synth, ...over.synth },
+    designer: { ...base.designer, ...over.designer },
     audit: { ...base.audit, ...over.audit },
     worktree: { ...base.worktree, ...over.worktree },
   };
@@ -76,13 +77,13 @@ export async function loadConfig(
   return cfg;
 }
 
-/** The six flow agent roles that carry a configurable model. */
-export type AgentRole = "reviewer" | "explorer" | "developer" | "planner" | "auditor" | "synth";
+/** The seven flow agent roles that carry a configurable model. */
+export type AgentRole = "reviewer" | "explorer" | "developer" | "planner" | "auditor" | "synth" | "designer";
 
 /** Per-agent model overrides (e.g. from a tool param or prompt extraction). */
 export type ModelOverrides = Partial<Record<AgentRole, string | undefined>>;
 
-const AGENT_ROLES: readonly AgentRole[] = ["reviewer", "explorer", "developer", "planner", "auditor", "synth"];
+const AGENT_ROLES: readonly AgentRole[] = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"];
 
 function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
   switch (role) {
@@ -98,11 +99,13 @@ function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
       return cfg.auditor?.model;
     case "synth":
       return cfg.synth?.model;
+    case "designer":
+      return cfg.designer?.model;
   }
 }
 
 /**
- * Resolve all six agent models from the deterministic front-end chain:
+ * Resolve all seven agent models from the deterministic front-end chain:
  * 1. Override (tool param / prompt extraction) — if truthy
  * 2. Config group `.model` (project beats global via the loadConfig merge)
  * 3. Environment variable `SF_FLOW_<ROLE>_MODEL`
