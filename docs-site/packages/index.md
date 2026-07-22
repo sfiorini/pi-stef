@@ -16,10 +16,10 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 | [catalog](/packages/catalog) | Declarative package manager with cross-machine sync |
 | [cursor](/packages/cursor) | Cursor AI editor as a native Pi stream provider |
 | [flow](/packages/flow) | Reusable multi-agent workflows, CodeRabbit-style audit |
-| [team](/packages/team) | Steerable team of role-agents for plan/review/implement |
+| [team](/packages/team) | **[DEPRECATED → flow]** Steerable team of role-agents for plan/review/implement |
 | [atlassian](/packages/atlassian) | Jira and Confluence integration |
 | [figma](/packages/figma) | Figma REST API tools and design context |
-| [pair](/packages/pair) | Simplified plan/review/implement with pi-subagents |
+| [pair](/packages/pair) | **[DEPRECATED → flow]** Simplified plan/review/implement with pi-subagents |
 | [web](/packages/web) | Web search, URL fetch, and browser automation |
 | [finance](/packages/finance) | Portfolio tracking, drift analysis, and investment suggestions |
 | [finance-api](/packages/finance-api) | Always-on local service for financial data ingestion and quant analysis |
