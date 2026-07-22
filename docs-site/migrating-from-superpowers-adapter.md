@@ -14,7 +14,7 @@ injection), so the adapter bridge is no longer needed.
    ```bash
    pi install git:github.com/obra/superpowers
    ```
-3. pair and team declare obra/superpowers as a `pi.companions`, so installing
+3. pair and team (both deprecated → flow) declare obra/superpowers as a `pi.companions`, so installing
    either via the catalog also installs it.
 
 ## Why

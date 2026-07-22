@@ -34,7 +34,7 @@ meta:
   activeProfile: work
 
 packages:
-  team:
+  flow:
     source: npm:@pi-stef/flow
     enabled: true
   web:

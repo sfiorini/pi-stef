@@ -356,7 +356,7 @@ Tier-1 skills **self-resolve** each agent's model: 1. a model passed in the invo
 
 ### Model precedence
 
-A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **6-agent model registry** (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`); each group is `additionalProperties: false`.
+A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
 
 | Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
 |---|---|---|---|---|

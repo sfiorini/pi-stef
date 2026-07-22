@@ -58,7 +58,7 @@ packages:
   cursor:
     source: npm:@pi-stef/cursor
     enabled: true
-  team:
+  flow:
     source: npm:@pi-stef/flow
     enabled: true
   web:

@@ -28,7 +28,7 @@ features:
     link: /packages/pair
   - icon: 🌊
     title: Flow Workflows
-    details: Reusable multi-agent workflows (agents/phases/loops YAML) and CodeRabbit-style code audit — extends pair on pi-dynamic-workflows.
+    details: Reusable multi-agent workflows (agents/phases/loops YAML) and CodeRabbit-style code audit — supersedes the deprecated pair & team, built on pi-dynamic-workflows.
     link: /packages/flow
   - icon: 🔍
     title: Web Search & Fetch
