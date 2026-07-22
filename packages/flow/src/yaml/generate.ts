@@ -17,7 +17,7 @@ function tier1Hint(skill: string, models: ResolvedModels | null): string {
     if (m) parts.push(`${label}=${m}`);
   };
   push("reviewer", models.reviewerModel);
-  if (skill === "sf-flow-plan") push("explorer", models.explorerModel);
+  if (skill === "sf-flow-plan") push("researcher", models.researcherModel);
   if (skill === "sf-flow-implement") push("developer", models.developerModel);
   if (skill === "sf-flow-audit") push("auditor", models.auditorModel);
   return parts.length ? `Models (config; use unless overridden): ${parts.join(", ")}.` : "";

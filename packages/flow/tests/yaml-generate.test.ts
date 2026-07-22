@@ -78,7 +78,7 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
   };
   const fullModels = {
     reviewerModel: "rev-model",
-    explorerModel: "ex-model",
+    researcherModel: "rs-model",
     developerModel: "dev-model",
     plannerModel: null,
     auditorModel: "aud-model",
@@ -94,9 +94,9 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
 
   it("bakes the skill-relevant resolved model hint for tier-1 skills", () => {
     const s = generateScript(skillFlow, { models: fullModels });
-    // plan phase gets reviewer + explorer
+    // plan phase gets reviewer + researcher
     expect(s).toContain("reviewer=rev-model");
-    expect(s).toContain("explorer=ex-model");
+    expect(s).toContain("researcher=rs-model");
     // implement phase gets reviewer + developer
     expect(s).toContain("developer=dev-model");
     // auditor is NOT hinted into plan/implement (only into sf-flow-audit)
@@ -113,17 +113,17 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
   it("non-tier-1 skill names get NO model hint even when models are provided", () => {
     const s = generateScript(skillFlow, { models: fullModels });
     expect(s).toContain("some-other-skill");
-    // the only hints are reviewer/explorer/developer (tier-1); 'some-other-skill'
+    // the only hints are reviewer/researcher/developer (tier-1); 'some-other-skill'
     // itself contributes no hint line — confirm no auditor leaked anywhere
     expect(s).not.toContain("auditor=");
   });
 
-  it("sf-flow-audit phase gets reviewer + auditor hints (no developer/explorer)", () => {
+  it("sf-flow-audit phase gets reviewer + auditor hints (no developer/researcher)", () => {
     const auditFlow = { ...skillFlow, phases: [{ id: "audit", skill: "sf-flow-audit" }] };
     const s = generateScript(auditFlow, { models: fullModels });
     expect(s).toContain("reviewer=rev-model");
     expect(s).toContain("auditor=aud-model");
     expect(s).not.toContain("developer=");
-    expect(s).not.toContain("explorer=");
+    expect(s).not.toContain("researcher=");
   });
 });
