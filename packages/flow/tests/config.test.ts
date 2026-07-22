@@ -57,7 +57,7 @@ describe("flow config", () => {
 });
 
 describe("resolveFlowModels", () => {
-  const ROLES = ["reviewer", "explorer", "developer", "planner", "auditor", "synth"] as const;
+  const ROLES = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"] as const;
   const envNames = ROLES.map((r) => `SF_FLOW_${r.toUpperCase()}_MODEL`);
   const origEnv: Record<string, string | undefined> = {};
   beforeEach(() => {
@@ -73,7 +73,7 @@ describe("resolveFlowModels", () => {
     }
   });
 
-  it("returns all 6 model fields, all null when nothing is set (no throw)", () => {
+  it("returns all 7 model fields, all null when nothing is set (no throw)", () => {
     expect(resolveFlowModels(DEFAULT_CONFIG)).toEqual({
       reviewerModel: null,
       explorerModel: null,
@@ -81,6 +81,7 @@ describe("resolveFlowModels", () => {
       plannerModel: null,
       auditorModel: null,
       synthModel: null,
+      designerModel: null,
     });
   });
 
@@ -108,6 +109,7 @@ describe("resolveFlowModels", () => {
     expect(m.developerModel).toBeNull();
     expect(m.auditorModel).toBeNull();
     expect(m.synthModel).toBeNull();
+    expect(m.designerModel).toBeNull();
   });
 
   it("resolves every role independently from its config group", () => {
@@ -118,6 +120,7 @@ describe("resolveFlowModels", () => {
       planner: { model: "p" },
       auditor: { model: "a" },
       synth: { model: "s" },
+      designer: { model: "x" },
       audit: { threshold: 0.94, max_rounds: 5 },
       worktree: { branch_prefix: "flow/" },
     };
@@ -128,6 +131,7 @@ describe("resolveFlowModels", () => {
       plannerModel: "p",
       auditorModel: "a",
       synthModel: "s",
+      designerModel: "x",
     });
   });
 
@@ -147,7 +151,7 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
   // front-end against real fixture FILES so the direct (tool) path and the
   // delegated (workflow skill) path provably agree. (The .md/orchestrator
   // inherit step is uniformly pi-subagents' concern, not compared here.)
-  const ROLE_ENVS = ["reviewer", "explorer", "developer", "planner", "auditor", "synth"].map(
+  const ROLE_ENVS = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"].map(
     (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
   );
   const orig: Record<string, string | undefined> = {};
@@ -187,5 +191,6 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
     expect(m.auditorModel).toBe("env/aud"); // env (no config group)
     expect(m.plannerModel).toBeNull(); // nothing set
     expect(m.synthModel).toBeNull(); // nothing set
+    expect(m.designerModel).toBeNull(); // nothing set
   });
 });

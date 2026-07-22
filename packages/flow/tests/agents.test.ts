@@ -6,6 +6,7 @@ import { ensureAgentFiles, resolveAgentType } from "../src/agents.js";
 
 const FLOW_AGENTS = [
   "reviewer.md",
+  "designer.md",
   "explorer.md",
   "auditor.md",
   "planner.md",
