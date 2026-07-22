@@ -70,7 +70,7 @@ Eight write-once agent definitions ship in `packages/flow/agents/` and are copie
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
-| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls, bash | medium |
+| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls | medium |
 | `designer` | Workflow Designer — design via brainstorming (2–3 approaches → recommend 1) | read, grep, find, ls | high |
 | `developer` | TDD Developer — red/green/refactor | read, grep, find, ls, write, bash | medium |
 | `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high |
