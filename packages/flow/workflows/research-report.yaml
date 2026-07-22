@@ -3,7 +3,7 @@ description: Multi-perspective research with cross-checking and synthesis
 input: prompt
 agents:
   researcher:
-    tools: [read, grep, find]
+    tools: [read, grep, find, ls, bash]
     model: sonnet
     thinking: medium
   synth:

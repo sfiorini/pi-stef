@@ -12,8 +12,8 @@ export interface EnsureAgentFilesResult {
 }
 
 /**
- * Ensure the nine flow agent definition files exist in the global discovery dir
- * (`~/.pi/agent/agents/`): reviewer, designer, explorer, auditor, planner, developer, synth, scanner, researcher.
+ * Ensure the eight flow agent definition files exist in the global discovery dir
+ * (`~/.pi/agent/agents/`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher.
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
  * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be
@@ -68,14 +68,14 @@ export async function ensureAgentFiles(
  * 4. Else → `general-purpose`.
  *
  * Matching is case-insensitive (a lowercase `.md` name wins regardless of the
- * casing used to reference it). Critically, a missing `explorer.md` does NOT
+ * casing used to reference it). Critically, a missing `researcher.md` does NOT
  * fall back to the built-in `Explore` agent (which forces Haiku) — it yields
  * `general-purpose` instead, so the orchestrator model is inherited.
  *
  * @param name The role name referenced by a phase/skill (e.g. "reviewer").
  * @param agentFiles The available agent identifiers — either basenames
- *   (`["reviewer.md", "explorer.md"]`, as used at runtime) OR bare keys
- *   (`["reviewer", "explorer"]`, as declared in a workflow YAML). A trailing
+ *   (`["reviewer.md", "researcher.md"]`, as used at runtime) OR bare keys
+ *   (`["reviewer", "researcher"]`, as declared in a workflow YAML). A trailing
  *   `.md` is stripped before comparing, so both forms work.
  */
 export function resolveAgentType(name: string, agentFiles: string[]): string {
