@@ -10,6 +10,7 @@ describe("team deprecation", () => {
     expect(teamDeprecatedNotice("sf_team_plan")).toContain("sf_flow_plan (/sf-flow-plan)");
     expect(teamDeprecatedNotice("sf_team_implement")).toContain("sf_flow_implement (/sf-flow-implement)");
     expect(teamDeprecatedNotice("sf_team_auto")).toContain("sf_flow_auto (/sf-flow-auto)");
+    expect(teamDeprecatedNotice("sf_team_task")).toContain("sf_flow_auto (/sf-flow-auto)");
     expect(teamDeprecatedNotice("sf_team_followup")).toContain("sf_flow_plan (/sf-flow-plan)");
   });
 

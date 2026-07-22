@@ -46,7 +46,7 @@ Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says rea
 ### Phase 4: Design (designer agent)
 Dispatch the **designer** agent to produce the design via an interactive loop that YOU (the orchestrator) relay to the user. The designer is a subagent and cannot talk to the user directly.
 
-Self-resolve the designer model (`.pi/sf/flow/config.json` → `SF_FLOW_DESIGNER_MODEL` → the `designer_model` tool param / prompt extraction → inherit orchestrator) and spawn it with `Agent({ subagent_type: "designer", model: "<designerModel>" })`. Seed it with: the original task, the Phase 1 research synthesis, and the Phase 2 clarifying answers.
+Self-resolve the designer model (the `designer_model` tool param / prompt extraction → `.pi/sf/flow/config.json` → `SF_FLOW_DESIGNER_MODEL` → inherit orchestrator) and spawn it with `Agent({ subagent_type: "designer", model: "<designerModel>" })`. Seed it with: the original task, the Phase 1 research synthesis, and the Phase 2 clarifying answers.
 
 The designer returns one of three payloads (a leading `STATUS:` line). Drive this loop:
 

@@ -8,7 +8,7 @@ Built on [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) 
 pi install npm:@pi-stef/flow
 ```
 
-Flow lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; It supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see https://sfiorini.github.io/pi-stef/migrating-from-team-and-pair).
+Flow lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; it supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see https://sfiorini.github.io/pi-stef/migrating-from-team-and-pair).
 
 Full docs: <https://sfiorini.github.io/pi-stef/packages/flow>
 
@@ -25,7 +25,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
-> Agents (reviewer, explorer, developer, planner, auditor, synth) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
+> Agents (reviewer, explorer, developer, planner, auditor, synth, designer) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
 >
 > So `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer. The seven model groups (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`) are all optional; an unset model inherits the orchestrator (uniform fallback, no fail-fast).
 

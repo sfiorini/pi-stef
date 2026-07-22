@@ -32,7 +32,7 @@ now emit a migration banner pointing here.
 | `/sf-team-implement` | `/sf-flow-implement` | |
 | `/sf-team-task` | `/sf-flow-auto <workflow>` | |
 | `/sf-team-auto` | `/sf-flow-auto` | |
-| `/sf-team-followup` | `/sf-flow-plan` | Start a new plan referencing the completed parent in the prompt. |
+| `/sf-team-followup` | `/sf-flow-plan` → `/sf-flow-implement` | Plan a follow-up referencing the parent, then `/sf-flow-implement` to execute it (team's followup did both). |
 | `/sf-team-resume` | re-run `/sf-flow-implement <slug>` | Plans are durable (`ai_plan/<slug>/`); resume continues from the story-tracker. |
 | `/sf-team-steer` | native pi steering | Steer the flow orchestrator mid-run (pi's built-in steering). |
 
@@ -55,8 +55,14 @@ now emit a migration banner pointing here.
 | `SF_PAIR_REVIEWER_MODEL` | `SF_FLOW_REVIEWER_MODEL` |
 | `SF_PAIR_EXPLORER_MODEL` | `SF_FLOW_EXPLORER_MODEL` |
 
-The shared agent files (`reviewer.md`, `explorer.md` at `~/.pi/agent/agents/`)
-are identical across packages — no migration needed there.
+Flow's `reviewer.md` is an **enhanced** version (a stricter HARD GATE on plan detail — pair's only says "check it's detailed enough"); `explorer.md` is equivalent. Agent seeding is **write-once**, so if you already have pair/team's files at `~/.pi/agent/agents/`, they are preserved and `/sf-flow-seed` writes flow's versions as `<name>.md.new` (without clobbering). To adopt flow's enhanced reviewer, delete the old file and re-seed:
+
+```bash
+rm ~/.pi/agent/agents/reviewer.md
+/sf-flow-seed
+```
+
+Or diff `~/.pi/agent/agents/reviewer.md.new` against your existing file and merge manually.
 
 ## Why
 
