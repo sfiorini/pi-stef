@@ -20,14 +20,14 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **9 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **8 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
-> Agents (reviewer, explorer, developer, planner, auditor, synth, designer) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
+> Agents (reviewer, researcher, developer, planner, auditor, synth, designer) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
 >
-> So `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer. The seven model groups (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`) are all optional; an unset model inherits the orchestrator (uniform fallback, no fail-fast).
+> So `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer. The seven model groups (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`) are all optional; an unset model inherits the orchestrator (uniform fallback, no fail-fast).
 
 **Where the model comes from, per tier:**
 
@@ -62,24 +62,23 @@ Or in natural language:
 
 ## Built-in agents
 
-Nine write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Eight write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
 | `planner` | Workflow Planner — milestones + stories | read, grep, find, ls | medium |
 | `designer` | Workflow Designer — design via brainstorming (2–3 approaches → recommend 1) | read, grep, find, ls | high |
-| `explorer` | Codebase Explorer — read-only research | read, grep, find, ls | low |
 | `developer` | TDD Developer — red/green/refactor | read, grep, find, ls, write, bash | medium |
 | `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high |
 | `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high |
 | `synth` | Synthesis / Report Writer | read, write | medium |
 | `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
-| `researcher` | Researcher — cited claims per angle | read, grep, find, ls | medium |
+| `researcher` | Researcher — codebase + web research, cited claims | read, grep, find, ls, bash | medium |
 
 - **Write-once:** flow *never* overwrites an existing agent file — edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time.
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
-- **Seven are config-backed; two are example-workflow agents.** `reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `scanner` and `researcher` power the `auth-audit` and `research-report` example flows — they are Tier-2 agents whose model is set **inline in their workflow YAML**, not in `config.json`.
+- **Seven are config-backed; one is Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` example flow (the flow's inline `model: sonnet` overrides config for that flow). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`.
 
 **Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` also writes a write-once stub for any declared agent that doesn't yet exist.
 
@@ -128,10 +127,10 @@ Multi-milestone plan with parallel research and iterative reviewer approval. Pro
 |-----------|----------|-------------|
 | `prompt` | No | The task to plan |
 | `reviewer_model` | No | Override reviewer model (else self-resolved from [config](#configuration)) |
-| `explorer_model` | No | Override explorer model (inherits parent if unset) |
+| `researcher_model` | No | Override researcher model (inherits parent if unset) |
 | `designer_model` | No | Override designer model (inherits parent if unset) |
 
-Phases: fan out N explorers in parallel → codebase map → gather requirements one question at a time → design (brainstorming) → plan (writing-plans: milestones + `S-MN{seq}` stories) → iterative reviewer loop (fix P0/P1/P2, max 10 rounds) → write plan files → optional Telegram notify.
+Phases: fan out N researchers in parallel → codebase map → gather requirements one question at a time → design (brainstorming) → plan (writing-plans: milestones + `S-MN{seq}` stories) → iterative reviewer loop (fix P0/P1/P2, max 10 rounds) → write plan files → optional Telegram notify.
 
 ### sf_flow_implement
 
@@ -313,7 +312,7 @@ When a skill or phase needs to spawn an agent, the type is resolved deterministi
 2. Else `planner` → built-in `Plan`; `reviewer` → built-in `Reviewer`.
 3. Anything else with no `.md` → `general-purpose`.
 
-A missing `explorer.md` does **not** fall back to the built-in `Explore` (which forces Haiku) — it yields `general-purpose`, inheriting the orchestrator model. This rule is encoded in code (`resolveAgentType`) + stated verbatim in every tier-1 skill, so the direct (tool) path and the workflow (`skill:` phase) path spawn the same agent type.
+A missing `researcher.md` does **not** fall back to the built-in `Explore` (which forces Haiku) — it yields `general-purpose`, inheriting the orchestrator model. This rule is encoded in code (`resolveAgentType`) + stated verbatim in every tier-1 skill, so the direct (tool) path and the workflow (`skill:` phase) path spawn the same agent type.
 
 The orchestrator is **orchestrator-only**: in `/sf-flow-implement` it writes no code — it delegates each milestone to the `developer` agent and runs the per-milestone reviewer gate.
 
@@ -330,7 +329,7 @@ Layered: project `.pi/sf/flow/config.json` over global `~/.pi/sf/flow/config.jso
 ```json
 {
   "reviewer": { "model": "anthropic/sonnet-4-6" },
-  "explorer": { "model": "anthropic/haiku-4-5" },
+  "researcher": { "model": "anthropic/haiku-4-5" },
   "developer": { "model": "anthropic/sonnet-4-6" },
   "planner": { "model": "anthropic/sonnet-4-6" },
   "auditor": { "model": "anthropic/sonnet-4-6" },
@@ -342,12 +341,12 @@ Layered: project `.pi/sf/flow/config.json` over global `~/.pi/sf/flow/config.jso
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `<role>.model` | `string` | — | Model for one of the seven agents: `reviewer`, `explorer`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
+| `<role>.model` | `string` | — | Model for one of the seven agents: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
 
-**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_EXPLORER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`.
+**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`.
 
 ### Model resolution chain (Tier 1 skills)
 
@@ -357,7 +356,7 @@ Tier-1 skills **self-resolve** each agent's model: 1. a model passed in the invo
 
 ### Model precedence
 
-A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
+A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
 
 | Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
 |---|---|---|---|---|
@@ -401,7 +400,7 @@ ai_plan/YYYY-MM-DD-<slug>/
 
 **From `team`:** plan/implement → `sf_flow_plan` / `sf_flow_implement`; audit → `sf_flow_audit`; user workflows → Tier 2 YAML. Dropped: subprocess orchestration, parallel lanes. `flow` imports neither `@pi-stef/team` nor `@pi-stef/agent-workflows`, so the deprecation of team cannot break it.
 
-**From `pair`:** flow adds a fleet of parallel explorers, an audit triad gate, Tier 2 custom workflows, and a standalone `sf_flow_audit` — on the pi-subagents + pi-dynamic-workflows foundation.
+**From `pair`:** flow adds a fleet of parallel researchers, an audit triad gate, Tier 2 custom workflows, and a standalone `sf_flow_audit` — on the pi-subagents + pi-dynamic-workflows foundation.
 
 ## License
 
