@@ -7,7 +7,7 @@ description: Use when flow's default agents and example workflows must be copied
 
 ## Purpose
 Copy flow's bundled defaults to their GLOBAL locations so they're available in every project:
-- 6 agents → `~/.pi/agent/agents/` (reviewer, explorer, auditor, planner, developer, synth)
+- 8 agents → `~/.pi/agent/agents/` (reviewer, explorer, auditor, planner, developer, synth, scanner, researcher)
 - 4 example workflows → `~/.pi/sf/flow/workflows/` (code-review, ship-feature, auth-audit, research-report)
 
 ## Behavior (per file)
