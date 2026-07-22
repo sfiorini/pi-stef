@@ -1,7 +1,7 @@
 import { Type, type Static } from "@sinclair/typebox";
 
 /**
- * Flow config schema. The seven agent model groups (`reviewer`/`explorer`/
+ * Flow config schema. The seven agent model groups (`reviewer`/`researcher`/
  * `developer`/`planner`/`auditor`/`synth`/`designer`) plus `audit` and `worktree` are all
  * Optional so a minimal user config (e.g. `{"reviewer":{"model":"..."}}`)
  * validates. `loadConfig` deep-merges with DEFAULT_CONFIG, guaranteeing the
@@ -12,7 +12,7 @@ export const ConfigSchema = Type.Object(
     reviewer: Type.Optional(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
-    explorer: Type.Optional(
+    researcher: Type.Optional(
       Type.Object({ model: Type.Optional(Type.String()) }, { additionalProperties: false })
     ),
     developer: Type.Optional(
@@ -60,7 +60,7 @@ export type FlowConfig = Static<typeof ConfigSchema>;
  */
 export interface LoadedFlowConfig {
   reviewer: { model?: string };
-  explorer: { model?: string };
+  researcher: { model?: string };
   developer: { model?: string };
   planner: { model?: string };
   auditor: { model?: string };
@@ -72,7 +72,7 @@ export interface LoadedFlowConfig {
 
 export const DEFAULT_CONFIG: LoadedFlowConfig = {
   reviewer: {},
-  explorer: {},
+  researcher: {},
   developer: {},
   planner: {},
   auditor: {},
@@ -85,7 +85,7 @@ export const DEFAULT_CONFIG: LoadedFlowConfig = {
 /** The seven resolved agent models (deterministic front-end; null ⇒ inherit orchestrator). */
 export interface ResolvedModels {
   reviewerModel: string | null;
-  explorerModel: string | null;
+  researcherModel: string | null;
   developerModel: string | null;
   plannerModel: string | null;
   auditorModel: string | null;

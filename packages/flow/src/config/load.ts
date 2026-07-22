@@ -25,6 +25,13 @@ export class ConfigValidationError extends Error {
 async function loadFile(filePath: string): Promise<FlowConfig> {
   const raw = await readFile(filePath, "utf8");
   const parsed = JSON.parse(raw);
+  // Pre-validation migration: rename a legacy "explorer" group to "researcher".
+  // JSON.parse returns `any`, so this compiles; the typeof guard defends against
+  // a non-object config (null/array/primitive) by skipping to Value.Errors.
+  if (typeof parsed === "object" && parsed !== null && parsed.explorer && !parsed.researcher) {
+    parsed.researcher = parsed.explorer;
+    delete parsed.explorer;
+  }
   const errors = [...Value.Errors(ConfigSchema, parsed)];
   if (errors.length > 0) {
     const first = errors[0];
@@ -53,7 +60,7 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
   if (!over) return base;
   return {
     reviewer: { ...base.reviewer, ...over.reviewer },
-    explorer: { ...base.explorer, ...over.explorer },
+    researcher: { ...base.researcher, ...over.researcher },
     developer: { ...base.developer, ...over.developer },
     planner: { ...base.planner, ...over.planner },
     auditor: { ...base.auditor, ...over.auditor },
@@ -78,19 +85,19 @@ export async function loadConfig(
 }
 
 /** The seven flow agent roles that carry a configurable model. */
-export type AgentRole = "reviewer" | "explorer" | "developer" | "planner" | "auditor" | "synth" | "designer";
+export type AgentRole = "reviewer" | "researcher" | "developer" | "planner" | "auditor" | "synth" | "designer";
 
 /** Per-agent model overrides (e.g. from a tool param or prompt extraction). */
 export type ModelOverrides = Partial<Record<AgentRole, string | undefined>>;
 
-const AGENT_ROLES: readonly AgentRole[] = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"];
+const AGENT_ROLES: readonly AgentRole[] = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"];
 
 function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
   switch (role) {
     case "reviewer":
       return cfg.reviewer?.model;
-    case "explorer":
-      return cfg.explorer?.model;
+    case "researcher":
+      return cfg.researcher?.model;
     case "developer":
       return cfg.developer?.model;
     case "planner":

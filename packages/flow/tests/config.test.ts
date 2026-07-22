@@ -23,7 +23,7 @@ describe("flow config", () => {
         audit: { threshold: 0.9, max_rounds: 5 },
         worktree: { branch_prefix: "flow/" },
         reviewer: {},
-        explorer: {},
+        researcher: {},
       }),
     );
     mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
@@ -33,7 +33,7 @@ describe("flow config", () => {
         audit: { threshold: 0.97, max_rounds: 5 },
         worktree: { branch_prefix: "flow/" },
         reviewer: {},
-        explorer: {},
+        researcher: {},
       }),
     );
     const cfg = await loadConfig(root, { homeDir: home });
@@ -54,10 +54,19 @@ describe("flow config", () => {
     expect(cfg.audit).toEqual({ threshold: 0.94, max_rounds: 5 });
     expect(cfg.worktree).toEqual({ branch_prefix: "flow/" });
   });
+
+  it("migrates a legacy 'explorer' config key to 'researcher' (pre-validation rename)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(join(root, ".pi", "sf", "flow", "config.json"), JSON.stringify({ explorer: { model: "legacy/rs" } }));
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.researcher.model).toBe("legacy/rs");
+  });
 });
 
 describe("resolveFlowModels", () => {
-  const ROLES = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"] as const;
+  const ROLES = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"] as const;
   const envNames = ROLES.map((r) => `SF_FLOW_${r.toUpperCase()}_MODEL`);
   const origEnv: Record<string, string | undefined> = {};
   beforeEach(() => {
@@ -76,7 +85,7 @@ describe("resolveFlowModels", () => {
   it("returns all 7 model fields, all null when nothing is set (no throw)", () => {
     expect(resolveFlowModels(DEFAULT_CONFIG)).toEqual({
       reviewerModel: null,
-      explorerModel: null,
+      researcherModel: null,
       developerModel: null,
       plannerModel: null,
       auditorModel: null,
@@ -115,7 +124,7 @@ describe("resolveFlowModels", () => {
   it("resolves every role independently from its config group", () => {
     const cfg: FlowConfig = {
       reviewer: { model: "r" },
-      explorer: { model: "e" },
+      researcher: { model: "rs" },
       developer: { model: "d" },
       planner: { model: "p" },
       auditor: { model: "a" },
@@ -126,7 +135,7 @@ describe("resolveFlowModels", () => {
     };
     expect(resolveFlowModels(cfg)).toEqual({
       reviewerModel: "r",
-      explorerModel: "e",
+      researcherModel: "rs",
       developerModel: "d",
       plannerModel: "p",
       auditorModel: "a",
@@ -151,7 +160,7 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
   // front-end against real fixture FILES so the direct (tool) path and the
   // delegated (workflow skill) path provably agree. (The .md/orchestrator
   // inherit step is uniformly pi-subagents' concern, not compared here.)
-  const ROLE_ENVS = ["reviewer", "explorer", "developer", "planner", "auditor", "synth", "designer"].map(
+  const ROLE_ENVS = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"].map(
     (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
   );
   const orig: Record<string, string | undefined> = {};
@@ -179,14 +188,14 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
     mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
     writeFileSync(
       join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ reviewer: { model: "project/rev" }, explorer: { model: "project/ex" } }),
+      JSON.stringify({ reviewer: { model: "project/rev" }, researcher: { model: "project/rs" } }),
     );
     process.env.SF_FLOW_AUDITOR_MODEL = "env/aud";
 
     const cfg = await loadConfig(root, { homeDir: home });
     const m = resolveFlowModels(cfg);
     expect(m.reviewerModel).toBe("project/rev"); // project beats global
-    expect(m.explorerModel).toBe("project/ex"); // project-only
+    expect(m.researcherModel).toBe("project/rs"); // project-only
     expect(m.developerModel).toBe("global/dev"); // global-only (project absent)
     expect(m.auditorModel).toBe("env/aud"); // env (no config group)
     expect(m.plannerModel).toBeNull(); // nothing set
