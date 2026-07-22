@@ -4,7 +4,7 @@
 
 `flow` lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills.
 
-It unifies `pair`'s plan/implement/review simplicity with `@quintinshaw/pi-dynamic-workflows`' dynamic orchestration and a CodeRabbit-style audit rigor. It coexists with `pair` and will eventually deprecate `team`.
+It unifies `pair`'s plan/implement/review simplicity with `@quintinshaw/pi-dynamic-workflows`' dynamic orchestration and a CodeRabbit-style audit rigor. It supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see [Migrating from team & pair](/migrating-from-team-and-pair)).
 
 ---
 
@@ -441,7 +441,7 @@ ai_plan/YYYY-MM-DD-<slug>/
 | subprocess orchestration | dropped (pi-subagents instead) |
 | parallel lanes | dropped |
 
-`flow` is self-contained — it imports neither `@pi-stef/team` nor `@pi-stef/agent-workflows` — so deprecating `team` later cannot break it.
+`flow` is self-contained — it imports neither `@pi-stef/team` nor `@pi-stef/agent-workflows` — so the deprecation of team cannot break it.
 
 ---
 

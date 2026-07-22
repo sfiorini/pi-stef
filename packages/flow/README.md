@@ -8,7 +8,7 @@ Built on [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) 
 pi install npm:@pi-stef/flow
 ```
 
-Flow lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; it coexists with `pair` and will eventually deprecate `team`.
+Flow lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; It supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see https://sfiorini.github.io/pi-stef/migrating-from-team-and-pair).
 
 Full docs: <https://sfiorini.github.io/pi-stef/packages/flow>
 
@@ -398,7 +398,7 @@ ai_plan/YYYY-MM-DD-<slug>/
 
 ## Migration from team & differences from pair
 
-**From `team`:** plan/implement → `sf_flow_plan` / `sf_flow_implement`; audit → `sf_flow_audit`; user workflows → Tier 2 YAML. Dropped: subprocess orchestration, parallel lanes. `flow` imports neither `@pi-stef/team` nor `@pi-stef/agent-workflows`, so deprecating `team` can't break it.
+**From `team`:** plan/implement → `sf_flow_plan` / `sf_flow_implement`; audit → `sf_flow_audit`; user workflows → Tier 2 YAML. Dropped: subprocess orchestration, parallel lanes. `flow` imports neither `@pi-stef/team` nor `@pi-stef/agent-workflows`, so the deprecation of team cannot break it.
 
 **From `pair`:** flow adds a fleet of parallel explorers, an audit triad gate, Tier 2 custom workflows, and a standalone `sf_flow_audit` — on the pi-subagents + pi-dynamic-workflows foundation.
 
