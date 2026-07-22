@@ -44,7 +44,7 @@ now emit a migration banner pointing here.
 - **Steering** — use pi's native mid-run steering to redirect the flow
   orchestrator (no bespoke inbox needed).
 - **Parallelism** — flow fans out multiple agents via `pi-dynamic-workflows`
-  `parallel()` (the explorer fleet, parallel developers) where appropriate.
+  `parallel()` (the researcher fleet, parallel developers) where appropriate.
 
 ## Config migration
 
@@ -53,9 +53,9 @@ now emit a migration banner pointing here.
 | `.pi/sf/pair/config.json` | `.pi/sf/flow/config.json` |
 | `.pi/sf/team/config.json` | `.pi/sf/flow/config.json` |
 | `SF_PAIR_REVIEWER_MODEL` | `SF_FLOW_REVIEWER_MODEL` |
-| `SF_PAIR_EXPLORER_MODEL` | `SF_FLOW_EXPLORER_MODEL` |
+| `SF_PAIR_EXPLORER_MODEL` | `SF_FLOW_RESEARCHER_MODEL` (renamed: explorer → researcher) |
 
-Flow's `reviewer.md` is an **enhanced** version (a stricter HARD GATE on plan detail — pair's only says "check it's detailed enough"); `explorer.md` is equivalent. Agent seeding is **write-once**, so if you already have pair/team's files at `~/.pi/agent/agents/`, they are preserved and `/sf-flow-seed` writes flow's versions as `<name>.md.new` (without clobbering). To adopt flow's enhanced reviewer, delete the old file and re-seed:
+Flow's `reviewer.md` is an **enhanced** version (a stricter HARD GATE on plan detail — pair's only says "check it's detailed enough"). Flow no longer ships `explorer.md` — it is consolidated into `researcher.md` (non-isolated, web-capable via `@pi-stef/web` or `curl` fallback). Pair still ships its own `explorer.md`. Agent seeding is **write-once**, so if you already have pair/team's files at `~/.pi/agent/agents/`, they are preserved and `/sf-flow-seed` writes flow's versions as `<name>.md.new` (without clobbering). To adopt flow's consolidated researcher, delete the old seeded `explorer.md` and re-seed:
 
 ```bash
 rm ~/.pi/agent/agents/reviewer.md
