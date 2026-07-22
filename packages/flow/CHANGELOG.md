@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+## [0.4.0] - 2026-07-22
+### Changed
+- Consolidate `explorer` into `researcher` — flow now ships 8 agents (was 9). `researcher` is a single non-isolated, web-capable agent that handles both codebase and web research with cited claims. It is the 7th config-backed group (`researcher.model` / `SF_FLOW_RESEARCHER_MODEL` / `researcher_model` param). The `research-report` example flow's inline `model: sonnet` overrides the config value for that flow.
+- `isValidModelToken` extraction hardening — shared guard across all three model extractors (reviewer/researcher/designer) rejects bogus regex captures like `"and"` or `"or"`; accepts known aliases (`sonnet`, `haiku`, …) and versioned names (`gpt-4o`, `anthropic/sonnet-4-6`).
+- Pre-validation config migration — a legacy `"explorer"` key in `config.json` is auto-renamed to `"researcher"` before schema validation, so existing configs continue to load without manual edits.
+
+### ⚠️ Breaking
+- **Config key rename:** `explorer` → `researcher` in `config.json`. Auto-migrated if only `explorer` is present (both keys → `researcher` wins). No action needed unless you have both keys.
+- **Env var rename:** `SF_FLOW_EXPLORER_MODEL` is **not** auto-migrated. Set `SF_FLOW_RESEARCHER_MODEL` instead.
+- **Param rename:** `explorer_model` → `researcher_model` in `sf_flow_plan` tool invocation.
+- **`explorer.md` removed from shipped agents:** flow no longer seeds `explorer.md`. A previously seeded global `~/.pi/agent/agents/explorer.md` is preserved (write-once). Pair is unaffected — pair still ships its own `explorer.md`. To adopt flow's consolidated researcher, delete the old seeded `explorer.md` and re-seed with `/sf-flow-seed`.
 ## [0.2.0] - 2026-07-21
 ### Changed (breaking)
 - feat(flow): per-agent model registry — all 6 agents (`reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth`) now have optional config groups; uniform fallback (unset ⇒ inherits the orchestrator model, **no fail-fast**).
@@ -14,17 +27,6 @@
 - **Remove any `tmux` block from your `.pi/sf/flow/config.json`** — the schema is `additionalProperties: false`, so a `tmux` key now fails validation. (`SF_FLOW_NO_TMUX` is gone too.)
 - An unset reviewer model **no longer errors** — it now inherits the orchestrator model (uniform fallback). The old "No reviewer model configured" tool error is gone.
 
-## [Unreleased]
-### Changed
-- Consolidate `explorer` into `researcher` — flow now ships 8 agents (was 9). `researcher` is a single non-isolated, web-capable agent that handles both codebase and web research with cited claims. It is the 7th config-backed group (`researcher.model` / `SF_FLOW_RESEARCHER_MODEL` / `researcher_model` param). The `research-report` example flow's inline `model: sonnet` overrides the config value for that flow.
-- `isValidModelToken` extraction hardening — shared guard across all three model extractors (reviewer/researcher/designer) rejects bogus regex captures like `"and"` or `"or"`; accepts known aliases (`sonnet`, `haiku`, …) and versioned names (`gpt-4o`, `anthropic/sonnet-4-6`).
-- Pre-validation config migration — a legacy `"explorer"` key in `config.json` is auto-renamed to `"researcher"` before schema validation, so existing configs continue to load without manual edits.
-
-### ⚠️ Breaking
-- **Config key rename:** `explorer` → `researcher` in `config.json`. Auto-migrated if only `explorer` is present (both keys → `researcher` wins). No action needed unless you have both keys.
-- **Env var rename:** `SF_FLOW_EXPLORER_MODEL` is **not** auto-migrated. Set `SF_FLOW_RESEARCHER_MODEL` instead.
-- **Param rename:** `explorer_model` → `researcher_model` in `sf_flow_plan` tool invocation.
-- **`explorer.md` removed from shipped agents:** flow no longer seeds `explorer.md`. A previously seeded global `~/.pi/agent/agents/explorer.md` is preserved (write-once). Pair is unaffected — pair still ships its own `explorer.md`. To adopt flow's consolidated researcher, delete the old seeded `explorer.md` and re-seed with `/sf-flow-seed`.
 ## [0.3.0] - 2026-07-22
 ### Added
 - `designer` agent (7th config-backed group) + config wiring; see sf-flow-plan Phase 4.
@@ -66,16 +68,13 @@
 ### Changed
 - fix(flow): add /sf-flow-* slash commands (command -> tool -> skill, like pair)
 
-
 ## [0.1.4] - 2026-07-17
 ### Changed
 - fix(pair,flow): make skills internal (path-loaded) to remove duplicate /skill:* listing
 
-
 ## [0.1.3] - 2026-07-17
 ### Changed
 - fix(flow): add required frontmatter (name+description) to the 5 skills
-
 
 ## [0.1.2] - 2026-07-17
 ### Changed
@@ -83,7 +82,6 @@
 - feat(flow): auto-seed example workflows into .pi/workflows/
 - docs(flow): add Model precedence + /sf-flow-audit vs code-review flow sections
 - docs(flow): comprehensive rewrite — mental model, agents/workflows/config, 3-knob reference
-
 
 ## [0.1.1] - 2026-07-16
 ### Changed
@@ -118,7 +116,6 @@
 - feat(flow): ensureAgentFiles + 6 bundled agent definitions
 - feat(flow): config schema + layered load (port pair's)
 - feat(flow): scaffold @pi-stef/flow package + extension entry
-
 
 ## 0.1.0
 
