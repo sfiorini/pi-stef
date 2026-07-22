@@ -20,7 +20,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **6 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **8 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
@@ -62,7 +62,7 @@ Or in natural language:
 
 ## Built-in agents
 
-Six write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Eight write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
@@ -72,10 +72,13 @@ Six write-once agent definitions ship in `packages/flow/agents/` and are copied 
 | `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high |
 | `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high |
 | `synth` | Synthesis / Report Writer | read, write | medium |
+| `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
+| `researcher` | Researcher — cited claims per angle | read, grep, find, ls | medium |
 
 - **Write-once:** flow *never* overwrites an existing agent file — edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time.
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
+- **Six are config-backed; two are example-workflow agents.** `reviewer`/`explorer`/`developer`/`planner`/`auditor`/`synth` have optional `config.json` model groups. `scanner` and `researcher` power the `auth-audit` and `research-report` example flows — they are Tier-2 agents whose model is set **inline in their workflow YAML**, not in `config.json`.
 
 **Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` also writes a write-once stub for any declared agent that doesn't yet exist.
 
