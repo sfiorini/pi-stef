@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.2.4] - 2026-07-23
+### Changed
+- chore(cursor): keep version at 0.2.3 (pnpm release will bump); move fix note under [Unreleased]
+- fix(cursor): audit — register onResponseEnd in handleNonStreamingResponse (non-stream P1 hang)
+- fix(cursor): audit — restore responseFinished gate in http1Adapter.isAlive (P2); close teardown-test loop (P3)
+- release(cursor): v0.2.4 — fix continuation-bridge regression
+- fix(cursor): S-22 writeSSEStream: identical onResponseEnd consumption (SSE cleanup primitives)
+- fix(cursor): S-21 writeNativeStream: consume onResponseEnd + cleanCompletionHandled guard + completeCleanTurn; reproducing + clean-teardown tests
+- fix(cursor): S-12 add onResponseEnd to BridgeHandle; wire buildBridgeHandle single-slot; spawnBridge no-op; +2 tests
+- fix(cursor): S-11 add onResponseEnd to StreamAdapter; make http2Adapter + http1Adapter 'end' non-destructive
+- test(cursor): reproducing test for continuation-bridge regression (RED on 0.2.3)
+
 ### Fixed
 - fix(cursor): server half-close ('end') during a tool-call no longer destroys the live bridge — add non-destructive `onResponseEnd` transport/bridge signal; clean responses still complete + tear down (runaway-turn fix preserved), tool-call pauses keep the bridge alive + writable for the continuation
 
