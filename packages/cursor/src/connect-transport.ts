@@ -114,6 +114,7 @@ export function createConnectBridgeHandle(
       return !client.closed && !h2Stream.destroyed;
     },
     write(data: Uint8Array): void {
+      if (closed || h2Stream.destroyed) return;
       if (unary) {
         unaryBuffer.push(Buffer.from(data));
         return;
@@ -121,6 +122,7 @@ export function createConnectBridgeHandle(
       h2Stream.write(Buffer.from(data));
     },
     end(): void {
+      if (closed || h2Stream.destroyed) return;
       if (unary && unaryBuffer.length > 0) {
         h2Stream.end(Buffer.concat(unaryBuffer));
       } else {
