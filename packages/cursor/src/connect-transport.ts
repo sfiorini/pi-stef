@@ -107,11 +107,13 @@ function buildBridgeHandle(
   let onCloseCb: ((code: number) => void) | null = null;
   let closed = false;
   let lastError: (Error & { kind?: string; retryable?: boolean }) | null = null;
+  let removeAbortListener: () => void = () => {};
 
-  const fireClose = (): void => {
+  const fireClose = (forceCode?: number): void => {
     if (closed) return;
     closed = true;
-    onCloseCb?.(lastError ? 1 : 0);
+    removeAbortListener();
+    onCloseCb?.(forceCode ?? (lastError ? 1 : 0));
   };
 
   // Classify an error using the captured HTTP status + Connect code, stamp the
@@ -160,6 +162,27 @@ function buildBridgeHandle(
     recordClassifiedError(err);
     fireClose();
   });
+
+  // Abort propagation (S-33): tearing the transport down on abort ensures the
+  // upstream HTTP stream is fully RST'd, not just half-closed by proxy.ts's
+  // graceful cancel (cleanupBridge sends a cancel action + ends the write side).
+  const signal = options.signal;
+  if (signal) {
+    const onAbort = (): void => {
+      debugLog("transport.aborted", { rpcPath: options.rpcPath });
+      try {
+        adapter.destroy();
+      } catch {}
+      fireClose(1);
+    };
+    if (signal.aborted) {
+      // Already aborted before listeners could attach — fire on a later tick.
+      queueMicrotask(onAbort);
+    } else {
+      signal.addEventListener("abort", onAbort, { once: true });
+      removeAbortListener = () => signal.removeEventListener("abort", onAbort);
+    }
+  }
 
   return {
     proc: {

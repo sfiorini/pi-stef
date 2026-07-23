@@ -11,6 +11,8 @@ export interface SpawnBridgeOptions {
   rpcPath: string;
   url?: string;
   unary?: boolean;
+  /** Optional abort signal; aborting tears down the upstream stream (S-33). */
+  signal?: AbortSignal;
 }
 
 export interface BridgeHandle {

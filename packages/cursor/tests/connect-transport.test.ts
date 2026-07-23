@@ -255,6 +255,33 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
 
     connectSpy.mockRestore();
   });
+
+  it("aborting the signal destroys the stream and closes", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const controller = new AbortController();
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+      signal: controller.signal,
+    });
+    let closeCode: number | undefined;
+    handle.onClose((code) => {
+      closeCode = code;
+    });
+    const removeSpy = vi.spyOn(controller.signal, "removeEventListener");
+
+    controller.abort();
+
+    expect(stream.destroy).toHaveBeenCalled();
+    expect(client.destroy).toHaveBeenCalled();
+    expect(closeCode).toBe(1);
+    // Listener removed (no leak).
+    expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
+    connectSpy.mockRestore();
+  });
 });
 
 describe("createConnectBridgeHandle (HTTP/1.1)", () => {

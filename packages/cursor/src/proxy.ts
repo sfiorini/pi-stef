@@ -706,12 +706,14 @@ export async function callCursorUnaryRpc(options: {
   requestBody: Uint8Array;
   url?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<{ body: Uint8Array; exitCode: number; timedOut: boolean }> {
   const bridge = bridgeFactory({
     accessToken: options.accessToken,
     rpcPath: options.rpcPath,
     url: options.url,
     unary: true,
+    signal: options.signal,
   });
   const chunks: Buffer[] = [];
   return new Promise((resolve) => {
@@ -4956,11 +4958,12 @@ function respondWithPendingToolCalls(
 
 // ── Streaming response ──
 
-function startBridge(accessToken: string, requestBytes: Uint8Array) {
+function startBridge(accessToken: string, requestBytes: Uint8Array, signal?: AbortSignal) {
   const bridge = bridgeFactory({
     accessToken,
     rpcPath: "/agent.v1.AgentService/Run",
     url: getCursorAgentUrl(),
+    signal,
   });
   debugLog("bridge.start_run", { requestBytes });
   bridge.write(frameConnectMessage(requestBytes));
@@ -5000,7 +5003,11 @@ function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void
           maxRetries: controller.maxRetries,
         },
       );
-      const { bridge, heartbeatTimer } = startBridge(input.accessToken, input.requestBytes);
+      const { bridge, heartbeatTimer } = startBridge(
+        input.accessToken,
+        input.requestBytes,
+        input.options?.signal,
+      );
       writeNativeStream(
         bridge,
         heartbeatTimer,
