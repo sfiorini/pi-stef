@@ -30,6 +30,8 @@ export interface CursorRequestHeaders {
   "x-cursor-client-version": string;
   "x-cursor-client-type": string;
   "x-request-id": string;
+  /** Index signature enables direct assignability to `http2.OutgoingHttpHeaders`. */
+  readonly [header: string]: string;
 }
 
 /**
