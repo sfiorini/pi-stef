@@ -126,6 +126,7 @@ function createFakeHttpRequest(): FakeHttpRequest {
 describe("createConnectBridgeHandle (HTTP/2)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("produces a BridgeHandle over an injected http2 session", () => {
@@ -228,6 +229,30 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     expect(classified!.data?.kind).toBe("transient");
     expect(classified!.data?.retryable).toBe(true);
     expect(classified!.data?.httpStatus).toBe(429);
+    connectSpy.mockRestore();
+  });
+
+  it("H2 transport sends PING every 30s and clears it on close", () => {
+    vi.useFakeTimers();
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    client.ping.mockClear();
+
+    vi.advanceTimersByTime(31_000);
+    expect(client.ping).toHaveBeenCalledTimes(1);
+
+    // Closing the stream clears the interval.
+    stream.emit("close");
+    client.ping.mockClear();
+    vi.advanceTimersByTime(31_000);
+    expect(client.ping).not.toHaveBeenCalled();
+
     connectSpy.mockRestore();
   });
 });

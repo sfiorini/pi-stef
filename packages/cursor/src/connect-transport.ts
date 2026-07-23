@@ -213,6 +213,20 @@ function http2Adapter(
     responseStatus = status > 0 ? status : undefined;
   });
 
+  // H2 PING keepalive: keep the TCP/TLS/H2 session alive through idle network
+  // middleboxes (the real cause of dropped idle connections). Does NOT reset the
+  // application idle watchdog — that resets only on real upstream data delivered
+  // via onData (see proxy.ts createStreamIdleWatchdog). Ack errors are swallowed.
+  const pingTimer = setInterval(() => {
+    if (!client.destroyed) {
+      client.ping(() => {
+        /* ignore ack errors */
+      });
+    }
+  }, 30_000);
+  (pingTimer as { unref?: () => void }).unref?.();
+  const stopPing = (): void => clearInterval(pingTimer);
+
   return {
     outbound: {
       write: (data: Buffer) => {
@@ -230,13 +244,17 @@ function http2Adapter(
       h2Stream.on("data", cb);
     },
     onClose(cb) {
+      const done = (): void => {
+        stopPing();
+        cb();
+      };
       h2Stream.on("close", () => {
         try {
           client.close();
         } catch {}
-        cb();
+        done();
       });
-      client.on("close", cb);
+      client.on("close", done);
     },
     onError(cb) {
       h2Stream.on("error", (err) => {
@@ -255,6 +273,7 @@ function http2Adapter(
       return !client.closed && !h2Stream.destroyed;
     },
     destroy() {
+      stopPing();
       try {
         h2Stream.destroy();
       } catch {}
@@ -292,6 +311,8 @@ function http1Adapter(
 
   let responseFinished = false;
   let responseStatus: number | undefined;
+  // No PING keepalive needed for HTTP/1.1: chunked transfer-encoding keep-alive
+  // is automatic. The H2 PING (http2Adapter) addresses middlebox idle drops.
 
   return {
     outbound: {
