@@ -302,7 +302,7 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     connectSpy.mockRestore();
   });
 
-  it("server half-close ('end') fires onClose and closes the write side (H2)", () => {
+  it("server half-close ('end') is non-destructive: no stream.end, no onClose, alive (H2)", () => {
     const stream = createFakeH2Stream();
     const client = createFakeH2Client(stream);
     const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
@@ -317,8 +317,10 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     stream.emit("response", { ":status": 200 });
     stream.emit("end");
 
-    expect(stream.end).toHaveBeenCalled();
-    expect(closeCode).toBe(0);
+    // 'end' is now non-destructive: no stream.end, no onClose, bridge stays alive.
+    expect(stream.end).not.toHaveBeenCalled();
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
     connectSpy.mockRestore();
   });
 
@@ -500,7 +502,7 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     reqSpy.mockRestore();
   });
 
-  it("response 'end' (half-close) fires onClose for HTTP/1.1", () => {
+  it("response 'end' (half-close) is non-destructive for HTTP/1.1 (no onClose)", () => {
     const req = createFakeHttpRequest();
     const res = new EventEmitter();
     const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
@@ -517,7 +519,9 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     res.emit("data", Buffer.from("payload"));
     res.emit("end");
 
-    expect(closeCode).toBe(0);
+    // 'end' is now non-destructive: no onClose, bridge stays alive.
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
     reqSpy.mockRestore();
   });
 });
