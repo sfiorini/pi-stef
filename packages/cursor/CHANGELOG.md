@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-07-23
+### Changed
+- fix(cursor): listen for HTTP/2 'end' / HTTP/1.1 res 'end' server half-close so turns complete instead of hanging until the idle watchdog
+- feat(cursor): persist discovered models to ~/.pi/agent/cursor-models-cache.json and prefer the cache over stale bundled FALLBACK_MODELS on restart
+- feat(cursor): raise model-discovery RPC timeout from 5s to 15s
+
 ## [0.2.1] - 2026-07-23
 ### Changed
 - fix(cursor): clean up active bridge on transport-abort close path (round-2 P2)

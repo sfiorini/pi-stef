@@ -32,11 +32,13 @@ import {
   getCursorAgentUrl,
   getCursorModels,
   getCursorParameterizedModels,
+  tokenCacheHash,
   type CursorModel,
   type CursorModelParameter,
   type CursorParameterizedModel,
   type CursorParameterizedVariant,
 } from "./proxy.js";
+import { readCachedCursorModels, writeCachedCursorModels } from "./model-cache.js";
 
 // ── Cost estimation ──
 
@@ -1183,7 +1185,15 @@ export default async function (pi: ExtensionAPI) {
     rawModels: CursorModel[];
     parameterizedModels: CursorParameterizedModel[];
   }> {
-    if (process.env.PI_OFFLINE) return { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
+    const cachedFallback = ():
+      | { rawModels: CursorModel[]; parameterizedModels: CursorParameterizedModel[] }
+      | null => {
+      const cached = readCachedCursorModels();
+      if (!cached) return null;
+      return { rawModels: cached.rawModels, parameterizedModels: cached.parameterizedModels };
+    };
+
+    if (process.env.PI_OFFLINE) return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
 
     let startupToken: { accessToken: string; source: StartupTokenSource } | undefined;
     try {
@@ -1196,7 +1206,7 @@ export default async function (pi: ExtensionAPI) {
 
     if (!startupToken) {
       debugExtensionLog("model_discovery.startup.skipped", { reason: "no_cursor_oauth_token" });
-      return { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
+      return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
     }
 
     try {
@@ -1211,6 +1221,11 @@ export default async function (pi: ExtensionAPI) {
         parameterizedCount: parameterized.length,
       });
       if (discovered.length > 0 || parameterized.length > 0) {
+        writeCachedCursorModels(
+          discovered.length > 0 ? discovered : FALLBACK_MODELS,
+          parameterized,
+          tokenCacheHash(startupToken.accessToken),
+        );
         return {
           rawModels: discovered.length > 0 ? discovered : FALLBACK_MODELS,
           parameterizedModels: parameterized,
@@ -1223,7 +1238,7 @@ export default async function (pi: ExtensionAPI) {
       });
     }
 
-    return { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
+    return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
   }
 
   function register(
@@ -1277,6 +1292,11 @@ export default async function (pi: ExtensionAPI) {
           ]);
           if (discovered.length > 0 || parameterized.length > 0) {
             register(pi, discovered.length > 0 ? discovered : FALLBACK_MODELS, parameterized);
+            writeCachedCursorModels(
+              discovered.length > 0 ? discovered : FALLBACK_MODELS,
+              parameterized,
+              tokenCacheHash(accessToken),
+            );
           }
 
           return {
@@ -1297,6 +1317,11 @@ export default async function (pi: ExtensionAPI) {
           ]);
           if (discovered.length > 0 || parameterized.length > 0) {
             register(pi, discovered.length > 0 ? discovered : FALLBACK_MODELS, parameterized);
+            writeCachedCursorModels(
+              discovered.length > 0 ? discovered : FALLBACK_MODELS,
+              parameterized,
+              tokenCacheHash(refreshed.access),
+            );
           }
 
           return refreshed as OAuthCredentials;

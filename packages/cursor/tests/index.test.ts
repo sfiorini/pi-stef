@@ -1,13 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createCursorAuthClient } from "../src/auth";
 import { parseModelId } from "../src/index";
 import {
   buildCursorRequest,
   getCursorAgentUrl,
+  getCursorModels,
   resolveRequestedModelId,
   setBridgeFactoryForTests,
   stopProxy,
@@ -203,6 +204,41 @@ describe("cursor OAuth test seams", () => {
 
   it("redacts token-like values in debug summaries", () => {
     expect(__testInternals.redactForDebug("CURSOR_ACCESS_TOKEN=secret-token-value")).toContain("[redacted");
+  });
+});
+
+describe("model discovery timeout", () => {
+  it("getCursorModels uses a 15s discovery timeout (not the 5s RPC default)", async () => {
+    vi.useFakeTimers();
+    let closeCb: ((code: number) => void) | null = null;
+    setBridgeFactoryForTests(
+      () =>
+        ({
+          proc: { kill: () => { closeCb?.(1); return true; } },
+          get alive() { return true; },
+          lastError: null,
+          write: () => {},
+          end: () => {},
+          onData: () => {},
+          onClose: (cb: (code: number) => void) => { closeCb = cb; },
+        }) as never,
+    );
+
+    const uniqueToken = `tok_timeout_${Date.now()}_${Math.random()}`;
+    const p = getCursorModels(uniqueToken);
+    let resolved = false;
+    let result: unknown = undefined;
+    p.then((r) => { resolved = true; result = r; });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(resolved).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await Promise.resolve();
+    expect(resolved).toBe(true);
+    expect(result).toEqual([]);
+
+    vi.useRealTimers();
   });
 });
 

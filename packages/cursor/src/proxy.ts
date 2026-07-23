@@ -759,6 +759,11 @@ export async function callCursorUnaryRpc(options: {
 
 // ── Model discovery ──
 
+// Model discovery is startup-only (not latency-sensitive); give the live RPC
+// more room than the 5s unary default. The disk cache (model-cache.ts) covers
+// the genuinely-slow-or-offline case.
+const MODEL_DISCOVERY_TIMEOUT_MS = 15_000;
+
 export interface CursorModel {
   id: string;
   name: string;
@@ -776,7 +781,7 @@ let cachedModels: { tokenHash: string; models: CursorModel[] } | null = null;
 let cachedParameterizedModels: { tokenHash: string; models: CursorParameterizedModel[] } | null =
   null;
 
-function tokenCacheHash(apiKey: string): string {
+export function tokenCacheHash(apiKey: string): string {
   return createHash("sha256").update(apiKey).digest("hex").slice(0, 16);
 }
 
@@ -791,6 +796,7 @@ export async function getCursorModels(apiKey: string): Promise<CursorModel[]> {
       rpcPath: "/agent.v1.AgentService/GetUsableModels",
       requestBody,
       url: getCursorAgentUrl(),
+      timeoutMs: MODEL_DISCOVERY_TIMEOUT_MS,
     });
     if (!response.timedOut && response.exitCode === 0 && response.body.length > 0) {
       let decoded: any = null;
@@ -853,6 +859,7 @@ export async function getCursorParameterizedModels(
       accessToken: apiKey,
       rpcPath: "/aiserver.v1.AiService/AvailableModels",
       requestBody: encodeAvailableModelsRequest(),
+      timeoutMs: MODEL_DISCOVERY_TIMEOUT_MS,
     });
     if (response.timedOut || response.exitCode !== 0 || response.body.length === 0) return [];
     const body = decodeConnectUnaryBody(response.body) ?? response.body;

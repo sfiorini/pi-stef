@@ -301,6 +301,47 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     expect(classified!.data?.httpStatus).toBe(401);
     connectSpy.mockRestore();
   });
+
+  it("server half-close ('end') fires onClose and closes the write side (H2)", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("end");
+
+    expect(stream.end).toHaveBeenCalled();
+    expect(closeCode).toBe(0);
+    connectSpy.mockRestore();
+  });
+
+  it("'end' then 'close' fires onClose exactly once (idempotent)", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    const closes: number[] = [];
+    handle.onClose((code) => { closes.push(code); });
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("end");
+    stream.emit("close");
+
+    expect(closes).toEqual([0]);
+    expect(client.close).toHaveBeenCalled();
+    connectSpy.mockRestore();
+  });
 });
 
 describe("createConnectBridgeHandle (HTTP/1.1)", () => {
@@ -456,6 +497,27 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     expect(closeCode).toBe(1);
     expect(handle.lastError).toBeInstanceOf(Error);
     expect(handle.lastError?.message).toBe("socket hang up");
+    reqSpy.mockRestore();
+  });
+
+  it("response 'end' (half-close) fires onClose for HTTP/1.1", () => {
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    req.emit("response", res);
+    res.emit("data", Buffer.from("payload"));
+    res.emit("end");
+
+    expect(closeCode).toBe(0);
     reqSpy.mockRestore();
   });
 });
