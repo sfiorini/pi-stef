@@ -276,6 +276,20 @@ function http2Adapter(
         stopPing();
         cb();
       };
+      // Server half-close (END_STREAM) emits 'end', NOT 'close': the client
+      // write side is still open (proxy.ts sends a ClientHeartbeat via
+      // bridge.write), so 'close' never fires and the turn hangs. On 'end',
+      // close our write side (h2Stream.end()) so the stream fully closes →
+      // 'close' → client.close() (no session leak), then fire the close
+      // callback. buildBridgeHandle's fireClose() `closed` guard makes the
+      // subsequent 'close' a no-op, and its write() checks `closed` before
+      // writing, so there is no write-after-end.
+      h2Stream.on("end", () => {
+        try {
+          h2Stream.end();
+        } catch {}
+        done();
+      });
       h2Stream.on("close", () => {
         try {
           client.close();
@@ -343,6 +357,13 @@ function http1Adapter(
   // errors through here so a mid-stream response error is never uncaught (the
   // exact crash mode this in-process refactor exists to eliminate).
   let errorCb: ((err: Error) => void) | null = null;
+  // Close callback captured by onClose() and invoked on the response 'end'
+  // half-close. HTTP/1.1 req 'close' only fires on full socket teardown; with
+  // keep-alive the socket stays open so 'close' never fires and the turn hangs.
+  // onInbound() (registers res 'end') is called before onClose() in
+  // buildBridgeHandle, and the response arrives async, so closeCallback is
+  // always set before 'end' fires.
+  let closeCallback: (() => void) | null = null;
   const toError = (err: unknown): Error =>
     err instanceof Error ? err : new Error(String(err));
   // No PING keepalive needed for HTTP/1.1: chunked transfer-encoding keep-alive
@@ -371,6 +392,7 @@ function http1Adapter(
         });
         res.on("end", () => {
           responseFinished = true;
+          closeCallback?.();
         });
         // Route mid-stream response errors through the shared error sink. Without
         // this listener a socket reset mid-response would throw uncaught.
@@ -381,6 +403,7 @@ function http1Adapter(
       });
     },
     onClose(cb) {
+      closeCallback = cb;
       req.on("close", cb);
     },
     onError(cb) {

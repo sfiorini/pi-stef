@@ -371,4 +371,62 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
 
     connectSpy.mockRestore();
   });
+
+  it("turn completes on server half-close ('end') without waiting for 'close'", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {});
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("data", makeTextFrame("answer"));
+    stream.emit("end");
+
+    await done;
+    connectSpy.mockRestore();
+
+    const text = events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => (e as { delta: string }).delta)
+      .join("");
+    expect(text).toBe("answer");
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    expect(events.some((e) => e.type === "error")).toBe(false);
+  });
+
+  it("end-stream error still surfaces when the turn ends via half-close ('end')", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {});
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("data", makeTextFrame("partial"));
+    stream.emit("data", makeEndStreamErrorFrame("resource_exhausted", "rate limited"));
+    stream.emit("end");
+
+    await done;
+    connectSpy.mockRestore();
+
+    const errEvent = events.find((e) => e.type === "error") as
+      | Extract<AssistantMessageEvent, { type: "error" }>
+      | undefined;
+    expect(errEvent).toBeDefined();
+    expect(errEvent!.error.errorMessage).toContain("rate limited");
+    expect(errEvent!.error.errorMessage).not.toBe("Bridge connection lost");
+  });
 });
