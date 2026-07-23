@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-07-23
+### Fixed
+- fix(cursor): server half-close ('end') during a tool-call no longer destroys the live bridge — add non-destructive `onResponseEnd` transport/bridge signal; clean responses still complete + tear down (runaway-turn fix preserved), tool-call pauses keep the bridge alive + writable for the continuation
+
 ## [0.2.3] - 2026-07-23
 ### Changed
 - chore(cursor): S-32 changelog 0.2.2 + version bump

@@ -622,6 +622,7 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
       end: () => {},
       onData: () => {},
       onClose: () => {},
+      onResponseEnd: () => {},
     };
     const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
     const h = childFactory({ accessToken: "tok", rpcPath: "/x" });
@@ -645,6 +646,7 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
       end: () => {},
       onData: () => {},
       onClose: () => {},
+      onResponseEnd: () => {},
     };
     const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
 

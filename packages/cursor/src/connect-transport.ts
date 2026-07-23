@@ -359,7 +359,6 @@ function http1Adapter(
     },
   });
 
-  let responseFinished = false;
   let responseStatus: number | undefined;
   // Shared error sink: both the request (`req`) and the response (`res`) route
   // errors through here so a mid-stream response error is never uncaught (the
@@ -393,7 +392,6 @@ function http1Adapter(
           if (!isErrorResponseStatus(responseStatus)) cb(chunk);
         });
         res.on("end", () => {
-          responseFinished = true;
           onResponseEndCb?.();
         });
         // Route mid-stream response errors through the shared error sink. Without
