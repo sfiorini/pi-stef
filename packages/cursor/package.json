@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/cursor",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Cursor AI editor as a native Pi stream provider — OAuth login, protobuf/HTTP2 protocol, tool-call recovery",
   "type": "module",
   "license": "MIT",

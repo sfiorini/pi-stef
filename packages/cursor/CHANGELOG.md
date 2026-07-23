@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-07-23
+### Changed
+- chore(cursor): S-32 changelog 0.2.2 + version bump
+- feat(cursor): S-23 wire cache-first model fallback + write-on-success
+- feat(cursor): S-22 export tokenCacheHash + 15s model discovery timeout
+- feat(cursor): S-21 model disk cache for restart-surviving model discovery
+- fix(cursor): propagate server half-close ('end') to bridge onClose — M1
+
+
 ## [0.2.2] - 2026-07-23
 ### Changed
 - fix(cursor): listen for HTTP/2 'end' / HTTP/1.1 res 'end' server half-close so turns complete instead of hanging until the idle watchdog
