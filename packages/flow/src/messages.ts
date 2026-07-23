@@ -8,6 +8,7 @@
 
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
+import type { ResolvedModels } from "./config/schema.js";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -54,14 +55,41 @@ export interface AutoReadyInput {
   inputSummary: string;
   /** Absolute path resolved by `resolveWorkflowPath` (project override → global). */
   resolvedWorkflowPath: string;
+  /** Pre-generated pi-dw script (skill phases run INLINE — no general-purpose twin). Optional so legacy callers/tests omit it. */
+  script?: string;
+  /** Resolved models, rendered as a reference table for the orchestrator. Optional. */
+  models?: ResolvedModels | null;
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
-  return [
+  const lines: string[] = [
     `Running flow "${opts.workflowName}" end-to-end.`,
     `Input: ${opts.inputSummary}`,
     `Workflow file: ${opts.resolvedWorkflowPath}`,
     `No human gates — phases run to completion or a terminal state.`,
-    `Now read the skill file at ${skillDocPath("sf-flow-auto")}.`,
-  ].join("\n");
+  ];
+  if (opts.script) {
+    lines.push(``);
+    lines.push(
+      `The tool already generated the pi-dw orchestration script below. Skill phases run INLINE — YOU are the orchestrator: read + execute each skill file in full, dispatch role agents via the Agent tool, write NO code yourself, and spawn NO general-purpose subagent for a skill phase.`,
+    );
+    lines.push(``);
+    lines.push("```js");
+    lines.push(opts.script);
+    lines.push("```");
+  }
+  if (opts.models) {
+    lines.push(``);
+    lines.push(`Resolved models (config; inherit the orchestrator when null):`);
+    lines.push(`- reviewer: ${opts.models.reviewerModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- researcher: ${opts.models.researcherModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- developer: ${opts.models.developerModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- planner: ${opts.models.plannerModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- auditor: ${opts.models.auditorModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- synth: ${opts.models.synthModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- designer: ${opts.models.designerModel ?? "(inherit orchestrator)"}`);
+  }
+  lines.push(``);
+  lines.push(`Now read the skill file at ${skillDocPath("sf-flow-auto")}.`);
+  return lines.join("\n").replace(/\n+$/g, "\n");
 }

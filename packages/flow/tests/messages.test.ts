@@ -39,4 +39,30 @@ describe("buildAutoReadyMessage", () => {
     expect(msg).toContain("/h/.pi/sf/flow/workflows/code-review.yaml");
     expect(msg).toContain(skillDocPath("sf-flow-auto"));
   });
+
+  it("renders the generated script block + 7-row model table when script + models are passed", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "ship-feature",
+      inputSummary: "prompt: add login",
+      resolvedWorkflowPath: "/h/.pi/sf/flow/workflows/ship-feature.yaml",
+      script: "phase('plan');\nlog(`INLINE SKILL PHASE: sf-flow-plan.`);",
+      models: {
+        reviewerModel: "sonnet",
+        researcherModel: "haiku",
+        developerModel: "opus",
+        plannerModel: null,
+        auditorModel: null,
+        synthModel: null,
+        designerModel: null,
+      },
+    });
+    expect(msg).toContain("```js");
+    expect(msg).toContain("INLINE SKILL PHASE");
+    expect(msg).toContain("run INLINE");
+    expect(msg).toContain("write NO code");
+    expect(msg).toContain("reviewer: sonnet");
+    expect(msg).toContain("developer: opus");
+    expect(msg).toContain("planner: (inherit orchestrator)");
+    expect(msg).toContain(skillDocPath("sf-flow-auto"));
+  });
 });

@@ -4,6 +4,9 @@ import { homedir } from "node:os";
 import { finalizeWorktree } from "./worktree/finalize.js";
 import { createWorktree } from "./worktree/create.js";
 import { loadAndResolveDefaults } from "./config/load.js";
+import type { ResolvedModels } from "./config/schema.js";
+import { loadFlowYaml } from "./yaml/load.js";
+import { generateScript } from "./yaml/generate.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
@@ -267,6 +270,28 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           details: { workflow, found: false },
         };
       }
+      // Load + validate the YAML, resolve models, and pre-generate the pi-dw
+      // script so the orchestrator runs skill phases INLINE (one orchestrator,
+      // no nested general-purpose twin).
+      let script: string | null = null;
+      let models: ResolvedModels | null = null;
+      try {
+        const flow = await loadFlowYaml(resolved);
+        const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
+        script = generateScript(flow, { models: defaults });
+        models = defaults;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Workflow "${workflow}" could not be loaded: ${msg}`,
+            },
+          ],
+          details: { workflow, found: true, workflowPath: resolved, loadError: msg },
+        };
+      }
       return {
         content: [
           {
@@ -275,10 +300,12 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               workflowName: workflow,
               inputSummary: `${classified.kind}: ${classified.value}`,
               resolvedWorkflowPath: resolved,
+              script,
+              models,
             }),
           },
         ],
-        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved },
+        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script },
       };
     },
   });
