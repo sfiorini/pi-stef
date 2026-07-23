@@ -291,7 +291,7 @@ Both run the same audit triad, so they look interchangeable — but the wrapper 
 | | `/sf-flow-audit` | `sf_flow_auto code-review` |
 |---|---|---|
 | Tier | 1 (built-in skill) | 2 (YAML flow) |
-| What runs | the skill inline, in your current session | a generated pi-dw script that spawns a `general-purpose` agent to run the skill |
+| What runs | the skill inline, in your current session | a generated pi-dw script that runs the skill phase INLINE — the orchestrator reads + executes the skill file (no nested agent) |
 | Model source | config (`reviewer.model`) | config (`reviewer.model`) — *via the skill* |
 | Result | findings + verdict into your chat | a flow result — the skill phase's `out` is **opaque** (a placeholder string) |
 | Gated loop | no (one-shot; `apply_fixes` applies once) | **not on a skill phase** (skill phases can't loop) |
@@ -300,7 +300,7 @@ Both run the same audit triad, so they look interchangeable — but the wrapper 
 
 Today `code-review.yaml` is a pure skill wrapper (no agent phases of its own), so functionally it's nearly identical to the skill — including the model source: both resolve the reviewer from config. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: a flow's **agent** phases get their model from the YAML (`agents.<name>.model`); its **skill** phases inherit the skill's config-driven model.
 
-> **Need a gated audit loop in a flow?** A skill phase can't loop (rule #8). Use an **agent** phase with `until: approved` instead — see the `audit` phase in `ship-feature.yaml`, which gates an auditor until `verdict: APPROVED`.
+> **Need a gated audit loop in a flow?** A skill phase can't loop (it returns no structured verdict to gate on). Use an **agent** phase with `until: approved` instead — see the `audit` phase in `ship-feature.yaml`, which gates an auditor until `verdict: APPROVED`.
 
 ---
 

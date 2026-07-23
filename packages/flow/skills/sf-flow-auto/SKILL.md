@@ -13,14 +13,14 @@ Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, 
 
 For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools). If no researcher model is configured, omit `model` so it inherits the orchestrator.
 
-Within the generated pi-dw script, each `agent:` phase resolves its agent type by this same rule (a declared agent spawns by name; an undeclared `planner`/`reviewer` falls back to `Plan`/`Reviewer`; anything else → `general-purpose`). `skill:` phases always run as `general-purpose` (the agent that reads + executes the skill file).
+Within the generated pi-dw script, each `agent:` phase resolves its agent type by this same rule (a declared agent spawns by name; an undeclared `planner`/`reviewer` falls back to `Plan`/`Reviewer`; anything else → `general-purpose`). `skill:` phases run INLINE: the orchestrator (YOU) reads + executes each skill file in full, dispatches role agents via the Agent tool, writes NO code itself, and spawns NO `general-purpose` subagent for a skill phase.
 
-Models: tier-1 `skill:` phases (sf-flow-plan/implement/audit) **self-resolve** their models from `.pi/sf/flow/config.json` (project then global → `SF_FLOW_<ROLE>_MODEL` env → inherit orchestrator), so a delegated phase honors config just like the direct tool path. When generating the script you MAY resolve models (`resolveFlowModels`) and pass them to `generateScript(flow, { models })` as a belt-and-suspenders hint baked into the skill-phase prompt — but it is optional, since each skill self-resolves. Non-tier-1 `agent:` phases use their YAML `model:` (else the `.md`, else the orchestrator).
+Models: tier-1 `skill:` phases (sf-flow-plan/implement/audit) **self-resolve** their models from `.pi/sf/flow/config.json` (project then global → `SF_FLOW_<ROLE>_MODEL` env → inherit orchestrator), so a delegated phase honors config just like the direct tool path. The sf_flow_auto tool resolves models (`loadAndResolveDefaults`) and bakes them into the inline `log()` directive as a belt-and-suspenders hint; each tier-1 skill ALSO self-resolves, so a missing or null hint is harmless. Non-tier-1 `agent:` phases use their YAML `model:` (else the `.md`, else the orchestrator).
 
 ## Process
 
 ### Phase 1: Resolve the flow
-The sf_flow_auto tool already resolved the workflow file (project `<repo>/.pi/sf/flow/workflows` overrides global `~/.pi/sf/flow/workflows`) and passed its absolute path in the tool output — read that file. Validate it (`validateFlowYaml`). Generate the pi-dw script (idempotent). If the tool returned a not-found message instead, ask the user to create it via `/sf-flow-create-workflow` or run `/sf-flow-seed` to copy the bundled examples.
+The sf_flow_auto tool already resolved the workflow file (project `<repo>/.pi/sf/flow/workflows` overrides global `~/.pi/sf/flow/workflows`), loaded + validated it (`loadFlowYaml`/`validateFlowYaml`), resolved the models (`loadAndResolveDefaults`), and pre-generated the pi-dw script (idempotent) — all included in the tool output. Read the script from the tool output (no need to re-generate or re-validate). If the tool returned a not-found message instead, ask the user to create it via `/sf-flow-create-workflow` or run `/sf-flow-seed` to copy the bundled examples.
 
 ### Phase 2: Resolve the input
 - `prompt` → use verbatim as the flow's `args.input`
@@ -29,7 +29,7 @@ The sf_flow_auto tool already resolved the workflow file (project `<repo>/.pi/sf
 - `jira` → resolve the story via @pi-stef/atlassian (Jira), pass description+acceptance as `args.input`
 
 ### Phase 3: Run the flow
-Execute the generated pi-dw script with `args.input`. Phases run sequentially; intra-phase fan-out via `parallel()`. Loops (`until_dry` / `until:approved`) run to completion.
+Execute the generated pi-dw script with `args.input`. Phases run sequentially; intra-phase fan-out via `parallel()`. Loops (`until_dry` / `until:approved`) run to completion. `skill:` phases run INLINE — you read + execute each skill file in full and dispatch role agents via the Agent tool; do NOT spawn a `general-purpose` subagent for a skill phase.
 
 ### Phase 4: Terminal state
 Each phase exits success / no-op / blocked / exhausted. On blocked/exhausted, stop and report. No human gates; on completion return the flow's result.
