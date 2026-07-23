@@ -109,6 +109,7 @@ import {
   type BridgeFactory,
   type BridgeHandle,
 } from "./bridge.js";
+import { createConnectBridgeHandle } from "./connect-transport.js";
 import {
   buildSelectedContextBlob,
   decodeAvailableModelsResponse,
@@ -475,7 +476,19 @@ function createStreamIdleWatchdog(options: {
 const ACTIVE_BRIDGE_TTL_MS = resolveActiveBridgeTtlMs(
   process.env.PI_CURSOR_ACTIVE_BRIDGE_TTL_MS,
 );
-const defaultBridgeFactory: BridgeFactory = (options) => spawnBridge(options, debugLog);
+
+/**
+ * Resolve the default {@link BridgeFactory} from the `PI_CURSOR_TRANSPORT` env
+ * var. Default (and any unknown value) is the in-process Connect transport
+ * (HTTP/2); `"child"` selects the deprecated child-process bridge as an escape
+ * hatch. Case/whitespace-insensitive.
+ */
+export function resolveBridgeFactory(): BridgeFactory {
+  const mode = (process.env.PI_CURSOR_TRANSPORT || "connect").trim().toLowerCase();
+  if (mode === "child") return (options) => spawnBridge(options, debugLog);
+  return (options) => createConnectBridgeHandle(options, debugLog);
+}
+const defaultBridgeFactory: BridgeFactory = resolveBridgeFactory();
 let bridgeFactory: BridgeFactory = defaultBridgeFactory;
 let debugRequestCounter = 0;
 let debugLogFilePath: string | undefined;

@@ -2,6 +2,7 @@ import http2 from "node:http2";
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import * as bridge from "../src/bridge";
 import {
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION,
@@ -9,6 +10,7 @@ import {
 } from "../src/cursor-request-headers";
 import { type BridgeHandle, frameConnectMessage, CONNECT_END_STREAM_FLAG } from "../src/bridge";
 import { createConnectBridgeHandle } from "../src/connect-transport";
+import { resolveBridgeFactory } from "../src/proxy";
 
 const baseOptions = {
   accessToken: "tok_abc",
@@ -176,5 +178,53 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
 
     expect(closeCode).toBe(1);
     connectSpy.mockRestore();
+  });
+});
+
+describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.PI_CURSOR_TRANSPORT;
+  });
+
+  it("default factory is in-process unless PI_CURSOR_TRANSPORT=child", () => {
+    // Default (unset / unknown) → in-process transport opens an http2 session.
+    delete process.env.PI_CURSOR_TRANSPORT;
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    const defaultFactory = resolveBridgeFactory();
+    const handle = defaultFactory({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+    expect(handle.alive).toBe(true);
+    handle.proc.kill();
+    connectSpy.mockRestore();
+
+    // Unknown value also falls through to in-process (not child).
+    process.env.PI_CURSOR_TRANSPORT = "foo";
+    const connectSpy2 = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    resolveBridgeFactory()({ accessToken: "tok", rpcPath: "/x" });
+    expect(connectSpy2).toHaveBeenCalledTimes(1);
+    connectSpy2.mockRestore();
+
+    // child mode routes through the (mocked) child-process bridge.
+    process.env.PI_CURSOR_TRANSPORT = "child";
+    const childFactory = resolveBridgeFactory();
+    const fakeChildHandle: BridgeHandle = {
+      proc: { kill: () => true },
+      alive: true,
+      write: () => {},
+      end: () => {},
+      onData: () => {},
+      onClose: () => {},
+    };
+    const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
+    const h = childFactory({ accessToken: "tok", rpcPath: "/x" });
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+    expect(h).toBe(fakeChildHandle);
+    spawnSpy.mockRestore();
   });
 });
