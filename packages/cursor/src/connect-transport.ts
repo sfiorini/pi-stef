@@ -3,12 +3,17 @@ import http2 from "node:http2";
 import https from "node:https";
 
 import type { BridgeDebugLog, BridgeHandle, SpawnBridgeOptions } from "./bridge.js";
-import { createConnectFrameParser, parseConnectEndStream } from "./bridge.js";
+import {
+  type ConnectEndStreamError,
+  createConnectFrameParser,
+  parseConnectEndStreamDetailed,
+} from "./bridge.js";
 import {
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION,
   resolveCursorRequestHeaders,
 } from "./cursor-request-headers.js";
+import { attachClassification, classifyTransportError } from "./transport-errors.js";
 
 /**
  * Default Cursor agent endpoint. Mirrors `bridge.ts` / `proxy.ts` defaults;
@@ -65,6 +70,8 @@ interface StreamAdapter {
   onClose(cb: () => void): void;
   /** Subscribe to transport-level errors. */
   onError(cb: (err: Error) => void): void;
+  /** Most recent HTTP response status, if headers were received (for classification). */
+  getResponseStatus(): number | undefined;
   /** Whether the transport is still usable (not closed/destroyed). */
   isAlive(): boolean;
   /** Tear down the underlying transport (idempotent). */
@@ -91,6 +98,7 @@ function logError(
 function buildBridgeHandle(
   options: SpawnBridgeOptions,
   adapter: StreamAdapter,
+  debugLog: BridgeDebugLog,
 ): BridgeHandle {
   const unary = options.unary ?? false;
   const unaryBuffer: Buffer[] = [];
@@ -98,7 +106,7 @@ function buildBridgeHandle(
   let onDataCb: ((chunk: Buffer) => void) | null = null;
   let onCloseCb: ((code: number) => void) | null = null;
   let closed = false;
-  let lastError: Error | null = null;
+  let lastError: (Error & { kind?: string; retryable?: boolean }) | null = null;
 
   const fireClose = (): void => {
     if (closed) return;
@@ -106,17 +114,40 @@ function buildBridgeHandle(
     onCloseCb?.(lastError ? 1 : 0);
   };
 
+  // Classify an error using the captured HTTP status + Connect code, stamp the
+  // kind onto it, surface it via debug, and record it as lastError.
+  const recordClassifiedError = (
+    err: Error,
+    connectCode?: string,
+    httpStatusOverride?: number,
+  ): void => {
+    const httpStatus = httpStatusOverride ?? adapter.getResponseStatus();
+    const classification = classifyTransportError({ error: err, httpStatus, connectCode });
+    attachClassification(err, classification);
+    debugLog("transport.error_classified", {
+      rpcPath: options.rpcPath,
+      kind: classification.kind,
+      retryable: classification.retryable,
+      httpStatus,
+      connectCode,
+      message: err.message,
+    });
+    if (!lastError) lastError = err;
+  };
+
   // Decode Connect framing on the inbound byte stream: normal messages → onData;
   // the 0b00000010 end-stream frame carries a (possibly null) Connect error that
-  // becomes a structured non-zero close via lastError. The end-stream frame is
-  // terminal, so tear the transport down to surface onClose promptly.
+  // is classified (S-31) and surfaced as a structured non-zero close.
   const parseIncoming = createConnectFrameParser(
     (messageBytes: Uint8Array) => {
       onDataCb?.(Buffer.from(messageBytes));
     },
     (endStreamBytes: Uint8Array) => {
-      const endError = parseConnectEndStream(endStreamBytes);
-      if (endError) lastError = endError;
+      const { error: endError } = parseConnectEndStreamDetailed(endStreamBytes);
+      if (endError) {
+        const typed = endError as ConnectEndStreamError;
+        recordClassifiedError(endError, typed.code, typed.httpStatus);
+      }
       try {
         adapter.destroy();
       } catch {}
@@ -126,7 +157,7 @@ function buildBridgeHandle(
   adapter.onInbound((chunk) => parseIncoming(chunk));
   adapter.onClose(fireClose);
   adapter.onError((err) => {
-    lastError = lastError ?? err;
+    recordClassifiedError(err);
     fireClose();
   });
 
@@ -176,6 +207,11 @@ function http2Adapter(
   const client = http2.connect(baseUrl);
   const headers = resolveCursorRequestHeaders(options);
   const h2Stream = client.request(headers);
+  let responseStatus: number | undefined;
+  h2Stream.on("response", (responseHeaders) => {
+    const status = Number(responseHeaders[":status"] ?? 0);
+    responseStatus = status > 0 ? status : undefined;
+  });
 
   return {
     outbound: {
@@ -211,6 +247,9 @@ function http2Adapter(
         logError(debugLog, "transport.h2.client_error", options, err);
         cb(err instanceof Error ? err : new Error(String(err)));
       });
+    },
+    getResponseStatus() {
+      return responseStatus;
     },
     isAlive() {
       return !client.closed && !h2Stream.destroyed;
@@ -252,6 +291,7 @@ function http1Adapter(
   });
 
   let responseFinished = false;
+  let responseStatus: number | undefined;
 
   return {
     outbound: {
@@ -270,6 +310,7 @@ function http1Adapter(
       // HTTP/1.1 has no pseudo-headers; chunked transfer-encoding delivers the
       // response body, which is the SAME Connect frame stream as HTTP/2.
       req.on("response", (res) => {
+        responseStatus = res.statusCode;
         res.on("data", (chunk: Buffer) => cb(chunk));
         res.on("end", () => {
           responseFinished = true;
@@ -284,6 +325,9 @@ function http1Adapter(
         logError(debugLog, "transport.h1.request_error", options, err);
         cb(err instanceof Error ? err : new Error(String(err)));
       });
+    },
+    getResponseStatus() {
+      return responseStatus;
     },
     isAlive() {
       return !req.destroyed && !responseFinished;
@@ -313,5 +357,5 @@ export function createConnectBridgeHandle(
 ): BridgeHandle {
   const { useHttp1 } = resolveTransportMode();
   const adapter = useHttp1 ? http1Adapter(options, debugLog) : http2Adapter(options, debugLog);
-  return buildBridgeHandle(options, adapter);
+  return buildBridgeHandle(options, adapter, debugLog);
 }

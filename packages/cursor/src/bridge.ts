@@ -189,15 +189,46 @@ export function createConnectFrameParser(
 }
 
 export function parseConnectEndStream(data: Uint8Array): Error | null {
+  return parseConnectEndStreamDetailed(data).error;
+}
+
+/** A parsed Connect end-stream error, with the raw code/HTTP status attached. */
+export interface ConnectEndStreamError extends Error {
+  /** Raw Connect error code from the end-stream frame (e.g. `unavailable`, `http_429`). */
+  code?: string;
+  /** HTTP status extracted from a child-style `http_<n>` code, if present. */
+  httpStatus?: number;
+}
+
+/**
+ * Detailed end-stream parser: returns the typed error (or null) plus whether the
+ * frame parsed at all. The {@link ConnectEndStreamError} carries `code` and a
+ * best-effort `httpStatus` so the transport can classify it (S-31).
+ */
+export function parseConnectEndStreamDetailed(
+  data: Uint8Array,
+): { error: ConnectEndStreamError | null; parsed: boolean } {
+  let payload: unknown;
   try {
-    const payload = JSON.parse(new TextDecoder().decode(data));
-    const error = payload?.error;
-    if (error)
-      return new Error(
-        `Connect error ${error.code ?? "unknown"}: ${error.message ?? "Unknown error"}`,
-      );
-    return null;
+    payload = JSON.parse(new TextDecoder().decode(data));
   } catch {
-    return new Error("Failed to parse Connect end stream");
+    return {
+      error: Object.assign(new Error("Failed to parse Connect end stream"), {
+        code: undefined,
+        httpStatus: undefined,
+      }) as ConnectEndStreamError,
+      parsed: false,
+    };
   }
+  const error = (payload as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+  if (!error) return { error: null, parsed: true };
+  const code = typeof error.code === "string" ? error.code : undefined;
+  const message = typeof error.message === "string" ? error.message : "Unknown error";
+  const httpStatusMatch = code?.match(/^http_(\d+)$/);
+  const err = new Error(
+    `Connect error ${code ?? "unknown"}: ${message}`,
+  ) as ConnectEndStreamError;
+  err.code = code;
+  if (httpStatusMatch) err.httpStatus = Number(httpStatusMatch[1]);
+  return { error: err, parsed: true };
 }

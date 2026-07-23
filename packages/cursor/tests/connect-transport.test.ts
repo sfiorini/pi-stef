@@ -200,6 +200,36 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     expect(closeCode).toBe(1);
     connectSpy.mockRestore();
   });
+
+  it("end-stream 429 is classified transient via the recorded error", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const events: Array<{ event: string; data?: Record<string, unknown> }> = [];
+    const handle: BridgeHandle = createConnectBridgeHandle(
+      { accessToken: "tok_abc", rpcPath: "/agent.v1.AgentService/Run" },
+      (event, data) => events.push({ event, data }),
+    );
+    let closeCode: number | undefined;
+    handle.onClose((code) => {
+      closeCode = code;
+    });
+
+    const errJson = Buffer.from(
+      JSON.stringify({ error: { code: "http_429", message: "rate limited" } }),
+    );
+    stream.emit("data", frameConnectMessage(errJson, CONNECT_END_STREAM_FLAG));
+    stream.emit("close");
+
+    expect(closeCode).toBe(1);
+    const classified = events.find((e) => e.event === "transport.error_classified");
+    expect(classified).toBeDefined();
+    expect(classified!.data?.kind).toBe("transient");
+    expect(classified!.data?.retryable).toBe(true);
+    expect(classified!.data?.httpStatus).toBe(429);
+    connectSpy.mockRestore();
+  });
 });
 
 describe("createConnectBridgeHandle (HTTP/1.1)", () => {
