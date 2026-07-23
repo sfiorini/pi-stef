@@ -111,6 +111,7 @@ function buildBridgeHandle(
 
   let onDataCb: ((chunk: Buffer) => void) | null = null;
   let onCloseCb: ((code: number) => void) | null = null;
+  let onResponseEndCb: (() => void) | null = null;
   let closed = false;
   let lastError: (Error & { kind?: string; retryable?: boolean }) | null = null;
   let removeAbortListener: () => void = () => {};
@@ -163,6 +164,7 @@ function buildBridgeHandle(
     }
     fireClose();
   });
+  adapter.onResponseEnd(() => { onResponseEndCb?.(); });
   adapter.onError((err) => {
     recordClassifiedError(err);
     fireClose();
@@ -226,6 +228,7 @@ function buildBridgeHandle(
     onClose(cb: (code: number) => void): void {
       onCloseCb = cb;
     },
+    onResponseEnd(cb: () => void): void { onResponseEndCb = cb; },
   };
 }
 

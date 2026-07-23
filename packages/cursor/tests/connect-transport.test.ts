@@ -324,6 +324,33 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     connectSpy.mockRestore();
   });
 
+  it("'end' fires onResponseEnd WITHOUT closing the write side (H2)", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let responseEndFired = false;
+    handle.onResponseEnd(() => { responseEndFired = true; });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("end");
+
+    expect(responseEndFired).toBe(true);
+    expect(stream.end).not.toHaveBeenCalled();
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
+    // Write side is still open.
+    handle.write(Buffer.from("resume-payload"));
+    expect(stream.write).toHaveBeenCalled();
+    connectSpy.mockRestore();
+  });
+
   it("'end' then 'close' fires onClose exactly once (idempotent)", () => {
     const stream = createFakeH2Stream();
     const client = createFakeH2Client(stream);
@@ -522,6 +549,34 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     // 'end' is now non-destructive: no onClose, bridge stays alive.
     expect(closeCode).toBeUndefined();
     expect(handle.alive).toBe(true);
+    reqSpy.mockRestore();
+  });
+
+  it("res 'end' fires onResponseEnd WITHOUT firing onClose (HTTP/1.1)", () => {
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let responseEndFired = false;
+    handle.onResponseEnd(() => { responseEndFired = true; });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    req.emit("response", res);
+    res.emit("data", Buffer.from("payload"));
+    res.emit("end");
+
+    expect(responseEndFired).toBe(true);
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
+    // Write side is still open.
+    handle.write(Buffer.from("resume-payload"));
+    expect(req.write).toHaveBeenCalled();
     reqSpy.mockRestore();
   });
 });
