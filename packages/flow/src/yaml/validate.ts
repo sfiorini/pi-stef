@@ -60,7 +60,7 @@ export function validateFlowYaml(input: unknown): ValidationResult {
         continue;
       }
       if (phase.skill) {
-        errors.push(`loops.${phaseId}: loops are not supported on skill phases (skill chains are opaque)`);
+        errors.push(`loops.${phaseId}: loops are not supported on skill phases (a skill phase returns no structured verdict to gate on)`);
         continue;
       }
       if (phase.raw) {

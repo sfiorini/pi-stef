@@ -58,4 +58,23 @@ describe("end-to-end chain (mocked engine)", () => {
     // the old placeholder const ("const x = \"skill:...\"") must NOT be emitted
     expect(script).not.toMatch(/const \w+ = "skill:/);
   });
+
+  it("ship-feature script has no general-purpose skill-phase twin + runs skill phases inline", () => {
+    const script = generateScript(shipFeature);
+    expect(script).toContain("INLINE SKILL PHASE");
+    expect(script).toContain("skills/sf-flow-plan/SKILL.md");
+    expect(script).toContain("skills/sf-flow-implement/SKILL.md");
+    expect(script).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
+  });
+
+  it("code-review flow runs the skill phase inline (no general-purpose twin)", () => {
+    const codeReview: FlowYaml = {
+      name: "code-review", description: "d", input: "prompt", agents: {},
+      phases: [{ id: "review", skill: "sf-flow-audit", out: "report" }], loops: {},
+    };
+    const script = generateScript(codeReview);
+    expect(script).toContain("INLINE SKILL PHASE");
+    expect(script).toContain("skills/sf-flow-audit/SKILL.md");
+    expect(script).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
+  });
 });

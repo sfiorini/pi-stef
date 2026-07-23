@@ -1,6 +1,7 @@
 import type { FlowYaml } from "./schema.js";
 import type { ResolvedModels } from "../config/schema.js";
 import { resolveAgentType } from "../agents.js";
+import { skillDocPath } from "../messages.js";
 
 /**
  * Build a baked model-hint clause for a tier-1 skill phase prompt (belt-and-
@@ -74,30 +75,19 @@ export function generateScript(
           `phase ${ph.id}: loops are not supported on skill phases (validate.ts should have rejected this)`,
         );
       }
-      // Skill phase: the runner agent reads + executes the skill. Pass the
-      // workflow name + a RUNTIME slug reference so the skill writes/reads at
-      // the CONVENTIONAL location keyed by slug — a skill phase cannot know a
-      // concrete path at compile time. args.flow/args.slug are provided by
-      // sf_flow_auto at run time (slug is derived from args.input). The model
-      // hint is belt-and-suspenders; the skill self-resolves if absent.
+      // Skill phase: run INLINE in the orchestrator (no nested general-purpose
+      // twin). Emit a log() directive the orchestrator reads as an instruction:
+      // read + execute the skill file itself, dispatch role agents via the Agent
+      // tool, and never spawn a general-purpose subagent for this phase.
       const hint = tier1Hint(ph.skill, genOpts.models ?? null);
-      const promptExpr =
-        "`run skill " +
-        JSON.stringify(ph.skill) +
-        ". Workflow " +
-        JSON.stringify(flow.name) +
-        ". args.flow=${args.flow}, args.slug=${args.slug}. Read/write at the conventional location for this skill. " +
-        hint +
-        "`";
-      body.push(
-        "await agent(" +
-          promptExpr +
-          ", { phase: " +
-          JSON.stringify(ph.id) +
-          ', agentType: "general-purpose" });',
-      );
-      // (placeholder const dropped — downstream phases self-discover artifacts
-      // at the conventional slug-keyed location; `in:`/`out:` are informational.)
+      const skillPath = skillDocPath(ph.skill);
+      const directive =
+        "`INLINE SKILL PHASE: " + ph.skill + ". " +
+        "The orchestrator (YOU) must read and execute the skill file at " + skillPath + " in full. " +
+        "Dispatch role agents directly via the Agent tool (subagent_type per the skill); do NOT write code yourself " +
+        "and do NOT spawn a general-purpose subagent for this phase \u2014 run it inline. " +
+        "Workflow " + flow.name + ". args.flow=${args.flow}, args.slug=${args.slug}. " + hint + "`";
+      body.push("log(" + directive + ");");
       continue;
     }
     if (ph.raw) {

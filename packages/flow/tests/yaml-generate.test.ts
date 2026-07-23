@@ -126,4 +126,25 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     expect(s).not.toContain("developer=");
     expect(s).not.toContain("researcher=");
   });
+
+  it("skill phases emit a log() INLINE directive, NOT a general-purpose twin", () => {
+    const s = generateScript(skillFlow);
+    expect(s).toContain("INLINE SKILL PHASE");
+    expect(s).toContain("log(");
+    expect(s).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
+  });
+
+  it("the INLINE directive names the exact SKILL.md path for each skill phase", () => {
+    const s = generateScript(skillFlow);
+    expect(s).toContain("skills/sf-flow-plan/SKILL.md");
+    expect(s).toContain("skills/sf-flow-implement/SKILL.md");
+    expect(s).toContain("skills/some-other-skill/SKILL.md");
+  });
+
+  it("the INLINE directive tells the orchestrator to run inline (delegate, no twin, no code)", () => {
+    const s = generateScript(skillFlow);
+    expect(s).toContain("run it inline");
+    expect(s).toContain("do NOT write code");
+    expect(s).toContain("do NOT spawn a general-purpose subagent");
+  });
 });
