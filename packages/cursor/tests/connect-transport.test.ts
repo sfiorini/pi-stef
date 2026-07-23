@@ -1,4 +1,5 @@
 import http2 from "node:http2";
+import https from "node:https";
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -102,6 +103,25 @@ function createFakeH2Client(stream: FakeH2Stream): FakeH2Client {
   return client;
 }
 
+interface FakeHttpRequest extends EventEmitter {
+  write: ReturnType<typeof vi.fn>;
+  end: ReturnType<typeof vi.fn>;
+  destroy: ReturnType<typeof vi.fn>;
+  destroyed: boolean;
+}
+
+function createFakeHttpRequest(): FakeHttpRequest {
+  const req = new EventEmitter() as FakeHttpRequest;
+  req.write = vi.fn(() => true);
+  req.end = vi.fn();
+  req.destroy = vi.fn(() => {
+    req.destroyed = true;
+    return req;
+  });
+  req.destroyed = false;
+  return req;
+}
+
 describe("createConnectBridgeHandle (HTTP/2)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -178,6 +198,73 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
 
     expect(closeCode).toBe(1);
     connectSpy.mockRestore();
+  });
+});
+
+describe("createConnectBridgeHandle (HTTP/1.1)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete process.env.PI_CURSOR_HTTP_1_1;
+  });
+
+  it("opens an https POST and ferries raw bytes (no pseudo-headers)", () => {
+    const req = createFakeHttpRequest();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+
+    expect(reqSpy).toHaveBeenCalledOnce();
+    const opts = reqSpy.mock.calls[0]![0] as unknown as Record<string, unknown>;
+    expect(opts.method).toBe("POST");
+    expect(opts.path).toBe("/agent.v1.AgentService/Run");
+    expect(opts.protocol).toBe("https:");
+    expect(opts.hostname).toBe("api2.cursor.sh");
+    expect(opts[":path"]).toBeUndefined(); // no HTTP/2 pseudo-headers
+    expect(opts[":method"]).toBeUndefined();
+    const headers = opts.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/connect+proto");
+    expect(headers["connect-protocol-version"]).toBe("1");
+    expect(headers.authorization).toBe("Bearer tok_abc");
+    expect(headers["x-ghost-mode"]).toBe("true");
+
+    // D1: raw ferry (proxy.ts pre-frames streaming writes).
+    const payload = Buffer.from("hi-upstream");
+    handle.write(payload);
+    expect(req.write).toHaveBeenCalledOnce();
+    expect((req.write.mock.calls[0]![0] as Buffer).equals(payload)).toBe(true);
+
+    expect(handle.alive).toBe(true);
+    handle.proc.kill();
+    expect(req.destroy).toHaveBeenCalled();
+    reqSpy.mockRestore();
+  });
+
+  it("response frames parse through the same parser as HTTP/2", () => {
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    const received: string[] = [];
+    handle.onData((chunk) => received.push(chunk.toString()));
+
+    // Simulate the HTTP/1.1 response arriving on the request emitter.
+    req.emit("response", res);
+
+    const a = Buffer.from("aa");
+    const b = Buffer.from("bbb");
+    res.emit("data", Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]));
+
+    expect(received).toEqual(["aa", "bbb"]);
+    reqSpy.mockRestore();
   });
 });
 
