@@ -36,6 +36,7 @@ import {
   McpToolCallSchema,
   McpToolErrorSchema,
   McpToolResultSchema,
+  TextDeltaUpdateSchema,
   ToolCallCompletedUpdateSchema,
   TokenDeltaUpdateSchema,
   type ConversationStateStructure,
@@ -144,6 +145,7 @@ function installSilentBridge() {
       onClose(cb) {
         captured.closeCb = cb;
       },
+      onResponseEnd() {},
     };
     return handle;
   });
@@ -200,6 +202,7 @@ function installRetryBridgeFactory(options: { succeedOnAttempt?: number } = {}) 
       onClose(cb) {
         captured.closeCb = cb;
       },
+      onResponseEnd() {},
     };
     return handle;
   });
@@ -239,6 +242,7 @@ function makeManualSilentBridge() {
     onClose(cb) {
       captured.closeCb = cb;
     },
+    onResponseEnd() {},
   };
 
   return Object.assign(captured, { handle });
@@ -1394,6 +1398,7 @@ describe("SSE /v1/chat/completions integration: lost-continuation error body", (
         onClose(cb) {
           captured.closeCb = cb;
         },
+        onResponseEnd() {},
       };
       return handle;
     });
@@ -1530,6 +1535,7 @@ describe("SSE /v1/chat/completions integration: lost-continuation error body", (
         onClose(cb) {
           captured.closeCb = cb;
         },
+        onResponseEnd() {},
       };
       return handle;
     });
@@ -2396,4 +2402,121 @@ describe("SSE /v1/chat/completions integration: lost-continuation error body", (
       hadStoredCheckpoint: true,
     });
   });
+});
+
+describe("non-streaming handleNonStreamingResponse: server half-close ('end') completes the response", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    __testInternals.setMetricEmitterForTests(noopMetricEmitter);
+    stopProxy();
+    setBridgeFactoryForTests();
+    __testInternals.activeBridges.clear();
+    __testInternals.conversationStates.clear();
+  });
+
+  function makeTextDeltaFrame(text: string): Buffer {
+    const msg = create(AgentServerMessageSchema, {
+      message: {
+        case: "interactionUpdate",
+        value: create(InteractionUpdateSchema, {
+          message: {
+            case: "textDelta",
+            value: create(TextDeltaUpdateSchema, { text }),
+          },
+        }),
+      },
+    });
+    return frameConnectMessage(toBinary(AgentServerMessageSchema, msg));
+  }
+
+  it("completes the HTTP response (200) when server half-closes cleanly via onResponseEnd", async () => {
+    // P1 reproducer: before the fix, handleNonStreamingResponse never registers
+    // bridge.onResponseEnd, so a clean server half-close ('end' → onResponseEnd)
+    // is a no-op → onClose never fires → the Promise hangs forever.
+
+    let dataCb: ((chunk: Buffer) => void) | undefined;
+    let onResponseEndCb: (() => void) | undefined;
+    let closeCb: ((code: number) => void) | undefined;
+
+    // Use a deferred so the simulation fires only after the proxy has registered
+    // its callbacks (avoiding a race with the synchronous bridge.write in
+    // startBridge).
+    let deferredCbsResolve!: () => void;
+    const deferredCbs = new Promise<void>((r) => { deferredCbsResolve = r; });
+    let ready = false;
+
+    setBridgeFactoryForTests(() => {
+      const handle: BridgeHandle = {
+        proc: { kill: () => true },
+        alive: true as unknown as boolean,
+        write(_data: Uint8Array) {
+          // startBridge fires bridge.write before handleNonStreamingResponse
+          // registers its callbacks. Defer the simulation until the test has
+          // waited for readiness.
+          if (ready) return;
+          ready = true;
+          queueMicrotask(() => deferredCbsResolve());
+        },
+        end() {},
+        onData(cb) {
+          dataCb = cb;
+        },
+        onClose(cb) {
+          closeCb = cb;
+        },
+        onResponseEnd(cb) {
+          onResponseEndCb = cb;
+        },
+      };
+      return handle;
+    });
+
+    const port = await startProxy(async () => "test-token");
+
+    // Use AbortController to bound the test; if the response never completes
+    // (the hang), we get a clear failure instead of waiting forever.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+
+    const resultP = fetch(`http://127.0.0.1:${port}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-5.4",
+        messages: [{ role: "user" as const, content: "hi" }],
+        stream: false,
+      }),
+      signal: controller.signal,
+    }).then(async (res) => ({ status: res.status, json: await res.json() as Record<string, unknown> }));
+
+    // Wait for the bridge to be created and callbacks registered.
+    await deferredCbs;
+    expect(dataCb).toBeDefined();
+    expect(closeCb).toBeDefined();
+
+    // Before the fix: onResponseEndCb is undefined — the proxy never registered
+    // a handler. This means server half-close is a no-op and the Promise hangs.
+    // After the fix: onResponseEndCb is defined and fires completeResponse.
+    expect(onResponseEndCb).toBeDefined();
+
+    // Simulate: server sends a text response, then half-closes (END_STREAM).
+    dataCb!(makeTextDeltaFrame("Hello world"));
+
+    // Server half-close → bridge.onResponseEnd. On pre-fix code this is a no-op
+    // (no handler registered) so onClose never fires and the response hangs.
+    onResponseEndCb!();
+
+    // The fix calls bridge.end() inside onResponseEnd, which triggers the
+    // deferred onClose(0) as a no-op via the cleanCompletionHandled guard.
+    closeCb!(0);
+
+    const result = await resultP;
+    clearTimeout(timeout);
+    expect(result.status).toBe(200);
+    const body = result.json as {
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+    };
+    expect(body.choices?.[0]?.message?.content).toBe("Hello world");
+    expect(body.choices?.[0]?.finish_reason).toBe("stop");
+  }, 10_000);
 });

@@ -28,6 +28,8 @@ export interface BridgeHandle {
   end(): void;
   onData(cb: (chunk: Buffer) => void): void;
   onClose(cb: (code: number) => void): void;
+  /** Non-destructive server response-end (single-slot, last-wins). */
+  onResponseEnd(cb: () => void): void;
 }
 
 export type BridgeFactory = (options: SpawnBridgeOptions) => BridgeHandle;
@@ -177,6 +179,7 @@ function createBridgeHandleForChild(
         cbs.close = cb;
       }
     },
+    onResponseEnd() { /* legacy child: no separate response-end signal */ },
   };
 }
 

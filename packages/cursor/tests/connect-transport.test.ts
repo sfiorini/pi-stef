@@ -302,7 +302,7 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     connectSpy.mockRestore();
   });
 
-  it("server half-close ('end') fires onClose and closes the write side (H2)", () => {
+  it("server half-close ('end') is non-destructive: no stream.end, no onClose, alive (H2)", () => {
     const stream = createFakeH2Stream();
     const client = createFakeH2Client(stream);
     const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
@@ -317,8 +317,37 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     stream.emit("response", { ":status": 200 });
     stream.emit("end");
 
-    expect(stream.end).toHaveBeenCalled();
-    expect(closeCode).toBe(0);
+    // 'end' is now non-destructive: no stream.end, no onClose, bridge stays alive.
+    expect(stream.end).not.toHaveBeenCalled();
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
+    connectSpy.mockRestore();
+  });
+
+  it("'end' fires onResponseEnd WITHOUT closing the write side (H2)", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let responseEndFired = false;
+    handle.onResponseEnd(() => { responseEndFired = true; });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("end");
+
+    expect(responseEndFired).toBe(true);
+    expect(stream.end).not.toHaveBeenCalled();
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(true);
+    // Write side is still open.
+    handle.write(Buffer.from("resume-payload"));
+    expect(stream.write).toHaveBeenCalled();
     connectSpy.mockRestore();
   });
 
@@ -500,7 +529,7 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     reqSpy.mockRestore();
   });
 
-  it("response 'end' (half-close) fires onClose for HTTP/1.1", () => {
+  it("response 'end' (half-close) is non-destructive for HTTP/1.1 (no onClose)", () => {
     const req = createFakeHttpRequest();
     const res = new EventEmitter();
     const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
@@ -517,7 +546,40 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     res.emit("data", Buffer.from("payload"));
     res.emit("end");
 
-    expect(closeCode).toBe(0);
+    // 'end' is non-destructive: no onClose, no stream.end. But HTTP/1.1 is NOT
+    // bidirectional — the response stream is dead after 'end', so alive must be
+    // false to force the next continuation to rebuild rather than reuse a dead bridge.
+    expect(closeCode).toBeUndefined();
+    expect(handle.alive).toBe(false);
+    reqSpy.mockRestore();
+  });
+
+  it("res 'end' fires onResponseEnd, sets alive=false, but write side stays open (HTTP/1.1)", () => {
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let responseEndFired = false;
+    handle.onResponseEnd(() => { responseEndFired = true; });
+    let closeCode: number | undefined;
+    handle.onClose((code) => { closeCode = code; });
+
+    req.emit("response", res);
+    res.emit("data", Buffer.from("payload"));
+    res.emit("end");
+
+    expect(responseEndFired).toBe(true);
+    expect(closeCode).toBeUndefined();
+    // alive=false because HTTP/1.1 response stream is dead after 'end'.
+    expect(handle.alive).toBe(false);
+    // Write side is still open (req not destroyed).
+    handle.write(Buffer.from("resume-payload"));
+    expect(req.write).toHaveBeenCalled();
     reqSpy.mockRestore();
   });
 });
@@ -563,6 +625,7 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
       end: () => {},
       onData: () => {},
       onClose: () => {},
+      onResponseEnd: () => {},
     };
     const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
     const h = childFactory({ accessToken: "tok", rpcPath: "/x" });
@@ -586,6 +649,7 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
       end: () => {},
       onData: () => {},
       onClose: () => {},
+      onResponseEnd: () => {},
     };
     const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
 

@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- fix(cursor): server half-close ('end') during a tool-call no longer destroys the live bridge — add non-destructive `onResponseEnd` transport/bridge signal; clean responses still complete + tear down (runaway-turn fix preserved), tool-call pauses keep the bridge alive + writable for the continuation
 
 ## [0.2.3] - 2026-07-23
 ### Changed

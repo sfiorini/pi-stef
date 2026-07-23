@@ -67,6 +67,13 @@ interface StreamAdapter {
   onInbound(cb: (chunk: Buffer) => void): void;
   /** Subscribe to the underlying transport closing (normal completion). */
   onClose(cb: () => void): void;
+  /**
+   * Subscribe to the server half-closing its response (HTTP/2 END_STREAM /
+   * HTTP/1.1 res 'end'). Non-destructive: the client write side stays open so a
+   * tool-call continuation can still write to the same stream. Distinct from
+   * onClose, which now means genuine transport death only.
+   */
+  onResponseEnd(cb: () => void): void;
   /** Subscribe to transport-level errors. */
   onError(cb: (err: Error) => void): void;
   /** Most recent HTTP response status, if headers were received (for classification). */
@@ -104,6 +111,7 @@ function buildBridgeHandle(
 
   let onDataCb: ((chunk: Buffer) => void) | null = null;
   let onCloseCb: ((code: number) => void) | null = null;
+  let onResponseEndCb: (() => void) | null = null;
   let closed = false;
   let lastError: (Error & { kind?: string; retryable?: boolean }) | null = null;
   let removeAbortListener: () => void = () => {};
@@ -156,6 +164,7 @@ function buildBridgeHandle(
     }
     fireClose();
   });
+  adapter.onResponseEnd(() => { onResponseEndCb?.(); });
   adapter.onError((err) => {
     recordClassifiedError(err);
     fireClose();
@@ -219,6 +228,7 @@ function buildBridgeHandle(
     onClose(cb: (code: number) => void): void {
       onCloseCb = cb;
     },
+    onResponseEnd(cb: () => void): void { onResponseEndCb = cb; },
   };
 }
 
@@ -232,6 +242,7 @@ function http2Adapter(
   const headers = resolveCursorRequestHeaders(options);
   const h2Stream = client.request(headers);
   let responseStatus: number | undefined;
+  let onResponseEndCb: (() => void) | null = null;
   h2Stream.on("response", (responseHeaders) => {
     const status = Number(responseHeaders[":status"] ?? 0);
     responseStatus = status > 0 ? status : undefined;
@@ -276,19 +287,15 @@ function http2Adapter(
         stopPing();
         cb();
       };
-      // Server half-close (END_STREAM) emits 'end', NOT 'close': the client
-      // write side is still open (proxy.ts sends a ClientHeartbeat via
-      // bridge.write), so 'close' never fires and the turn hangs. On 'end',
-      // close our write side (h2Stream.end()) so the stream fully closes →
-      // 'close' → client.close() (no session leak), then fire the close
-      // callback. buildBridgeHandle's fireClose() `closed` guard makes the
-      // subsequent 'close' a no-op, and its write() checks `closed` before
-      // writing, so there is no write-after-end.
+      // Server half-close (END_STREAM) emits 'end'. NON-destructive: a tool-call
+      // response half-closes while the client write side must stay open so proxy.ts
+      // can write the tool result on the SAME stream. 0.2.3 called h2Stream.end() +
+      // done() here → closed the write side + set the bridge `closed` flag (→
+      // bridge.write no-op) + fired onClose(0) → removeActiveBridge deleted the live
+      // bridge the continuation needs. Now 'end' only fires onResponseEnd; teardown
+      // happens via bridge.end() (clean) or onClose (death).
       h2Stream.on("end", () => {
-        try {
-          h2Stream.end();
-        } catch {}
-        done();
+        onResponseEndCb?.();
       });
       h2Stream.on("close", () => {
         try {
@@ -298,6 +305,7 @@ function http2Adapter(
       });
       client.on("close", done);
     },
+    onResponseEnd(cb) { onResponseEndCb = cb; },
     onError(cb) {
       h2Stream.on("error", (err) => {
         logError(debugLog, "transport.h2.stream_error", options, err);
@@ -351,19 +359,13 @@ function http1Adapter(
     },
   });
 
-  let responseFinished = false;
   let responseStatus: number | undefined;
   // Shared error sink: both the request (`req`) and the response (`res`) route
   // errors through here so a mid-stream response error is never uncaught (the
   // exact crash mode this in-process refactor exists to eliminate).
   let errorCb: ((err: Error) => void) | null = null;
-  // Close callback captured by onClose() and invoked on the response 'end'
-  // half-close. HTTP/1.1 req 'close' only fires on full socket teardown; with
-  // keep-alive the socket stays open so 'close' never fires and the turn hangs.
-  // onInbound() (registers res 'end') is called before onClose() in
-  // buildBridgeHandle, and the response arrives async, so closeCallback is
-  // always set before 'end' fires.
-  let closeCallback: (() => void) | null = null;
+  let responseFinished = false;
+  let onResponseEndCb: (() => void) | null = null;
   const toError = (err: unknown): Error =>
     err instanceof Error ? err : new Error(String(err));
   // No PING keepalive needed for HTTP/1.1: chunked transfer-encoding keep-alive
@@ -392,7 +394,7 @@ function http1Adapter(
         });
         res.on("end", () => {
           responseFinished = true;
-          closeCallback?.();
+          onResponseEndCb?.();
         });
         // Route mid-stream response errors through the shared error sink. Without
         // this listener a socket reset mid-response would throw uncaught.
@@ -403,9 +405,9 @@ function http1Adapter(
       });
     },
     onClose(cb) {
-      closeCallback = cb;
       req.on("close", cb);
     },
+    onResponseEnd(cb) { onResponseEndCb = cb; },
     onError(cb) {
       errorCb = cb;
       req.on("error", (err) => {
@@ -416,6 +418,10 @@ function http1Adapter(
     getResponseStatus() {
       return responseStatus;
     },
+    // HTTP/1.1 is NOT bidirectional — after `res 'end'` the response stream is
+    // dead and the server cannot send a continuation on it. Gate on
+    // responseFinished so an HTTP/1.1 tool-call continuation rebuilds rather
+    // than reusing a dead bridge. (HTTP/2 is unaffected: its streams are bidirectional.)
     isAlive() {
       return !req.destroyed && !responseFinished;
     },

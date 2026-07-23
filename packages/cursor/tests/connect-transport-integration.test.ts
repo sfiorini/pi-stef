@@ -390,6 +390,10 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
     stream.emit("end");
 
     await done;
+
+    // Verify the full teardown path: stream 'close' → client.close().
+    stream.emit("close");
+    expect(client.close).toHaveBeenCalled();
     connectSpy.mockRestore();
 
     const text = events
@@ -428,5 +432,85 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
     expect(errEvent).toBeDefined();
     expect(errEvent!.error.errorMessage).toContain("rate limited");
     expect(errEvent!.error.errorMessage).not.toBe("Bridge connection lost");
+  });
+
+  it("REPRODUCING: server half-close ('end') during tool-call pause must NOT destroy the bridge", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {});
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    // Deliver a tool-call exec so the bridge is registered via setActiveBridge.
+    stream.emit("data", makeExecFrame("tc_resume"));
+
+    // Give the async event loop a tick to process the exec frame.
+    await new Promise((r) => setTimeout(r, 10));
+
+    // Sanity: the bridge was registered.
+    expect(__testInternals.activeBridges.size).toBe(1);
+
+    // Server half-closes (END_STREAM) — this is the regression trigger.
+    // 0.2.3 calls h2Stream.end() + fireClose(0) here, which destroys the write
+    // side and removes the bridge from activeBridges. The fix must keep the
+    // bridge alive and writable.
+    stream.emit("end");
+
+    // Bridge must NOT be removed from activeBridges.
+    expect(__testInternals.activeBridges.size).toBe(1);
+
+    // The write side must NOT be closed (h2Stream.end must NOT have been called).
+    expect(stream.end).not.toHaveBeenCalled();
+
+    // The bridge's write must still work (not a no-op from closed guard).
+    const active = __testInternals.activeBridges.values().next().value!;
+    const resumeFrame = frameConnectMessage(Buffer.from("resume-payload"));
+    active.bridge.write(resumeFrame);
+    expect(stream.write).toHaveBeenCalled();
+
+    // Clean up: let the event stream finish so collectEvents doesn't hang.
+    stream.emit("close");
+    await done;
+    connectSpy.mockRestore();
+  });
+
+  it("clean response: writer.done('stop') fires + stream.end called (teardown)", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {});
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("data", makeTextFrame("answer"));
+    stream.emit("end");
+
+    await done;
+    connectSpy.mockRestore();
+
+    // Clean response: writer.done("stop") fires.
+    const text = events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => (e as { delta: string }).delta)
+      .join("");
+    expect(text).toBe("answer");
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    expect(events.some((e) => e.type === "error")).toBe(false);
+
+    // stream.end is called for teardown.
+    expect(stream.end).toHaveBeenCalled();
   });
 });
