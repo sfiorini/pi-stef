@@ -24,6 +24,10 @@ const DEFAULT_CURSOR_URL = "https://api2.cursor.sh";
 
 function noopDebugLog(): void {}
 
+/** A response status is an HTTP error if it is defined and outside [200,300). */
+const isErrorResponseStatus = (status: number | undefined): boolean =>
+  status !== undefined && (status < 200 || status >= 300);
+
 /**
  * Resolved transport selection. `useHttp1` selects the HTTP/1.1+SSE transport
  * (the proven escape hatch for VPN/proxy/broken-HTTP2 environments, mirroring
@@ -157,7 +161,16 @@ function buildBridgeHandle(
   );
 
   adapter.onInbound((chunk) => parseIncoming(chunk));
-  adapter.onClose(fireClose);
+  adapter.onClose(() => {
+    // Child-bridge parity: a non-2xx HTTP status (e.g. 401/403/429/5xx) that
+    // arrives WITHOUT a Connect end-stream frame must still surface as a
+    // classified error close, not a silent code-0 success.
+    const status = adapter.getResponseStatus();
+    if (!lastError && isErrorResponseStatus(status)) {
+      recordClassifiedError(new Error(`Cursor HTTP ${status}`), `http_${status}`, status);
+    }
+    fireClose();
+  });
   adapter.onError((err) => {
     recordClassifiedError(err);
     fireClose();
@@ -267,7 +280,11 @@ function http2Adapter(
       },
     },
     onInbound(cb) {
-      h2Stream.on("data", cb);
+      // Suppress data forwarding for HTTP error statuses (child-bridge parity);
+      // the close path synthesizes a classified error for these.
+      h2Stream.on("data", (chunk: Buffer) => {
+        if (!isErrorResponseStatus(responseStatus)) cb(chunk);
+      });
     },
     onClose(cb) {
       const done = (): void => {
@@ -358,7 +375,9 @@ function http1Adapter(
       // response body, which is the SAME Connect frame stream as HTTP/2.
       req.on("response", (res) => {
         responseStatus = res.statusCode;
-        res.on("data", (chunk: Buffer) => cb(chunk));
+        res.on("data", (chunk: Buffer) => {
+          if (!isErrorResponseStatus(responseStatus)) cb(chunk);
+        });
         res.on("end", () => {
           responseFinished = true;
         });

@@ -284,6 +284,38 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     expect(removeSpy).toHaveBeenCalledWith("abort", expect.any(Function));
     connectSpy.mockRestore();
   });
+
+  it("non-2xx HTTP status suppresses data and closes with a classified error", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const events: Array<{ event: string; data?: Record<string, unknown> }> = [];
+    const handle: BridgeHandle = createConnectBridgeHandle(
+      { accessToken: "tok_abc", rpcPath: "/agent.v1.AgentService/Run" },
+      (event, data) => events.push({ event, data }),
+    );
+    const received: Buffer[] = [];
+    handle.onData((c) => received.push(Buffer.from(c)));
+    let closeCode: number | undefined;
+    handle.onClose((code) => {
+      closeCode = code;
+    });
+
+    stream.emit("response", { ":status": 401 });
+    stream.emit("data", Buffer.from("would-be-error-body"));
+    stream.emit("close");
+
+    // Error-status body is suppressed (no garbage reaches the consumer)...
+    expect(received).toHaveLength(0);
+    // ...and the close is classified + non-zero.
+    expect(closeCode).toBe(1);
+    const classified = events.find((e) => e.event === "transport.error_classified");
+    expect(classified).toBeDefined();
+    expect(classified!.data?.kind).toBe("auth");
+    expect(classified!.data?.httpStatus).toBe(401);
+    connectSpy.mockRestore();
+  });
 });
 
 describe("createConnectBridgeHandle (HTTP/1.1)", () => {
