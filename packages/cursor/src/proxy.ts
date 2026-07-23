@@ -5712,82 +5712,10 @@ async function handleNonStreamingResponse(
   let fullText = "";
   let nonStreamError: Error | null = null;
   let latestCheckpoint: Uint8Array | null = null;
+  let cleanCompletionHandled = false;
 
   return new Promise((resolve) => {
-    bridge.onData(
-      createConnectFrameParser(
-        (messageBytes) => {
-          try {
-            const serverMessage = fromBinary(AgentServerMessageSchema, messageBytes);
-            processServerMessage(
-              serverMessage,
-              payload.blobStore,
-              payload.mcpTools,
-              (data) => bridge.write(data),
-              state,
-              (text, isThinking) => {
-                if (isThinking) return;
-                const { content } = tagFilter.process(text);
-                fullText += content;
-                appendAssistantTextToTurn(currentTurn, content);
-              },
-              () => {},
-              (checkpointBytes) => {
-                latestCheckpoint = checkpointBytes;
-                debugLog("nonstream.checkpoint_buffered", { requestId, convKey, checkpointBytes });
-              },
-            );
-          } catch (err) {
-            console.error(
-              "[cursor-provider] Non-stream message processing error:",
-              err instanceof Error ? err.message : err,
-            );
-          }
-        },
-        (endStreamBytes) => {
-          const endError = parseConnectEndStream(endStreamBytes);
-          if (endError) {
-            console.error(
-              `[cursor-provider] Cursor non-stream error (${modelId}):`,
-              endError.message,
-            );
-            nonStreamError = endError;
-          }
-        },
-      ),
-    );
-
-    bridge.onClose((code) => {
-      debugLog("nonstream.bridge_close", {
-        requestId,
-        convKey,
-        code,
-        cancelled,
-        nonStreamError: nonStreamError?.message,
-        currentTurn,
-        latestCheckpoint,
-      });
-      clearInterval(heartbeatTimer);
-      req.removeListener("close", onClientClose);
-      res.removeListener("close", onClientClose);
-
-      if (cancelled) {
-        if (!res.headersSent) {
-          res.writeHead(499, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              error: { message: "Client closed request", type: "aborted", code: "client_closed" },
-            }),
-          );
-        }
-        resolve();
-        return;
-      }
-
-      if (code !== 0 && !nonStreamError) {
-        nonStreamError = new Error("Bridge connection lost");
-      }
-
+    const completeResponse = (): void => {
       if (nonStreamError) {
         res.writeHead(502, { "Content-Type": "application/json" });
         res.end(
@@ -5837,6 +5765,97 @@ async function handleNonStreamingResponse(
         }),
       );
       resolve();
+    };
+
+    bridge.onData(
+      createConnectFrameParser(
+        (messageBytes) => {
+          try {
+            const serverMessage = fromBinary(AgentServerMessageSchema, messageBytes);
+            processServerMessage(
+              serverMessage,
+              payload.blobStore,
+              payload.mcpTools,
+              (data) => bridge.write(data),
+              state,
+              (text, isThinking) => {
+                if (isThinking) return;
+                const { content } = tagFilter.process(text);
+                fullText += content;
+                appendAssistantTextToTurn(currentTurn, content);
+              },
+              () => {},
+              (checkpointBytes) => {
+                latestCheckpoint = checkpointBytes;
+                debugLog("nonstream.checkpoint_buffered", { requestId, convKey, checkpointBytes });
+              },
+            );
+          } catch (err) {
+            console.error(
+              "[cursor-provider] Non-stream message processing error:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+        },
+        (endStreamBytes) => {
+          const endError = parseConnectEndStream(endStreamBytes);
+          if (endError) {
+            console.error(
+              `[cursor-provider] Cursor non-stream error (${modelId}):`,
+              endError.message,
+            );
+            nonStreamError = endError;
+          }
+        },
+      ),
+    );
+
+    bridge.onResponseEnd(() => {
+      // Server finished its response (HTTP/2 END_STREAM / HTTP/1.1 res 'end').
+      cleanCompletionHandled = true;
+      clearInterval(heartbeatTimer);
+      req.removeListener("close", onClientClose);
+      res.removeListener("close", onClientClose);
+      completeResponse();
+      // Teardown: bridge.end() → h2Stream.end() → 'close' → client.close() (no leak).
+      // The deferred onClose(0) is a no-op via cleanCompletionHandled.
+      bridge.end();
+    });
+
+    bridge.onClose((code) => {
+      debugLog("nonstream.bridge_close", {
+        requestId,
+        convKey,
+        code,
+        cancelled,
+        nonStreamError: nonStreamError?.message,
+        currentTurn,
+        latestCheckpoint,
+      });
+      clearInterval(heartbeatTimer);
+      req.removeListener("close", onClientClose);
+      res.removeListener("close", onClientClose);
+
+      if (cleanCompletionHandled) return;
+
+      if (cancelled) {
+        if (!res.headersSent) {
+          res.writeHead(499, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: { message: "Client closed request", type: "aborted", code: "client_closed" },
+            }),
+          );
+        }
+        resolve();
+        return;
+      }
+
+      if (code !== 0 && !nonStreamError) {
+        nonStreamError = new Error("Bridge connection lost");
+      }
+
+      completeResponse();
     });
   });
 }
