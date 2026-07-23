@@ -364,6 +364,7 @@ function http1Adapter(
   // errors through here so a mid-stream response error is never uncaught (the
   // exact crash mode this in-process refactor exists to eliminate).
   let errorCb: ((err: Error) => void) | null = null;
+  let responseFinished = false;
   let onResponseEndCb: (() => void) | null = null;
   const toError = (err: unknown): Error =>
     err instanceof Error ? err : new Error(String(err));
@@ -392,6 +393,7 @@ function http1Adapter(
           if (!isErrorResponseStatus(responseStatus)) cb(chunk);
         });
         res.on("end", () => {
+          responseFinished = true;
           onResponseEndCb?.();
         });
         // Route mid-stream response errors through the shared error sink. Without
@@ -416,8 +418,12 @@ function http1Adapter(
     getResponseStatus() {
       return responseStatus;
     },
+    // HTTP/1.1 is NOT bidirectional — after `res 'end'` the response stream is
+    // dead and the server cannot send a continuation on it. Gate on
+    // responseFinished so an HTTP/1.1 tool-call continuation rebuilds rather
+    // than reusing a dead bridge. (HTTP/2 is unaffected: its streams are bidirectional.)
     isAlive() {
-      return !req.destroyed;
+      return !req.destroyed && !responseFinished;
     },
     destroy() {
       try {

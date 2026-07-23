@@ -390,6 +390,10 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
     stream.emit("end");
 
     await done;
+
+    // Verify the full teardown path: stream 'close' → client.close().
+    stream.emit("close");
+    expect(client.close).toHaveBeenCalled();
     connectSpy.mockRestore();
 
     const text = events

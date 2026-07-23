@@ -546,13 +546,15 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     res.emit("data", Buffer.from("payload"));
     res.emit("end");
 
-    // 'end' is now non-destructive: no onClose, bridge stays alive.
+    // 'end' is non-destructive: no onClose, no stream.end. But HTTP/1.1 is NOT
+    // bidirectional — the response stream is dead after 'end', so alive must be
+    // false to force the next continuation to rebuild rather than reuse a dead bridge.
     expect(closeCode).toBeUndefined();
-    expect(handle.alive).toBe(true);
+    expect(handle.alive).toBe(false);
     reqSpy.mockRestore();
   });
 
-  it("res 'end' fires onResponseEnd WITHOUT firing onClose (HTTP/1.1)", () => {
+  it("res 'end' fires onResponseEnd, sets alive=false, but write side stays open (HTTP/1.1)", () => {
     const req = createFakeHttpRequest();
     const res = new EventEmitter();
     const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
@@ -573,8 +575,9 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
 
     expect(responseEndFired).toBe(true);
     expect(closeCode).toBeUndefined();
-    expect(handle.alive).toBe(true);
-    // Write side is still open.
+    // alive=false because HTTP/1.1 response stream is dead after 'end'.
+    expect(handle.alive).toBe(false);
+    // Write side is still open (req not destroyed).
     handle.write(Buffer.from("resume-payload"));
     expect(req.write).toHaveBeenCalled();
     reqSpy.mockRestore();
