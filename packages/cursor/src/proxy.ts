@@ -5301,6 +5301,26 @@ function writeSSEStream(
   req.on("close", onClientClose);
   res.on("close", onClientClose);
 
+  let cleanCompletionHandled = false;
+  const completeCleanTurn = (): void => {
+    const flushed = tagFilter.flush();
+    if (flushed.reasoning) sendSSE(makeChunk({ reasoning_content: flushed.reasoning }));
+    if (flushed.content) {
+      appendAssistantTextToTurn(currentTurn, flushed.content);
+      sendSSE(makeChunk({ content: flushed.content }));
+    }
+    const stored = conversationStates.get(convKey);
+    if (stored) {
+      if (latestCheckpoint) {
+        commitStoredCheckpoint(stored, latestCheckpoint, blobStore, completedTurns, currentTurn);
+      } else { mergeBlobStore(stored, blobStore); }
+    }
+    sendSSE(makeChunk({}, "stop"));
+    sendSSE(makeUsageChunk());
+    sendDone();
+    closeResponse();
+  };
+
   const processChunk = createConnectFrameParser(
     (messageBytes) => {
       try {
@@ -5402,6 +5422,23 @@ function writeSSEStream(
 
   bridge.onData(processChunk);
 
+  bridge.onResponseEnd(() => {
+    if (mcpExecReceived && !streamError) {
+      // Tool-call pause: keep the bridge alive + writable for the continuation.
+      return;
+    }
+    cleanCompletionHandled = true;
+    clearInterval(heartbeatTimer);
+    req.removeListener("close", onClientClose);
+    res.removeListener("close", onClientClose);
+    if (mcpExecReceived && streamError) {
+      removeActiveBridge(bridgeKey);   // end-stream error during pause (writer.error already fired)
+    } else {
+      completeCleanTurn();
+    }
+    bridge.end();   // teardown
+  });
+
   bridge.onClose((code) => {
     debugLog("stream.bridge_close", {
       requestId,
@@ -5416,6 +5453,8 @@ function writeSSEStream(
     clearInterval(heartbeatTimer);
     req.removeListener("close", onClientClose);
     res.removeListener("close", onClientClose);
+
+    if (cleanCompletionHandled) return;
 
     if (cancelled) return;
     const stored = conversationStates.get(convKey);
@@ -5476,24 +5515,7 @@ function writeSSEStream(
     }
 
     if (!mcpExecReceived) {
-      const flushed = tagFilter.flush();
-      if (flushed.reasoning) sendSSE(makeChunk({ reasoning_content: flushed.reasoning }));
-      if (flushed.content) {
-        appendAssistantTextToTurn(currentTurn, flushed.content);
-        sendSSE(makeChunk({ content: flushed.content }));
-      }
-      if (stored) {
-        if (latestCheckpoint) {
-          commitStoredCheckpoint(stored, latestCheckpoint, blobStore, completedTurns, currentTurn);
-          debugLog("stream.checkpoint_committed", { requestId, convKey, stored });
-        } else {
-          mergeBlobStore(stored, blobStore);
-        }
-      }
-      sendSSE(makeChunk({}, "stop"));
-      sendSSE(makeUsageChunk());
-      sendDone();
-      closeResponse();
+      completeCleanTurn();
     } else {
       const midPauseResult = handleBridgeCloseMidPause({
         stored,
