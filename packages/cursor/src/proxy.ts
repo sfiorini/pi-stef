@@ -489,7 +489,18 @@ const ACTIVE_BRIDGE_TTL_MS = resolveActiveBridgeTtlMs(
  */
 export function resolveBridgeFactory(): BridgeFactory {
   const mode = (process.env.PI_CURSOR_TRANSPORT || "connect").trim().toLowerCase();
-  if (mode === "child") return (options) => spawnBridge(options, debugLog);
+  if (mode === "child") {
+    // Deprecated escape hatch (S-41): retained for compatibility, but the
+    // in-process transport is the default since 0.2.0. The log fires under
+    // PI_CURSOR_PROVIDER_DEBUG=1 even when spawnBridge is mocked in tests.
+    return (options) => {
+      debugLog("transport.deprecated_child", {
+        rpcPath: options.rpcPath,
+        reason: "PI_CURSOR_TRANSPORT=child; in-process transport is the default since 0.2.0",
+      });
+      return spawnBridge(options, debugLog);
+    };
+  }
   return (options) => createConnectBridgeHandle(options, debugLog);
 }
 const defaultBridgeFactory: BridgeFactory = resolveBridgeFactory();

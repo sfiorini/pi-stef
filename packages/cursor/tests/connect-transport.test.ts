@@ -1,6 +1,8 @@
 import http2 from "node:http2";
 import https from "node:https";
-import { readFileSync } from "node:fs";
+import { readFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as joinPath } from "node:path";
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -411,6 +413,8 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     delete process.env.PI_CURSOR_TRANSPORT;
+    delete process.env.PI_CURSOR_PROVIDER_DEBUG;
+    delete process.env.PI_CURSOR_PROVIDER_DEBUG_FILE;
   });
 
   it("default factory is in-process unless PI_CURSOR_TRANSPORT=child", () => {
@@ -451,6 +455,44 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
     const h = childFactory({ accessToken: "tok", rpcPath: "/x" });
     expect(spawnSpy).toHaveBeenCalledTimes(1);
     expect(h).toBe(fakeChildHandle);
+    spawnSpy.mockRestore();
+  });
+
+  it("child transport emits a deprecation debug event", () => {
+    const debugFile = joinPath(
+      tmpdir(),
+      `pi-cursor-deprec-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.log`,
+    );
+    process.env.PI_CURSOR_TRANSPORT = "child";
+    process.env.PI_CURSOR_PROVIDER_DEBUG = "1";
+    process.env.PI_CURSOR_PROVIDER_DEBUG_FILE = debugFile;
+    const fakeChildHandle: BridgeHandle = {
+      proc: { kill: () => true },
+      alive: true,
+      write: () => {},
+      end: () => {},
+      onData: () => {},
+      onClose: () => {},
+    };
+    const spawnSpy = vi.spyOn(bridge, "spawnBridge").mockReturnValue(fakeChildHandle);
+
+    const factory = resolveBridgeFactory();
+    const h = factory({ accessToken: "tok", rpcPath: "/agent.v1.AgentService/Run" });
+    expect(spawnSpy).toHaveBeenCalledTimes(1);
+    expect(h).toBe(fakeChildHandle);
+
+    const events = readFileSync(debugFile, "utf8")
+      .trim()
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const deprec = events.find((e) => e.event === "transport.deprecated_child");
+    expect(deprec).toBeDefined();
+    expect(String(deprec!.reason)).toContain("PI_CURSOR_TRANSPORT=child");
+
+    try {
+      unlinkSync(debugFile);
+    } catch {}
     spawnSpy.mockRestore();
   });
 });

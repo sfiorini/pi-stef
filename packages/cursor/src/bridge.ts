@@ -56,6 +56,13 @@ export function frameConnectMessage(data: Uint8Array, flags = 0): Buffer {
   return frame;
 }
 
+/**
+ * Spawn the legacy child-process HTTP/2 bridge.
+ *
+ * @deprecated Use the in-process Connect transport (the default since 0.2.0).
+ * This child-process path is retained only as a `PI_CURSOR_TRANSPORT=child`
+ * escape hatch; it hard-exits on idle/errors and has no HTTP/1.1 fallback.
+ */
 export function spawnBridge(
   options: SpawnBridgeOptions,
   debugLog: BridgeDebugLog = noopDebugLog,

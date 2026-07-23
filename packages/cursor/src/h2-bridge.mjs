@@ -1,5 +1,10 @@
 #!/usr/bin/env node
 /**
+ * @deprecated Since @pi-stef/cursor 0.2.0 the default transport is the in-process
+ * Connect client (src/connect-transport.ts) over node:http2 / node:https. This
+ * child-process bridge is retained only as a `PI_CURSOR_TRANSPORT=child` escape
+ * hatch. Do not extend it.
+ *
  * Dumb HTTP/2 bidirectional pipe for Cursor gRPC.
  *
  * Originally from https://github.com/ephraimduncan/opencode-cursor by Ephraim Duncan (MIT).
