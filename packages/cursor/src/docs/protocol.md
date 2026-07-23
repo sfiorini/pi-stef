@@ -10,7 +10,15 @@ The agent API base URL is resolved from `PI_CURSOR_AGENT_URL`, `CURSOR_AGENT_URL
 - `POST /agent.v1.AgentService/GetUsableModels` — unary model discovery using generated protobuf schemas.
 - `POST /aiserver.v1.AiService/AvailableModels` — legacy unary parameterized model discovery when available from Cursor's older API endpoint.
 
-`h2-bridge.mjs` is a small Node HTTP/2 child process. It exists because the extension can be loaded by runtimes whose `node:http2` compatibility is unreliable. The parent process speaks length-prefixed frames to the child; the child speaks HTTP/2 to Cursor.
+`h2-bridge.mjs` is a small Node HTTP/2 child process, retained only as a
+deprecated `PI_CURSOR_TRANSPORT=child` escape hatch. The **default transport**
+since 0.2.0 is an in-process Connect client (`src/connect-transport.ts`) over
+Node's `http2` (HTTP/2) or `https` (HTTP/1.1+SSE when `PI_CURSOR_HTTP_1_1=1`).
+It speaks the same Connect framing as the legacy child bridge — the child once
+existed because some runtimes had unreliable `node:http2`, but Pi now requires
+Node 22.19+ so the framing runs in-process. Stream errors are classified
+(`transport-errors.ts`: auth / transient / fatal) and an HTTP/2 PING keepalive
+is sent every 30s.
 
 ## Generated protobuf
 

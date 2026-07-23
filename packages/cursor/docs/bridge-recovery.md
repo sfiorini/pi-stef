@@ -25,6 +25,14 @@ PI_CURSOR_RESUME_IDLE_TIMEOUT_MS=240000
 
 Set either timeout to `0` to disable that watchdog while debugging. Positive timeout values below 1000ms are clamped to 1000ms. Resume idle recovery runs before consuming retry budget, so it can rebuild once even when `PI_CURSOR_STREAM_IDLE_MAX_RETRIES=0`.
 
+Since 0.2.0 the default in-process transport (`src/connect-transport.ts`) also
+sends an **HTTP/2 PING keepalive every 30s** to keep the TCP/TLS/H2 session
+alive through idle network middleboxes — this does **not** extend the
+application idle watchdog above (which resets only on real upstream data). Any
+non-zero stream close is first **classified** by `transport-errors.ts`
+(`auth` / `transient` / `fatal`) and then fed to this idle-retry controller;
+`auth`-classified closes additionally trigger a single OAuth refresh + re-run.
+
 ## Debug Logs
 
 Enable structured debug logs with:
