@@ -147,4 +147,23 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     expect(s).toContain("do NOT write code");
     expect(s).toContain("do NOT spawn a general-purpose subagent");
   });
+
+  it("escapes backticks and ${ in baked-in values so the log() directive stays well-formed", () => {
+    const tricky: FlowYaml = {
+      name: "na`me${x}",
+      description: "d",
+      input: "prompt",
+      agents: {},
+      phases: [{ id: "p", skill: "sf-flow-plan" }],
+      loops: {},
+    };
+    const s = generateScript(tricky);
+    expect(s).toContain("INLINE SKILL PHASE");
+    // flow.name's backtick + ${ must be backslash-escaped in the emitted source
+    const escaped = "na" + "\\" + "`" + "me" + "\\" + "${" + "x}";
+    expect(s).toContain(escaped);
+    // the runtime interpolations must NOT be escaped (still literal ${args.flow})
+    expect(s).toContain("${args.flow}");
+    expect(s).toContain("${args.slug}");
+  });
 });

@@ -81,12 +81,16 @@ export function generateScript(
       // tool, and never spawn a general-purpose subagent for this phase.
       const hint = tier1Hint(ph.skill, genOpts.models ?? null);
       const skillPath = skillDocPath(ph.skill);
+      // Escape backticks and ${ in values baked in at codegen time so they
+      // can't break the emitted log(`…`) template literal. args.flow/args.slug
+      // stay literal (runtime interpolations, not escaped).
+      const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
-        "`INLINE SKILL PHASE: " + ph.skill + ". " +
-        "The orchestrator (YOU) must read and execute the skill file at " + skillPath + " in full. " +
+        "`INLINE SKILL PHASE: " + esc(ph.skill) + ". " +
+        "The orchestrator (YOU) must read and execute the skill file at " + esc(skillPath) + " in full. " +
         "Dispatch role agents directly via the Agent tool (subagent_type per the skill); do NOT write code yourself " +
         "and do NOT spawn a general-purpose subagent for this phase \u2014 run it inline. " +
-        "Workflow " + flow.name + ". args.flow=${args.flow}, args.slug=${args.slug}. " + hint + "`";
+        "Workflow " + esc(flow.name) + ". args.flow=${args.flow}, args.slug=${args.slug}. " + esc(hint) + "`";
       body.push("log(" + directive + ");");
       continue;
     }
