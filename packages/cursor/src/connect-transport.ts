@@ -1,6 +1,10 @@
 import http2 from "node:http2";
 
 import type { BridgeDebugLog, BridgeHandle, SpawnBridgeOptions } from "./bridge.js";
+import {
+  createConnectFrameParser,
+  parseConnectEndStream,
+} from "./bridge.js";
 import { resolveCursorRequestHeaders } from "./cursor-request-headers.js";
 
 /**
@@ -43,33 +47,55 @@ export function createConnectBridgeHandle(
   let onDataCb: ((chunk: Buffer) => void) | null = null;
   let onCloseCb: ((code: number) => void) | null = null;
   let closed = false;
+  let lastError: Error | null = null;
 
-  const fireClose = (code: number): void => {
+  const fireClose = (): void => {
     if (closed) return;
     closed = true;
-    onCloseCb?.(code);
+    onCloseCb?.(lastError ? 1 : 0);
   };
 
-  // Inbound data is wired raw here; S-13 routes it through createConnectFrameParser
-  // so decoded Connect messages (and end-stream errors) surface via onData/onClose.
+  // Decode the Connect framing on the inbound byte stream: normal messages →
+  // onData; the 0b00000010 end-stream frame carries a (possibly null) Connect
+  // error that becomes a structured non-zero close via lastError.
+  const parseIncoming = createConnectFrameParser(
+    (messageBytes: Uint8Array) => {
+      onDataCb?.(Buffer.from(messageBytes));
+    },
+    (endStreamBytes: Uint8Array) => {
+      const endError = parseConnectEndStream(endStreamBytes);
+      if (endError) lastError = endError;
+      try {
+        h2Stream.end();
+      } catch {}
+    },
+  );
+
   h2Stream.on("data", (chunk: Buffer) => {
-    onDataCb?.(chunk);
+    parseIncoming(chunk);
   });
-  h2Stream.on("close", () => fireClose(0));
-  client.on("close", () => fireClose(0));
+  h2Stream.on("close", () => {
+    try {
+      client.close();
+    } catch {}
+    fireClose();
+  });
+  client.on("close", () => fireClose());
   h2Stream.on("error", (err) => {
     debugLog("transport.h2.stream_error", {
       rpcPath: options.rpcPath,
       message: err instanceof Error ? err.message : String(err),
     });
-    fireClose(1);
+    lastError = lastError ?? err;
+    fireClose();
   });
   client.on("error", (err) => {
     debugLog("transport.h2.client_error", {
       rpcPath: options.rpcPath,
       message: err instanceof Error ? err.message : String(err),
     });
-    fireClose(1);
+    lastError = lastError ?? err;
+    fireClose();
   });
 
   return {

@@ -7,7 +7,7 @@ import {
   CURSOR_CLIENT_VERSION,
   resolveCursorRequestHeaders,
 } from "../src/cursor-request-headers";
-import { type BridgeHandle } from "../src/bridge";
+import { type BridgeHandle, frameConnectMessage, CONNECT_END_STREAM_FLAG } from "../src/bridge";
 import { createConnectBridgeHandle } from "../src/connect-transport";
 
 const baseOptions = {
@@ -130,6 +130,51 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
 
     expect(handle.alive).toBe(true);
     expect(typeof handle.proc.kill).toBe("function");
+    connectSpy.mockRestore();
+  });
+
+  it("response Connect frames are delivered via onData", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    const received: Buffer[] = [];
+    handle.onData((chunk) => received.push(Buffer.from(chunk)));
+
+    const a = Buffer.from("aaa");
+    const b = Buffer.from("bbbb");
+    // Concatenated 5-byte-framed Connect messages, as they arrive on the wire.
+    stream.emit("data", Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]));
+
+    expect(received.map((x) => x.toString())).toEqual(["aaa", "bbbb"]);
+    connectSpy.mockRestore();
+  });
+
+  it("end-stream error frame sets a non-zero close code", () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let closeCode: number | undefined;
+    handle.onClose((code) => {
+      closeCode = code;
+    });
+
+    const errJson = Buffer.from(
+      JSON.stringify({ error: { code: "http_429", message: "rate limited" } }),
+    );
+    stream.emit("data", frameConnectMessage(errJson, CONNECT_END_STREAM_FLAG));
+    stream.emit("close");
+
+    expect(closeCode).toBe(1);
     connectSpy.mockRestore();
   });
 });

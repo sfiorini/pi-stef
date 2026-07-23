@@ -3,7 +3,7 @@ import { resolve as pathResolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CURSOR_API_URL = "https://api2.cursor.sh";
-const CONNECT_END_STREAM_FLAG = 0b00000010;
+export const CONNECT_END_STREAM_FLAG = 0b00000010;
 const BRIDGE_PATH = pathResolve(dirname(fileURLToPath(import.meta.url)), "h2-bridge.mjs");
 
 export interface SpawnBridgeOptions {
