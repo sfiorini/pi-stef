@@ -1,5 +1,6 @@
 import http2 from "node:http2";
 import https from "node:https";
+import { readFileSync } from "node:fs";
 import { EventEmitter } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -265,6 +266,62 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
 
     expect(received).toEqual(["aa", "bbb"]);
     reqSpy.mockRestore();
+  });
+
+  it("HTTP/1.1 fixture decodes to the same tokens as the H2 path", () => {
+    const fixturePath = new URL(
+      "./fixtures/bridge-frame-traces/h1.1-gpt-5.4.json",
+      import.meta.url,
+    );
+    const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as {
+      frames: { b64: string; len: number }[];
+    };
+    const expected = fixture.frames.map((f) => Buffer.from(f.b64, "base64"));
+
+    // Reconstruct the Connect-framed wire bytes (5-byte header + payload, concatenated).
+    const wireBytes = Buffer.concat(expected.map((p) => frameConnectMessage(p)));
+    // Split mid-frame to exercise the parser's cross-chunk buffering on BOTH transports.
+    const splitAt = Math.floor(wireBytes.length / 2) + 7;
+    const chunk1 = wireBytes.subarray(0, splitAt);
+    const chunk2 = wireBytes.subarray(splitAt);
+
+    // --- HTTP/1.1 path ---
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const h1Spy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+    const h1Handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    const h1Received: Buffer[] = [];
+    h1Handle.onData((c) => h1Received.push(Buffer.from(c)));
+    req.emit("response", res);
+    res.emit("data", Buffer.from(chunk1));
+    res.emit("data", Buffer.from(chunk2));
+    h1Spy.mockRestore();
+    delete process.env.PI_CURSOR_HTTP_1_1;
+
+    // --- HTTP/2 path (same bytes) ---
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const h2Spy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    const h2Handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    const h2Received: Buffer[] = [];
+    h2Handle.onData((c) => h2Received.push(Buffer.from(c)));
+    stream.emit("data", Buffer.from(chunk1));
+    stream.emit("data", Buffer.from(chunk2));
+    h2Spy.mockRestore();
+
+    const eq = (a: Buffer[], b: Buffer[]): boolean =>
+      a.length === b.length && a.every((buf, i) => buf.equals(b[i]!));
+    // Both decode to the exact fixture payload sequence, byte-identical to each other.
+    expect(eq(h1Received, expected)).toBe(true);
+    expect(eq(h2Received, expected)).toBe(true);
+    expect(eq(h1Received, h2Received)).toBe(true);
   });
 });
 
