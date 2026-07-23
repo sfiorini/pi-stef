@@ -476,4 +476,37 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
     await done;
     connectSpy.mockRestore();
   });
+
+  it("clean response: writer.done('stop') fires + stream.end called (teardown)", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {});
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    stream.emit("data", makeTextFrame("answer"));
+    stream.emit("end");
+
+    await done;
+    connectSpy.mockRestore();
+
+    // Clean response: writer.done("stop") fires.
+    const text = events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => (e as { delta: string }).delta)
+      .join("");
+    expect(text).toBe("answer");
+    expect(events.some((e) => e.type === "done")).toBe(true);
+    expect(events.some((e) => e.type === "error")).toBe(false);
+
+    // stream.end is called for teardown.
+    expect(stream.end).toHaveBeenCalled();
+  });
 });

@@ -2228,6 +2228,21 @@ function writeNativeStream(
     }
   };
 
+  let cleanCompletionHandled = false;
+  const completeCleanTurn = (): void => {
+    emitFlushed();
+    const stored = conversationStates.get(convKey);
+    if (stored) {
+      if (latestCheckpoint) {
+        commitStoredCheckpoint(stored, latestCheckpoint, blobStore, completedTurns, currentTurn);
+        debugLog("native.stream.checkpoint_committed", { requestId, convKey, stored });
+      } else {
+        mergeBlobStore(stored, blobStore);
+      }
+    }
+    writer.done("stop", state);
+  };
+
   const processChunk = createConnectFrameParser(
     (messageBytes) => {
       try {
@@ -2326,6 +2341,23 @@ function writeNativeStream(
     processChunk(chunk);
   });
 
+  bridge.onResponseEnd(() => {
+    if (mcpExecReceived && !streamError) {
+      // Tool-call pause: keep the bridge alive + writable for the continuation.
+      return;
+    }
+    cleanCompletionHandled = true;
+    idleWatchdog.clear();
+    clearInterval(heartbeatTimer);
+    options?.signal?.removeEventListener("abort", abort);
+    if (mcpExecReceived && streamError) {
+      removeActiveBridge(bridgeKey);   // end-stream error during pause (writer.error already fired)
+    } else {
+      completeCleanTurn();
+    }
+    bridge.end();   // teardown: h2Stream.end() → 'close' → client.close() (no leak); deferred onClose(0) is no-op via guard
+  });
+
   bridge.onClose((code) => {
     debugLog("native.stream.bridge_close", {
       requestId,
@@ -2340,6 +2372,8 @@ function writeNativeStream(
     idleWatchdog.clear();
     clearInterval(heartbeatTimer);
     options?.signal?.removeEventListener("abort", abort);
+
+    if (cleanCompletionHandled) return;
 
     if (cancelled || options?.signal?.aborted) {
       // Treat an aborted signal as a clean cancel regardless of abort-listener
@@ -2448,16 +2482,7 @@ function writeNativeStream(
     }
 
     if (!mcpExecReceived) {
-      emitFlushed();
-      if (stored) {
-        if (latestCheckpoint) {
-          commitStoredCheckpoint(stored, latestCheckpoint, blobStore, completedTurns, currentTurn);
-          debugLog("native.stream.checkpoint_committed", { requestId, convKey, stored });
-        } else {
-          mergeBlobStore(stored, blobStore);
-        }
-      }
-      writer.done("stop", state);
+      completeCleanTurn();
     } else {
       const midPauseResult = handleBridgeCloseMidPause({
         stored,

@@ -144,6 +144,7 @@ function installSilentBridge() {
       onClose(cb) {
         captured.closeCb = cb;
       },
+      onResponseEnd() {},
     };
     return handle;
   });
@@ -200,6 +201,7 @@ function installRetryBridgeFactory(options: { succeedOnAttempt?: number } = {}) 
       onClose(cb) {
         captured.closeCb = cb;
       },
+      onResponseEnd() {},
     };
     return handle;
   });
@@ -239,6 +241,7 @@ function makeManualSilentBridge() {
     onClose(cb) {
       captured.closeCb = cb;
     },
+    onResponseEnd() {},
   };
 
   return Object.assign(captured, { handle });
@@ -1394,6 +1397,7 @@ describe("SSE /v1/chat/completions integration: lost-continuation error body", (
         onClose(cb) {
           captured.closeCb = cb;
         },
+        onResponseEnd() {},
       };
       return handle;
     });
@@ -1530,6 +1534,7 @@ describe("SSE /v1/chat/completions integration: lost-continuation error body", (
         onClose(cb) {
           captured.closeCb = cb;
         },
+        onResponseEnd() {},
       };
       return handle;
     });

@@ -53,6 +53,7 @@ function authErrorHandle(captured: Captured): BridgeHandle {
       captured.closeCb = cb;
       queueMicrotask(() => cb(1));
     },
+    onResponseEnd: () => {},
   };
 }
 
@@ -70,6 +71,7 @@ function okHandle(captured: Captured): BridgeHandle {
       captured.closeCb = cb;
       queueMicrotask(() => cb(0));
     },
+    onResponseEnd: () => {},
   };
 }
 
