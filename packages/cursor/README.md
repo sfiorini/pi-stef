@@ -71,7 +71,7 @@ Parameterized and MAX variants still route through Cursor metadata. Native agent
 ### Transport
 
 The default transport is an **in-process Connect client** (`src/connect-transport.ts`)
-over Node's `http2` (HTTP/2), with an **HTTP/1.1+SSE fallback** selected by
+over Node's `http2` (HTTP/2), with an **HTTP/1.1 Connect fallback** selected by
 `PI_CURSOR_HTTP_1_1=1`. Both speak the same Connect framing as the legacy child
 bridge, so OAuth, model routing, and tool-call recovery are unchanged. This
 replaces the older hand-rolled HTTP/2 **child-process bridge** (`h2-bridge.mjs`),
@@ -102,7 +102,7 @@ See [bridge recovery docs](docs/bridge-recovery.md) for details.
 
 ### Protocol
 
-The provider uses protobuf over HTTP/2 (or HTTP/1.1+SSE) for efficient
+The provider uses protobuf over HTTP/2 (or HTTP/1.1 Connect) for efficient
 communication with Cursor's agent endpoint. See [protocol docs](src/docs/protocol.md)
 for details.
 
@@ -113,7 +113,7 @@ for details.
 - `PI_CURSOR_AGENT_URL` — Override Cursor agent endpoint
 - `CURSOR_AGENT_URL` — Alternative agent endpoint override
 - `PI_CURSOR_TRANSPORT` — Transport selection: default `connect` (in-process); `child` selects the deprecated child-process bridge. Unknown values fall through to the in-process transport.
-- `PI_CURSOR_HTTP_1_1` — Force the HTTP/1.1+SSE transport. Truthy: `1`/`true`/`on`/`yes`/`enabled` (case/whitespace-insensitive); everything else (including unknown values) leaves the default HTTP/2 transport. Independent of `PI_CURSOR_TRANSPORT`; the child bridge does not read it.
+- `PI_CURSOR_HTTP_1_1` — Force the HTTP/1.1 Connect transport. Truthy: `1`/`true`/`on`/`yes`/`enabled` (case/whitespace-insensitive); everything else (including unknown values) leaves the default HTTP/2 transport. Independent of `PI_CURSOR_TRANSPORT`; the child bridge does not read it.
 - `PI_CURSOR_PROVIDER_DEBUG=1` — Enable debug logging
 - `PI_CURSOR_STREAM_IDLE_TIMEOUT_MS` — Stream idle timeout (default: 120000ms; `0` disables the watchdog as an immediate diagnostic)
 - `PI_CURSOR_STREAM_IDLE_MAX_RETRIES` — Max idle retries (default: 3)
@@ -151,7 +151,7 @@ Native streams retry in place when Cursor stops sending upstream data. The defau
 If streams fail mid-turn (the symptom this transport rewrite targets), try in
 order:
 
-1. `PI_CURSOR_HTTP_1_1=1 pi` — switch to the HTTP/1.1+SSE transport (the proven
+1. `PI_CURSOR_HTTP_1_1=1 pi` — switch to the HTTP/1.1 Connect transport (the proven
    escape hatch for VPN/proxy/broken-HTTP2 environments; mirrors `@cursor/sdk`'s
    `useHttp1ForAgent`).
 2. `PI_CURSOR_TRANSPORT=child pi` — fall back to the deprecated child-process

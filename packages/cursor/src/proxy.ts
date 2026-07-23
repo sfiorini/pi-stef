@@ -2334,7 +2334,20 @@ function writeNativeStream(
     clearInterval(heartbeatTimer);
     options?.signal?.removeEventListener("abort", abort);
 
-    if (cancelled) return;
+    if (cancelled || options?.signal?.aborted) {
+      // Treat an aborted signal as a clean cancel regardless of abort-listener
+      // ordering: the in-process transport registers its own abort listener at
+      // bridge-creation time (before writeNativeStream registers `abort`), so on
+      // user-cancel the transport's onAbort -> fireClose(1) reaches this handler
+      // with `cancelled` still false. Surface a clean abort outcome here instead
+      // of a generic "Bridge connection lost" error. (The proxy `abort` listener
+      // is removed above before this point, so emit exactly once.)
+      if (!cancelled && !writer.closed) {
+        cancelled = true;
+        writer.error("Aborted", "aborted", state);
+      }
+      return;
+    }
     const stored = conversationStates.get(convKey);
     if (streamError) {
       if (mcpExecReceived) {

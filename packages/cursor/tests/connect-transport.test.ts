@@ -159,7 +159,7 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     connectSpy.mockRestore();
   });
 
-  it("response Connect frames are delivered via onData", () => {
+  it("response Connect frames are ferried RAW via onData (proxy.ts de-frames)", () => {
     const stream = createFakeH2Stream();
     const client = createFakeH2Client(stream);
     const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
@@ -173,14 +173,17 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
 
     const a = Buffer.from("aaa");
     const b = Buffer.from("bbbb");
-    // Concatenated 5-byte-framed Connect messages, as they arrive on the wire.
-    stream.emit("data", Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]));
+    // Concatenated 5-byte-framed Connect messages, exactly as they arrive on the
+    // wire. The transport must ferry these RAW (D1) so proxy.ts de-frames once.
+    const wire = Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]);
+    stream.emit("data", wire);
 
-    expect(received.map((x) => x.toString())).toEqual(["aaa", "bbbb"]);
+    expect(received).toHaveLength(1);
+    expect(received[0]!.equals(wire)).toBe(true);
     connectSpy.mockRestore();
   });
 
-  it("end-stream error frame sets a non-zero close code", () => {
+  it("end-stream error frames are ferried RAW (no transport-side interception)", () => {
     const stream = createFakeH2Stream();
     const client = createFakeH2Client(stream);
     const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
@@ -189,6 +192,8 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
       accessToken: "tok_abc",
       rpcPath: "/agent.v1.AgentService/Run",
     });
+    const received: Buffer[] = [];
+    handle.onData((chunk) => received.push(Buffer.from(chunk)));
     let closeCode: number | undefined;
     handle.onClose((code) => {
       closeCode = code;
@@ -197,40 +202,20 @@ describe("createConnectBridgeHandle (HTTP/2)", () => {
     const errJson = Buffer.from(
       JSON.stringify({ error: { code: "http_429", message: "rate limited" } }),
     );
-    stream.emit("data", frameConnectMessage(errJson, CONNECT_END_STREAM_FLAG));
+    const frame = frameConnectMessage(errJson, CONNECT_END_STREAM_FLAG);
+    stream.emit("data", frame);
     stream.emit("close");
 
-    expect(closeCode).toBe(1);
-    connectSpy.mockRestore();
-  });
-
-  it("end-stream 429 is classified transient via the recorded error", () => {
-    const stream = createFakeH2Stream();
-    const client = createFakeH2Client(stream);
-    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
-
-    const events: Array<{ event: string; data?: Record<string, unknown> }> = [];
-    const handle: BridgeHandle = createConnectBridgeHandle(
-      { accessToken: "tok_abc", rpcPath: "/agent.v1.AgentService/Run" },
-      (event, data) => events.push({ event, data }),
-    );
-    let closeCode: number | undefined;
-    handle.onClose((code) => {
-      closeCode = code;
-    });
-
-    const errJson = Buffer.from(
-      JSON.stringify({ error: { code: "http_429", message: "rate limited" } }),
-    );
-    stream.emit("data", frameConnectMessage(errJson, CONNECT_END_STREAM_FLAG));
-    stream.emit("close");
-
-    expect(closeCode).toBe(1);
-    const classified = events.find((e) => e.event === "transport.error_classified");
-    expect(classified).toBeDefined();
-    expect(classified!.data?.kind).toBe("transient");
-    expect(classified!.data?.retryable).toBe(true);
-    expect(classified!.data?.httpStatus).toBe(429);
+    // The transport ferries the end-stream frame RAW to onData; it does NOT
+    // de-frame, classify, or intercept it. proxy.ts's processChunk owns the
+    // end-stream handling (setting streamError + writer.error with Cursor's
+    // specific message). Intercepting here would double-de-frame.
+    expect(received).toHaveLength(1);
+    expect(received[0]!.equals(frame)).toBe(true);
+    // No transport-side classification → a normal (code 0) close; proxy.ts
+    // surfaces the error via its own streamError handler.
+    expect(closeCode).toBe(0);
+    expect(handle.lastError).toBeNull();
     connectSpy.mockRestore();
   });
 
@@ -360,7 +345,7 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
     reqSpy.mockRestore();
   });
 
-  it("response frames parse through the same parser as HTTP/2", () => {
+  it("response frames are ferried RAW through HTTP/1.1 (same as HTTP/2)", () => {
     const req = createFakeHttpRequest();
     const res = new EventEmitter();
     const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
@@ -370,17 +355,20 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
       accessToken: "tok_abc",
       rpcPath: "/agent.v1.AgentService/Run",
     });
-    const received: string[] = [];
-    handle.onData((chunk) => received.push(chunk.toString()));
+    const received: Buffer[] = [];
+    handle.onData((chunk) => received.push(Buffer.from(chunk)));
 
     // Simulate the HTTP/1.1 response arriving on the request emitter.
     req.emit("response", res);
 
     const a = Buffer.from("aa");
     const b = Buffer.from("bbb");
-    res.emit("data", Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]));
+    const wire = Buffer.concat([frameConnectMessage(a), frameConnectMessage(b)]);
+    res.emit("data", wire);
 
-    expect(received).toEqual(["aa", "bbb"]);
+    // D1: raw ferry — framed bytes arrive unchanged (proxy.ts de-frames).
+    expect(received).toHaveLength(1);
+    expect(received[0]!.equals(wire)).toBe(true);
     reqSpy.mockRestore();
   });
 
@@ -434,10 +422,41 @@ describe("createConnectBridgeHandle (HTTP/1.1)", () => {
 
     const eq = (a: Buffer[], b: Buffer[]): boolean =>
       a.length === b.length && a.every((buf, i) => buf.equals(b[i]!));
-    // Both decode to the exact fixture payload sequence, byte-identical to each other.
-    expect(eq(h1Received, expected)).toBe(true);
-    expect(eq(h2Received, expected)).toBe(true);
+    // D1: both transports ferry the SAME raw framed bytes (order preserved, no
+    // de-framing). The two split chunks are forwarded verbatim, so concatenating
+    // them reconstructs the exact wire bytes byte-for-byte on both transports.
+    expect(eq(h1Received, [Buffer.from(chunk1), Buffer.from(chunk2)])).toBe(true);
+    expect(eq(h2Received, [Buffer.from(chunk1), Buffer.from(chunk2)])).toBe(true);
     expect(eq(h1Received, h2Received)).toBe(true);
+    expect(Buffer.concat(h1Received).equals(wireBytes)).toBe(true);
+    expect(Buffer.concat(h2Received).equals(wireBytes)).toBe(true);
+  });
+
+  it("HTTP/1.1 response errors route through onError (no uncaught throw)", () => {
+    const req = createFakeHttpRequest();
+    const res = new EventEmitter();
+    const reqSpy = vi.spyOn(https, "request").mockReturnValue(req as never);
+    process.env.PI_CURSOR_HTTP_1_1 = "1";
+
+    const handle: BridgeHandle = createConnectBridgeHandle({
+      accessToken: "tok_abc",
+      rpcPath: "/agent.v1.AgentService/Run",
+    });
+    let closeCode: number | undefined;
+    handle.onClose((code) => {
+      closeCode = code;
+    });
+
+    // The response stream arrives, registering the res 'error' listener.
+    req.emit("response", res);
+    // A mid-stream response error (e.g. socket reset) must route through the
+    // shared error sink instead of throwing uncaught (P3 crash guard).
+    res.emit("error", new Error("socket hang up"));
+
+    expect(closeCode).toBe(1);
+    expect(handle.lastError).toBeInstanceOf(Error);
+    expect(handle.lastError?.message).toBe("socket hang up");
+    reqSpy.mockRestore();
   });
 });
 

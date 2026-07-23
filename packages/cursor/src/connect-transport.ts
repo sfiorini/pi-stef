@@ -4,11 +4,6 @@ import https from "node:https";
 
 import type { BridgeDebugLog, BridgeHandle, SpawnBridgeOptions } from "./bridge.js";
 import {
-  type ConnectEndStreamError,
-  createConnectFrameParser,
-  parseConnectEndStreamDetailed,
-} from "./bridge.js";
-import {
   CURSOR_CLIENT_TYPE,
   CURSOR_CLIENT_VERSION,
   resolveCursorRequestHeaders,
@@ -29,9 +24,9 @@ const isErrorResponseStatus = (status: number | undefined): boolean =>
   status !== undefined && (status < 200 || status >= 300);
 
 /**
- * Resolved transport selection. `useHttp1` selects the HTTP/1.1+SSE transport
- * (the proven escape hatch for VPN/proxy/broken-HTTP2 environments, mirroring
- * `@cursor/sdk`'s `useHttp1ForAgent`).
+ * Resolved transport selection. `useHttp1` selects the HTTP/1.1 Connect
+ * transport (the proven escape hatch for VPN/proxy/broken-HTTP2 environments,
+ * mirroring `@cursor/sdk`'s `useHttp1ForAgent`).
  */
 export interface TransportMode {
   useHttp1: boolean;
@@ -141,26 +136,16 @@ function buildBridgeHandle(
     if (!lastError) lastError = err;
   };
 
-  // Decode Connect framing on the inbound byte stream: normal messages → onData;
-  // the 0b00000010 end-stream frame carries a (possibly null) Connect error that
-  // is classified (S-31) and surfaced as a structured non-zero close.
-  const parseIncoming = createConnectFrameParser(
-    (messageBytes: Uint8Array) => {
-      onDataCb?.(Buffer.from(messageBytes));
-    },
-    (endStreamBytes: Uint8Array) => {
-      const { error: endError } = parseConnectEndStreamDetailed(endStreamBytes);
-      if (endError) {
-        const typed = endError as ConnectEndStreamError;
-        recordClassifiedError(endError, typed.code, typed.httpStatus);
-      }
-      try {
-        adapter.destroy();
-      } catch {}
-    },
-  );
-
-  adapter.onInbound((chunk) => parseIncoming(chunk));
+  // D1: ferry RAW framed bytes straight to onData, matching the legacy child
+  // bridge wire contract that proxy.ts depends on (proxy.ts de-frames exactly
+  // once via its own createConnectFrameParser in processChunk). Connect
+  // end-stream error frames are NOT intercepted here — they are ferried raw and
+  // surfaced by proxy.ts's end-stream handler (which sets streamError and calls
+  // writer.error with Cursor's specific message). Intercepting here would
+  // double-de-frame and silently swallow all streaming data.
+  adapter.onInbound((chunk) => {
+    onDataCb?.(chunk);
+  });
   adapter.onClose(() => {
     // Child-bridge parity: a non-2xx HTTP status (e.g. 401/403/429/5xx) that
     // arrives WITHOUT a Connect end-stream frame must still surface as a
@@ -327,7 +312,7 @@ function http2Adapter(
   };
 }
 
-/** HTTP/1.1+SSE transport adapter (selected by `PI_CURSOR_HTTP_1_1`). */
+/** HTTP/1.1 Connect transport adapter (selected by `PI_CURSOR_HTTP_1_1`). */
 function http1Adapter(
   options: SpawnBridgeOptions,
   debugLog: BridgeDebugLog,
@@ -354,6 +339,12 @@ function http1Adapter(
 
   let responseFinished = false;
   let responseStatus: number | undefined;
+  // Shared error sink: both the request (`req`) and the response (`res`) route
+  // errors through here so a mid-stream response error is never uncaught (the
+  // exact crash mode this in-process refactor exists to eliminate).
+  let errorCb: ((err: Error) => void) | null = null;
+  const toError = (err: unknown): Error =>
+    err instanceof Error ? err : new Error(String(err));
   // No PING keepalive needed for HTTP/1.1: chunked transfer-encoding keep-alive
   // is automatic. The H2 PING (http2Adapter) addresses middlebox idle drops.
 
@@ -381,15 +372,22 @@ function http1Adapter(
         res.on("end", () => {
           responseFinished = true;
         });
+        // Route mid-stream response errors through the shared error sink. Without
+        // this listener a socket reset mid-response would throw uncaught.
+        res.on("error", (err) => {
+          logError(debugLog, "transport.h1.response_error", options, err);
+          errorCb?.(toError(err));
+        });
       });
     },
     onClose(cb) {
       req.on("close", cb);
     },
     onError(cb) {
+      errorCb = cb;
       req.on("error", (err) => {
         logError(debugLog, "transport.h1.request_error", options, err);
-        cb(err instanceof Error ? err : new Error(String(err)));
+        cb(toError(err));
       });
     },
     getResponseStatus() {
@@ -408,7 +406,7 @@ function http1Adapter(
 
 /**
  * In-process Connect transport over Node `http2` (default) or `https`
- * (HTTP/1.1+SSE when `PI_CURSOR_HTTP_1_1` is set). Replaces the legacy
+ * (HTTP/1.1 Connect when `PI_CURSOR_HTTP_1_1` is set). Replaces the legacy
  * child-process `h2-bridge.mjs` substrate (which `process.exit(1)`-ed on any
  * error / a 120s idle timer). Conforms exactly to the existing
  * {@link BridgeHandle} contract so `proxy.ts` is unchanged except for factory
