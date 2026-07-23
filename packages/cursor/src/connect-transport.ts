@@ -17,6 +17,29 @@ const DEFAULT_CURSOR_URL = "https://api2.cursor.sh";
 function noopDebugLog(): void {}
 
 /**
+ * Resolved transport selection. `useHttp1` selects the HTTP/1.1+SSE transport
+ * (the proven escape hatch for VPN/proxy/broken-HTTP2 environments, mirroring
+ * `@cursor/sdk`'s `useHttp1ForAgent`).
+ */
+export interface TransportMode {
+  useHttp1: boolean;
+}
+
+/** Allowlist of truthy values for `PI_CURSOR_HTTP_1_1` (default-deny, D2). */
+const HTTP_1_1_TRUTHY = new Set(["1", "true", "on", "yes", "enabled"]);
+
+/**
+ * Resolve the transport mode from `PI_CURSOR_HTTP_1_1`. Truthy values are an
+ * explicit allowlist (1/true/on/yes/enabled); everything else — including
+ * unknown strings like "maybe" and all falsy values — is default-deny
+ * (HTTP/2). Case- and whitespace-insensitive.
+ */
+export function resolveTransportMode(env: NodeJS.ProcessEnv = process.env): TransportMode {
+  const raw = (env.PI_CURSOR_HTTP_1_1 ?? "").trim().toLowerCase();
+  return { useHttp1: HTTP_1_1_TRUTHY.has(raw) };
+}
+
+/**
  * In-process Connect transport over Node `http2`.
  *
  * This replaces the legacy child-process `h2-bridge.mjs` substrate (which

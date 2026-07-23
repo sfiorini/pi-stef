@@ -9,7 +9,7 @@ import {
   resolveCursorRequestHeaders,
 } from "../src/cursor-request-headers";
 import { type BridgeHandle, frameConnectMessage, CONNECT_END_STREAM_FLAG } from "../src/bridge";
-import { createConnectBridgeHandle } from "../src/connect-transport";
+import { createConnectBridgeHandle, resolveTransportMode } from "../src/connect-transport";
 import { resolveBridgeFactory } from "../src/proxy";
 
 const baseOptions = {
@@ -226,5 +226,36 @@ describe("resolveBridgeFactory (PI_CURSOR_TRANSPORT)", () => {
     expect(spawnSpy).toHaveBeenCalledTimes(1);
     expect(h).toBe(fakeChildHandle);
     spawnSpy.mockRestore();
+  });
+});
+
+describe("resolveTransportMode (PI_CURSOR_HTTP_1_1)", () => {
+  it("toggles HTTP/1.1 by PI_CURSOR_HTTP_1_1 (allowlist, default-deny)", () => {
+    const on = (v: string): boolean =>
+      resolveTransportMode({ PI_CURSOR_HTTP_1_1: v } as NodeJS.ProcessEnv).useHttp1;
+
+    // Truthy (allowlist).
+    expect(on("1")).toBe(true);
+    expect(on("true")).toBe(true);
+    expect(on("on")).toBe(true);
+    expect(on("yes")).toBe(true);
+    expect(on("enabled")).toBe(true);
+    expect(on("TRUE")).toBe(true); // case-insensitive
+    expect(on("  On  ")).toBe(true); // whitespace-insensitive
+
+    // Falsy.
+    expect(on("")).toBe(false);
+    expect(on("0")).toBe(false);
+    expect(on("false")).toBe(false);
+    expect(on("off")).toBe(false);
+    expect(on("no")).toBe(false);
+    expect(on("disabled")).toBe(false);
+
+    // Unknown → default-deny (D2).
+    expect(on("maybe")).toBe(false);
+  });
+
+  it("defaults to HTTP/2 when the env var is absent", () => {
+    expect(resolveTransportMode({}).useHttp1).toBe(false);
   });
 });
