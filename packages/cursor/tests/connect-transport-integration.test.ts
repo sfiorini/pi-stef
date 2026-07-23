@@ -83,6 +83,36 @@ function makeEndStreamErrorFrame(code: string, message: string): Buffer {
   return frameConnectMessage(payload, CONNECT_END_STREAM_FLAG);
 }
 
+/**
+ * Build a genuine 5-byte-framed Connect `AgentServerMessage` carrying an MCP
+ * tool exec (`execServerMessage{mcpArgs}`). This is the only server-message
+ * branch that fires `onMcpExec`, which registers the bridge via
+ * `setActiveBridge` (the mid-tool-call pause) and closes the writer with
+ * `toolUse`.
+ */
+function makeExecFrame(toolCallId = "tc_abort_pause"): Buffer {
+  const msg = create(AgentServerMessageSchema, {
+    message: {
+      case: "execServerMessage",
+      value: {
+        id: 1,
+        execId: "exec-abort-pause",
+        message: {
+          case: "mcpArgs",
+          value: {
+            name: "shell",
+            args: {},
+            toolCallId,
+            providerIdentifier: "",
+            toolName: "shell",
+          },
+        },
+      } as never,
+    },
+  });
+  return frameConnectMessage(toBinary(AgentServerMessageSchema, msg));
+}
+
 interface FakeH2Stream extends EventEmitter {
   write: ReturnType<typeof vi.fn>;
   end: ReturnType<typeof vi.fn>;
@@ -298,5 +328,47 @@ describe("in-process transport ↔ proxy.ts integration (Connect framing)", () =
     expect(errEvent!.reason).toBe("aborted");
     // Must NOT surface as a generic connection-lost error.
     expect(errEvent!.error.errorMessage).not.toBe("Bridge connection lost");
+  });
+
+  it("user abort mid-tool-call removes the registered active bridge (no leak)", async () => {
+    const stream = createFakeH2Stream();
+    const client = createFakeH2Client(stream);
+    const connectSpy = vi.spyOn(http2, "connect").mockReturnValue(client as never);
+    useRealTransport();
+
+    const controller = new AbortController();
+    const streamFn = createCursorNativeStream({ getAccessToken: async () => "tok" });
+    const eventStream = streamFn(makeCursorModel(), makeUserContext("hi"), {
+      signal: controller.signal,
+    });
+    const events: AssistantMessageEvent[] = [];
+    const done = collectEvents(eventStream, events);
+
+    await vi.waitFor(() => expect(client.request).toHaveBeenCalled());
+
+    stream.emit("response", { ":status": 200 });
+    // Deliver a tool-call exec so the bridge is registered via setActiveBridge
+    // (mid-pause) and the writer closes with "toolUse". The bridge stays alive
+    // and resident in activeBridges while waiting for the tool-result resume.
+    stream.emit("data", makeExecFrame());
+    await done;
+
+    // Sanity: the bridge really was registered before we abort. Without this,
+    // the leak assertion below would pass vacuously.
+    expect(__testInternals.activeBridges.size).toBe(1);
+
+    // User aborts mid-tool-call. The in-process transport registers its own
+    // abort listener at bridge-creation time (before the proxy's `abort`
+    // listener), so on cancel the transport's onAbort -> fireClose(1) reaches
+    // bridge.onClose while the proxy's abort listener (which would otherwise
+    // call cleanupBridge) has already been removed by onClose. The onClose
+    // abort branch must therefore clean up activeBridges itself.
+    controller.abort();
+    // onClose runs synchronously inside abort(); flush microtasks for safety.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(__testInternals.activeBridges.size).toBe(0);
+
+    connectSpy.mockRestore();
   });
 });

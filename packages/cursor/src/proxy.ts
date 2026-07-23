@@ -2346,6 +2346,13 @@ function writeNativeStream(
         cancelled = true;
         writer.error("Aborted", "aborted", state);
       }
+      // Match every other close branch: tear down the active-bridge entry so a
+      // mid-tool-call abort does not leak a stale handle (bridge, blobStore,
+      // pendingExecs, toolTimeoutTimer) until the 1h TTL. The proxy `abort`
+      // listener (which would otherwise cleanupBridge) was removed above, so this
+      // branch owns the cleanup. removeActiveBridge clears the TTL timer and
+      // deletes the entry (the bridge is already closing, so no cancel/end).
+      removeActiveBridge(bridgeKey);
       return;
     }
     const stored = conversationStates.get(convKey);
@@ -2393,8 +2400,17 @@ function writeNativeStream(
             if (writer.closed) return;
             idleRetry?.restartWithToken?.(newToken);
           })
-          .catch(() => {
-            if (!writer.closed) writer.error("Bridge connection lost", "error", state);
+          .catch((err: unknown) => {
+            // Surface the underlying failure (e.g. "No Cursor refresh token
+            // available to retry") instead of masking it as a generic
+            // connection-lost error. Control flow is unchanged.
+            if (!writer.closed) {
+              writer.error(
+                err instanceof Error ? err.message : "Bridge connection lost",
+                "error",
+                state,
+              );
+            }
           });
         return;
       }

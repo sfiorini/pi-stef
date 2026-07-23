@@ -203,47 +203,23 @@ export function createConnectFrameParser(
   };
 }
 
-export function parseConnectEndStream(data: Uint8Array): Error | null {
-  return parseConnectEndStreamDetailed(data).error;
-}
-
-/** A parsed Connect end-stream error, with the raw code/HTTP status attached. */
-export interface ConnectEndStreamError extends Error {
-  /** Raw Connect error code from the end-stream frame (e.g. `unavailable`, `http_429`). */
-  code?: string;
-  /** HTTP status extracted from a child-style `http_<n>` code, if present. */
-  httpStatus?: number;
-}
-
 /**
- * Detailed end-stream parser: returns the typed error (or null) plus whether the
- * frame parsed at all. The {@link ConnectEndStreamError} carries `code` and a
- * best-effort `httpStatus` so the transport can classify it (S-31).
+ * Parse a Connect end-stream frame into a surfaced error (or null when the
+ * frame carries no error). After S-44 the transport ferries end-stream frames
+ * raw to proxy.ts, which only consumes the human-readable message — so the old
+ * `parseConnectEndStreamDetailed` / `ConnectEndStreamError` `code`+`httpStatus`
+ * classification (S-31) is no longer read anywhere and has been removed.
  */
-export function parseConnectEndStreamDetailed(
-  data: Uint8Array,
-): { error: ConnectEndStreamError | null; parsed: boolean } {
+export function parseConnectEndStream(data: Uint8Array): Error | null {
   let payload: unknown;
   try {
     payload = JSON.parse(new TextDecoder().decode(data));
   } catch {
-    return {
-      error: Object.assign(new Error("Failed to parse Connect end stream"), {
-        code: undefined,
-        httpStatus: undefined,
-      }) as ConnectEndStreamError,
-      parsed: false,
-    };
+    return new Error("Failed to parse Connect end stream");
   }
   const error = (payload as { error?: { code?: unknown; message?: unknown } } | null)?.error;
-  if (!error) return { error: null, parsed: true };
+  if (!error) return null;
   const code = typeof error.code === "string" ? error.code : undefined;
   const message = typeof error.message === "string" ? error.message : "Unknown error";
-  const httpStatusMatch = code?.match(/^http_(\d+)$/);
-  const err = new Error(
-    `Connect error ${code ?? "unknown"}: ${message}`,
-  ) as ConnectEndStreamError;
-  err.code = code;
-  if (httpStatusMatch) err.httpStatus = Number(httpStatusMatch[1]);
-  return { error: err, parsed: true };
+  return new Error(`Connect error ${code ?? "unknown"}: ${message}`);
 }
