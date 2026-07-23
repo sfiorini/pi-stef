@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-23
+### Changed
+- fix(cursor): clean up active bridge on transport-abort close path (round-2 P2)
+- test(cursor): integration test closing the transport framing isolation gap
+- fix(cursor): ferry raw Connect bytes on read path; abort/cancel + h1 fixes (audit P0-P3)
+- fix(cursor): handle non-2xx HTTP statuses (audit P2, child-bridge parity)
+- chore(cursor): S-44 changelog 0.2.0 + version bump
+- docs(cursor): S-43 protocol.md + bridge-recovery.md for in-process transport
+- docs(cursor): S-42 README transport model, env vars, OpenAI-compat rejection
+- feat(cursor): S-41 deprecate child bridge behind PI_CURSOR_TRANSPORT=child
+- feat(cursor): S-34 single auth-refresh retry on auth-classified close
+- feat(cursor): S-33 propagate AbortSignal to the transport
+- feat(cursor): S-32 H2 PING keepalive every 30s (reset-on-data-only)
+- feat(cursor): S-31 classifyTransportError + route stream/end-stream errors through it
+- test(cursor): S-23 HTTP/1.1 framing-parity fixture + cross-transport test
+- feat(cursor): S-21 HTTP/1.1+SSE transport branch via node:https
+- feat(cursor): S-22 resolveTransportMode env resolver (PI_CURSOR_HTTP_1_1)
+- fix(cursor): guard write/end against destroyed h2 stream (M1 review P2)
+- feat(cursor): S-14 default BridgeFactory to in-process transport (PI_CURSOR_TRANSPORT)
+- feat(cursor): S-13 parse response Connect frames; surface end-stream errors via onClose
+- feat(cursor): S-11 in-process Connect transport skeleton over node:http2
+- feat(cursor): S-12 extract Cursor request headers into cursor-request-headers.ts
+
+
 ## [0.2.0] - 2026-07-23
 ### Changed
 - feat(cursor): replace child-process HTTP/2 bridge with an in-process Connect transport (HTTP/2 default, HTTP/1.1+SSE fallback) — fixes intermittent "lost connection to the upstream provider" failures
