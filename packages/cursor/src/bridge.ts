@@ -3,7 +3,7 @@ import { resolve as pathResolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const CURSOR_API_URL = "https://api2.cursor.sh";
-const CONNECT_END_STREAM_FLAG = 0b00000010;
+export const CONNECT_END_STREAM_FLAG = 0b00000010;
 const BRIDGE_PATH = pathResolve(dirname(fileURLToPath(import.meta.url)), "h2-bridge.mjs");
 
 export interface SpawnBridgeOptions {
@@ -11,11 +11,19 @@ export interface SpawnBridgeOptions {
   rpcPath: string;
   url?: string;
   unary?: boolean;
+  /** Optional abort signal; aborting tears down the upstream stream (S-33). */
+  signal?: AbortSignal;
 }
 
 export interface BridgeHandle {
   proc: Pick<ChildProcess, "kill">;
   readonly alive: boolean;
+  /**
+   * The classified transport error that closed the handle (if any), with a
+   * `.kind` ("auth" | "transient" | "fatal") stamped by S-31. Consumed by the
+   * S-34 auth-refresh retry path. Omitted by the legacy child bridge.
+   */
+  readonly lastError?: (Error & { kind?: string; retryable?: boolean }) | null;
   write(data: Uint8Array): void;
   end(): void;
   onData(cb: (chunk: Buffer) => void): void;
@@ -48,6 +56,13 @@ export function frameConnectMessage(data: Uint8Array, flags = 0): Buffer {
   return frame;
 }
 
+/**
+ * Spawn the legacy child-process HTTP/2 bridge.
+ *
+ * @deprecated Use the in-process Connect transport (the default since 0.2.0).
+ * This child-process path is retained only as a `PI_CURSOR_TRANSPORT=child`
+ * escape hatch; it hard-exits on idle/errors and has no HTTP/1.1 fallback.
+ */
 export function spawnBridge(
   options: SpawnBridgeOptions,
   debugLog: BridgeDebugLog = noopDebugLog,
@@ -188,16 +203,23 @@ export function createConnectFrameParser(
   };
 }
 
+/**
+ * Parse a Connect end-stream frame into a surfaced error (or null when the
+ * frame carries no error). After S-44 the transport ferries end-stream frames
+ * raw to proxy.ts, which only consumes the human-readable message — so the old
+ * `parseConnectEndStreamDetailed` / `ConnectEndStreamError` `code`+`httpStatus`
+ * classification (S-31) is no longer read anywhere and has been removed.
+ */
 export function parseConnectEndStream(data: Uint8Array): Error | null {
+  let payload: unknown;
   try {
-    const payload = JSON.parse(new TextDecoder().decode(data));
-    const error = payload?.error;
-    if (error)
-      return new Error(
-        `Connect error ${error.code ?? "unknown"}: ${error.message ?? "Unknown error"}`,
-      );
-    return null;
+    payload = JSON.parse(new TextDecoder().decode(data));
   } catch {
     return new Error("Failed to parse Connect end stream");
   }
+  const error = (payload as { error?: { code?: unknown; message?: unknown } } | null)?.error;
+  if (!error) return null;
+  const code = typeof error.code === "string" ? error.code : undefined;
+  const message = typeof error.message === "string" ? error.message : "Unknown error";
+  return new Error(`Connect error ${code ?? "unknown"}: ${message}`);
 }

@@ -109,6 +109,7 @@ import {
   type BridgeFactory,
   type BridgeHandle,
 } from "./bridge.js";
+import { createConnectBridgeHandle } from "./connect-transport.js";
 import {
   buildSelectedContextBlob,
   decodeAvailableModelsResponse,
@@ -294,7 +295,11 @@ interface StreamIdleRetryController {
   currentAttempt: number;
   maxRetries: number;
   recoverBeforeRetry?: boolean;
+  /** Whether the single auth-refresh retry (S-34) has already been used. */
+  authRetried: boolean;
   restart(nextAttempt: number): boolean;
+  /** Re-run the attempt once with a freshly-refreshed access token (S-34). */
+  restartWithToken?(newAccessToken: string): boolean;
 }
 
 interface NativeStreamAttemptInput {
@@ -475,7 +480,30 @@ function createStreamIdleWatchdog(options: {
 const ACTIVE_BRIDGE_TTL_MS = resolveActiveBridgeTtlMs(
   process.env.PI_CURSOR_ACTIVE_BRIDGE_TTL_MS,
 );
-const defaultBridgeFactory: BridgeFactory = (options) => spawnBridge(options, debugLog);
+
+/**
+ * Resolve the default {@link BridgeFactory} from the `PI_CURSOR_TRANSPORT` env
+ * var. Default (and any unknown value) is the in-process Connect transport
+ * (HTTP/2); `"child"` selects the deprecated child-process bridge as an escape
+ * hatch. Case/whitespace-insensitive.
+ */
+export function resolveBridgeFactory(): BridgeFactory {
+  const mode = (process.env.PI_CURSOR_TRANSPORT || "connect").trim().toLowerCase();
+  if (mode === "child") {
+    // Deprecated escape hatch (S-41): retained for compatibility, but the
+    // in-process transport is the default since 0.2.0. The log fires under
+    // PI_CURSOR_PROVIDER_DEBUG=1 even when spawnBridge is mocked in tests.
+    return (options) => {
+      debugLog("transport.deprecated_child", {
+        rpcPath: options.rpcPath,
+        reason: "PI_CURSOR_TRANSPORT=child; in-process transport is the default since 0.2.0",
+      });
+      return spawnBridge(options, debugLog);
+    };
+  }
+  return (options) => createConnectBridgeHandle(options, debugLog);
+}
+const defaultBridgeFactory: BridgeFactory = resolveBridgeFactory();
 let bridgeFactory: BridgeFactory = defaultBridgeFactory;
 let debugRequestCounter = 0;
 let debugLogFilePath: string | undefined;
@@ -693,12 +721,14 @@ export async function callCursorUnaryRpc(options: {
   requestBody: Uint8Array;
   url?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
 }): Promise<{ body: Uint8Array; exitCode: number; timedOut: boolean }> {
   const bridge = bridgeFactory({
     accessToken: options.accessToken,
     rpcPath: options.rpcPath,
     url: options.url,
     unary: true,
+    signal: options.signal,
   });
   const chunks: Buffer[] = [];
   return new Promise((resolve) => {
@@ -1018,10 +1048,17 @@ export interface CursorNativeStreamConfig {
   getAccessToken(): Promise<string>;
   getNoReasoningEffortByModelId?(): Map<string, string>;
   getRawModelRoutingByModelId?(): Map<string, Record<string, CursorNativeModelRouting>>;
+  /**
+   * Optional OAuth refresh used by the S-34 single auth-refresh retry. Resolves
+   * a fresh access token; throws to surface the original auth error.
+   */
+  refreshAccessToken?(): Promise<string>;
 }
 
 type CursorNativeStreamOptions = SimpleStreamOptions & {
   toolChoice?: unknown;
+  /** Merged from CursorNativeStreamConfig at the provider boundary (S-34). */
+  refreshAccessToken?: () => Promise<string>;
 };
 
 type NativeBlockKind = "text" | "thinking";
@@ -1709,11 +1746,19 @@ export function createCursorNativeStream(
       await withSessionLock(deriveRequestLockKey(body), async () => {
         if (writer.closed) return;
         const accessToken = await config.getAccessToken();
+        // S-34: carry the OAuth refresh callback down to the native stream so a
+        // silently-expired token can be refreshed and the turn re-run once.
+        const streamOptions: CursorNativeStreamOptions | undefined = config.refreshAccessToken
+          ? {
+              ...(options as CursorNativeStreamOptions | undefined),
+              refreshAccessToken: config.refreshAccessToken,
+            }
+          : (options as CursorNativeStreamOptions | undefined);
         await handleCursorNativeRequest(
           body,
           accessToken,
           model,
-          options as CursorNativeStreamOptions | undefined,
+          streamOptions,
           writer,
           nextDebugRequestId(),
         );
@@ -2062,6 +2107,9 @@ function writeNativeStream(
   let cancelled = false;
   let streamError: Error | null = null;
   let latestCheckpoint: Uint8Array | null = null;
+  // S-34 no-double-billing guard: once Cursor delivered ANY upstream bytes, do
+  // not auth-refresh-retry (the turn may already be billable).
+  let deliveredUpstreamData = false;
   const idleWatchdog = createStreamIdleWatchdog({
     timeoutMs: streamIdleTimeoutMs,
     onTimeout: () => {
@@ -2267,6 +2315,7 @@ function writeNativeStream(
     // Watchdog reset moved into the framed-message handler above so non-progress chunks
     // (notably `interactionUpdate{tokenDelta}`-only frames) cannot keep the stream alive
     // forever.
+    deliveredUpstreamData = true;
     processChunk(chunk);
   });
 
@@ -2285,7 +2334,27 @@ function writeNativeStream(
     clearInterval(heartbeatTimer);
     options?.signal?.removeEventListener("abort", abort);
 
-    if (cancelled) return;
+    if (cancelled || options?.signal?.aborted) {
+      // Treat an aborted signal as a clean cancel regardless of abort-listener
+      // ordering: the in-process transport registers its own abort listener at
+      // bridge-creation time (before writeNativeStream registers `abort`), so on
+      // user-cancel the transport's onAbort -> fireClose(1) reaches this handler
+      // with `cancelled` still false. Surface a clean abort outcome here instead
+      // of a generic "Bridge connection lost" error. (The proxy `abort` listener
+      // is removed above before this point, so emit exactly once.)
+      if (!cancelled && !writer.closed) {
+        cancelled = true;
+        writer.error("Aborted", "aborted", state);
+      }
+      // Match every other close branch: tear down the active-bridge entry so a
+      // mid-tool-call abort does not leak a stale handle (bridge, blobStore,
+      // pendingExecs, toolTimeoutTimer) until the 1h TTL. The proxy `abort`
+      // listener (which would otherwise cleanupBridge) was removed above, so this
+      // branch owns the cleanup. removeActiveBridge clears the TTL timer and
+      // deletes the entry (the bridge is already closing, so no cancel/end).
+      removeActiveBridge(bridgeKey);
+      return;
+    }
     const stored = conversationStates.get(convKey);
     if (streamError) {
       if (mcpExecReceived) {
@@ -2314,6 +2383,37 @@ function writeNativeStream(
     }
 
     if (code !== 0) {
+      // S-34: a silently-expired access token surfaces as an auth-classified close
+      // before any upstream data. Refresh once and re-run the turn; do not loop.
+      if (
+        !deliveredUpstreamData &&
+        !idleRetry?.authRetried &&
+        bridge.lastError?.kind === "auth" &&
+        typeof options?.refreshAccessToken === "function" &&
+        idleRetry?.restartWithToken
+      ) {
+        if (idleRetry) idleRetry.authRetried = true;
+        debugLog("native.stream.auth_retry", { requestId, bridgeKey, convKey });
+        removeActiveBridge(bridgeKey);
+        void Promise.resolve(options.refreshAccessToken())
+          .then((newToken) => {
+            if (writer.closed) return;
+            idleRetry?.restartWithToken?.(newToken);
+          })
+          .catch((err: unknown) => {
+            // Surface the underlying failure (e.g. "No Cursor refresh token
+            // available to retry") instead of masking it as a generic
+            // connection-lost error. Control flow is unchanged.
+            if (!writer.closed) {
+              writer.error(
+                err instanceof Error ? err.message : "Bridge connection lost",
+                "error",
+                state,
+              );
+            }
+          });
+        return;
+      }
       if (mcpExecReceived) {
         const midPauseResult = handleBridgeCloseMidPause({
           stored,
@@ -2483,6 +2583,7 @@ function handleNativeToolResultResume(
     maxRetries: resolveStreamIdleMaxRetries(process.env.PI_CURSOR_STREAM_IDLE_MAX_RETRIES),
     // Phase 0 found mcpArgs-before-checkpoint across composer/gemini/gpt-5.4, so this stays model-agnostic.
     recoverBeforeRetry: true,
+    authRetried: false,
     restart(nextAttempt: number) {
       idleRetry.currentAttempt = nextAttempt;
       const stored = conversationStates.get(convKey);
@@ -4943,11 +5044,12 @@ function respondWithPendingToolCalls(
 
 // ── Streaming response ──
 
-function startBridge(accessToken: string, requestBytes: Uint8Array) {
+function startBridge(accessToken: string, requestBytes: Uint8Array, signal?: AbortSignal) {
   const bridge = bridgeFactory({
     accessToken,
     rpcPath: "/agent.v1.AgentService/Run",
     url: getCursorAgentUrl(),
+    signal,
   });
   debugLog("bridge.start_run", { requestBytes });
   bridge.write(frameConnectMessage(requestBytes));
@@ -4970,10 +5072,13 @@ function formatStreamIdleTimeoutMessage(
 
 function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void {
   // Recovered/rebuilt streams enter this helper with ordinary retry semantics to avoid recursive recovery loops.
+  // S-34: currentAccessToken is mutable so the single auth-refresh retry can re-run with a refreshed token.
+  let currentAccessToken = input.accessToken;
   const controller: StreamIdleRetryController = {
     currentAttempt: 1,
     maxRetries:
       input.maxIdleRetries ?? resolveStreamIdleMaxRetries(process.env.PI_CURSOR_STREAM_IDLE_MAX_RETRIES),
+    authRetried: false,
     restart(nextAttempt: number) {
       controller.currentAttempt = nextAttempt;
       debugLog(
@@ -4987,7 +5092,11 @@ function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void
           maxRetries: controller.maxRetries,
         },
       );
-      const { bridge, heartbeatTimer } = startBridge(input.accessToken, input.requestBytes);
+      const { bridge, heartbeatTimer } = startBridge(
+        currentAccessToken,
+        input.requestBytes,
+        input.options?.signal,
+      );
       writeNativeStream(
         bridge,
         heartbeatTimer,
@@ -5006,6 +5115,10 @@ function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void
         input.streamIdleTimeoutMs,
       );
       return true;
+    },
+    restartWithToken(newAccessToken: string): boolean {
+      currentAccessToken = newAccessToken;
+      return controller.restart(1);
     },
   };
   controller.restart(1);

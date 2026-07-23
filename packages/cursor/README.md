@@ -68,6 +68,28 @@ Parameterized and MAX variants still route through Cursor metadata. Native agent
 
 ## Architecture
 
+### Transport
+
+The default transport is an **in-process Connect client** (`src/connect-transport.ts`)
+over Node's `http2` (HTTP/2), with an **HTTP/1.1 Connect fallback** selected by
+`PI_CURSOR_HTTP_1_1=1`. Both speak the same Connect framing as the legacy child
+bridge, so OAuth, model routing, and tool-call recovery are unchanged. This
+replaces the older hand-rolled HTTP/2 **child-process bridge** (`h2-bridge.mjs`),
+which hard-exited on idle/errors and had no fallback — an obsolete workaround
+now that Pi requires **Node 22.19+** (so `node:http2` runs in-process).
+
+The in-process transport also **classifies stream errors** (auth / transient /
+fatal), sends an **HTTP/2 PING keepalive** every 30s (without extending the
+application idle watchdog), propagates **`AbortSignal`** to tear down the upstream
+stream, and **retries once** on an auth-classified close by refreshing the OAuth
+token.
+
+The legacy child-process bridge remains available as a deprecated escape hatch:
+
+```sh
+PI_CURSOR_TRANSPORT=child pi
+```
+
 ### Bridge Recovery
 
 The provider implements three-tier bridge recovery for tool-call continuity:
@@ -80,7 +102,9 @@ See [bridge recovery docs](docs/bridge-recovery.md) for details.
 
 ### Protocol
 
-The provider uses protobuf over HTTP/2 for efficient communication with Cursor's agent endpoint. See [protocol docs](src/docs/protocol.md) for details.
+The provider uses protobuf over HTTP/2 (or HTTP/1.1 Connect) for efficient
+communication with Cursor's agent endpoint. See [protocol docs](src/docs/protocol.md)
+for details.
 
 ## Configuration
 
@@ -88,8 +112,10 @@ The provider uses protobuf over HTTP/2 for efficient communication with Cursor's
 
 - `PI_CURSOR_AGENT_URL` — Override Cursor agent endpoint
 - `CURSOR_AGENT_URL` — Alternative agent endpoint override
+- `PI_CURSOR_TRANSPORT` — Transport selection: default `connect` (in-process); `child` selects the deprecated child-process bridge. Unknown values fall through to the in-process transport.
+- `PI_CURSOR_HTTP_1_1` — Force the HTTP/1.1 Connect transport. Truthy: `1`/`true`/`on`/`yes`/`enabled` (case/whitespace-insensitive); everything else (including unknown values) leaves the default HTTP/2 transport. Independent of `PI_CURSOR_TRANSPORT`; the child bridge does not read it.
 - `PI_CURSOR_PROVIDER_DEBUG=1` — Enable debug logging
-- `PI_CURSOR_STREAM_IDLE_TIMEOUT_MS` — Stream idle timeout (default: 120000ms)
+- `PI_CURSOR_STREAM_IDLE_TIMEOUT_MS` — Stream idle timeout (default: 120000ms; `0` disables the watchdog as an immediate diagnostic)
 - `PI_CURSOR_STREAM_IDLE_MAX_RETRIES` — Max idle retries (default: 3)
 - `PI_CURSOR_RESUME_IDLE_TIMEOUT_MS` — Resume stream timeout (default: 240000ms)
 
@@ -119,6 +145,29 @@ If the provider starts offline, it registers bundled fallback models and retries
 ### Stream Idle Timeout
 
 Native streams retry in place when Cursor stops sending upstream data. The default idle timeout is 2 minutes, outbound heartbeat frames do not extend it, and the provider retries 3 times before returning a final error. The default can spend up to 8 minutes on a fully silent turn, and each retry may repeat upstream Cursor work.
+
+### Connection drops / "lost connection to the upstream provider"
+
+If streams fail mid-turn (the symptom this transport rewrite targets), try in
+order:
+
+1. `PI_CURSOR_HTTP_1_1=1 pi` — switch to the HTTP/1.1 Connect transport (the proven
+   escape hatch for VPN/proxy/broken-HTTP2 environments; mirrors `@cursor/sdk`'s
+   `useHttp1ForAgent`).
+2. `PI_CURSOR_TRANSPORT=child pi` — fall back to the deprecated child-process
+   bridge (logs `transport.deprecated_child` under `PI_CURSOR_PROVIDER_DEBUG=1`).
+3. `PI_CURSOR_STREAM_IDLE_TIMEOUT_MS=0 pi` — disable the idle watchdog as an
+   immediate diagnostic (note: this removes the in-place idle retry too).
+
+#### Why not an OpenAI-compatible endpoint?
+
+There is **no first-party Cursor-hosted OpenAI-compatible chat endpoint**; the
+community `/v1/chat/completions` proxies all ride the **same Cursor
+protobuf-over-HTTP2 wire** this package already speaks, so they add a proxy
+dependency and a new failure surface rather than improving reliability. A full
+`@cursor/sdk` agent-loop mode (Dashboard API key + Cursor's own tools) is a
+possible future direction but changes auth and Pi's execution model, so it is
+deferred.
 
 ## Live Verification
 
