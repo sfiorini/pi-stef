@@ -1,8 +1,11 @@
 # Changelog
 
 ## [Unreleased]
+
+## [0.4.1] - 2026-07-23
 ### Fixed
 - fix(flow): `sf_flow_auto` now runs `skill:` phases INLINE in the orchestrator instead of spawning a nested `general-purpose` twin. The tool pre-generates the pi-dw script (loads + validates the YAML, resolves models via `loadAndResolveDefaults`, calls `generateScript`) and the skill-phase branch emits a `log()` inline directive naming the exact `SKILL.md` path (`skillDocPath`); the orchestrator reads + executes each skill itself — matching the direct `sf_flow_implement` path (one orchestrator, no twin). `buildAutoReadyMessage` now renders the script + a 7-row resolved-model table. The loop-on-skill-phase ban stays (a skill phase returns no structured verdict to gate on).
+- fix(flow): escape backticks and `${` in the skill-phase `log()` directive's baked-in values (`skill`/`flow.name`/`skillPath`/`hint`) so a stray backtick or `${` in a workflow name can't break the emitted template literal; the runtime interpolations `${args.flow}`/`${args.slug}` stay literal.
 
 ## [0.4.0] - 2026-07-22
 ### Changed
