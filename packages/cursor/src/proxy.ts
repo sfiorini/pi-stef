@@ -295,7 +295,11 @@ interface StreamIdleRetryController {
   currentAttempt: number;
   maxRetries: number;
   recoverBeforeRetry?: boolean;
+  /** Whether the single auth-refresh retry (S-34) has already been used. */
+  authRetried: boolean;
   restart(nextAttempt: number): boolean;
+  /** Re-run the attempt once with a freshly-refreshed access token (S-34). */
+  restartWithToken?(newAccessToken: string): boolean;
 }
 
 interface NativeStreamAttemptInput {
@@ -1033,10 +1037,17 @@ export interface CursorNativeStreamConfig {
   getAccessToken(): Promise<string>;
   getNoReasoningEffortByModelId?(): Map<string, string>;
   getRawModelRoutingByModelId?(): Map<string, Record<string, CursorNativeModelRouting>>;
+  /**
+   * Optional OAuth refresh used by the S-34 single auth-refresh retry. Resolves
+   * a fresh access token; throws to surface the original auth error.
+   */
+  refreshAccessToken?(): Promise<string>;
 }
 
 type CursorNativeStreamOptions = SimpleStreamOptions & {
   toolChoice?: unknown;
+  /** Merged from CursorNativeStreamConfig at the provider boundary (S-34). */
+  refreshAccessToken?: () => Promise<string>;
 };
 
 type NativeBlockKind = "text" | "thinking";
@@ -1724,11 +1735,19 @@ export function createCursorNativeStream(
       await withSessionLock(deriveRequestLockKey(body), async () => {
         if (writer.closed) return;
         const accessToken = await config.getAccessToken();
+        // S-34: carry the OAuth refresh callback down to the native stream so a
+        // silently-expired token can be refreshed and the turn re-run once.
+        const streamOptions: CursorNativeStreamOptions | undefined = config.refreshAccessToken
+          ? {
+              ...(options as CursorNativeStreamOptions | undefined),
+              refreshAccessToken: config.refreshAccessToken,
+            }
+          : (options as CursorNativeStreamOptions | undefined);
         await handleCursorNativeRequest(
           body,
           accessToken,
           model,
-          options as CursorNativeStreamOptions | undefined,
+          streamOptions,
           writer,
           nextDebugRequestId(),
         );
@@ -2077,6 +2096,9 @@ function writeNativeStream(
   let cancelled = false;
   let streamError: Error | null = null;
   let latestCheckpoint: Uint8Array | null = null;
+  // S-34 no-double-billing guard: once Cursor delivered ANY upstream bytes, do
+  // not auth-refresh-retry (the turn may already be billable).
+  let deliveredUpstreamData = false;
   const idleWatchdog = createStreamIdleWatchdog({
     timeoutMs: streamIdleTimeoutMs,
     onTimeout: () => {
@@ -2282,6 +2304,7 @@ function writeNativeStream(
     // Watchdog reset moved into the framed-message handler above so non-progress chunks
     // (notably `interactionUpdate{tokenDelta}`-only frames) cannot keep the stream alive
     // forever.
+    deliveredUpstreamData = true;
     processChunk(chunk);
   });
 
@@ -2329,6 +2352,28 @@ function writeNativeStream(
     }
 
     if (code !== 0) {
+      // S-34: a silently-expired access token surfaces as an auth-classified close
+      // before any upstream data. Refresh once and re-run the turn; do not loop.
+      if (
+        !deliveredUpstreamData &&
+        !idleRetry?.authRetried &&
+        bridge.lastError?.kind === "auth" &&
+        typeof options?.refreshAccessToken === "function" &&
+        idleRetry?.restartWithToken
+      ) {
+        if (idleRetry) idleRetry.authRetried = true;
+        debugLog("native.stream.auth_retry", { requestId, bridgeKey, convKey });
+        removeActiveBridge(bridgeKey);
+        void Promise.resolve(options.refreshAccessToken())
+          .then((newToken) => {
+            if (writer.closed) return;
+            idleRetry?.restartWithToken?.(newToken);
+          })
+          .catch(() => {
+            if (!writer.closed) writer.error("Bridge connection lost", "error", state);
+          });
+        return;
+      }
       if (mcpExecReceived) {
         const midPauseResult = handleBridgeCloseMidPause({
           stored,
@@ -2498,6 +2543,7 @@ function handleNativeToolResultResume(
     maxRetries: resolveStreamIdleMaxRetries(process.env.PI_CURSOR_STREAM_IDLE_MAX_RETRIES),
     // Phase 0 found mcpArgs-before-checkpoint across composer/gemini/gpt-5.4, so this stays model-agnostic.
     recoverBeforeRetry: true,
+    authRetried: false,
     restart(nextAttempt: number) {
       idleRetry.currentAttempt = nextAttempt;
       const stored = conversationStates.get(convKey);
@@ -4986,10 +5032,13 @@ function formatStreamIdleTimeoutMessage(
 
 function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void {
   // Recovered/rebuilt streams enter this helper with ordinary retry semantics to avoid recursive recovery loops.
+  // S-34: currentAccessToken is mutable so the single auth-refresh retry can re-run with a refreshed token.
+  let currentAccessToken = input.accessToken;
   const controller: StreamIdleRetryController = {
     currentAttempt: 1,
     maxRetries:
       input.maxIdleRetries ?? resolveStreamIdleMaxRetries(process.env.PI_CURSOR_STREAM_IDLE_MAX_RETRIES),
+    authRetried: false,
     restart(nextAttempt: number) {
       controller.currentAttempt = nextAttempt;
       debugLog(
@@ -5004,7 +5053,7 @@ function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void
         },
       );
       const { bridge, heartbeatTimer } = startBridge(
-        input.accessToken,
+        currentAccessToken,
         input.requestBytes,
         input.options?.signal,
       );
@@ -5026,6 +5075,10 @@ function startNativeStreamWithIdleRetries(input: NativeStreamAttemptInput): void
         input.streamIdleTimeoutMs,
       );
       return true;
+    },
+    restartWithToken(newAccessToken: string): boolean {
+      currentAccessToken = newAccessToken;
+      return controller.restart(1);
     },
   };
   controller.restart(1);

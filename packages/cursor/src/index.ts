@@ -1245,6 +1245,20 @@ export default async function (pi: ExtensionAPI) {
         getAccessToken,
         getNoReasoningEffortByModelId: () => noReasoningEffortByModelId,
         getRawModelRoutingByModelId: () => rawModelByEffortByModelId,
+        // S-34: refresh a silently-expired access token and retry the turn once.
+        // Throws when there is no refresh token (env-token mode) so the original
+        // auth error surfaces.
+        refreshAccessToken: async (): Promise<string> => {
+          const authStorage = AuthStorage.create();
+          const credential = authStorage.get(CURSOR_PROVIDER_ID);
+          if (credential?.type !== "oauth" || !credential.refresh) {
+            throw new Error("No Cursor refresh token available to retry");
+          }
+          const refreshed = await refreshCursorToken(credential.refresh);
+          currentToken = refreshed.access;
+          authStorage.set(CURSOR_PROVIDER_ID, { type: "oauth", ...refreshed });
+          return refreshed.access;
+        },
       }),
       models: processed.map(modelConfig),
       oauth: {

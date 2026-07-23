@@ -196,6 +196,9 @@ function buildBridgeHandle(
     get alive(): boolean {
       return adapter.isAlive();
     },
+    get lastError(): (Error & { kind?: string; retryable?: boolean }) | null {
+      return lastError;
+    },
     write(data: Uint8Array): void {
       if (closed || adapter.outbound.destroyed) return;
       if (unary) {

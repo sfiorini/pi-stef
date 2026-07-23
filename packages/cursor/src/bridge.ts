@@ -18,6 +18,12 @@ export interface SpawnBridgeOptions {
 export interface BridgeHandle {
   proc: Pick<ChildProcess, "kill">;
   readonly alive: boolean;
+  /**
+   * The classified transport error that closed the handle (if any), with a
+   * `.kind` ("auth" | "transient" | "fatal") stamped by S-31. Consumed by the
+   * S-34 auth-refresh retry path. Omitted by the legacy child bridge.
+   */
+  readonly lastError?: (Error & { kind?: string; retryable?: boolean }) | null;
   write(data: Uint8Array): void;
   end(): void;
   onData(cb: (chunk: Buffer) => void): void;
