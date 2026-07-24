@@ -21,6 +21,7 @@
     "./package.json": "./package.json"
   },
   "scripts": {
+    "refresh-models": "tsx scripts/refresh-models.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
