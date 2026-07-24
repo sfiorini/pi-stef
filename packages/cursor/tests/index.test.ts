@@ -96,6 +96,7 @@ describe("cursor provider registration", () => {
     const fakePi = {
       registerProvider,
       registerCommand,
+      on: vi.fn(),
     } as unknown as Parameters<typeof import("../src/index").default>[0];
 
     const mod = await import("../src/index");
@@ -126,6 +127,7 @@ describe("cursor provider registration", () => {
     const fakePi = {
       registerProvider,
       registerCommand,
+      on: vi.fn(),
     } as unknown as Parameters<typeof import("../src/index").default>[0];
 
     const mod = await import("../src/index");

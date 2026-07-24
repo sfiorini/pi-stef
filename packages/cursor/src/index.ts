@@ -21,6 +21,7 @@ import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels } from "
 export * from "./model-config.js";
 import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential } from "./api-key.js";
 import { streamCursorLazy } from "./sdk-stream.js";
+import { disposeAllSessionAgents } from "./session-agent.js";
 
 let extensionDebugLogFilePath: string | undefined;
 
@@ -337,8 +338,26 @@ function register(pi: ExtensionAPI, rawItems: ModelListItem[]) {
   });
 }
 
+export function registerSessionLifecycleCleanup(pi: ExtensionAPI): void {
+  const cleanup = () => {
+    try {
+      disposeAllSessionAgents();
+    } catch {
+      // swallow — best-effort cleanup
+    }
+  };
+
+  // Use the same event names as the pre-S-24 code.
+  // pi.on() accepts arbitrary event names at runtime.
+  pi.on("session_before_switch", cleanup);
+  pi.on("session_before_fork", cleanup);
+  pi.on("session_before_tree", cleanup);
+  pi.on("session_shutdown", cleanup);
+}
+
 export default async function (pi: ExtensionAPI) {
   registerExtensionDebugHooks(pi);
+  registerSessionLifecycleCleanup(pi);
 
   // Detect legacy OAuth credential — fire-and-forget migration warning
   detectLegacyOAuthCredential(async () => {
