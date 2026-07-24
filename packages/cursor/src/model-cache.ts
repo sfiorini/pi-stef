@@ -23,8 +23,15 @@ export interface ModelListItem {
   displayName: string;
   description?: string;
   aliases?: string[];
-  parameters?: Array<{ id: string; value: string }>;
+  parameters?: ModelParameterDefinition[];
   variants?: unknown[];
+}
+
+/** Mirror of the SDK's ModelParameterDefinition. */
+export interface ModelParameterDefinition {
+  id: string;
+  displayName?: string;
+  values: Array<{ value: string; displayName?: string } & Record<string, unknown>>;
 }
 
 // ── Cache file shape ──
