@@ -10,7 +10,7 @@ import type {
   CursorParameterizedVariant,
 } from "./cursor-wire.js";
 
-import rawFallbackModels from "./cursor-models-raw.json";
+import { FALLBACK_MODEL_ITEMS as rawFallbackModels } from "./model-fallback.generated.js";
 
 // ── Re-export the 4 model-shape types for downstream importers ──
 
