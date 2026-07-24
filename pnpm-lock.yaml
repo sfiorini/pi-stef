@@ -193,9 +193,6 @@ importers:
 
   packages/cursor:
     dependencies:
-      '@bufbuild/protobuf':
-        specifier: ^2.0.0
-        version: 2.13.0
       '@cursor/sdk':
         specifier: ^1.0.24
         version: 1.0.24
@@ -733,9 +730,6 @@ packages:
 
   '@bufbuild/protobuf@1.10.0':
     resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
-
-  '@bufbuild/protobuf@2.13.0':
-    resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
@@ -4013,8 +4007,6 @@ snapshots:
       css-tree: 3.2.1
 
   '@bufbuild/protobuf@1.10.0': {}
-
-  '@bufbuild/protobuf@2.13.0': {}
 
   '@colors/colors@1.5.0':
     optional: true

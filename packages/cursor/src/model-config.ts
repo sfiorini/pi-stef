@@ -4,18 +4,37 @@
  * imports.  Used by index.ts (provider registration) and model-cache.ts.
  */
 
-import type {
-  CursorModelParameter,
-  CursorParameterizedModel,
-  CursorParameterizedVariant,
-} from "./cursor-wire.js";
+// ── Model-shape types (inlined from cursor-wire.ts, deleted in M7) ──
+
+export interface CursorModelParameter {
+  id: string;
+  value: string;
+}
+
+export interface CursorParameterizedVariant {
+  parameters: CursorModelParameter[];
+  isMaxMode: boolean;
+  isDefaultMaxConfig?: boolean;
+  isDefaultNonMaxConfig?: boolean;
+  displayName?: string;
+  displayNameOutsidePicker?: string;
+  variantStringRepresentation?: string;
+}
+
+export interface CursorParameterizedModel {
+  name: string;
+  clientDisplayName?: string;
+  serverModelName?: string;
+  supportsMaxMode?: boolean;
+  supportsNonMaxMode?: boolean;
+  supportsImages?: boolean;
+  contextTokenLimit?: number;
+  contextTokenLimitForMaxMode?: number;
+  variants: CursorParameterizedVariant[];
+}
+
 import type { ModelListItem } from "./model-cache.js";
-
 import { FALLBACK_MODEL_ITEMS as rawFallbackModels } from "./model-fallback.generated.js";
-
-// ── Re-export the 4 model-shape types for downstream importers ──
-
-export type { CursorModelParameter, CursorParameterizedModel, CursorParameterizedVariant };
 
 /** Core model descriptor used throughout the Cursor provider. */
 export interface CursorModel {

@@ -34,7 +34,6 @@
     "api-key"
   ],
   "dependencies": {
-    "@bufbuild/protobuf": "^2.0.0",
     "@cursor/sdk": "^1.0.24",
     "@pi-stef/catalog": "^0.3.0",
     "@pi-stef/team": "^0.3.0",
