@@ -191,13 +191,7 @@ async function runPhase(
 ): Promise<void> {
   const _loadSdk = deps?.loadSdk ?? loadCursorSdk;
   const _applyHttp1 = deps?.applyHttp1Config ?? applyHttp1Config;
-  const _resolveKey = deps?.resolveApiKey ?? (async () =>
-    resolveCursorRuntimeApiKey({
-      readStoredCredential: async () => undefined,
-      envApiKey: process.env.CURSOR_API_KEY,
-      fallbackApiKey: undefined,
-    })
-  );
+  const _resolveKey = deps?.resolveApiKey ?? (async () => resolveCursorRuntimeApiKey());
   const _acquire = deps?.acquireSessionAgent ?? acquireSessionAgent;
   const _classify = deps?.classifyCursorError ?? classifyCursorError;
   const _buildTools = deps?.buildCustomTools ?? buildCustomTools;

@@ -41,7 +41,7 @@ describe("session-agent", () => {
     __resetSessionAgentPoolForTests();
   });
 
-  it("reuses same wrapper instance for identical opts (createAgent called once)", async () => {
+  it("reuses same wrapper after release (createAgent called once)", async () => {
     const agents = new Map<string, FakeAgent>();
     const loadSdk = makeFakeLoadSdk(agents);
     const createAgent = vi.fn(async (sdk: unknown, opts: { apiKey: string; model: ModelSelection; mode: string; local: { cwd: string; enableAgentRetries: boolean } }) => {
@@ -50,11 +50,12 @@ describe("session-agent", () => {
     });
 
     const r1 = await acquireSessionAgent(baseOpts, { loadSdk, createAgent });
+    r1.release();
+
     const r2 = await acquireSessionAgent(baseOpts, { loadSdk, createAgent });
 
-    expect(r1.session).toBe(r2.session); // same wrapper
+    expect(r1.session).toBe(r2.session); // same wrapper after release+reuse
     expect(createAgent).toHaveBeenCalledOnce();
-    r1.release();
     r2.release();
   });
 
@@ -106,13 +107,14 @@ describe("session-agent", () => {
     const loadSdk = makeFakeLoadSdk(agents);
 
     const r1 = await acquireSessionAgent(baseOpts, { loadSdk });
+    r1.release();
+
     const r2 = await acquireSessionAgent(
       { ...baseOpts, toolNames: ["write_file", "read_file"] },
       { loadSdk },
     );
 
     expect(r1.session).toBe(r2.session);
-    r1.release();
     r2.release();
   });
 
@@ -135,5 +137,35 @@ describe("session-agent", () => {
     expect(session.apiKey).toBe(baseOpts.apiKey);
 
     release();
+  });
+
+  it("concurrent busy acquire → returns a DIFFERENT agent (createAgent called twice)", async () => {
+    const agents = new Map<string, FakeAgent>();
+    const loadSdk = makeFakeLoadSdk(agents);
+    let agentSeq = 0;
+    const createAgent = vi.fn(async (_sdk: unknown, _opts: { apiKey: string; model: ModelSelection }) => {
+      agentSeq++;
+      return { id: `agent-${agentSeq}`, close: vi.fn().mockResolvedValue(undefined), send: vi.fn() };
+    });
+
+    // First acquire — NOT released (busy)
+    const r1 = await acquireSessionAgent(baseOpts, { loadSdk, createAgent });
+
+    // Second acquire with same opts — should create a NEW agent
+    const r2 = await acquireSessionAgent(baseOpts, { loadSdk, createAgent });
+
+    // They must be DIFFERENT sessions
+    expect(r1.session).not.toBe(r2.session);
+    expect(r1.session.agent).not.toBe(r2.session.agent);
+
+    // createAgent must have been called twice
+    expect(createAgent).toHaveBeenCalledTimes(2);
+
+    // Release both
+    r1.release();
+    r2.release();
+
+    // disposeAll should clean up both
+    disposeAllSessionAgents();
   });
 });

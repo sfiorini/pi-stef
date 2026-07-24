@@ -499,4 +499,29 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(types).toContain("start");
     expect(types).toContain("error");
   });
+
+  // Case 6: default resolver (no resolveApiKey dep) → error (no key in test env)
+  it("case 6: default resolver uses resolveCursorRuntimeApiKey", async () => {
+    const { deps } = await createFakeDeps();
+    // Remove the resolveApiKey override — test the default wiring
+    delete (deps as Record<string, unknown>).resolveApiKey;
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    const result = await stream.result();
+    // In test env: no CURSOR_API_KEY env var and no stored credential
+    // → resolveCursorRuntimeApiKey returns undefined
+    // → streamCursor emits an error mentioning /cursor-login
+    expect(result.stopReason).toBe("error");
+    expect(result.errorMessage).toContain("/cursor-login");
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain("error");
+  });
 });

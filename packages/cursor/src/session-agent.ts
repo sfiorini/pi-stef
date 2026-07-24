@@ -74,11 +74,15 @@ export interface SessionAgent {
 // ─── Pool ───────────────────────────────────────────────────────────────────
 
 interface PoolEntry {
+  key: string;
   session: SessionAgent;
   acquired: boolean;
 }
 
+/** Idle entries available for reuse (most recent per key). */
 const pool = new Map<string, PoolEntry>();
+/** All entries ever created — for disposeAllSessionAgents cleanup. */
+const allEntries = new Set<PoolEntry>();
 
 /**
  * Build the 5-dimensional pool key.
@@ -172,16 +176,19 @@ export async function acquireSessionAgent(
     opts.apiKey,
   );
 
-  const existing = pool.get(key);
-  if (existing) {
-    existing.acquired = true;
+  const idle = pool.get(key);
+  if (idle && !idle.acquired) {
+    idle.acquired = true;
     return {
-      session: existing.session,
+      session: idle.session,
       release: () => {
-        existing.acquired = false;
+        idle.acquired = false;
+        // Already in pool — nothing to restore
       },
     };
   }
+
+  // No idle entry — create new agent
 
   // Create new agent
   const loadSdk = deps?.loadSdk ?? (async () => loadCursorSdk());
@@ -222,13 +229,17 @@ export async function acquireSessionAgent(
   };
   sessionRef = session;
 
-  const entry: PoolEntry = { session, acquired: true };
+  const entry: PoolEntry = { key, session, acquired: true };
+  allEntries.add(entry);
   pool.set(key, entry);
 
   return {
     session,
     release: () => {
       entry.acquired = false;
+      if (!pool.has(key)) {
+        pool.set(key, entry);
+      }
     },
   };
 }
@@ -240,7 +251,7 @@ export async function acquireSessionAgent(
  * Idempotent.
  */
 export function disposeAllSessionAgents(): void {
-  for (const entry of pool.values()) {
+  for (const entry of allEntries) {
     try {
       entry.session.bridge.rejectAll(new Error("disposed"));
     } catch {
@@ -253,6 +264,7 @@ export function disposeAllSessionAgents(): void {
     }
   }
   pool.clear();
+  allEntries.clear();
 }
 
 /**

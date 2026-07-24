@@ -36,14 +36,24 @@ interface StoredCredential {
   key?: string;
 }
 
+/** Default reader that checks AuthStorage at runtime. */
+async function defaultReadStoredCredential(): Promise<StoredCredential | undefined> {
+  try {
+    const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
+    return AuthStorage.create().get("cursor") as StoredCredential | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Options for `resolveCursorRuntimeApiKey`. */
 export interface ResolveApiKeyOptions {
   /** Async reader for the stored credential (injectable for tests). */
-  readStoredCredential: () => Promise<StoredCredential | undefined>;
+  readStoredCredential?: () => Promise<StoredCredential | undefined>;
   /** Raw env value (pass `process.env[CURSOR_API_KEY_ENV_VAR]` at call site). */
-  envApiKey: string | undefined;
+  envApiKey?: string | undefined;
   /** Optional fallback value (e.g. from a CLI flag). */
-  fallbackApiKey: string | undefined;
+  fallbackApiKey?: string | undefined;
 }
 
 /**
@@ -52,20 +62,29 @@ export interface ResolveApiKeyOptions {
  *
  * Returns `undefined` if all sources are absent or invalid.
  * Propagates reader errors.
+ *
+ * When called without options, uses sensible defaults:
+ *   - readStoredCredential: AuthStorage lookup
+ *   - envApiKey: process.env.CURSOR_API_KEY
+ *   - fallbackApiKey: none
  */
 export async function resolveCursorRuntimeApiKey(
-  opts: ResolveApiKeyOptions,
+  opts?: ResolveApiKeyOptions,
 ): Promise<string | undefined> {
-  const stored = await opts.readStoredCredential();
+  const readStoredCredential = opts?.readStoredCredential ?? defaultReadStoredCredential;
+  const envApiKey = opts?.envApiKey ?? process.env[CURSOR_API_KEY_ENV_VAR];
+  const fallbackApiKey = opts?.fallbackApiKey;
+
+  const stored = await readStoredCredential();
   if (stored?.type === "api_key" && stored.key) {
     const resolved = resolveCursorApiKey(stored.key);
     if (resolved) return resolved;
   }
 
-  const envKey = resolveCursorApiKey(opts.envApiKey);
+  const envKey = resolveCursorApiKey(envApiKey);
   if (envKey) return envKey;
 
-  const fallback = resolveCursorApiKey(opts.fallbackApiKey);
+  const fallback = resolveCursorApiKey(fallbackApiKey);
   if (fallback) return fallback;
 
   return undefined;
