@@ -360,7 +360,7 @@ export default async function (pi: ExtensionAPI) {
     source: initial.source,
     count: initial.items.length,
   });
-  register(pi, initial.items);
+  register(pi, initial.source === "fallback" ? [] : initial.items);
 
   // Register slash commands
   if (typeof (pi as unknown as Record<string, unknown>).registerCommand === "function") {
