@@ -16,8 +16,8 @@ import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join as pathJoin } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { CursorModel } from "./model-config.js";
-import { FALLBACK_MODELS, modelConfig, processModels } from "./model-config.js";
+import type { ModelListItem } from "./model-cache.js";
+import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels } from "./model-config.js";
 export * from "./model-config.js";
 import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential } from "./api-key.js";
 import { streamCursorLazy } from "./sdk-stream.js";
@@ -326,8 +326,9 @@ function registerExtensionDebugHooks(pi: ExtensionAPI) {
   });
 }
 
-function register(pi: ExtensionAPI, rawModels: CursorModel[]) {
-  const processed = processModels(rawModels);
+function register(pi: ExtensionAPI, rawItems: ModelListItem[]) {
+  const cursorModels = mapModelListItems(rawItems);
+  const processed = processModels(cursorModels.length ? cursorModels : FALLBACK_MODELS);
   pi.registerProvider("cursor", {
     api: "cursor-sdk",
     apiKey: CURSOR_API_KEY_CONFIG_VALUE,
@@ -352,7 +353,14 @@ export default async function (pi: ExtensionAPI) {
     })
     .catch(() => {});
 
-  register(pi, FALLBACK_MODELS);
+  // Discover models at startup (live → cache → fallback)
+  const { discoverModels } = await import("./model-discovery.js");
+  const initial = await discoverModels();
+  debugExtensionLog("model_discovery.startup", {
+    source: initial.source,
+    count: initial.items.length,
+  });
+  register(pi, initial.items);
 
   // Register slash commands
   if (typeof (pi as unknown as Record<string, unknown>).registerCommand === "function") {
@@ -376,8 +384,12 @@ export default async function (pi: ExtensionAPI) {
     pi.registerCommand("cursor-refresh-models", {
       description: "Re-discover Cursor models. Usage: /cursor-refresh-models",
       handler: async (_args: string, ctx) => {
-        // Wired in S-33 — for now just notify
-        ctx?.ui?.notify?.("Model refresh is not yet wired (S-33).", "info");
+        const { discoverModels: refresh } = await import("./model-discovery.js");
+        const r = await refresh({});
+        ctx?.ui?.notify?.(
+          `Refreshed Cursor model cache (${r.items.length} models, source: ${r.source}). Restart pi to apply.`,
+          "info",
+        );
       },
     });
   }

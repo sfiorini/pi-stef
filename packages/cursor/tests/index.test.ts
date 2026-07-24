@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { parseModelId } from "../src/index";
+import { parseModelId, mapModelListItems } from "../src/index";
+import type { ModelListItem } from "../src/model-cache";
 
 const packageRoot = new URL("..", import.meta.url).pathname;
 
@@ -41,6 +42,35 @@ describe("cursor model routing", () => {
       fast: true,
       thinking: false,
     });
+  });
+});
+
+describe("mapModelListItems", () => {
+  it("maps ModelListItem[] to CursorModel[] with correct defaults and heuristics", () => {
+    const items: ModelListItem[] = [
+      { id: "claude-4.6-sonnet", displayName: "Sonnet 4.6" },
+      { id: "gpt-5.4", displayName: "GPT-5.4" },
+      { id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro" },
+      { id: "text-embedding-3", displayName: "Embedding" },
+    ];
+    const result = mapModelListItems(items);
+    expect(result).toHaveLength(4);
+
+    const sonnet = result[0]!;
+    expect(sonnet.id).toBe("claude-4.6-sonnet");
+    expect(sonnet.name).toBe("Sonnet 4.6");
+    expect(sonnet.reasoning).toBe(true);
+    expect(sonnet.contextWindow).toBe(200_000);
+    expect(sonnet.maxTokens).toBe(16_384);
+    expect(sonnet.supportsImages).toBe(true);
+
+    const embed = result[3]!;
+    expect(embed.reasoning).toBe(false);
+    expect(embed.supportsImages).toBe(false);
+  });
+
+  it("returns empty array for empty input", () => {
+    expect(mapModelListItems([])).toEqual([]);
   });
 });
 

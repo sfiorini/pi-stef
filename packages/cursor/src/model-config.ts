@@ -9,6 +9,7 @@ import type {
   CursorParameterizedModel,
   CursorParameterizedVariant,
 } from "./cursor-wire.js";
+import type { ModelListItem } from "./model-cache.js";
 
 import { FALLBACK_MODEL_ITEMS as rawFallbackModels } from "./model-fallback.generated.js";
 
@@ -787,3 +788,33 @@ export const FALLBACK_MODELS: CursorModel[] = augmentCursorModels(
   ...model,
   reasoning: supportsReasoningModelId(model.id),
 }));
+
+// ── ModelListItem → CursorModel mapping (for live/cache discovery) ──
+
+const REASONING_ID_RE =
+  /sonnet|opus|gpt-5|composer|gemini-[0-9].*pro|grok/i;
+const NON_IMAGE_ID_RE =
+  /embed|instruct.*code|code-only|text-only|tts|whisper|moderation|dall-e/i;
+
+/**
+ * Convert SDK `ModelListItem[]` (from `Cursor.models.list()`) into the
+ * `CursorModel[]` shape used by the rest of the provider pipeline.
+ *
+ * - `displayName` → `name` (falls back to `id`)
+ * - default `contextWindow: 200_000`, `maxTokens: 16_384`
+ * - `reasoning` inferred heuristically from `id`
+ * - `supportsImages` defaults to `true` unless the id suggests otherwise
+ *
+ * Returns an empty array when given an empty input — callers should fall
+ * back to `FALLBACK_MODELS` in that case.
+ */
+export function mapModelListItems(items: ModelListItem[]): CursorModel[] {
+  return items.map((item) => ({
+    id: item.id,
+    name: item.displayName || item.id,
+    reasoning: REASONING_ID_RE.test(item.id),
+    contextWindow: 200_000,
+    maxTokens: 16_384,
+    supportsImages: !NON_IMAGE_ID_RE.test(item.id),
+  } satisfies CursorModel));
+}
