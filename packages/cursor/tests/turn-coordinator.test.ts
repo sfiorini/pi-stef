@@ -285,4 +285,27 @@ describe("CursorSdkTurnCoordinator", () => {
     // usage was cleared
     expect(coordinator.usage.inputTokens).toBeUndefined();
   });
+
+  // --- P2-c: markToolStarted prevents duplicate toolcall_start ---
+  it("markToolStarted prevents duplicate toolcall_start", () => {
+    // Pre-mark a callId as started (bridge emitter does this)
+    coordinator.markToolStarted("tc_dedup");
+
+    // Now SDK fires tool-call-started for the same callId
+    coordinator.handleDelta({
+      update: {
+        type: "tool-call-started",
+        callId: "tc_dedup",
+        toolCall: { type: "read_file", args: { path: "/tmp/x" } },
+      },
+    });
+
+    // Should have exactly ONE toolcall_start (the coordinator skipped its own)
+    const starts = events.filter((e) => e.type === "toolcall_start");
+    expect(starts.length).toBe(1);
+
+    // But toolcall_delta should still be emitted
+    const deltas = events.filter((e) => e.type === "toolcall_delta");
+    expect(deltas.length).toBeGreaterThanOrEqual(1);
+  });
 });

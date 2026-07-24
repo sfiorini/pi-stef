@@ -21,6 +21,40 @@ describe("discoverModels", () => {
     delete process.env.PI_CURSOR_DISABLE_MODEL_CACHE;
   });
 
+  // P2-b: default resolver should use resolveCursorRuntimeApiKey
+  it("default resolver delegates to resolveCursorRuntimeApiKey", async () => {
+    // Spy on resolveCursorRuntimeApiKey to verify delegation
+    const apikeyMod = await import("../src/api-key");
+    const spy = vi.spyOn(apikeyMod, "resolveCursorRuntimeApiKey").mockResolvedValue("crsr_from_stored");
+
+    // Mock model-cache to return no cache (force live path)
+    const writeCachedModelList = vi.fn();
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return {
+        ...orig,
+        readCachedModelList: vi.fn().mockReturnValue(null),
+        writeCachedModelList,
+      };
+    });
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    // Don't inject resolveApiKey — use the default
+    const result = await freshDiscover({
+      loadSdk: async () => ({
+        Cursor: { models: { list: vi.fn().mockResolvedValue(FAKE_MODELS) } },
+      }) as never,
+    });
+
+    // The default resolver should have called resolveCursorRuntimeApiKey
+    expect(spy).toHaveBeenCalled();
+    expect(result.source).toBe("live");
+    expect(result.items).toEqual(FAKE_MODELS);
+
+    spy.mockRestore();
+  });
+
   it("returns fallback when no API key is available", async () => {
     const result = await discoverModels({
       resolveApiKey: async () => undefined,

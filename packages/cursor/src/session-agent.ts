@@ -258,7 +258,7 @@ export function disposeAllSessionAgents(): void {
       // swallow — best-effort cleanup
     }
     try {
-      entry.session.agent.close();
+      void entry.session.agent.close().catch(() => {});
     } catch {
       // swallow — best-effort cleanup
     }

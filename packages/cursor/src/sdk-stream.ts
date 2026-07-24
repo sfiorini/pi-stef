@@ -145,16 +145,27 @@ function extractToolResults(
 }
 
 /**
- * Build a no-op ToolCallEmitter.
+ * Build a real ToolCallEmitter that pushes toolcall events to the stream.
  *
- * The turn-coordinator owns ALL toolcall_start / toolcall_delta / toolcall_end
- * events (from the SDK's onDelta callback).  The bridge's emitter is a no-op
- * to avoid DUPLICATE pi toolcall events.
+ * P2-c fix: the bridge emitter IS real (not noop) so custom tools that are
+ * called WITHOUT a preceding SDK `tool-call-started` delta are visible to
+ * pi's UI.  The coordinator's `markToolStarted` prevents duplicate
+ * `toolcall_start` events when the SDK ALSO fires the delta.
  */
-function makeNoopEmitter(): ToolCallEmitter {
+function makeEmitter(
+  session: SessionAgent,
+): ToolCallEmitter {
   return {
-    start(): void { /* no-op — coordinator owns toolcall_start from onDelta */ },
-    delta(): void { /* no-op — coordinator owns toolcall_delta from onDelta */ },
+    start(id: string, _name: string, argsJson: string): void {
+      // Mark as started in the coordinator to prevent duplicate start
+      session.coordinator.markToolStarted(id);
+      // Push toolcall_start + initial delta to the stream
+      session.targetStream?.push({ type: "toolcall_start", contentIndex: -1, partial: session.partial });
+      session.targetStream?.push({ type: "toolcall_delta", contentIndex: -1, delta: argsJson, partial: session.partial });
+    },
+    delta(_id: string, argsJson: string): void {
+      session.targetStream?.push({ type: "toolcall_delta", contentIndex: -1, delta: argsJson, partial: session.partial });
+    },
   };
 }
 
@@ -199,6 +210,8 @@ async function runPhase(
   let session: SessionAgent | undefined;
   let release: (() => void) | undefined;
   let onAbort: (() => void) | undefined;
+  // P2-a: track abort so cancelled runs emit error, not done
+  let aborted = false;
 
   // Track the best available final message for stream.end() in finally.
   let finalMessage: AssistantMessage = freshAssistantMessage(model);
@@ -237,10 +250,11 @@ async function runPhase(
     session.targetStream = stream;
 
     const bridgeTools = piToolsToBridgeFormat(context.tools);
-    const customTools = _buildTools(bridgeTools, session.bridge, makeNoopEmitter());
+    const customTools = _buildTools(bridgeTools, session.bridge, makeEmitter(session));
 
     // Wire abort handler
     onAbort = (): void => {
+      aborted = true;
       (session?.currentRun as SDKRun | undefined)?.cancel?.()?.catch?.(() => {});
       session?.bridge?.rejectAll(new Error("aborted"));
     };
@@ -281,23 +295,54 @@ async function runPhase(
         session.bridge.whenPending().then(() => ({ k: "paused" as const })),
       ]);
 
+      // P1-a: update lastSentMessageIndex so the next NEW TURN only sends new messages
+      session.lastSentMessageIndex = context.messages.length;
+
       // Drain the losing promise to avoid unhandled rejection
       if (raceResult.k === "paused") {
         session.currentRun.wait().catch(() => {});
-        session.partial.stopReason = "toolUse";
-        stream.push({
-          type: "done",
-          reason: "toolUse",
-          message: session.partial,
-        });
+        // P2-a: aborted → error, not done
+        if (aborted) {
+          session.bridge.rejectAll(new Error("aborted"));
+          session.partial.stopReason = "aborted";
+          session.partial.errorMessage = "aborted";
+          stream.push({ type: "error", reason: "aborted", error: session.partial });
+        } else {
+          session.partial.stopReason = "toolUse";
+          stream.push({
+            type: "done",
+            reason: "toolUse",
+            message: session.partial,
+          });
+        }
       } else {
         session.bridge.whenPending().catch(() => {});
-        finalize(session, raceResult.r, stream);
+        // P2-a: aborted → error, not finalize
+        if (aborted) {
+          session.bridge.rejectAll(new Error("aborted"));
+          session.partial.stopReason = "aborted";
+          session.partial.errorMessage = "aborted";
+          stream.push({ type: "error", reason: "aborted", error: session.partial });
+        } else {
+          finalize(session, raceResult.r, stream);
+        }
       }
     } else {
       // ═══ NEW TURN phase ═══
       if (!session.firstTurn) {
-        session.partial = freshAssistantMessage(model);
+        // P0 fix: clear partial IN PLACE so the coordinator's _partial
+        // reference (set at construction) stays valid.
+        session.partial.content.length = 0;
+        session.partial.stopReason = undefined as unknown as "stop";
+        session.partial.usage = {
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 0,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        };
+        session.partial.timestamp = Date.now();
         session.coordinator.reset();
       }
       session.currentRun = undefined;
@@ -334,15 +379,31 @@ async function runPhase(
       // Drain the losing promise
       if (raceResult.k === "paused") {
         run.wait().catch(() => {});
-        sess.partial.stopReason = "toolUse";
-        stream.push({
-          type: "done",
-          reason: "toolUse",
-          message: sess.partial,
-        });
+        // P2-a: aborted → error, not done
+        if (aborted) {
+          sess.bridge.rejectAll(new Error("aborted"));
+          sess.partial.stopReason = "aborted";
+          sess.partial.errorMessage = "aborted";
+          stream.push({ type: "error", reason: "aborted", error: sess.partial });
+        } else {
+          sess.partial.stopReason = "toolUse";
+          stream.push({
+            type: "done",
+            reason: "toolUse",
+            message: sess.partial,
+          });
+        }
       } else {
         sess.bridge.whenPending().catch(() => {});
-        finalize(sess, raceResult.r, stream);
+        // P2-a: aborted → error, not finalize
+        if (aborted) {
+          sess.bridge.rejectAll(new Error("aborted"));
+          sess.partial.stopReason = "aborted";
+          sess.partial.errorMessage = "aborted";
+          stream.push({ type: "error", reason: "aborted", error: sess.partial });
+        } else {
+          finalize(sess, raceResult.r, stream);
+        }
       }
     }
   } catch (err) {

@@ -88,6 +88,20 @@ describe("classifyCursorError", () => {
     expect(result.message).not.toContain("crsr_abcdef0123456789abcdef012345");
     expect(result.message).toContain("[redacted");
   });
+
+  // P1-b: classifyCursorError must detect abort errors and return 'aborted'
+  it("classifies 'aborted' errors as 'aborted' (not 'error')", async () => {
+    const err = new Error("The operation was aborted");
+    const result = await classifyCursorError(err);
+    expect(result.reason).toBe("aborted");
+  });
+
+  it("classifies AbortError-named errors as 'aborted'", async () => {
+    const err = new Error("user cancelled") as Error & { name: string };
+    err.name = "AbortError";
+    const result = await classifyCursorError(err);
+    expect(result.reason).toBe("aborted");
+  });
 });
 
 describe("isAbortError", () => {

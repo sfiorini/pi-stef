@@ -18,6 +18,7 @@ import {
   writeCachedModelList,
   cursorModelCacheDisabled,
 } from "./model-cache.js";
+import { resolveCursorRuntimeApiKey } from "./api-key.js";
 
 // Dynamic import of @cursor/sdk — never static (peer dep not in-repo)
 type CursorSdkModule = typeof import("@cursor/sdk");
@@ -104,20 +105,8 @@ export async function discoverModels(
 
 // ── Default API-key resolver ──
 
+// P2-b: delegate to resolveCursorRuntimeApiKey so precedence is identical
+// to streaming (stored → env → fallback).
 async function defaultResolveApiKey(): Promise<string | undefined> {
-  const envKey = process.env.CURSOR_API_KEY?.trim();
-  if (envKey) return envKey;
-
-  // Try stored credential via dynamic import (peer dep not in-repo)
-  try {
-    const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
-    const stored = AuthStorage.create().get("cursor") as
-      | { type: "api_key" | "oauth"; key?: string }
-      | undefined;
-    if (stored?.type === "api_key" && stored.key) return stored.key;
-  } catch {
-    // peer dep unavailable — that's fine
-  }
-
-  return undefined;
+  return resolveCursorRuntimeApiKey();
 }

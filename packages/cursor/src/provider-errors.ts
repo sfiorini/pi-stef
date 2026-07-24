@@ -16,6 +16,15 @@ export interface ClassifiedError {
  * Scrubs secrets from the message before returning.
  */
 export async function classifyCursorError(err: unknown): Promise<ClassifiedError> {
+  // P1-b: check abort FIRST (before SDK instanceof checks) so real aborts
+  // are classified as 'aborted' rather than falling through to 'error'.
+  if (isAbortError(err)) {
+    return {
+      reason: "aborted",
+      message: redactCursorSecrets(err instanceof Error ? err.message : String(err)),
+    };
+  }
+
   const sdk = await loadCursorSdk();
 
   let reason: ClassifiedError["reason"] = "error";

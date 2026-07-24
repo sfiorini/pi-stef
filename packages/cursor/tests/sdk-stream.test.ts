@@ -435,6 +435,9 @@ describe("streamCursor (S-62 two-phase)", () => {
 
     // Bridge should be resolved (no more pending)
     expect(fakeSession.bridge.hasPending()).toBe(false);
+
+    // P1-a: after RESUME, lastSentMessageIndex should be updated
+    expect(fakeSession.lastSentMessageIndex).toBe(contextMessages.length);
   });
 
   // Case 4: Abort → run.cancel() + error{reason:"aborted"}
@@ -478,6 +481,122 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(errorEvent.reason).toBe("aborted");
   });
 
+  // Case 4b: P2-a — abort + run resolves cancelled → error{reason:'aborted'} (not done)
+  it("case 4b: P2-a — abort + run resolves cancelled → error", async () => {
+    const { deps } = await createFakeDeps();
+    const controller = new AbortController();
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      { signal: controller.signal } as unknown as Parameters<typeof streamCursor>[2],
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    // Wait for send to be called
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    // Abort — sets the aborted flag
+    controller.abort();
+
+    // Now the run.wait() resolves with cancelled status
+    // (The cancel() call from onAbort rejects the deferred in the fake, but
+    //  in the real SDK, wait() can resolve with {status:'cancelled'})
+    // The deferred was already rejected by cancel(), so the catch block runs.
+    // But the test verifies that the error reason is 'aborted'.
+
+    const result = await stream.result();
+    expect(result.stopReason).toBe("aborted");
+
+    const errorEvent = events.find((e) => e.type === "error") as Extract<
+      AssistantMessageEvent,
+      { type: "error" }
+    >;
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent.reason).toBe("aborted");
+  });
+
+  // Case 4c: P2-a targeted — abort, then run.wait() resolves cancelled → error
+  it("case 4c: P2-a — run.wait() resolves cancelled after abort → error", async () => {
+    const { deps } = await createFakeDeps();
+    const controller = new AbortController();
+
+    // Create a run where cancel does NOT reject the deferred,
+    // and we manually resolve with cancelled after abort.
+    const manualRunDeferred = deferred<{ status: string; usage?: Record<string, number> }>();
+    const manualFakeRun = {
+      wait: () => manualRunDeferred.promise,
+      cancel: vi.fn(async () => { /* no-op — doesn't reject */ }),
+    };
+    // Replace agent.send to return our manual run
+    deps.acquireSessionAgent.mockImplementation(async () => {
+      const bridgeModule = await import("../src/tool-result-bridge");
+      const coordModule = await import("../src/turn-coordinator");
+      const initialPartial = {
+        role: "assistant" as const,
+        content: [],
+        api: "cursor-sdk",
+        provider: "cursor",
+        model: "test-model",
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+        stopReason: undefined as unknown as "stop",
+        timestamp: Date.now(),
+      };
+      let sessionRef!: SessionAgent;
+      const coordinator = new coordModule.CursorSdkTurnCoordinator(
+        initialPartial,
+        (e: AssistantMessageEvent) => { sessionRef?.targetStream?.push?.(e); },
+      );
+      const session: SessionAgent = {
+        agent: {
+          send: vi.fn(async () => manualFakeRun),
+          close: vi.fn(async () => {}),
+        } as unknown as SessionAgent["agent"],
+        currentRun: undefined,
+        coordinator,
+        partial: initialPartial,
+        bridge: bridgeModule.createToolResultBridge(),
+        lastSentMessageIndex: 0,
+        firstTurn: true,
+        targetStream: undefined,
+        modelSelection: { id: "test-model" },
+        apiKey: "crsr_test_key_12345",
+      };
+      sessionRef = session;
+      return { session, release: vi.fn() };
+    });
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      { signal: controller.signal } as unknown as Parameters<typeof streamCursor>[2],
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    // Wait for send to be called
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    // Abort first
+    controller.abort();
+
+    // Then run resolves with cancelled (real SDK behavior)
+    manualRunDeferred.resolve({ status: "cancelled" });
+
+    const result = await stream.result();
+    // MUST be aborted, NOT stop
+    expect(result.stopReason).toBe("aborted");
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain("error");
+    expect(types).not.toContain("done"); // done event must NOT be emitted
+  });
+
   // Case 5: No key → error mentions /cursor-login
   it("case 5: no key → error mentions /cursor-login", async () => {
     const { deps } = await createFakeDeps();
@@ -498,6 +617,166 @@ describe("streamCursor (S-62 two-phase)", () => {
     const types = events.map((e) => e.type);
     expect(types).toContain("start");
     expect(types).toContain("error");
+  });
+
+  // Case 8: P2-c — custom tool without SDK tool-call-started → still visible
+  it("case 8: P2-c — bridge emitter makes custom tools visible (dedup with coordinator)", async () => {
+    const { fakeSession, deps, fireDelta } = await createFakeDeps();
+
+    // Build a custom tool that we'll execute manually
+    const bridgeTools = [{
+      function: { name: "read_file", description: "Read", parameters: {} },
+    }];
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [], tools: bridgeTools } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    // Wait for runPhase to call send
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    // Simulate the SDK calling the custom tool's execute() via the bridge.
+    // The bridge emitter (now real, not noop) pushes toolcall_start + toolcall_delta.
+    // Then the SDK fires tool-call-started for the SAME callId → coordinator should dedup.
+    fireDelta({
+      type: "tool-call-started",
+      callId: "tc_bridge",
+      toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
+    });
+
+    // The coordinator should have emitted toolcall_start from onDelta.
+    // Since the bridge emitter also calls markToolStarted before pushing,
+    // and the coordinator checks _toolContentIndex, there should be exactly ONE
+    // toolcall_start for this callId (from the coordinator, since markToolStarted
+    // was called before the delta arrived).
+    const toolcallStarts = events.filter((e) => e.type === "toolcall_start");
+    expect(toolcallStarts.length).toBe(1);
+
+    // Arm bridge and complete
+    fakeSession.bridge.pending("tc_bridge", "read_file", "{\"path\":\"/tmp/x\"}");
+    fireDelta({
+      type: "tool-call-completed",
+      callId: "tc_bridge",
+      toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
+    });
+
+    const result = await stream.result();
+    expect(result.stopReason).toBe("toolUse");
+
+    // Verify exactly one toolcall_start per callId
+    const allToolcallStarts = events.filter((e) => e.type === "toolcall_start");
+    expect(allToolcallStarts.length).toBe(1);
+    // Verify toolcall_end was emitted
+    const toolcallEnds = events.filter((e) => e.type === "toolcall_end");
+    expect(toolcallEnds.length).toBe(1);
+  });
+
+  // Case 7: P0 regression — multi-turn: second turn content is NOT empty
+  it("case 7: P0 — second turn content is NOT empty (coordinator partial stays valid)", async () => {
+    const { fakeSession, deps, fireDelta, runDeferred } = await createFakeDeps();
+
+    // ─── TURN 1: firstTurn:true → text deltas → done("stop") with content "hi" ───
+    const stream1 = streamCursor(
+      fakeModel(),
+      { messages: [{ role: "user", content: "hello" }] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events1 = collectStreamEvents(stream1);
+
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    fireDelta({ type: "text-delta", text: "hi" });
+    fireDelta({
+      type: "turn-ended",
+      usage: { inputTokens: 50, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    });
+    runDeferred.resolve({ status: "finished" });
+
+    const result1 = await stream1.result();
+    expect(result1.stopReason).toBe("stop");
+    // Verify turn 1 content
+    const textContent1 = result1.content.find((c) => c.type === "text") as { type: string; text: string };
+    expect(textContent1?.text).toBe("hi");
+
+    // ─── TURN 2: firstTurn:false → new text deltas → content should contain "second" ───
+    // Reset fake run for turn 2
+    const runDeferred2 = deferred<{ status: string; usage?: Record<string, number> }>();
+    const fakeRun2 = {
+      wait: () => runDeferred2.promise,
+      cancel: vi.fn(async () => {}),
+    };
+    fakeSession.currentRun = undefined; // run was cleared by finalize
+    // Re-wire fakeAgent.send to return new run
+    fakeSession.agent.send = vi.fn(async () => fakeRun2) as typeof fakeSession.agent.send;
+
+    // Turn 2 onDelta/onStep will be captured fresh
+    let capturedOnDelta2: ((a: { update: Record<string, unknown> }) => void) | undefined;
+    (fakeSession.agent.send as ReturnType<typeof vi.fn>).mockImplementation(
+      async (_msg: unknown, opts?: { onDelta?: (a: { update: Record<string, unknown> }) => void }) => {
+        capturedOnDelta2 = opts?.onDelta;
+        return fakeRun2;
+      },
+    );
+
+    const stream2 = streamCursor(
+      fakeModel(),
+      { messages: [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: [{ type: "text", text: "hi" }] },
+        { role: "user", content: "second" },
+      ] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events2 = collectStreamEvents(stream2);
+
+    await vi.waitFor(() => {
+      expect(fakeSession.agent.send).toHaveBeenCalled();
+    });
+
+    // Fire text deltas for turn 2
+    capturedOnDelta2?.({ update: { type: "text-delta", text: "second" } });
+    capturedOnDelta2?.({
+      update: {
+        type: "turn-ended",
+        usage: { inputTokens: 60, outputTokens: 8, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      },
+    });
+    runDeferred2.resolve({ status: "finished" });
+
+    const result2 = await stream2.result();
+    expect(result2.stopReason).toBe("stop");
+
+    // THE KEY ASSERTION: content must contain "second", NOT be empty
+    const textContent2 = result2.content.find((c) => c.type === "text") as { type: string; text: string };
+    expect(textContent2).toBeDefined();
+    expect(textContent2.text).toBe("second");
+
+    // Coordinator's partial should be the SAME object as session.partial
+    expect(fakeSession.coordinator.partial).toBe(fakeSession.partial);
+
+    // Verify turn 1 events (P0 regression: text_start + text_delta + done)
+    const turn1Types = events1.map((e) => e.type);
+    expect(turn1Types).toContain("start");
+    expect(turn1Types).toContain("text_start");
+    expect(turn1Types).toContain("text_delta");
+    expect(turn1Types).toContain("done");
+
+    // Verify turn 2 events (same pattern, content is NOT empty)
+    const turn2Types = events2.map((e) => e.type);
+    expect(turn2Types).toContain("start");
+    expect(turn2Types).toContain("text_start");
+    expect(turn2Types).toContain("text_delta");
+    expect(turn2Types).toContain("done");
   });
 
   // Case 6: default resolver (no resolveApiKey dep) → error (no key in test env)

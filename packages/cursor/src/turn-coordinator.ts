@@ -246,7 +246,7 @@ export class CursorSdkTurnCoordinator {
         this._partial.content.push({
           type: "toolCall",
           id: u.callId,
-          name: u.toolCall.type,
+          name: stripToolPrefix(u.toolCall.type),
           arguments: { ...u.toolCall.args },
         } as ToolCall);
         this._push({
@@ -277,7 +277,7 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: u.callId,
-            name: nameFromTask,
+            name: stripToolPrefix(nameFromTask),
             arguments: {},
           } as ToolCall);
           this._push({
@@ -309,14 +309,14 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: u.callId,
-            name: u.toolCall.type,
+            name: stripToolPrefix(u.toolCall.type),
             arguments: { ...u.toolCall.args },
           } as ToolCall);
         }
 
         // Update the ToolCall with final args
         const toolBlock = this._partial.content[idx] as ToolCall;
-        toolBlock.name = u.toolCall.type;
+        toolBlock.name = stripToolPrefix(u.toolCall.type);
         toolBlock.arguments = { ...u.toolCall.args };
 
         this._completedCalls.add(u.callId);
@@ -364,7 +364,7 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: callId,
-            name: step.message.name ?? step.message.type,
+            name: stripToolPrefix(step.message.name ?? step.message.type),
             arguments: step.message.args ? { ...step.message.args } : {},
           } as ToolCall);
         }
@@ -395,6 +395,19 @@ export class CursorSdkTurnCoordinator {
     this._usage = {};
   }
 
+  // ─── markToolStarted (P2-c: bridge emitter dedup) ────────────────────────
+
+  /**
+   * Record a callId as already started WITHOUT emitting any events.
+   * Used by the bridge emitter so the coordinator doesn't emit a duplicate
+   * `toolcall_start` when it later receives `tool-call-started` for the same callId.
+   */
+  markToolStarted(callId: string): void {
+    if (!this._toolContentIndex.has(callId)) {
+      this._toolContentIndex.set(callId, this._partial.content.length);
+    }
+  }
+
   // ─── accessors ───────────────────────────────────────────────────────────
 
   get usage(): TurnUsage {
@@ -407,6 +420,14 @@ export class CursorSdkTurnCoordinator {
 }
 
 // ─── internal helpers ────────────────────────────────────────────────────────
+
+/**
+ * Strip the `pi__` prefix that the tool-bridge adds to custom tool names.
+ * e.g. `pi__read_file` → `read_file`; `shell` → `shell`.
+ */
+function stripToolPrefix(name: string): string {
+  return name.replace(/^pi__/, "");
+}
 
 /**
  * Extract text from a shell-output-delta event record.
