@@ -16,6 +16,7 @@ permissions:
   contents: read
   pages: write
   id-token: write
+  actions: write  # allow deleting stale github-pages artifacts before re-upload
 
 # Allow only one concurrent deployment
 concurrency:
@@ -45,6 +46,16 @@ jobs:
 
       - name: Build docs
         run: pnpm docs:build
+
+      - name: Remove stale github-pages artifacts from this run
+        # Re-runs accumulate same-named artifacts; deploy-pages fails if more than one exists.
+        run: |
+          for id in $(gh api "/repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts?per_page=100" --jq '.artifacts[] | select(.name == "github-pages") | .id'); do
+            echo "Deleting stale github-pages artifact $id"
+            gh api -X DELETE "/repos/${{ github.repository }}/actions/artifacts/$id" || true
+          done
+        env:
+          GH_TOKEN: ${{ github.token }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
