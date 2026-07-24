@@ -413,21 +413,6 @@ export class CursorSdkTurnCoordinator {
     this._usage = {};
   }
 
-  // ─── markToolStarted (P2-c: bridge emitter dedup) ────────────────────────
-
-  /**
-   * Record a callId as already started WITHOUT emitting any events.
-   * Used by the bridge emitter so the coordinator doesn't emit a duplicate
-   * `toolcall_start` when it later receives `tool-call-started` for the same callId.
-   *
-   * @deprecated Use `bridgeToolStart` instead which creates the block + emits events.
-   */
-  markToolStarted(callId: string): void {
-    if (!this._toolContentIndex.has(callId)) {
-      this._toolContentIndex.set(callId, this._partial.content.length);
-    }
-  }
-
   // ─── bridgeToolStart (P2-c: coordinator-owned toolcall events) ─────────
 
   /**
