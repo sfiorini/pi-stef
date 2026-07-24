@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-07-24
+### Changed
+- cursor(audit): remove dead markToolStarted method (P3)
+- cursor(audit): P2-c coordinator-owned toolcall dedup (bridgeToolStart) + already-aborted guard + pi__ strip
+- cursor(audit): fix P0 stale-partial (2nd-turn empty), P1 lastSentMessageIndex + abort classification, P2 abort-flag/key-precedence/emitter-dedup, P3 close-catch/pi__-strip
+- cursor(m8): S-87 release 0.3.0 (version bump + CHANGELOG)
+- cursor(m8): S-84 delete bridge-recovery docs
+- cursor(m8): S-83 rewrite protocol.md → SDK API reference
+- cursor(m8): S-81 rewrite README — @cursor/sdk local-agent mode + API-key auth
+- cursor(m7): S-73 delete bridge/proto/transport/wire + raw json + proto dep
+- cursor(m7): S-72 delete proxy.ts + auth.ts
+- cursor(m7): S-71 delete old bridge tests + fixtures
+- cursor(m6): fix P0 stored-key resolution + P1 busy-pool guard
+- cursor(m6): S-62 two-phase streamCursor (resume vs new-turn, cross-turn tool continuity)
+- cursor(m6): S-61 create session-agent.ts (SessionAgent wrapper + 4-dim pool) + re-add session lifecycle cleanup
+- cursor(m6): S-63 create http1-config.ts (PI_CURSOR_HTTP_1_1 -> SDK configure)
+- cursor(m5): S-51 create tool-bridge.ts (pi tools -> SDKCustomTool via pending bridge)
+- cursor(m5): S-52 create tool-result-bridge.ts (session pending registry + whenPending)
+- cursor(m4): review fixes — rolePrefix default, text_end/thinking_end on block-switch, ConversationStep.name
+- cursor(m4): S-42 create turn-coordinator.ts (deltas→events, exact SDK field accessors)
+- cursor(m4): S-41 create context-builder.ts (full + incremental prompts)
+- cursor(m3): fix P1 — use curated FALLBACK_MODELS on fallback source (don't round-trip through mapModelListItems)
+- cursor(m3): S-34 create scripts/refresh-models.ts (manual CLI model regen)
+- cursor(m3): S-33 wire model discovery into index.ts startup + /cursor-refresh-models
+- cursor(m3): S-32 create model-discovery.ts (live→cache→fallback precedence)
+- cursor(m3): S-31 rewrite model-cache.ts to SDK cache shape (fingerprint-keyed, TTL, 0600)
+- cursor(m2): S-24 rewrite index.ts (cursor-sdk registration + /cursor-login + legacy warn)
+- cursor(m2): S-23 create sdk-stream.ts stub (terminates with error) + test
+- cursor(m2): S-22 create model-fallback.generated.ts + rewire model-config import
+- cursor(m2): S-21 create api-key.ts (3-source resolve + legacy detect) + test
+- cursor(m1): S-15 extract model logic into model-config.ts
+- cursor(m1): S-14 create provider-errors.ts (classifyCursorError + isAbortError) + test
+- cursor(m1): S-13 create sensitive-text.ts (redactCursorSecrets + fingerprintApiKey) + test
+- cursor(m1): S-12 create sdk-runtime.ts (lazy loadCursorSdk seam) + test
+- cursor(m1): S-11 update package.json deps (@bufbuild/protobuf kept for now), add @cursor/sdk, engines.node>=22.14
+
+
 ## [0.3.0] - 2026-07-23
 ### Breaking — Transport
 - Replaced the reverse-engineered protobuf/HTTP2 bridge with the official `@cursor/sdk` local-agent mode. Resolves chronic mid-conversation disconnections.
