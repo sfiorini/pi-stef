@@ -91,6 +91,7 @@ export interface ConversationStep {
   type: "assistantMessage" | "toolCall";
   message: {
     type: string;
+    name?: string;
     text?: string;
     args?: Record<string, unknown>;
     result?: unknown;
@@ -132,6 +133,36 @@ export class CursorSdkTurnCoordinator {
     this._push = push;
   }
 
+  // ─── block-transition helpers ─────────────────────────────────────────────
+
+  /** If a text block is open, emit text_end and reset the index. */
+  private _closeTextBlock(): void {
+    if (this._textContentIndex !== -1) {
+      const textBlock = this._partial.content[this._textContentIndex] as TextContent;
+      this._push({
+        type: "text_end",
+        contentIndex: this._textContentIndex,
+        content: textBlock.text,
+        partial: this._partial,
+      });
+      this._textContentIndex = -1;
+    }
+  }
+
+  /** If a thinking block is open, emit thinking_end and reset the index. */
+  private _closeThinkingBlock(): void {
+    if (this._thinkingContentIndex !== -1) {
+      const thinkBlock = this._partial.content[this._thinkingContentIndex] as ThinkingContent;
+      this._push({
+        type: "thinking_end",
+        contentIndex: this._thinkingContentIndex,
+        content: thinkBlock.thinking,
+        partial: this._partial,
+      });
+      this._thinkingContentIndex = -1;
+    }
+  }
+
   // ─── handleDelta ─────────────────────────────────────────────────────────
 
   handleDelta({ update }: { update: InteractionUpdate }): void {
@@ -139,6 +170,8 @@ export class CursorSdkTurnCoordinator {
       case "text-delta": {
         const u = update as TextDeltaUpdate;
         if (this._textContentIndex === -1) {
+          // Close any open thinking block before opening text
+          this._closeThinkingBlock();
           // First text delta → create a TextContent block
           this._textContentIndex = this._partial.content.length;
           this._partial.content.push({ type: "text", text: "" } as TextContent);
@@ -168,6 +201,8 @@ export class CursorSdkTurnCoordinator {
             : extractShellOutputText(update as ShellOutputDeltaUpdate);
 
         if (this._thinkingContentIndex === -1) {
+          // Close any open text block before opening thinking
+          this._closeTextBlock();
           this._thinkingContentIndex = this._partial.content.length;
           this._partial.content.push({ type: "thinking", thinking: "" } as ThinkingContent);
           this._push({
@@ -203,6 +238,9 @@ export class CursorSdkTurnCoordinator {
 
       case "tool-call-started": {
         const u = update as ToolCallStartedUpdate;
+        // Close any open text/thinking blocks before opening toolCall
+        this._closeTextBlock();
+        this._closeThinkingBlock();
         const idx = this._partial.content.length;
         this._toolContentIndex.set(u.callId, idx);
         this._partial.content.push({
@@ -326,7 +364,7 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: callId,
-            name: step.message.type,
+            name: step.message.name ?? step.message.type,
             arguments: step.message.args ? { ...step.message.args } : {},
           } as ToolCall);
         }

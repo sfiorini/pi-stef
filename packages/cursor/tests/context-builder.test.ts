@@ -70,6 +70,16 @@ function userWithImageUrlDataUrl(dataUrl: string): Message {
 
 // --- tests ---
 
+function systemText(text: string): Message {
+  return {
+    role: "system" as unknown as Message["role"],
+    content: [{ type: "text", text } as TextContent],
+    timestamp: Date.now(),
+  } as Message;
+}
+
+// --- tests ---
+
 describe("buildFullContextPrompt", () => {
   it("includes systemPrompt + ALL messages role-prefixed and joined by \\n\\n", () => {
     const ctx: Context = {
@@ -109,6 +119,15 @@ describe("buildFullContextPrompt", () => {
     };
     const result = buildFullContextPrompt(ctx);
     expect(result.images).toBeUndefined();
+  });
+
+  it("renders [system] prefix for system-role messages (not [undefined])", () => {
+    const ctx: Context = {
+      messages: [userText("hello"), systemText("I am a system msg")],
+    };
+    const result = buildFullContextPrompt(ctx);
+    expect(result.text).toContain("[system]: I am a system msg");
+    expect(result.text).not.toContain("[undefined]");
   });
 
   it("handles empty messages with systemPrompt", () => {

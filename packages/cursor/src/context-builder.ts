@@ -49,6 +49,20 @@ export function extractText(msg: Message): string {
         .join("\n");
       return `[tool] ${inner}`;
     }
+    default: {
+      // Runtime fallback for non-standard roles (e.g. "system").
+      // msg is typed `never` here because the union is exhaustive, but
+      // consumers may inject messages with non-standard roles at runtime.
+      const content = (msg as unknown as { content: string | unknown[] }).content;
+      if (typeof content === "string") return content;
+      if (Array.isArray(content)) {
+        return (content as TextContent[])
+          .filter((b) => b.type === "text")
+          .map((b) => b.text)
+          .join("\n");
+      }
+      return "";
+    }
   }
 }
 
@@ -100,6 +114,8 @@ function rolePrefix(msg: Message): string {
       return "assistant";
     case "toolResult":
       return "tool";
+    default:
+      return (msg as unknown as { role: string }).role;
   }
 }
 
