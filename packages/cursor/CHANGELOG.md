@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-07-24
+### Changed
+- fix(cursor): static AuthStorage import so /cursor-login + streaming read the stored key at runtime; migration page -> 1.0.0
+
+
 ## [1.0.1] - 2026-07-24
 ### Changed
 - fix(cursor): add baseUrl to provider registration (pi requires it when defining custom models)
