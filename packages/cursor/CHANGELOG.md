@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-07-24
+### Changed
+- fix(cursor): add baseUrl to provider registration (pi requires it when defining custom models)
+
+
 ## [1.0.0] - 2026-07-24
 ### Changed
 - cursor(audit): remove dead markToolStarted method (P3)
