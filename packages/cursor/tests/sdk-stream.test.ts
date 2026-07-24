@@ -77,6 +77,9 @@ async function createFakeDeps() {
     status: "running" as string,
   };
 
+  // Captured customTools from agent.send (for tests that need to execute them)
+  let capturedCustomTools: Record<string, { execute: Function }> | undefined;
+
   const fakeAgent = {
     send: vi.fn(
       async (
@@ -89,6 +92,10 @@ async function createFakeDeps() {
       ) => {
         capturedOnDelta = opts?.onDelta;
         capturedOnStep = opts?.onStep;
+        // Capture customTools so tests can execute them directly
+        if (opts?.local?.customTools) {
+          capturedCustomTools = opts.local.customTools as Record<string, { execute: Function }>;
+        }
         return fakeRun;
       },
     ),
@@ -164,6 +171,7 @@ async function createFakeDeps() {
     deps,
     fireDelta: (update: Record<string, unknown>) => capturedOnDelta?.({ update }),
     fireStep: (step: Record<string, unknown>) => capturedOnStep?.({ step }),
+    getCustomTools: () => capturedCustomTools,
   };
 }
 
@@ -619,62 +627,174 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(types).toContain("error");
   });
 
-  // Case 8: P2-c — custom tool without SDK tool-call-started → still visible
-  it("case 8: P2-c — bridge emitter makes custom tools visible (dedup with coordinator)", async () => {
-    const { fakeSession, deps, fireDelta } = await createFakeDeps();
+  // Case 8: P2-c — bridge emitter makes custom tools visible WITHOUT SDK tool-call-started
+  it("case 8: P2-c — bridge execute without SDK started → exactly one toolcall_start + done('toolUse')", async () => {
+    // Use a custom acquireSessionAgent that wires execute() into the send mock
+    // so the SDK's send() triggers the custom tool call AFTER runPhase sets up
+    // the Promise.race with bridge.whenPending().
+    const bridgeModule = await import("../src/tool-result-bridge");
+    const coordModule = await import("../src/turn-coordinator");
 
-    // Build a custom tool that we'll execute manually
-    const bridgeTools = [{
-      function: { name: "read_file", description: "Read", parameters: {} },
-    }];
+    const runDeferred = deferred<{ status: string; usage?: Record<string, number> }>();
+    const fakeRun = {
+      wait: () => runDeferred.promise,
+      cancel: vi.fn(async () => { runDeferred.reject(new Error("aborted")); }),
+    };
+
+    let capturedCustomTools: Record<string, { execute: Function }> | undefined;
+
+    const initialPartial: AssistantMessage = {
+      role: "assistant", content: [], api: "cursor-sdk", provider: "cursor",
+      model: "test-model",
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      stopReason: undefined as unknown as "stop",
+      timestamp: Date.now(),
+    };
+    const bridge = bridgeModule.createToolResultBridge();
+    let sessionRef!: SessionAgent;
+    const coordinator = new coordModule.CursorSdkTurnCoordinator(
+      initialPartial,
+      (e: AssistantMessageEvent) => { sessionRef?.targetStream?.push?.(e); },
+    );
+    const fakeSession: SessionAgent = {
+      agent: undefined as unknown as SessionAgent["agent"],
+      currentRun: undefined,
+      coordinator,
+      partial: initialPartial,
+      bridge,
+      lastSentMessageIndex: 0,
+      firstTurn: true,
+      targetStream: undefined,
+      modelSelection: { id: "test-model" },
+      apiKey: "crsr_test_key_12345",
+    } as SessionAgent;
+    sessionRef = fakeSession;
+
+    // send() captures customTools, then uses setTimeout to fire execute() after
+    // runPhase has set up the Promise.race with bridge.whenPending().
+    const fakeAgent = {
+      send: vi.fn(async (
+        _msg: unknown,
+        opts?: { onDelta?: (a: { update: Record<string, unknown> }) => void; onStep?: (a: { step: Record<string, unknown> }) => void; local?: Record<string, unknown> },
+      ) => {
+        if (opts?.local?.customTools) {
+          capturedCustomTools = opts.local.customTools as Record<string, { execute: Function }>;
+          // Fire execute AFTER runPhase sets up the race (macrotask ensures race is ready)
+          setTimeout(() => {
+            capturedCustomTools!["pi__read_file"]?.execute(
+              { path: "/tmp/x" },
+              { toolCallId: "tc_bridge" },
+            );
+          }, 5);
+        }
+        return fakeRun;
+      }),
+      close: vi.fn(async () => {}),
+    };
+    Object.assign(fakeSession, { agent: fakeAgent });
+
+    const deps = {
+      loadSdk: vi.fn(async () => ({} as CursorSdkModule)),
+      applyHttp1Config: vi.fn(async () => {}),
+      resolveApiKey: vi.fn(async () => "crsr_test_key_12345"),
+      acquireSessionAgent: vi.fn(async () => ({ session: fakeSession, release: vi.fn() })),
+      classifyCursorError: vi.fn(async (err: unknown) => ({
+        reason: err instanceof Error && /abort/i.test(err.message) ? "aborted" : "error",
+        message: err instanceof Error ? err.message : String(err),
+      })),
+      // No buildCustomTools override — real one is used
+    };
+
+    const contextTools = [
+      { name: "read_file", description: "Read", parameters: { type: "object", properties: { path: { type: "string" } } } },
+    ];
 
     const stream = streamCursor(
       fakeModel(),
-      { messages: [], tools: bridgeTools } as unknown as Context,
+      { messages: [], tools: contextTools } as unknown as Context,
       undefined,
       deps as unknown as Parameters<typeof streamCursor>[3],
     );
     const events = collectStreamEvents(stream);
 
-    // Wait for runPhase to call send
-    await vi.waitFor(() => {
-      expect(deps.loadSdk).toHaveBeenCalled();
-    });
+    // The send mock will fire execute() via setTimeout after5ms.
+    // By then, runPhase has set up the race and bridge.whenPending() is armed.
+    const result = await stream.result();
+    expect(result.stopReason).toBe("toolUse");
 
-    // Simulate the SDK calling the custom tool's execute() via the bridge.
-    // The bridge emitter (now real, not noop) pushes toolcall_start + toolcall_delta.
-    // Then the SDK fires tool-call-started for the SAME callId → coordinator should dedup.
+    // Exactly ONE toolcall_start for this callId
+    const allToolcallStarts = events.filter((e) => e.type === "toolcall_start");
+    expect(allToolcallStarts.length).toBe(1);
+    // contentIndex must be valid (0), not -1
+    expect((allToolcallStarts[0] as AssistantMessageEvent & { contentIndex: number }).contentIndex).toBe(0);
+    // Name must be stripped of pi__ prefix
+    const toolBlock = (allToolcallStarts[0] as AssistantMessageEvent & { partial?: AssistantMessage }).partial?.content[0] as { type: string; name: string };
+    expect(toolBlock).toMatchObject({ type: "toolCall", name: "read_file" });
+
+    // At least one toolcall_delta
+    const deltas = events.filter((e) => e.type === "toolcall_delta");
+    expect(deltas.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // Case 8b: P2-c dedup — bridge execute + SDK tool-call-started for SAME callId
+  it("case 8b: P2-c — bridge execute + SDK tool-call-started same callId → still one toolcall_start", async () => {
+    const { fakeSession, deps, fireDelta, getCustomTools } = await createFakeDeps();
+    // Use real buildCustomTools
+    delete (deps as Record<string, unknown>).buildCustomTools;
+
+    // Use pi-ai Context.tools format
+    const contextTools = [
+      { name: "read_file", description: "Read", parameters: { type: "object", properties: { path: { type: "string" } } } },
+    ];
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [], tools: contextTools } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    await vi.waitFor(() => {
+      expect(getCustomTools()).toBeDefined();
+    });
+    // Extra tick for runPhase to reach the race point
+    await new Promise((r) => setTimeout(r, 20));
+
+    const customTools = getCustomTools()!;
+    const readTool = customTools["pi__read_file"];
+
+    // 1) Execute tool WITHOUT SDK started → bridgeToolStart creates block + emits start
+    const execPromise = readTool.execute({ path: "/tmp/x" }, { toolCallId: "tc_dedup" }).catch(() => {});
+
+    // 2) SDK ALSO fires tool-call-started for the SAME callId
     fireDelta({
       type: "tool-call-started",
-      callId: "tc_bridge",
+      callId: "tc_dedup",
       toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
     });
 
-    // The coordinator should have emitted toolcall_start from onDelta.
-    // Since the bridge emitter also calls markToolStarted before pushing,
-    // and the coordinator checks _toolContentIndex, there should be exactly ONE
-    // toolcall_start for this callId (from the coordinator, since markToolStarted
-    // was called before the delta arrived).
-    const toolcallStarts = events.filter((e) => e.type === "toolcall_start");
-    expect(toolcallStarts.length).toBe(1);
+    // Still exactly one toolcall_start
+    const allToolcallStarts = events.filter((e) => e.type === "toolcall_start");
+    expect(allToolcallStarts.length).toBe(1);
 
-    // Arm bridge and complete
-    fakeSession.bridge.pending("tc_bridge", "read_file", "{\"path\":\"/tmp/x\"}");
+    // Complete the call
     fireDelta({
       type: "tool-call-completed",
-      callId: "tc_bridge",
+      callId: "tc_dedup",
       toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
     });
 
     const result = await stream.result();
     expect(result.stopReason).toBe("toolUse");
 
-    // Verify exactly one toolcall_start per callId
-    const allToolcallStarts = events.filter((e) => e.type === "toolcall_start");
-    expect(allToolcallStarts.length).toBe(1);
-    // Verify toolcall_end was emitted
-    const toolcallEnds = events.filter((e) => e.type === "toolcall_end");
-    expect(toolcallEnds.length).toBe(1);
+    // Final check: still one toolcall_start, one toolcall_end
+    expect(events.filter((e) => e.type === "toolcall_start").length).toBe(1);
+    expect(events.filter((e) => e.type === "toolcall_end").length).toBe(1);
+
+    // Resolve the bridge pending so execPromise settles
+    fakeSession.bridge.resolveFromToolResults([{ toolCallId: "tc_dedup", text: "done" }]);
+    await execPromise;
   });
 
   // Case 7: P0 regression — multi-turn: second turn content is NOT empty

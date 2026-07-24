@@ -238,6 +238,23 @@ export class CursorSdkTurnCoordinator {
 
       case "tool-call-started": {
         const u = update as ToolCallStartedUpdate;
+        // P2-c real fix: if bridge emitter already started this callId,
+        // update name/args and emit a delta — do NOT re-emit toolcall_start.
+        if (this._toolContentIndex.has(u.callId)) {
+          const idx = this._toolContentIndex.get(u.callId)!;
+          const block = this._partial.content[idx] as ToolCall;
+          if (block) {
+            block.name = stripToolPrefix(u.toolCall.type);
+            if (u.toolCall.args) block.arguments = { ...u.toolCall.args };
+          }
+          this._push({
+            type: "toolcall_delta",
+            contentIndex: idx,
+            delta: JSON.stringify(u.toolCall.args),
+            partial: this._partial,
+          });
+          break;
+        }
         // Close any open text/thinking blocks before opening toolCall
         this._closeTextBlock();
         this._closeThinkingBlock();
@@ -303,7 +320,8 @@ export class CursorSdkTurnCoordinator {
         if (this._completedCalls.has(u.callId)) break;
 
         let idx = this._toolContentIndex.get(u.callId);
-        if (idx === undefined) {
+        if (idx === undefined || idx >= this._partial.content.length || !this._partial.content[idx]) {
+          // Lazy-create or re-create if block is missing
           idx = this._partial.content.length;
           this._toolContentIndex.set(u.callId, idx);
           this._partial.content.push({
@@ -401,11 +419,66 @@ export class CursorSdkTurnCoordinator {
    * Record a callId as already started WITHOUT emitting any events.
    * Used by the bridge emitter so the coordinator doesn't emit a duplicate
    * `toolcall_start` when it later receives `tool-call-started` for the same callId.
+   *
+   * @deprecated Use `bridgeToolStart` instead which creates the block + emits events.
    */
   markToolStarted(callId: string): void {
     if (!this._toolContentIndex.has(callId)) {
       this._toolContentIndex.set(callId, this._partial.content.length);
     }
+  }
+
+  // ─── bridgeToolStart (P2-c: coordinator-owned toolcall events) ─────────
+
+  /**
+   * Called by the tool-bridge emitter when a customTool's execute() fires
+   * (possibly without a preceding SDK tool-call-started delta).
+   *
+   * Idempotent per callId:
+   *   - If the SDK already started this call, just update args + emit a delta.
+   *   - Otherwise create the ToolCall block + emit toolcall_start + delta.
+   */
+  bridgeToolStart(callId: string, name: string, argsJson: string): void {
+    const cleanName = name.startsWith("pi__") ? name.slice(4) : name;
+    const parsedArgs = parseArgsJson(argsJson);
+    if (this._toolContentIndex.has(callId)) {
+      // Already started (by SDK delta or prior bridgeToolStart) — just emit delta
+      const idx = this._toolContentIndex.get(callId)!;
+      const block = this._partial.content[idx] as ToolCall;
+      if (block) {
+        if (cleanName) block.name = cleanName;
+        block.arguments = parsedArgs;
+      }
+      this._push({
+        type: "toolcall_delta",
+        contentIndex: idx,
+        delta: argsJson,
+        partial: this._partial,
+      } as AssistantMessageEvent);
+      return;
+    }
+    // New call — create ToolCall block + emit start + delta
+    this._closeTextBlock();
+    this._closeThinkingBlock();
+    const idx = this._partial.content.length;
+    this._partial.content.push({
+      type: "toolCall",
+      id: callId,
+      name: cleanName,
+      arguments: parsedArgs,
+    } as ToolCall);
+    this._toolContentIndex.set(callId, idx);
+    this._push({
+      type: "toolcall_start",
+      contentIndex: idx,
+      partial: this._partial,
+    } as AssistantMessageEvent);
+    this._push({
+      type: "toolcall_delta",
+      contentIndex: idx,
+      delta: argsJson,
+      partial: this._partial,
+    } as AssistantMessageEvent);
   }
 
   // ─── accessors ───────────────────────────────────────────────────────────
@@ -427,6 +500,18 @@ export class CursorSdkTurnCoordinator {
  */
 function stripToolPrefix(name: string): string {
   return name.replace(/^pi__/, "");
+}
+
+/**
+ * Safely parse a JSON string into a Record. Returns {} on failure.
+ */
+function parseArgsJson(json: string): Record<string, any> {
+  try {
+    const parsed = JSON.parse(json);
+    return typeof parsed === "object" && parsed !== null ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 /**

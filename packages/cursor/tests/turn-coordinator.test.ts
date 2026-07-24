@@ -286,12 +286,12 @@ describe("CursorSdkTurnCoordinator", () => {
     expect(coordinator.usage.inputTokens).toBeUndefined();
   });
 
-  // --- P2-c: markToolStarted prevents duplicate toolcall_start ---
-  it("markToolStarted prevents duplicate toolcall_start", () => {
-    // Pre-mark a callId as started (bridge emitter does this)
-    coordinator.markToolStarted("tc_dedup");
+  // --- P2-c: bridgeToolStart + tool-call-started → dedup (one toolcall_start) ---
+  it("bridgeToolStart + SDK tool-call-started → dedup (one toolcall_start)", () => {
+    // bridgeToolStart creates block + emits start + delta
+    coordinator.bridgeToolStart("tc_dedup", "read_file", '{"path":"/tmp/x"}');
 
-    // Now SDK fires tool-call-started for the same callId
+    // SDK fires tool-call-started for the same callId → should only emit delta
     coordinator.handleDelta({
       update: {
         type: "tool-call-started",
@@ -300,12 +300,110 @@ describe("CursorSdkTurnCoordinator", () => {
       },
     });
 
-    // Should have exactly ONE toolcall_start (the coordinator skipped its own)
+    // Should have exactly ONE toolcall_start (from bridgeToolStart)
     const starts = events.filter((e) => e.type === "toolcall_start");
     expect(starts.length).toBe(1);
 
-    // But toolcall_delta should still be emitted
+    // But toolcall_delta should be emitted (bridgeToolStart delta + SDK delta)
     const deltas = events.filter((e) => e.type === "toolcall_delta");
-    expect(deltas.length).toBeGreaterThanOrEqual(1);
+    expect(deltas.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // --- P2-c bridgeToolStart: creates block + emits start/delta ---
+  it("bridgeToolStart: creates ToolCall block at correct index + emits toolcall_start + toolcall_delta", () => {
+    coordinator.bridgeToolStart("bt1", "read_file", '{"path":"/x"}');
+
+    // partial.content should have a ToolCall block
+    expect(partial.content).toHaveLength(1);
+    const block = partial.content[0] as { type: string; id: string; name: string; arguments: Record<string, any> };
+    expect(block.type).toBe("toolCall");
+    expect(block.id).toBe("bt1");
+    expect(block.name).toBe("read_file");
+    expect(block.arguments).toEqual({ path: "/x" });
+
+    // Events: exactly one toolcall_start + one toolcall_delta
+    const starts = events.filter((e) => e.type === "toolcall_start");
+    const deltas = events.filter((e) => e.type === "toolcall_delta");
+    expect(starts).toHaveLength(1);
+    expect(deltas).toHaveLength(1);
+    expect((starts[0] as AssistantMessageEvent & { contentIndex: number }).contentIndex).toBe(0);
+  });
+
+  // --- P2-c bridgeToolStart: idempotent — second call for same callId only emits delta ---
+  it("bridgeToolStart: idempotent — second call only emits delta, not start", () => {
+    coordinator.bridgeToolStart("bt2", "read_file", '{"path":"/a"}');
+    coordinator.bridgeToolStart("bt2", "read_file", '{"path":"/b"}');
+
+    // Still exactly one ToolCall block
+    expect(partial.content).toHaveLength(1);
+    const block = partial.content[0] as { type: string; arguments: Record<string, any> };
+    expect(block.arguments).toEqual({ path: "/b" }); // updated args
+
+    const starts = events.filter((e) => e.type === "toolcall_start");
+    const deltas = events.filter((e) => e.type === "toolcall_delta");
+    expect(starts).toHaveLength(1);
+    expect(deltas).toHaveLength(2); // start delta + second delta
+  });
+
+  // --- P2-c bridgeToolStart: strips pi__ prefix ---
+  it("bridgeToolStart: strips pi__ prefix from tool name", () => {
+    coordinator.bridgeToolStart("bt3", "pi__read_file", '{"path":"/y"}');
+
+    const block = partial.content[0] as { type: string; name: string };
+    expect(block.name).toBe("read_file");
+  });
+
+  // --- P2-c: bridgeToolStart then SDK tool-call-started → still exactly one toolcall_start ---
+  it("bridgeToolStart then SDK tool-call-started → dedup (one toolcall_start)", () => {
+    coordinator.bridgeToolStart("bt4", "read_file", '{"path":"/z"}');
+
+    // SDK fires tool-call-started for the same callId
+    coordinator.handleDelta({
+      update: {
+        type: "tool-call-started",
+        callId: "bt4",
+        toolCall: { type: "pi__read_file", args: { path: "/z" } },
+      },
+    });
+
+    const starts = events.filter((e) => e.type === "toolcall_start");
+    expect(starts).toHaveLength(1); // STILL exactly one
+
+    // The block should have updated name from SDK (pi__ stripped)
+    const block = partial.content[0] as { type: string; name: string; arguments: Record<string, any> };
+    expect(block.name).toBe("read_file");
+  });
+
+  // --- P2-c: bridgeToolStart then tool-call-completed → no crash + toolcall_end ---
+  it("bridgeToolStart then tool-call-completed → no crash + toolcall_end emitted", () => {
+    coordinator.bridgeToolStart("bt5", "read_file", '{"path":"/w"}');
+
+    // SDK fires tool-call-completed — should not crash even though bridge started it
+    coordinator.handleDelta({
+      update: {
+        type: "tool-call-completed",
+        callId: "bt5",
+        toolCall: { type: "pi__read_file", args: { path: "/w" } },
+      },
+    });
+
+    const ends = events.filter((e) => e.type === "toolcall_end");
+    expect(ends).toHaveLength(1);
+    expect((ends[0] as AssistantMessageEvent & { toolCall?: { name: string } }).toolCall?.name).toBe("read_file");
+  });
+
+  // --- P3: pi__ prefix stripped in tool-call-started ---
+  it("P3: tool-call-started with pi__ prefix → partial name is stripped", () => {
+    coordinator.handleDelta({
+      update: {
+        type: "tool-call-started",
+        callId: "tc_pi",
+        toolCall: { type: "pi__read_file", args: { path: "/tmp/strip" } },
+      },
+    });
+
+    expect(partial.content).toHaveLength(1);
+    const block = partial.content[0] as { type: string; name: string };
+    expect(block.name).toBe("read_file");
   });
 });

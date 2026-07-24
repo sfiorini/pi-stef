@@ -145,26 +145,26 @@ function extractToolResults(
 }
 
 /**
- * Build a real ToolCallEmitter that pushes toolcall events to the stream.
+ * Create a ToolCallEmitter that delegates to the coordinator's bridgeToolStart.
  *
- * P2-c fix: the bridge emitter IS real (not noop) so custom tools that are
- * called WITHOUT a preceding SDK `tool-call-started` delta are visible to
- * pi's UI.  The coordinator's `markToolStarted` prevents duplicate
- * `toolcall_start` events when the SDK ALSO fires the delta.
+ * The coordinator is the SOLE owner of toolcall_start/delta events and content
+ * index management.  The bridge emitter just calls bridgeToolStart which is
+ * idempotent per callId: if the SDK already started the call, only a delta is
+ * emitted; otherwise the coordinator creates the ToolCall block + emits start.
+ *
+ * This eliminates the old contentIndex:-1 phantom-push bug and ensures exactly
+ * one toolcall_start per callId regardless of whether the bridge or SDK fires first.
  */
 function makeEmitter(
   session: SessionAgent,
 ): ToolCallEmitter {
   return {
-    start(id: string, _name: string, argsJson: string): void {
-      // Mark as started in the coordinator to prevent duplicate start
-      session.coordinator.markToolStarted(id);
-      // Push toolcall_start + initial delta to the stream
-      session.targetStream?.push({ type: "toolcall_start", contentIndex: -1, partial: session.partial });
-      session.targetStream?.push({ type: "toolcall_delta", contentIndex: -1, delta: argsJson, partial: session.partial });
+    start(id: string, name: string, argsJson: string): void {
+      session.coordinator.bridgeToolStart(id, name, argsJson);
     },
-    delta(_id: string, argsJson: string): void {
-      session.targetStream?.push({ type: "toolcall_delta", contentIndex: -1, delta: argsJson, partial: session.partial });
+    delta(id: string, argsJson: string): void {
+      // bridgeToolStart is idempotent — if already started, just emits delta
+      session.coordinator.bridgeToolStart(id, "", argsJson);
     },
   };
 }
