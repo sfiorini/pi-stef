@@ -2,7 +2,7 @@
  * API-key resolution for the Cursor provider.
  *
  * Three-source precedence:
- *  1. Stored `api_key` credential  (AuthStorage / readStoredCredential)
+ *  1. Stored `api_key` credential  (auth.json on disk)
  *  2. `CURSOR_API_KEY` env var
  *  3. Injected fallback
  *
@@ -34,13 +34,13 @@ export function resolveCursorApiKey(value: string | undefined): string | undefin
   return trimmed;
 }
 
-/** Credential shape returned by `readStoredCredential`. */
+/** Credential shape stored under the `cursor` key in auth.json. */
 interface StoredCredential {
   type: "api_key" | "oauth";
   key?: string;
 }
 
-/** Path to pi's auth.json (matches `readStoredCredential`'s default; consistent with model-cache). */
+/** Path to pi's auth.json (consistent with model-cache). */
 function authJsonPath(): string {
   // Overridable for tests (PI_CURSOR_AUTH_JSON_PATH); defaults to pi's auth.json.
   return process.env.PI_CURSOR_AUTH_JSON_PATH ?? join(homedir(), ".pi", "agent", "auth.json");
@@ -92,7 +92,7 @@ export interface ResolveApiKeyOptions {
  * Propagates reader errors.
  *
  * When called without options, uses sensible defaults:
- *   - readStoredCredential: AuthStorage lookup
+ *   - readStoredCredential: reads auth.json from disk
  *   - envApiKey: process.env.CURSOR_API_KEY
  *   - fallbackApiKey: none
  */
