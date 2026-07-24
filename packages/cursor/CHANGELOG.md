@@ -44,7 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - fix(cursor): ferry raw Connect bytes on read path; abort/cancel + h1 fixes (audit P0-P3)
 - fix(cursor): handle non-2xx HTTP statuses (audit P2, child-bridge parity)
 - chore(cursor): S-44 changelog 0.2.0 + version bump
-- docs(cursor): S-43 protocol.md + bridge-recovery.md for in-process transport
+- docs(cursor): S-43 protocol.md for in-process transport
 - docs(cursor): S-42 README transport model, env vars, OpenAI-compat rejection
 - feat(cursor): S-41 deprecate child bridge behind PI_CURSOR_TRANSPORT=child
 - feat(cursor): S-34 single auth-refresh retry on auth-classified close
