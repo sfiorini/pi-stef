@@ -1,54 +1,26 @@
 /**
  * Cursor Provider Extension for pi
  *
- * Provides access to Cursor models (Claude, GPT, Gemini, etc.) via:
- * 1. Browser-based PKCE OAuth login to Cursor
- * 2. Native Pi streamSimple provider translating Pi context → Cursor gRPC protocol
+ * Provides access to Cursor models via the @cursor/sdk local-agent mode
+ * with API-key authentication.
  *
  * Usage:
- *   /login cursor    — authenticate via browser
- *   /model           — select any Cursor model
+ *   /cursor-login <key>        — store an API key (from https://cursor.com/dashboard → API Keys)
+ *   /cursor-refresh-models     — re-discover models and notify
  *
- * Based on https://github.com/ephraimduncan/opencode-cursor by Ephraim Duncan.
+ * Legacy OAuth credentials are detected at startup and produce a migration warning.
  */
 
-import { AuthStorage, type ExtensionAPI, type ExtensionContext } from "@earendil-works/pi-coding-agent";
-import type { OAuthCredentials, OAuthLoginCallbacks } from "@earendil-works/pi-ai";
 import { appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join as pathJoin } from "node:path";
-import {
-  generateCursorAuthParams,
-  getCursorAccessTokenFromEnv,
-  getTokenExpiry,
-  pollCursorAuth,
-  refreshCursorToken,
-} from "./auth.js";
-import {
-  cleanupSessionState,
-  createCursorNativeStream,
-  getCursorAgentUrl,
-  getCursorModels,
-  getCursorParameterizedModels,
-  tokenCacheHash,
-} from "./proxy.js";
-import type {
-  CursorModel,
-  CursorModelRouting,
-  CursorParameterizedModel,
-  ProcessedModel,
-} from "./model-config.js";
-import {
-  FALLBACK_MODELS,
-  augmentCursorModels,
-  buildNoReasoningEffortLookup,
-  buildRawModelLookup,
-  modelConfig,
-  processModels,
-} from "./model-config.js";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { CursorModel } from "./model-config.js";
+import { FALLBACK_MODELS, modelConfig, processModels } from "./model-config.js";
 export * from "./model-config.js";
-import { readCachedCursorModels, writeCachedCursorModels } from "./model-cache.js";
+import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential } from "./api-key.js";
+import { streamCursorLazy } from "./sdk-stream.js";
 
 let extensionDebugLogFilePath: string | undefined;
 
@@ -268,52 +240,6 @@ function debugExtensionLog(event: string, data?: Record<string, unknown>): void 
 
 // ── Extension ──
 
-const CURSOR_PROVIDER_ID = "cursor";
-
-type StartupTokenSource = "env" | "pi_oauth" | "pi_oauth_refresh";
-
-async function getStoredCursorOAuthAccessToken(): Promise<
-  { accessToken: string; source: StartupTokenSource } | undefined
-> {
-  const authStorage = AuthStorage.create();
-  const credential = authStorage.get(CURSOR_PROVIDER_ID);
-  if (credential?.type !== "oauth") return undefined;
-
-  if (Date.now() < credential.expires && credential.access) {
-    return { accessToken: credential.access, source: "pi_oauth" };
-  }
-
-  const refreshed = await refreshCursorToken(credential.refresh);
-  authStorage.set(CURSOR_PROVIDER_ID, { type: "oauth", ...refreshed });
-  return { accessToken: refreshed.access, source: "pi_oauth_refresh" };
-}
-
-async function getStartupCursorAccessToken(): Promise<
-  { accessToken: string; source: StartupTokenSource } | undefined
-> {
-  const envToken = getCursorAccessTokenFromEnv();
-  if (envToken) return { accessToken: envToken, source: "env" };
-  return getStoredCursorOAuthAccessToken();
-}
-
-export function registerSessionLifecycleCleanup(pi: ExtensionAPI) {
-  const cleanupCurrentSession = (
-    _event: unknown,
-    ctx: ExtensionContext,
-  ) => {
-    debugExtensionLog("session.cleanup_hook", {
-      sessionId: ctx.sessionManager.getSessionId(),
-      leafId: ctx.sessionManager.getLeafId?.(),
-    });
-    cleanupSessionState(ctx.sessionManager.getSessionId());
-  };
-
-  pi.on("session_before_switch", cleanupCurrentSession);
-  pi.on("session_before_fork", cleanupCurrentSession);
-  pi.on("session_before_tree", cleanupCurrentSession);
-  pi.on("session_shutdown", cleanupCurrentSession);
-}
-
 function registerExtensionDebugHooks(pi: ExtensionAPI) {
   if (!isExtensionDebugEnabled()) return;
 
@@ -400,179 +326,58 @@ function registerExtensionDebugHooks(pi: ExtensionAPI) {
   });
 }
 
-export default async function (pi: ExtensionAPI) {
-  // Current access token, updated by login/refresh/getApiKey
-  let currentToken = "";
-  let noReasoningEffortByModelId = new Map<string, string>();
-  let rawModelByEffortByModelId = new Map<string, Record<string, CursorModelRouting>>();
-
-  const getAccessToken = async () => {
-    if (!currentToken) throw new Error("Not logged in to Cursor. Run /login cursor");
-    return currentToken;
-  };
-
-  const skipDedup = !!process.env.PI_CURSOR_RAW_MODELS;
-
-  registerSessionLifecycleCleanup(pi);
-  registerExtensionDebugHooks(pi);
-  debugExtensionLog("extension.start", {
-    mode: "native-streamSimple",
-    debugLogFile: isExtensionDebugEnabled() ? getExtensionDebugLogFilePath() : undefined,
+function register(pi: ExtensionAPI, rawModels: CursorModel[]) {
+  const processed = processModels(rawModels);
+  pi.registerProvider("cursor", {
+    api: "cursor-sdk",
+    apiKey: CURSOR_API_KEY_CONFIG_VALUE,
+    streamSimple: streamCursorLazy,
+    models: processed.map(modelConfig),
   });
+}
 
-  const startupModels = await discoverStartupModels();
-  register(pi, startupModels.rawModels, startupModels.parameterizedModels);
+export default async function (pi: ExtensionAPI) {
+  registerExtensionDebugHooks(pi);
 
-  async function discoverStartupModels(): Promise<{
-    rawModels: CursorModel[];
-    parameterizedModels: CursorParameterizedModel[];
-  }> {
-    const cachedFallback = ():
-      | { rawModels: CursorModel[]; parameterizedModels: CursorParameterizedModel[] }
-      | null => {
-      const cached = readCachedCursorModels();
-      if (!cached) return null;
-      return { rawModels: cached.rawModels, parameterizedModels: cached.parameterizedModels };
-    };
-
-    if (process.env.PI_OFFLINE) return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
-
-    let startupToken: { accessToken: string; source: StartupTokenSource } | undefined;
-    try {
-      startupToken = await getStartupCursorAccessToken();
-    } catch (err) {
-      debugExtensionLog("model_discovery.startup.token_failed", {
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    if (!startupToken) {
-      debugExtensionLog("model_discovery.startup.skipped", { reason: "no_cursor_oauth_token" });
-      return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
-    }
-
-    try {
-      currentToken = startupToken.accessToken;
-      const [discovered, parameterized] = await Promise.all([
-        getCursorModels(startupToken.accessToken),
-        getCursorParameterizedModels(startupToken.accessToken),
-      ]);
-      debugExtensionLog("model_discovery.startup", {
-        tokenSource: startupToken.source,
-        discoveredCount: discovered.length,
-        parameterizedCount: parameterized.length,
-      });
-      if (discovered.length > 0 || parameterized.length > 0) {
-        writeCachedCursorModels(
-          discovered.length > 0 ? discovered : FALLBACK_MODELS,
-          parameterized,
-          tokenCacheHash(startupToken.accessToken),
+  // Detect legacy OAuth credential — fire-and-forget migration warning
+  detectLegacyOAuthCredential(async () => {
+    const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
+    return AuthStorage.create().get("cursor") as { type: "api_key" | "oauth"; key?: string } | undefined;
+  })
+    .then((legacy) => {
+      if (legacy)
+        console.warn(
+          "[cursor] Legacy OAuth credential found; no longer used. Create an API key at https://cursor.com/dashboard → API Keys and run /cursor-login <key>, or set CURSOR_API_KEY.",
         );
-        return {
-          rawModels: discovered.length > 0 ? discovered : FALLBACK_MODELS,
-          parameterizedModels: parameterized,
-        };
-      }
-    } catch (err) {
-      debugExtensionLog("model_discovery.startup.failed", {
-        tokenSource: startupToken.source,
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
+    })
+    .catch(() => {});
 
-    return cachedFallback() ?? { rawModels: FALLBACK_MODELS, parameterizedModels: [] };
-  }
+  register(pi, FALLBACK_MODELS);
 
-  function register(
-    pi: ExtensionAPI,
-    rawModels: CursorModel[],
-    parameterizedModels: CursorParameterizedModel[] = [],
-  ) {
-    const augmentedModels = augmentCursorModels(rawModels, parameterizedModels);
-    const processed = skipDedup
-      ? augmentedModels.map((m) => ({ ...m, supportsEffort: false }) as ProcessedModel)
-      : processModels(augmentedModels);
-    noReasoningEffortByModelId = buildNoReasoningEffortLookup(processed);
-    rawModelByEffortByModelId = buildRawModelLookup(processed);
+  // Register slash commands
+  if (typeof (pi as unknown as Record<string, unknown>).registerCommand === "function") {
+    pi.registerCommand("cursor-login", {
+      description: "Store a Cursor API key. Usage: /cursor-login <key>",
+      handler: async (args: string, ctx) => {
+        const key = args.trim();
+        if (!key) {
+          ctx?.ui?.notify?.(
+            "Usage: /cursor-login <key> — get a key from https://cursor.com/dashboard → API Keys",
+            "warning",
+          );
+          return;
+        }
+        const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
+        AuthStorage.create().set("cursor", { type: "api_key", key });
+        ctx?.ui?.notify?.("Cursor API key stored.", "info");
+      },
+    });
 
-    pi.registerProvider("cursor", {
-      baseUrl: getCursorAgentUrl(),
-      api: "cursor-native",
-      streamSimple: createCursorNativeStream({
-        getAccessToken,
-        getNoReasoningEffortByModelId: () => noReasoningEffortByModelId,
-        getRawModelRoutingByModelId: () => rawModelByEffortByModelId,
-        // S-34: refresh a silently-expired access token and retry the turn once.
-        // Throws when there is no refresh token (env-token mode) so the original
-        // auth error surfaces.
-        refreshAccessToken: async (): Promise<string> => {
-          const authStorage = AuthStorage.create();
-          const credential = authStorage.get(CURSOR_PROVIDER_ID);
-          if (credential?.type !== "oauth" || !credential.refresh) {
-            throw new Error("No Cursor refresh token available to retry");
-          }
-          const refreshed = await refreshCursorToken(credential.refresh);
-          currentToken = refreshed.access;
-          authStorage.set(CURSOR_PROVIDER_ID, { type: "oauth", ...refreshed });
-          return refreshed.access;
-        },
-      }),
-      models: processed.map(modelConfig),
-      oauth: {
-        name: "Cursor",
-
-        async login(callbacks: OAuthLoginCallbacks): Promise<OAuthCredentials> {
-          const { verifier, uuid, loginUrl } = await generateCursorAuthParams();
-          callbacks.onAuth({ url: loginUrl });
-          const { accessToken, refreshToken } = await pollCursorAuth(uuid, verifier);
-          currentToken = accessToken;
-
-          // Discover real models and re-register
-          const [discovered, parameterized] = await Promise.all([
-            getCursorModels(accessToken),
-            getCursorParameterizedModels(accessToken),
-          ]);
-          if (discovered.length > 0 || parameterized.length > 0) {
-            register(pi, discovered.length > 0 ? discovered : FALLBACK_MODELS, parameterized);
-            writeCachedCursorModels(
-              discovered.length > 0 ? discovered : FALLBACK_MODELS,
-              parameterized,
-              tokenCacheHash(accessToken),
-            );
-          }
-
-          return {
-            refresh: refreshToken,
-            access: accessToken,
-            expires: getTokenExpiry(accessToken),
-          };
-        },
-
-        async refreshToken(credentials: OAuthCredentials): Promise<OAuthCredentials> {
-          const refreshed = await refreshCursorToken(credentials.refresh);
-          currentToken = refreshed.access;
-
-          // Discover real models on refresh too
-          const [discovered, parameterized] = await Promise.all([
-            getCursorModels(refreshed.access),
-            getCursorParameterizedModels(refreshed.access),
-          ]);
-          if (discovered.length > 0 || parameterized.length > 0) {
-            register(pi, discovered.length > 0 ? discovered : FALLBACK_MODELS, parameterized);
-            writeCachedCursorModels(
-              discovered.length > 0 ? discovered : FALLBACK_MODELS,
-              parameterized,
-              tokenCacheHash(refreshed.access),
-            );
-          }
-
-          return refreshed as OAuthCredentials;
-        },
-
-        getApiKey(credentials: OAuthCredentials): string {
-          currentToken = credentials.access;
-          return "cursor-native";
-        },
+    pi.registerCommand("cursor-refresh-models", {
+      description: "Re-discover Cursor models. Usage: /cursor-refresh-models",
+      handler: async (_args: string, ctx) => {
+        // Wired in S-33 — for now just notify
+        ctx?.ui?.notify?.("Model refresh is not yet wired (S-33).", "info");
       },
     });
   }

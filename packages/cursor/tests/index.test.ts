@@ -1,19 +1,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createCursorAuthClient } from "../src/auth";
 import { parseModelId } from "../src/index";
-import {
-  buildCursorRequest,
-  getCursorAgentUrl,
-  getCursorModels,
-  resolveRequestedModelId,
-  setBridgeFactoryForTests,
-  stopProxy,
-  __testInternals,
-} from "../src/proxy";
 
 const packageRoot = new URL("..", import.meta.url).pathname;
 
@@ -22,32 +11,19 @@ function readJson<T>(relativePath: string): T {
 }
 
 describe("cursor-provider package metadata", () => {
-  it("limits runtime dependencies and records catalog metadata", () => {
+  it("has @cursor/sdk as a dependency and no @bufbuild/protobuf", () => {
     const pkg = readJson<{
       dependencies?: Record<string, string>;
       peerDependencies?: Record<string, string>;
       pi?: { extensions?: string[] };
     }>("package.json");
 
-    expect(pkg.dependencies).toHaveProperty("@bufbuild/protobuf");
+    expect(pkg.dependencies).toHaveProperty("@cursor/sdk");
     expect(pkg.peerDependencies).toMatchObject({
       "@earendil-works/pi-ai": "*",
       "@earendil-works/pi-coding-agent": "*",
     });
     expect(pkg.pi?.extensions).toEqual(["./extensions"]);
-  });
-});
-
-describe("cursor agent endpoint", () => {
-  afterEach(() => {
-    delete process.env.PI_CURSOR_AGENT_URL;
-    delete process.env.CURSOR_AGENT_URL;
-  });
-
-  it("allows an explicit Cursor agent endpoint override", () => {
-    process.env.PI_CURSOR_AGENT_URL = "https://agentn.us.api5.cursor.sh/";
-
-    expect(getCursorAgentUrl()).toBe("https://agentn.us.api5.cursor.sh");
   });
 });
 
@@ -66,183 +42,69 @@ describe("cursor model routing", () => {
       thinking: false,
     });
   });
-
-  it("does not synthesize reasoning-effort suffixes for exact non-effort Cursor models", () => {
-    expect(
-      __testInternals.resolveNativeReasoningEffort(
-        {
-          id: "gemini-3.1-pro",
-          compat: { supportsReasoningEffort: false },
-        } as any,
-        { reasoning: "high" } as any,
-      ),
-    ).toBeUndefined();
-  });
-
-  it("maps reasoning effort only for Cursor models that advertise effort support", () => {
-    expect(
-      __testInternals.resolveNativeReasoningEffort(
-        {
-          id: "claude-4.6-sonnet",
-          compat: { supportsReasoningEffort: true },
-          thinkingLevelMap: { high: "medium" },
-        } as any,
-        { reasoning: "high" } as any,
-      ),
-    ).toBe("medium");
-  });
-
-  it("resolves requestedModel routing for max and parameterized Cursor models", () => {
-    expect(
-      resolveRequestedModelId(
-        {
-          id: "gpt-5.5-max-fast",
-          name: "GPT-5.5 Max Fast",
-          api: "cursor-native",
-          provider: "cursor",
-          baseUrl: "https://api2.cursor.sh",
-          reasoning: true,
-          input: ["text"],
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-          contextWindow: 272_000,
-          maxTokens: 64_000,
-        },
-        "high",
-        new Map([
-          [
-            "gpt-5.5-max-fast",
-            {
-              high: {
-                modelId: "gpt-5.5",
-                parameters: [
-                  { id: "context", value: "272k" },
-                  { id: "fast", value: "true" },
-                  { id: "reasoning", value: "high" },
-                ],
-                requestedMaxMode: true,
-              },
-            },
-          ],
-        ]),
-      ),
-    ).toMatchObject({
-      modelId: "gpt-5.5",
-      maxMode: true,
-      parameters: expect.arrayContaining([
-        { id: "context", value: "272k" },
-        { id: "fast", value: "true" },
-        { id: "reasoning", value: "high" },
-      ]),
-    });
-  });
 });
 
-describe("cursor request construction", () => {
-  it("preserves Pi system prompt text and inline image context", () => {
-    const request = buildCursorRequest({
-      conversationId: "conv-1",
-      modelId: "composer-2",
-      systemPrompt: "Pi docs live under ~/.pi/agent/docs.",
-      turns: [
-        {
-          userText: "What is in this image?",
-          images: [
-            {
-              data: Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).toString("base64"),
-              mimeType: "image/png",
-            },
-          ],
-          steps: [],
-        },
-      ],
-      checkpoint: null,
-      existingBlobStore: new Map(),
-    });
-
-    expect(request.blobStore.size).toBeGreaterThan(0);
-    expect(__testInternals.decodeRequestForTests(request.requestBody).systemPrompt).toContain(
-      "Pi docs live under ~/.pi/agent/docs.",
-    );
-    expect(__testInternals.decodeRequestForTests(request.requestBody).selectedImages).toHaveLength(1);
+describe("cursor provider registration", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
   });
-});
 
-describe("cursor OAuth test seams", () => {
-  it("uses injected fetch, sleep, and PKCE generation for login polling", async () => {
-    const calls: string[] = [];
-    const auth = createCursorAuthClient({
-      fetch: async (url) => {
-        calls.push(String(url));
-        return new Response(
-          JSON.stringify({
-            accessToken: "header.eyJleHAiOjQxMDI0NDQ4MDB9.signature",
-            refreshToken: "refresh-token",
-          }),
-          { status: 200 },
-        );
+  it("registers a cursor provider with sentinel apiKey, cursor-sdk api, and non-empty models", async () => {
+    // Mock the peer dep so the default export can import AuthStorage
+    vi.doMock("@earendil-works/pi-coding-agent", () => ({
+      AuthStorage: {
+        create: () => ({
+          get: () => undefined,
+          set: () => {},
+        }),
       },
-      generatePkce: async () => ({
-        challenge: "fixed-challenge",
-        uuid: "fixed-uuid",
-        verifier: "fixed-verifier",
-      }),
-      sleep: async () => {},
-    });
-    const authUrls: string[] = [];
+    }));
 
-    const result = await auth.login({
-      onAuth: ({ url }) => {
-        authUrls.push(url);
+    const registerProvider = vi.fn();
+    const registerCommand = vi.fn();
+    const fakePi = {
+      registerProvider,
+      registerCommand,
+    } as unknown as Parameters<typeof import("../src/index").default>[0];
+
+    const mod = await import("../src/index");
+    await mod.default(fakePi);
+
+    expect(registerProvider).toHaveBeenCalledTimes(1);
+    const [providerId, config] = registerProvider.mock.calls[0];
+    expect(providerId).toBe("cursor");
+    expect(config.api).toBe("cursor-sdk");
+    expect(config.apiKey).toBe("pi-stef-cursor-api-key-placeholder");
+    expect(typeof config.streamSimple).toBe("function");
+    expect(Array.isArray(config.models)).toBe(true);
+    expect(config.models.length).toBeGreaterThan(0);
+  });
+
+  it("registers cursor-login and cursor-refresh-models commands", async () => {
+    vi.doMock("@earendil-works/pi-coding-agent", () => ({
+      AuthStorage: {
+        create: () => ({
+          get: () => undefined,
+          set: () => {},
+        }),
       },
-    });
+    }));
 
-    expect(authUrls[0]).toContain("fixed-challenge");
-    expect(calls[0]).toContain("uuid=fixed-uuid");
-    expect(calls[0]).toContain("verifier=fixed-verifier");
-    expect(result.refresh).toBe("refresh-token");
-  });
+    const registerProvider = vi.fn();
+    const registerCommand = vi.fn();
+    const fakePi = {
+      registerProvider,
+      registerCommand,
+    } as unknown as Parameters<typeof import("../src/index").default>[0];
 
-  it("redacts token-like values in debug summaries", () => {
-    expect(__testInternals.redactForDebug("CURSOR_ACCESS_TOKEN=secret-token-value")).toContain("[redacted");
-  });
-});
+    const mod = await import("../src/index");
+    await mod.default(fakePi);
 
-describe("model discovery timeout", () => {
-  it("getCursorModels uses a 15s discovery timeout (not the 5s RPC default)", async () => {
-    vi.useFakeTimers();
-    let closeCb: ((code: number) => void) | null = null;
-    setBridgeFactoryForTests(
-      () =>
-        ({
-          proc: { kill: () => { closeCb?.(1); return true; } },
-          get alive() { return true; },
-          lastError: null,
-          write: () => {},
-          end: () => {},
-          onData: () => {},
-          onClose: (cb: (code: number) => void) => { closeCb = cb; },
-        }) as never,
+    const cmdNames = registerCommand.mock.calls.map(
+      (c: unknown[]) => c[0] as string,
     );
-
-    const uniqueToken = `tok_timeout_${Date.now()}_${Math.random()}`;
-    const p = getCursorModels(uniqueToken);
-    let resolved = false;
-    let result: unknown = undefined;
-    p.then((r) => { resolved = true; result = r; });
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(resolved).toBe(false);
-
-    await vi.advanceTimersByTimeAsync(10_000);
-    await Promise.resolve();
-    expect(resolved).toBe(true);
-    expect(result).toEqual([]);
-
-    vi.useRealTimers();
+    expect(cmdNames).toContain("cursor-login");
+    expect(cmdNames).toContain("cursor-refresh-models");
   });
-});
-
-afterEach(() => {
-  stopProxy();
-  setBridgeFactoryForTests();
 });
