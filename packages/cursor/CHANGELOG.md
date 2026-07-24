@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-23
+### Breaking — Transport
+- Replaced the reverse-engineered protobuf/HTTP2 bridge with the official `@cursor/sdk` local-agent mode. Resolves chronic mid-conversation disconnections.
+
+### Breaking — Auth
+- Replaced browser OAuth PKCE login with API-key auth. Run `/cursor-login <key>` (key from cursor.com/dashboard → API Keys) or set `CURSOR_API_KEY`. Old OAuth credentials are not migrated.
+
+### Breaking — Removed env vars
+- Removed `PI_CURSOR_TRANSPORT`, `PI_CURSOR_STREAM_IDLE_TIMEOUT_MS`, `PI_CURSOR_STREAM_IDLE_MAX_RETRIES`, `PI_CURSOR_RESUME_IDLE_TIMEOUT_MS`, `CURSOR_ACCESS_TOKEN`, `PI_CURSOR_CLIENT_VERSION`, `PI_CURSOR_AGENT_URL`, `CURSOR_AGENT_URL`.
+
+### Breaking — `api` field
+- Changed `"cursor-native"` → `"cursor-sdk"`.
+
+### Breaking — Node
+- Requires Node ≥22.14.
+
+### Added
+- Model discovery via `Cursor.models.list` with a 24h disk cache (`~/.pi/agent/cursor-sdk-model-list.json`); agent pooling with SDK `enableAgentRetries`; cross-turn tool-call continuity via in-process `customTools`.
+
+### Removed
+- Deleted `auth.ts`, `bridge.ts`, `h2-bridge.mjs`, `connect-transport.ts`, `cursor-wire.ts`, `cursor-request-headers.ts`, `transport-errors.ts`, `proto/agent_pb.ts`, and the stream idle watchdog.
+
 ## [0.2.4] - 2026-07-23
 ### Changed
 - chore(cursor): keep version at 0.2.3 (pnpm release will bump); move fix note under [Unreleased]
