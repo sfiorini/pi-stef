@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/cursor",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Cursor AI editor as a native Pi stream provider — @cursor/sdk local-agent mode, API-key auth",
   "type": "module",
   "license": "MIT",
