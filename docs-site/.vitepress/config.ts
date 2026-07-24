@@ -33,6 +33,7 @@ export default defineConfig({
           { text: "azure-foundry", link: "/packages/azure-foundry" },
           { text: "catalog", link: "/packages/catalog" },
           { text: "cursor", link: "/packages/cursor" },
+          { text: "Cursor Migration", link: "/packages/cursor-migration" },
           { text: "flow", link: "/packages/flow" },
           { text: "pair (deprecated)", link: "/packages/pair" },
           { text: "team (deprecated)", link: "/packages/team" },
