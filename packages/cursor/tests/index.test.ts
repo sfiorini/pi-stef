@@ -106,6 +106,7 @@ describe("cursor provider registration", () => {
     const [providerId, config] = registerProvider.mock.calls[0];
     expect(providerId).toBe("cursor");
     expect(config.api).toBe("cursor-sdk");
+    expect(config.baseUrl).toBe("https://api.cursor.com");
     expect(config.apiKey).toBe("pi-stef-cursor-api-key-placeholder");
     expect(typeof config.streamSimple).toBe("function");
     expect(Array.isArray(config.models)).toBe(true);

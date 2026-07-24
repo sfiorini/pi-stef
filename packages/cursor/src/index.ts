@@ -327,11 +327,16 @@ function registerExtensionDebugHooks(pi: ExtensionAPI) {
   });
 }
 
+/** Cursor public API base. The @cursor/sdk routes internally; pi requires `baseUrl`
+ * on providers that declare custom models (it's metadata on each Model object). */
+const CURSOR_API_BASE_URL = "https://api.cursor.com";
+
 function register(pi: ExtensionAPI, rawItems: ModelListItem[]) {
   const cursorModels = mapModelListItems(rawItems);
   const processed = processModels(cursorModels.length ? cursorModels : FALLBACK_MODELS);
   pi.registerProvider("cursor", {
     api: "cursor-sdk",
+    baseUrl: CURSOR_API_BASE_URL,
     apiKey: CURSOR_API_KEY_CONFIG_VALUE,
     streamSimple: streamCursorLazy,
     models: processed.map(modelConfig),
