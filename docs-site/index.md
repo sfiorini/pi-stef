@@ -44,7 +44,7 @@ features:
     link: /packages/atlassian
   - icon: 🖥️
     title: Cursor Provider
-    details: Use Cursor's AI models (Claude, GPT, Gemini, Grok) as native Pi providers with OAuth login and protobuf protocol
+    details: Use Cursor's AI models (Claude, GPT, Gemini, Grok) as native Pi providers with API key authentication and the @cursor/sdk
     link: /packages/cursor
   - icon: ☁️
     title: Azure Foundry

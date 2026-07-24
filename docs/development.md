@@ -17,6 +17,7 @@ pi-stef/
 │   ├── team/              # Team of role-agents for plan/review/implement
 │   ├── agent-workflows/   # Workflow engine primitives (internal)
 │   ├── atlassian/         # Jira and Confluence integration
+│   ├── cursor/            # Cursor AI editor as a native Pi stream provider (@cursor/sdk)
 │   ├── figma/             # Figma REST API tools
 │   ├── paths/             # Shared path conventions
 │   └── web/               # Web search, URL fetch, browser automation
