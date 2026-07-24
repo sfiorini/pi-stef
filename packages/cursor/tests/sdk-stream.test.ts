@@ -1,3 +1,4 @@
+process.env.PI_CURSOR_AUTH_JSON_PATH ??= "/tmp/pi-stef-cursor-test-noauth.json";
 import { describe, expect, it, vi } from "vitest";
 import { streamCursor, streamCursorLazy } from "../src/sdk-stream";
 import type {

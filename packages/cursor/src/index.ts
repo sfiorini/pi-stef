@@ -15,11 +15,11 @@ import { appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join as pathJoin } from "node:path";
-import { AuthStorage, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ModelListItem } from "./model-cache.js";
 import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels } from "./model-config.js";
 export * from "./model-config.js";
-import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential } from "./api-key.js";
+import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential, writeCursorApiKey } from "./api-key.js";
 import { streamCursorLazy } from "./sdk-stream.js";
 import { disposeAllSessionAgents } from "./session-agent.js";
 
@@ -365,9 +365,7 @@ export default async function (pi: ExtensionAPI) {
   registerSessionLifecycleCleanup(pi);
 
   // Detect legacy OAuth credential — fire-and-forget migration warning
-  detectLegacyOAuthCredential(async () => {
-    return AuthStorage.create().get("cursor") as { type: "api_key" | "oauth"; key?: string } | undefined;
-  })
+  detectLegacyOAuthCredential()
     .then((legacy) => {
       if (legacy)
         console.warn(
@@ -398,7 +396,7 @@ export default async function (pi: ExtensionAPI) {
           );
           return;
         }
-        AuthStorage.create().set("cursor", { type: "api_key", key });
+        writeCursorApiKey(key);
         ctx?.ui?.notify?.("Cursor API key stored.", "info");
       },
     });
