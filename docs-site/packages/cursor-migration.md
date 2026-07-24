@@ -1,6 +1,6 @@
-# Cursor Migration Guide (0.2.x → 0.3.0)
+# Cursor Migration Guide (0.2.x → 1.0.0)
 
-Version 0.3.0 is a **breaking release** that replaces the reverse-engineered protobuf/HTTP2 bridge with the official `@cursor/sdk` local-agent mode. This guide covers everything you need to update.
+Version 1.0.0 is a **breaking release** that replaces the reverse-engineered protobuf/HTTP2 bridge with the official `@cursor/sdk` local-agent mode. This guide covers everything you need to update.
 
 ## Breaking Changes
 
@@ -14,7 +14,7 @@ The browser-based OAuth login flow has been replaced with API key authentication
 # Opens browser → OAuth authorize → tokens stored
 ```
 
-**After (0.3.0):**
+**After (1.0.0):**
 ```sh
 # Option A: environment variable
 export CURSOR_API_KEY=crsr_…
@@ -60,7 +60,7 @@ The following environment variables are no longer used and should be removed fro
 
 ## Kept Environment Variables
 
-These variables continue to work in 0.3.0:
+These variables continue to work in 1.0.0:
 
 | Variable | Description |
 |---|---|
@@ -70,7 +70,7 @@ These variables continue to work in 0.3.0:
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | Override the model cache TTL |
 | `PI_CURSOR_PROVIDER_DEBUG` | Enable debug logging |
 
-## New Features in 0.3.0
+## New Features in 1.0.0
 
 - **Model discovery via SDK** — Uses `Cursor.models.list` with a 24-hour disk cache. Models are automatically discovered after API key authentication.
 - **Agent pooling** — Agents are pooled and reused across turns for the same model/key combination, improving performance.
@@ -84,5 +84,5 @@ These variables continue to work in 0.3.0:
 3. [ ] Set `CURSOR_API_KEY` or run `/cursor-login <key>` in Pi
 4. [ ] Remove deprecated environment variables from your shell profile
 5. [ ] Update any config references from `api: "cursor-native"` to `api: "cursor-sdk"`
-6. [ ] Update `@pi-stef/cursor` to `^0.3.0` and run `pi install`
+6. [ ] Update `@pi-stef/cursor` to `^1.0.0` and run `pi install`
 7. [ ] Run `/cursor-refresh-models` to rebuild the model cache with your new key

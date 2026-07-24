@@ -9,6 +9,8 @@
  * Also provides legacy OAuth credential detection for migration warnings.
  */
 
+import { AuthStorage } from "@earendil-works/pi-coding-agent";
+
 /** Env-var name for the Cursor API key. */
 export const CURSOR_API_KEY_ENV_VAR = "CURSOR_API_KEY";
 
@@ -39,7 +41,6 @@ interface StoredCredential {
 /** Default reader that checks AuthStorage at runtime. */
 async function defaultReadStoredCredential(): Promise<StoredCredential | undefined> {
   try {
-    const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
     return AuthStorage.create().get("cursor") as StoredCredential | undefined;
   } catch {
     return undefined;

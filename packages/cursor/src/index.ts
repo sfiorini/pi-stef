@@ -15,7 +15,7 @@ import { appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join as pathJoin } from "node:path";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { AuthStorage, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ModelListItem } from "./model-cache.js";
 import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels } from "./model-config.js";
 export * from "./model-config.js";
@@ -366,7 +366,6 @@ export default async function (pi: ExtensionAPI) {
 
   // Detect legacy OAuth credential — fire-and-forget migration warning
   detectLegacyOAuthCredential(async () => {
-    const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
     return AuthStorage.create().get("cursor") as { type: "api_key" | "oauth"; key?: string } | undefined;
   })
     .then((legacy) => {
@@ -399,7 +398,6 @@ export default async function (pi: ExtensionAPI) {
           );
           return;
         }
-        const { AuthStorage } = await import("@earendil-works/pi-coding-agent");
         AuthStorage.create().set("cursor", { type: "api_key", key });
         ctx?.ui?.notify?.("Cursor API key stored.", "info");
       },
