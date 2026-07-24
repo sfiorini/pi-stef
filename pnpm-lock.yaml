@@ -195,7 +195,10 @@ importers:
     dependencies:
       '@bufbuild/protobuf':
         specifier: ^2.0.0
-        version: 2.12.0
+        version: 2.13.0
+      '@cursor/sdk':
+        specifier: ^1.0.24
+        version: 1.0.24
       '@earendil-works/pi-ai':
         specifier: '*'
         version: 0.76.0(ws@8.21.0)(zod@4.4.3)
@@ -728,12 +731,33 @@ packages:
     resolution: {integrity: sha512-ctxtJ/eA+t+6q2++vj5j7FYX3nRu311q1wfYH3xjlLOsczhlhxAg2FWNUXhpGvAw3BWo1xBcvOV6/YLc2r5FJw==}
     hasBin: true
 
-  '@bufbuild/protobuf@2.12.0':
-    resolution: {integrity: sha512-B/XlCaFIP8LOwzo+bz5uFzATYokcwCKQcghqnlfwSmM5eX/qTkvDBnDPs+gXtX/RyjxJ4DRikECcPJbyALA8FA==}
+  '@bufbuild/protobuf@1.10.0':
+    resolution: {integrity: sha512-QDdVFLoN93Zjg36NoQPZfsVH9tZew7wKDKyV5qRdj8ntT4wQCOradQjRaTdwMhWUYsgKsvCINKKm87FdEk96Ag==}
+
+  '@bufbuild/protobuf@2.13.0':
+    resolution: {integrity: sha512-acq7c49vxfm1ggJ95P70TX7ABDM0vxr1SYD3BB0o0jnBLB4OAqeHyKuN+cD3w80gXEDQ2zxHpR6CUeA+O/aU9g==}
 
   '@colors/colors@1.5.0':
     resolution: {integrity: sha512-ooWCrlZP11i8GImSjTHYHLkvFDP48nS4+204nGb1RiX/WXYHmJA2III9/e2DWVabCESdW7hBAEzHRqUn9OUVvQ==}
     engines: {node: '>=0.1.90'}
+
+  '@connectrpc/connect-node@1.7.0':
+    resolution: {integrity: sha512-6vaPIkG/NyhxlYgytLoR9KYbPhczEboFB2OYWkA9qvUz1K7efXfeGrlRxoLtpa+r8VxyIOw73w5ktNe743nD+A==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+      '@connectrpc/connect': 1.7.0
+
+  '@connectrpc/connect-web@1.7.0':
+    resolution: {integrity: sha512-qyP0YOnUPRWwCc/VfsoydMJvkb7EyUPr2q9sHgBuJzbADjiqck1gKH5V5ZPzPhTLBvmz5UvG+wiZ5sMRQHU1MQ==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
+      '@connectrpc/connect': 1.7.0
+
+  '@connectrpc/connect@1.7.0':
+    resolution: {integrity: sha512-iNKdJRi69YP3mq6AePRT8F/HrxWCewrhxnLMNm0vpqXAR8biwzRtO6Hjx80C6UvtKJ5sFmffQT7I4Baecz389w==}
+    peerDependencies:
+      '@bufbuild/protobuf': ^1.10.0
 
   '@csstools/color-helpers@6.0.2':
     resolution: {integrity: sha512-LMGQLS9EuADloEFkcTBR3BwV/CGHV7zyDxVRtVDTwdI2Ca4it0CCVTT9wCkxSgokjE5Ho41hEPgb8OEUwoXr6Q==}
@@ -770,6 +794,40 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
+
+  '@cursor/sdk-darwin-arm64@1.0.24':
+    resolution: {integrity: sha512-0RIjcm2CFLuu0N/GnQ3G+8UGIQKv9jEgVkLr2gGjVoEN5UfwA6G3eLO/U6SfnMdFNkftJ9j/efcCHuS/OFPuNA==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-darwin-x64@1.0.24':
+    resolution: {integrity: sha512-BmD1hbV0SCIRv9FGIhoM4XgCbWdcVGpjiPXUiIlGaYDM9ZXpmit6x9tx2iSGUIIc7ytpIYsQaSBEUsSQsNl7wQ==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@cursor/sdk-linux-arm64@1.0.24':
+    resolution: {integrity: sha512-zCZcHwKPopqeXEsja2EmsV6En3hAhd3alnCfKbiYZdE9XQAaTza0XFji7a4uRjKGitlQ0JDIYHRIJg/2nvTkrQ==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-linux-x64@1.0.24':
+    resolution: {integrity: sha512-pK80OM4CSB0G8ModhRhb85+FYEROmK8nad6Lj8LDZngQ1ZgJi/nrdgUuHykOtza7T00D14x9Q2l0pwf/ybXxog==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@cursor/sdk-win32-x64@1.0.24':
+    resolution: {integrity: sha512-vU4ossYSuw0adCK0ssZvwCeT6dmdBR29EMdHrB9G89SzIJ9xpodkKKjDL0aN5dEwy7wOKyUJIjprfw/A4U8F5A==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
+
+  '@cursor/sdk@1.0.24':
+    resolution: {integrity: sha512-pHoVRSiyBMTFBMjhAihvzXbiJSFNs63dULE+11jzCX/s1a7/I7Zp0cC4jWRw1ykckEPcho8QiEEgSR3qBRmDBw==}
+    engines: {node: '>=22.13'}
 
   '@docsearch/css@3.8.2':
     resolution: {integrity: sha512-y05ayQFyUmCXze79+56v/4HpycYF3uFqB78pLPrSV5ZKAlDuIAAJNhaRi8tTdRNXh05yxX/TyNnzD6LwSM89vQ==}
@@ -1130,6 +1188,10 @@ packages:
   '@faker-js/faker@5.5.3':
     resolution: {integrity: sha512-R11tGE6yIFwqpaIqcfkcg7AICXzFg14+5h5v0TfF/9+RMDL6jhzCy/pxHVOfbALGdtVYdt6JdR21tuxEgl34dw==}
     deprecated: Please update to a newer version.
+
+  '@fastify/busboy@2.1.1':
+    resolution: {integrity: sha512-vBZP4NlzfOlerQTnba4aqZoMhE/a9HY7HRqoOPaETQcSQuWEIyZMHGfVu6w9wGtGK5fED5qRs2DteVCjOH60sA==}
+    engines: {node: '>=14'}
 
   '@google/genai@1.52.0':
     resolution: {integrity: sha512-gwSvbpiN/17O9TbsqSsE/OzZcpv5Fo4RQjdngGgogtuB9RsyJ8ZHhX5KjHj1bp5N9snN2eK8LDGXSaWW2hof8Q==}
@@ -1710,6 +1772,12 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@statsig/client-core@3.31.0':
+    resolution: {integrity: sha512-SuxQD6TmVszPG7FoMKwTk/uyBuVFk7XnxI3T/E0uyb7PL7GNjONtfsoh+NqBBVUJVse0CUeSFfgJPoZy1ZOslQ==}
+
+  '@statsig/js-client@3.31.0':
+    resolution: {integrity: sha512-LFa5E0LjT6sTfZv3sNGoyRLSZ1078+agdgOA+Vm1ecjG+KbSOfBLTW7hMwimrJ29slRwbYDzbtKaPJo/R37N2g==}
 
   '@tintinweb/pi-subagents@0.10.3':
     resolution: {integrity: sha512-7kxb/UEng5SefTcvNUZYCgOPkZ8HUeK7N3O0pL7xh6Wi9l4mXp/6cQ6eUO904bKjcpS6gyujyFtejV88I0Y9TA==}
@@ -3237,6 +3305,10 @@ packages:
   undici-types@7.26.0:
     resolution: {integrity: sha512-OY7qWYg4TsPpqg/kL2FfNnGA8cmAhPpLt45XQ2jd8p9UobYQ7Q09LeiCq5QwZhlKNLBj0iTUlBNhs4M2AVFmxA==}
 
+  undici@5.29.0:
+    resolution: {integrity: sha512-raqeBD6NQK4SkWhQzeYKd1KmIG6dllBOTt55Rmkt4HtI9mwdWtJljnrXjAFUBLTSN67HWrOIZ3EPF4kjUw80Bg==}
+    engines: {node: '>=14.0'}
+
   undici@7.26.0:
     resolution: {integrity: sha512-3O9Tf67pGhgOv9jM35AbhkXAKi13f3oy3aE4CSgr+TckGeY+/iu97ZXN+J7DpHPzLbVApFd1IFhcnBjREYXYcg==}
     engines: {node: '>=20.18.1'}
@@ -3940,10 +4012,27 @@ snapshots:
     dependencies:
       css-tree: 3.2.1
 
-  '@bufbuild/protobuf@2.12.0': {}
+  '@bufbuild/protobuf@1.10.0': {}
+
+  '@bufbuild/protobuf@2.13.0': {}
 
   '@colors/colors@1.5.0':
     optional: true
+
+  '@connectrpc/connect-node@1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      undici: 5.29.0
+
+  '@connectrpc/connect-web@1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+
+  '@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0)':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
 
   '@csstools/color-helpers@6.0.2': {}
 
@@ -3968,6 +4057,36 @@ snapshots:
       css-tree: 3.2.1
 
   '@csstools/css-tokenizer@4.0.0': {}
+
+  '@cursor/sdk-darwin-arm64@1.0.24':
+    optional: true
+
+  '@cursor/sdk-darwin-x64@1.0.24':
+    optional: true
+
+  '@cursor/sdk-linux-arm64@1.0.24':
+    optional: true
+
+  '@cursor/sdk-linux-x64@1.0.24':
+    optional: true
+
+  '@cursor/sdk-win32-x64@1.0.24':
+    optional: true
+
+  '@cursor/sdk@1.0.24':
+    dependencies:
+      '@bufbuild/protobuf': 1.10.0
+      '@connectrpc/connect': 1.7.0(@bufbuild/protobuf@1.10.0)
+      '@connectrpc/connect-node': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@connectrpc/connect-web': 1.7.0(@bufbuild/protobuf@1.10.0)(@connectrpc/connect@1.7.0(@bufbuild/protobuf@1.10.0))
+      '@statsig/js-client': 3.31.0
+      zod: 3.25.76
+    optionalDependencies:
+      '@cursor/sdk-darwin-arm64': 1.0.24
+      '@cursor/sdk-darwin-x64': 1.0.24
+      '@cursor/sdk-linux-arm64': 1.0.24
+      '@cursor/sdk-linux-x64': 1.0.24
+      '@cursor/sdk-win32-x64': 1.0.24
 
   '@docsearch/css@3.8.2': {}
 
@@ -4292,6 +4411,8 @@ snapshots:
   '@exodus/schemasafe@1.3.0': {}
 
   '@faker-js/faker@5.5.3': {}
+
+  '@fastify/busboy@2.1.1': {}
 
   '@google/genai@1.52.0':
     dependencies:
@@ -4864,6 +4985,12 @@ snapshots:
       tslib: 2.8.1
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@statsig/client-core@3.31.0': {}
+
+  '@statsig/js-client@3.31.0':
+    dependencies:
+      '@statsig/client-core': 3.31.0
 
   '@tintinweb/pi-subagents@0.10.3(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-tui@0.76.0)':
     dependencies:
@@ -6548,6 +6675,10 @@ snapshots:
   undici-types@6.21.0: {}
 
   undici-types@7.26.0: {}
+
+  undici@5.29.0:
+    dependencies:
+      '@fastify/busboy': 2.1.1
 
   undici@7.26.0: {}
 

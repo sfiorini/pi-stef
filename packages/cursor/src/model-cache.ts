@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 
-import type { CursorModel, CursorParameterizedModel } from "./proxy.js";
+import type { CursorModel, CursorParameterizedModel } from "./model-config.js";
 
 /**
  * Persisted model-discovery cache. Lets Cursor survive restarts with a fresh
