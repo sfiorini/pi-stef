@@ -183,6 +183,7 @@ The extension syncs data from any providers configured on the service (plus Snap
 - [SnapTrade](./finance-api-snaptrade) — live brokerage aggregation (30+ brokers)
 - [SimpleFIN](./finance-api-simplefin) — live banking data (balances + transactions)
 - [File Import](./finance-api-file-import) — manual CSV/OFX uploads
+- [Coinbase](./finance-api-coinbase) — crypto wallets (server-side CDP API key; balances + holdings + trade fills)
 
 > **Cross-provider deduplication is not supported yet.** If the same account surfaces through two providers, it appears as two separate accounts. Use one provider per account for now.
 

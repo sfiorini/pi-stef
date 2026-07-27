@@ -79,7 +79,7 @@ Triggers a data sync: ingest from providers, refresh prices, recompute suggestio
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `provider` | string | no | Provider ID to sync (e.g. `snaptrade`, `simplefin`). Omit to sync **all** providers. |
+| `provider` | string | no | Provider ID to sync (e.g. `snaptrade`, `simplefin`, `coinbase`). Omit to sync **all** providers. |
 
 Behavior:
 - **No `provider` arg** → syncs all providers. If `providers.snaptrade` and/or `providers.simplefin` are configured, their credentials are attached so they run alongside any server-side providers.
@@ -87,6 +87,7 @@ Behavior:
 - **`provider: "snaptrade"` but no key configured** → sends the scoped request with no credentials; the server skips SnapTrade (silent no-op).
 - **`provider: "simplefin"`** → syncs **only** SimpleFIN, attaching your `setupToken` or `accessUrl`.
 - **`provider: "simplefin"` but no creds configured** → scoped request with no credentials; the server skips SimpleFIN (silent no-op).
+- **`provider: "coinbase"`** → syncs **only** Coinbase. Coinbase is server-side (CDP API key in the server's `secrets.json`), so no client credentials are attached; see the [Coinbase guide](https://sfiorini.github.io/pi-stef/packages/finance-api-coinbase.html).
 
 > **SimpleFIN auto-persist:** On the first sync with a `setupToken`, the server exchanges it for an `accessUrl` and returns it in the response. The extension automatically writes the `accessUrl` to `config.json`, replacing the `setupToken`. You never need to manually update the config after the first sync.
 
