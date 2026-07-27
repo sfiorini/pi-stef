@@ -11,3 +11,4 @@ docs-site/.vitepress/dist/
 .claude/
 **/tsconfig.tsbuildinfo
 .worktrees
+.pi/
