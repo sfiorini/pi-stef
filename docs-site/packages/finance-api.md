@@ -74,7 +74,7 @@ Working providers in this release do **not** use the server's `secrets.json`:
 - **SimpleFIN** — credentials live in the **client's** `config.json` and are sent per-request. See the [SimpleFIN guide](./finance-api-simplefin).
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is for server-side providers. [Coinbase](./finance-api-coinbase) uses server-side CDP API keys; Teller remains a stub.
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is for server-side providers. [Coinbase](./finance-api-coinbase) uses server-side CDP API keys.
 
 ## Providers
 
@@ -86,7 +86,6 @@ Providers are **co-equal** — enable any combination, and multiple providers ru
 | [Coinbase](./finance-api-coinbase) | crypto | ✅ Working |
 | [SnapTrade](./finance-api-snaptrade) | brokerage | ✅ Working |
 | [SimpleFIN](./finance-api-simplefin) | banking | ✅ Working |
-| Teller | banking | ⚠️ Stub |
 
 > **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers, it appears as two separate accounts — there is no merge logic today. Use one provider per account for now.
 

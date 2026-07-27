@@ -87,7 +87,7 @@ Working providers in this release do **not** use the server's `secrets.json`:
 - **SimpleFIN** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SimpleFIN setup](#simplefin-setup) below.
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is for server-side providers. Coinbase uses server-side CDP API keys (see the [Coinbase guide](https://sfiorini.github.io/pi-stef/packages/finance-api-coinbase.html)); Teller remains a stub:
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is for server-side providers. Coinbase uses server-side CDP API keys (see the [Coinbase guide](https://sfiorini.github.io/pi-stef/packages/finance-api-coinbase.html)):
 
 ```json
 {
@@ -110,7 +110,6 @@ Each provider's required credentials are documented under [Providers](#providers
 | Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ✅ Working (CDP ES256 JWT) |
 | SnapTrade | brokerage | `clientId` + `consumerKey` (in client `config.json`, passed per-request) | ✅ Working |
 | SimpleFIN | banking | `setupToken` → `accessUrl` (in client `config.json`, auto-persisted after first sync) | ✅ Working |
-| Teller | banking | `token` (in `secrets.json`) | ⚠️ Stub |
 
 **Provider setup:**
 
@@ -122,7 +121,7 @@ Providers are **co-equal** — you can enable any combination, and multiple prov
 
 > **⚠️ Cross-provider deduplication is not supported yet.** If the same real-world account surfaces through two providers (e.g. imported via CSV *and* synced via SnapTrade), it appears as **two separate accounts** — there is no mechanism today to recognize and merge them. This is tracked for a future release. For now, use one provider per account to avoid double-counting.
 
-**SimpleFIN / Teller** — Teller is a stub. SimpleFIN is a working provider — see [SimpleFIN setup](#simplefin-setup) below.
+**SimpleFIN** — SimpleFIN is a working provider — see [SimpleFIN setup](#simplefin-setup) below.
 
 ### SnapTrade setup
 
