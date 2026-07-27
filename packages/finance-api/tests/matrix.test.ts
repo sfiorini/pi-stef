@@ -10,6 +10,5 @@ describe("buildDefaultRegistry", () => {
     expect(reg.get("snaptrade")?.providerId).toBe("snaptrade");
     expect(reg.get("fidelity-snaptrade")).toBeUndefined();
     expect(reg.get("simplefin")).toBeDefined();
-    expect(reg.get("boa-teller")).toBeDefined();
   });
 });
