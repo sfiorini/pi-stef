@@ -1,24 +1,51 @@
+import { SignJWT } from "jose";
+import { createPrivateKey, randomBytes } from "node:crypto";
 import type { ProviderAdapter, Credentials, Session, RawAccount, RawHolding, RawTxn, RawBalance } from "../contract";
 
-const BASE = "https://api.coinbase.com/api/v3/brokerage";
+const API_PATH = "/api/v3/brokerage";
+const BASE = "https://api.coinbase.com" + API_PATH;
+const HOST = "api.coinbase.com";
+const STABLE = new Set(["USD", "USDC", "USDT", "DAI", "EUR", "GBP"]);
+export const MAX_FILL_PAGES = 50;
 
-interface FetchLike { (url: string, init?: RequestInit): Promise<Response> }
-
+interface CoinbaseAccount {
+  uuid?: string; name?: string; currency?: string; type?: string;
+  available_balance?: { value?: string; currency?: string };
+}
+export interface Fill {
+  entry_id?: string; trade_id?: string; trade_time?: string; side?: string;
+  size?: string; price?: string; commission?: string; product_id?: string;
+}
+export interface FetchLike { (url: string, init?: RequestInit): Promise<Response> }
 export interface CoinbaseDeps { fetcher?: FetchLike; now?: () => number }
+
+function isStable(c?: string): boolean { return STABLE.has((c ?? "").toUpperCase()); }
+export function isFiat(a?: CoinbaseAccount): boolean { return a?.type === "ACCOUNT_TYPE_FIAT" || isStable(a?.currency); }
+export function baseOfProductId(p?: string): string { return String(p ?? "").split("-")[0]; }
 
 export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter {
   const fetcher = deps.fetcher ?? ((url: string, init?: RequestInit) => fetch(url, init));
   const now = deps.now ?? (() => Date.now());
+  const accountCache = new WeakMap<object, CoinbaseAccount[]>();
 
-  async function signedRequest(creds: Credentials, path: string): Promise<unknown> {
-    const timestamp = Math.floor(now() / 1000).toString();
-    // Real signing uses HMAC-SHA256 over timestamp+method+path+body with privateKey.
-    // This stub passes keyName as CB-ACCESS-KEY; full HMAC signing added when wiring real creds.
-    const res = await fetcher(`${BASE}${path}`, {
-      headers: {
-        "CB-ACCESS-KEY": creds.keyName,
-        "CB-ACCESS-TIMESTAMP": timestamp,
-      },
+  async function mintJwt(creds: Credentials, method: string, path: string): Promise<string> {
+    const sec = Math.floor(now() / 1000);
+    const key = createPrivateKey({ key: creds.privateKey, format: "pem" });
+    const nonce = randomBytes(16).toString("hex");
+    return new SignJWT({ iss: "cdp", sub: creds.keyName, uris: [`${method} ${HOST}${API_PATH}${path}`] })
+      .setProtectedHeader({ alg: "ES256", kid: creds.keyName, typ: "JWT", nonce })
+      .setIssuedAt(sec)
+      .setNotBefore(sec)
+      .setExpirationTime(sec + 120)
+      .sign(key);
+  }
+
+  async function request(creds: Credentials, method: string, path: string, query?: Record<string, string>): Promise<unknown> {
+    const jwt = await mintJwt(creds, method, path);
+    const qs = query && Object.keys(query).length ? "?" + new URLSearchParams(query) : "";
+    const res = await fetcher(BASE + path + qs, {
+      method,
+      headers: { Authorization: `Bearer ${jwt}`, Accept: "application/json" },
     });
     if (!res.ok) throw new Error(`coinbase ${path} ${res.status}`);
     return res.json();
@@ -30,15 +57,12 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       if (!creds.keyName || !creds.privateKey) throw new Error("coinbase requires keyName + privateKey");
       return { providerId: "coinbase", creds };
     },
-    listAccounts: async (_s: Session): Promise<RawAccount[]> => [{ providerAccountId: "spot", kind: "crypto", name: "Coinbase Spot", currency: "USD" }],
-    getHoldings: async (s: Session): Promise<RawHolding[]> => {
-      const creds = s.creds ?? {};  // creds attached to Session by runIngest (see contract.ts Session.creds)
-      const body = (await signedRequest(creds, "/accounts")) as { accounts?: { currency: string; available_balance?: { value: string } }[] };
-      return (body.accounts ?? [])
-        .filter((a) => a.currency !== "USD")
-        .map((a) => ({ symbol: a.currency, quantity: Number(a.available_balance?.value ?? "0"), assetClass: "crypto" }));
+    listAccounts: async (_s: Session): Promise<RawAccount[]> => {
+      void request; void accountCache;
+      return [];
     },
-    getTransactions: async (): Promise<RawTxn[]> => [],
-    getBalances: async (): Promise<RawBalance> => ({ cash: 0, marketValue: 0, asOf: now() }),
+    getHoldings: async (_s: Session, _accountId: string): Promise<RawHolding[]> => [],
+    getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
+    getBalances: async (_s: Session, _accountId: string): Promise<RawBalance> => ({ cash: 0, marketValue: 0, asOf: now() }),
   };
 }
