@@ -95,3 +95,56 @@ describe("coinbase adapter — listAccounts (JWT + pagination)", () => {
     await expect(adapter.listAccounts(session)).rejects.toThrow("/accounts 500");
   });
 });
+
+describe("coinbase adapter — getHoldings", () => {
+  it("BTC crypto holding (cache miss fetches /accounts/a1)", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/a1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1.5" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const holdings = await adapter.getHoldings(session, "a1");
+    expect(holdings).toEqual([
+      { symbol: "BTC", quantity: 1.5, assetClass: "crypto", cashEquivalent: false },
+    ]);
+    expect((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toContain("/accounts/a1");
+  });
+
+  it("USDC cashEquivalent is true", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/u1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "u1", currency: "USDC", available_balance: { value: "100" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const holdings = await adapter.getHoldings(session, "u1");
+    expect(holdings).toEqual([
+      { symbol: "USDC", quantity: 100, assetClass: "crypto", cashEquivalent: true },
+    ]);
+  });
+
+  it("cache hit avoids extra fetch", async () => {
+    const listResponse = {
+      accounts: [{ uuid: "a1", name: "BTC Wallet", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "2" } }],
+      has_next: false, cursor: "",
+    };
+    const fetcher = mockFetcher(listResponse);
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    (fetcher as unknown as ReturnType<typeof vi.fn>).mockClear();
+    const holdings = await adapter.getHoldings(session, "a1");
+    expect(holdings).toHaveLength(1);
+    expect(holdings[0].symbol).toBe("BTC");
+    expect((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+  });
+});

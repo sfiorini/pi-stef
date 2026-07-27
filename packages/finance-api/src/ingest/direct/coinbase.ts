@@ -51,6 +51,14 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
     return res.json();
   }
 
+  async function resolveAccount(s: Session, accountId: string): Promise<CoinbaseAccount | undefined> {
+    const cached = accountCache.get(s)?.find((a) => a.uuid === accountId);
+    if (cached) return cached;
+    const creds = s.creds ?? {};
+    const body = (await request(creds, "GET", `/accounts/${accountId}`)) as { account?: CoinbaseAccount };
+    return body.account;
+  }
+
   return {
     kind: "crypto", providerId: "coinbase",
     authenticate: async (creds: Credentials): Promise<Session> => {
@@ -78,7 +86,13 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
         currency: a.currency ?? "",
       }));
     },
-    getHoldings: async (_s: Session, _accountId: string): Promise<RawHolding[]> => [],
+    getHoldings: async (s: Session, accountId: string): Promise<RawHolding[]> => {
+      const acct = await resolveAccount(s, accountId);
+      if (!acct) return [];
+      const symbol = acct.currency ?? "";
+      const qty = Math.abs(Number(acct.available_balance?.value ?? "0"));
+      return [{ symbol, quantity: qty, assetClass: "crypto", cashEquivalent: isStable(symbol) }];
+    },
     getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
     getBalances: async (_s: Session, _accountId: string): Promise<RawBalance> => ({ cash: 0, marketValue: 0, asOf: now() }),
   };
