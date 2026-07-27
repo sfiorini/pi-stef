@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-27
+### Changed
+- chore(finance-api): coinbase P3 audit fixes — docs key-format, account-pages cap, has_next+empty-cursor test
+- docs(finance-api): ultra-detailed Coinbase docs + sidebar + README sync (S-M71/S-M72/S-M73)
+- fix(finance-api): drop /spot from Coinbase v3 market URL (S-M61)
+- feat(finance-api): coinbase M5 — getTransactions via fills + integration test (S-M51/S-M52/S-M53)
+- feat(finance-api): getBalances fiat cash via resolveAccount + isFiat (S-M41)
+- feat(finance-api): getHoldings price lookup for non-stablecoins via /market/products (S-M32)
+- feat(finance-api): resolveAccount helper + per-uuid getHoldings with stable cashEquivalent (S-M31)
+- feat(finance-api): listAccounts cursor pagination + WeakMap cache + JWT auth tests (S-M21)
+- feat(finance-api): coinbase skeleton — ES256 JWT mintJwt/request/authenticate, stubs for listAccounts/getHoldings/getTransactions/getBalances (S-M12)
+- feat(finance-api): add jose dependency for ES256 JWT auth (S-M11)
+
+
 ## [0.4.0] - 2026-07-19
 ### Changed
 - fix(docs): remove SimpleFIN from secrets.json stubs paragraph
