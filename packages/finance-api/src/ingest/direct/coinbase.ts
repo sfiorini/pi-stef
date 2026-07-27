@@ -103,6 +103,10 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       return [holding];
     },
     getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
-    getBalances: async (_s: Session, _accountId: string): Promise<RawBalance> => ({ cash: 0, marketValue: 0, asOf: now() }),
+    getBalances: async (s: Session, accountId: string): Promise<RawBalance> => {
+      const acct = await resolveAccount(s, accountId);
+      const cash = acct && isFiat(acct) ? Number(acct.available_balance?.value ?? 0) : 0;
+      return { cash, marketValue: 0, asOf: now() };
+    },
   };
 }

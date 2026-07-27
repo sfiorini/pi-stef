@@ -198,3 +198,35 @@ describe("coinbase adapter — getHoldings", () => {
     expect(holdings[0]).not.toHaveProperty("price");
   });
 });
+
+describe("coinbase adapter — getBalances", () => {
+  it("fiat USD cash=500.25 with injectable now", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/usd1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "usd1", currency: "USD", type: "ACCOUNT_TYPE_FIAT", available_balance: { value: "500.25" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher, now: () => 12345 });
+    const session = await adapter.authenticate(CREDS);
+    const balance = await adapter.getBalances(session, "usd1");
+    expect(balance).toEqual({ cash: 500.25, marketValue: 0, asOf: 12345 });
+  });
+
+  it("crypto BTC cash=0", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/a1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1.5" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const balance = await adapter.getBalances(session, "a1");
+    expect(balance).toEqual({ cash: 0, marketValue: 0, asOf: expect.any(Number) });
+  });
+});
