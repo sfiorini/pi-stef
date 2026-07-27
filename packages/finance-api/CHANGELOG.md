@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+
+## [0.5.1] - 2026-07-27
+### Changed
+- docs(finance-api): remove Teller references from README, docs-site, and CHANGELOG (S-M21/S-M22/S-M23)
+- chore(finance-api): remove Teller adapter stub, test, and registry wiring (S-M11)
+
 ### Removed
 - chore(finance-api): remove Teller provider stub and all code/docs references (not pursuing Teller)
 
