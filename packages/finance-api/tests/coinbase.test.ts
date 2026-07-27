@@ -132,12 +132,17 @@ describe("coinbase adapter — getHoldings", () => {
     ]);
   });
 
-  it("cache hit avoids extra fetch", async () => {
+  it("cache hit avoids extra account fetch (price fetch still happens)", async () => {
     const listResponse = {
       accounts: [{ uuid: "a1", name: "BTC Wallet", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "2" } }],
       has_next: false, cursor: "",
     };
-    const fetcher = mockFetcher(listResponse);
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/market/products/BTC-USD")) {
+        return new Response(JSON.stringify({ price: "50000" }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as FetchLike;
     const adapter = createCoinbaseAdapter({ fetcher });
     const session = await adapter.authenticate(CREDS);
     await adapter.listAccounts(session);
@@ -145,6 +150,51 @@ describe("coinbase adapter — getHoldings", () => {
     const holdings = await adapter.getHoldings(session, "a1");
     expect(holdings).toHaveLength(1);
     expect(holdings[0].symbol).toBe("BTC");
-    expect((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(0);
+    // Only the price fetch should happen; no /accounts/a1 fetch (cache hit)
+    const calls = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls as [string, RequestInit][];
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0]).toContain("/market/products/BTC-USD");
+    expect(calls[0][0]).not.toContain("/accounts/a1");
+  });
+
+  it("price attached for non-stablecoin (BTC 64000)", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/a1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/market/products/BTC-USD")) {
+        return new Response(JSON.stringify({ price: "64000" }),
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const holdings = await adapter.getHoldings(session, "a1");
+    expect(holdings).toEqual([
+      { symbol: "BTC", quantity: 1, assetClass: "crypto", cashEquivalent: false, price: 64000 },
+    ]);
+  });
+
+  it("price omitted on 404 (non-fatal)", async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/accounts/a1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/market/products/BTC-USD")) {
+        return new Response("Not Found", { status: 404 });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const holdings = await adapter.getHoldings(session, "a1");
+    expect(holdings).toHaveLength(1);
+    expect(holdings[0].symbol).toBe("BTC");
+    expect(holdings[0]).not.toHaveProperty("price");
   });
 });

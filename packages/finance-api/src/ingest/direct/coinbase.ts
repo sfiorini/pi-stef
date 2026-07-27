@@ -91,7 +91,16 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       if (!acct) return [];
       const symbol = acct.currency ?? "";
       const qty = Math.abs(Number(acct.available_balance?.value ?? "0"));
-      return [{ symbol, quantity: qty, assetClass: "crypto", cashEquivalent: isStable(symbol) }];
+      const holding: RawHolding = { symbol, quantity: qty, assetClass: "crypto", cashEquivalent: isStable(symbol) };
+      if (!isStable(symbol)) {
+        try {
+          const creds = s.creds ?? {};
+          const body = (await request(creds, "GET", `/market/products/${symbol}-USD`)) as { price?: string };
+          const p = Number(body.price);
+          if (Number.isFinite(p)) holding.price = p;
+        } catch { /* non-fatal: value.ts:27 cascade falls back to avg_cost/0 */ }
+      }
+      return [holding];
     },
     getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
     getBalances: async (_s: Session, _accountId: string): Promise<RawBalance> => ({ cash: 0, marketValue: 0, asOf: now() }),
