@@ -57,9 +57,26 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       if (!creds.keyName || !creds.privateKey) throw new Error("coinbase requires keyName + privateKey");
       return { providerId: "coinbase", creds };
     },
-    listAccounts: async (_s: Session): Promise<RawAccount[]> => {
-      void request; void accountCache;
-      return [];
+    listAccounts: async (s: Session): Promise<RawAccount[]> => {
+      const creds = s.creds ?? {};
+      const out: CoinbaseAccount[] = [];
+      let cursor: string | undefined;
+      for (;;) {
+        const query: Record<string, string> = { limit: "250" };
+        if (cursor) query.cursor = cursor;
+        const body = (await request(creds, "GET", "/accounts", query)) as
+          { accounts?: CoinbaseAccount[]; has_next?: boolean; cursor?: string };
+        out.push(...(body.accounts ?? []));
+        if (!body.has_next || !body.cursor) break;
+        cursor = body.cursor;
+      }
+      accountCache.set(s, out);
+      return out.map((a) => ({
+        providerAccountId: String(a.uuid ?? ""),
+        kind: "crypto" as const,
+        name: a.name ?? "Coinbase " + (a.currency ?? "Wallet"),
+        currency: a.currency ?? "",
+      }));
     },
     getHoldings: async (_s: Session, _accountId: string): Promise<RawHolding[]> => [],
     getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
