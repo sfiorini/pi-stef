@@ -8,10 +8,13 @@ describe("fetchClose", () => {
     const close = await fetchClose("AAPL", { fetcher: fetcher as never, feed: "stooq" });
     expect(close).toBe(1.9);
   });
-  it("crypto symbol uses Coinbase ticker", async () => {
+  it("crypto symbol uses Coinbase ticker (no /spot)", async () => {
     const fetcher = vi.fn(async () => new Response(JSON.stringify({ price: "65000" }), { status: 200, headers: { "content-type": "application/json" } }));
     const close = await fetchClose("CRYPTO:BTC", { fetcher: fetcher as never });
     expect(close).toBe(65000);
-    expect((fetcher.mock.calls[0] as string[])[0]).toContain("coinbase.com");
+    const url = (fetcher.mock.calls[0] as string[])[0];
+    expect(url).toBe("https://api.coinbase.com/api/v3/brokerage/market/products/BTC-USD");
+    expect(url).not.toContain("/spot");
+    expect(url).toContain("coinbase.com");
   });
 });

@@ -7,7 +7,7 @@ export async function fetchClose(symbol: string, deps: PriceDeps = {}): Promise<
 
   if (symbol.startsWith(CRYPTO_PREFIX)) {
     const coin = symbol.slice(CRYPTO_PREFIX.length);
-    const res = await fetcher(`https://api.coinbase.com/api/v3/brokerage/market/products/${coin}-USD/spot`, {});
+    const res = await fetcher(`https://api.coinbase.com/api/v3/brokerage/market/products/${coin}-USD`, {});
     if (!res.ok) throw new Error(`coinbase price ${symbol} ${res.status}`);
     const body = (await res.json()) as { price: string };
     return Number(body.price);
