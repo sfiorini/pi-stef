@@ -102,7 +102,48 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       }
       return [holding];
     },
-    getTransactions: async (_s: Session, _accountId: string, _since?: number): Promise<RawTxn[]> => [],
+    // LIMITATION: CDP v3 keys expose ONLY trade fills via /orders/historical/fills.
+    // Deposits, withdrawals, staking rewards, conversions, and receive/send are NOT
+    // available through CDP API keys (they require the v2 OAuth2 path, which CDP keys
+    // cannot satisfy). getTransactions therefore returns trade history only.
+    // proof_token_required === true (EU SCA): v1 does NOT implement proof tokens; we
+    // return whatever fills were returned (likely []). See docs (finance-api-coinbase).
+    getTransactions: async (s: Session, accountId: string, since?: number): Promise<RawTxn[]> => {
+      const acct = await resolveAccount(s, accountId);
+      if (!acct || isFiat(acct)) return [];
+      const creds = s.creds ?? {};
+      const currency = acct.currency ?? "";
+      const out: RawTxn[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < MAX_FILL_PAGES; page++) {
+        const query: Record<string, string> = { limit: "100" };
+        if (typeof since === "number") query.start_sequence_timestamp = new Date(since).toISOString();
+        if (cursor) query.cursor = cursor;
+        const body = (await request(creds, "GET", "/orders/historical/fills", query)) as
+          { fills?: Fill[]; cursor?: string; proof_token_required?: boolean };
+        const fills = body.fills ?? [];
+        for (const f of fills.filter((x) => baseOfProductId(x.product_id) === currency)) {
+          const d = Date.parse(f.trade_time ?? "");
+          if (!Number.isFinite(d)) continue;
+          if (typeof since === "number" && d < since) continue;   // client-side since-filter: correctness regardless of server param
+          const size = Number(f.size ?? "");
+          const price = Number(f.price ?? "");
+          if (!Number.isFinite(size) || !Number.isFinite(price)) continue;
+          out.push({
+            id: String(f.entry_id ?? f.trade_id ?? ""),
+            date: d,
+            symbol: baseOfProductId(f.product_id),
+            qty: Math.abs(size),
+            price,
+            fees: Number(f.commission ?? "0"),
+            type: f.side === "BUY" ? "credit" : "debit",
+          });
+        }
+        if (!body.cursor || !fills.length) break;   // no has_next on fills; guard + cap
+        cursor = body.cursor;
+      }
+      return out;
+    },
     getBalances: async (s: Session, accountId: string): Promise<RawBalance> => {
       const acct = await resolveAccount(s, accountId);
       const cash = acct && isFiat(acct) ? Number(acct.available_balance?.value ?? 0) : 0;

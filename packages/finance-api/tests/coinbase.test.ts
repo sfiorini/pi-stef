@@ -4,6 +4,9 @@ import { decodeJwt, decodeProtectedHeader } from "jose";
 import { createCoinbaseAdapter } from "../src/ingest/direct/coinbase";
 import type { FetchLike } from "../src/ingest/direct/coinbase";
 import type { Credentials } from "../src/ingest/contract";
+import { openDb } from "../src/store/db";
+import { runIngest, type AdapterRegistry } from "../src/ingest/registry";
+import { listTransactions, getBalance } from "../src/store/repo";
 
 // Hermetic P-256 key for offline ES256 JWT signing. Generated per test-run.
 const TEST_PRIVATE_KEY = generateKeyPairSync("ec", { namedCurve: "P-256" })
@@ -228,5 +231,223 @@ describe("coinbase adapter — getBalances", () => {
     const session = await adapter.authenticate(CREDS);
     const balance = await adapter.getBalances(session, "a1");
     expect(balance).toEqual({ cash: 0, marketValue: 0, asOf: expect.any(Number) });
+  });
+});
+
+describe("coinbase adapter — getTransactions (fills)", () => {
+  it("single-page mapping: entry_id, BUY→credit, fees, date, symbol", async () => {
+    const listResponse = {
+      accounts: [{ uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "0.5" } }],
+      has_next: false, cursor: "",
+    };
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/orders/historical/fills")) {
+        return new Response(JSON.stringify({
+          fills: [{ entry_id: "e1", trade_time: "2024-01-15T10:30:00.000Z", side: "BUY", size: "0.5", price: "40000", commission: "1.25", product_id: "BTC-USD" }],
+          cursor: "",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    const txns = await adapter.getTransactions(session, "a1");
+    expect(txns).toEqual([{
+      id: "e1",
+      date: Date.parse("2024-01-15T10:30:00.000Z"),
+      symbol: "BTC",
+      qty: 0.5,
+      price: 40000,
+      fees: 1.25,
+      type: "credit",
+    }]);
+  });
+
+  it("since → start_sequence_timestamp + client-side filter (excludes older fill)", async () => {
+    const SINCE = 1700000000000; // 2023-11-14T22:13:20.000Z
+    const listResponse = {
+      accounts: [{ uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "0.5" } }],
+      has_next: false, cursor: "",
+    };
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/orders/historical/fills")) {
+        return new Response(JSON.stringify({
+          fills: [
+            // older fill — should be client-side filtered out
+            { entry_id: "e-old", trade_time: "2023-10-01T00:00:00.000Z", side: "BUY", size: "1", price: "30000", commission: "0", product_id: "BTC-USD" },
+            // newer fill — should be kept
+            { entry_id: "e-new", trade_time: "2024-01-15T10:30:00.000Z", side: "BUY", size: "0.5", price: "40000", commission: "1", product_id: "BTC-USD" },
+          ],
+          cursor: "",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    const txns = await adapter.getTransactions(session, "a1", SINCE);
+    // Only the newer fill should pass the client-side since filter
+    expect(txns).toHaveLength(1);
+    expect(txns[0].id).toBe("e-new");
+    // Verify the fills request includes start_sequence_timestamp
+    const fillsCall = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls.find((c: unknown[]) => (c[0] as string).includes("/orders/historical/fills"))!;
+    const fillsUrl = (fillsCall as string[])[0] as string;
+    expect(fillsUrl).toContain("start_sequence_timestamp");
+    expect(fillsUrl).toContain("limit=100");
+    const isoExpected = new Date(SINCE).toISOString();
+    expect(fillsUrl).toContain(encodeURIComponent(isoExpected));
+  });
+
+  it("multi-page pagination (2 pages, second row SELL→debit)", async () => {
+    const listResponse = {
+      accounts: [{ uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } }],
+      has_next: false, cursor: "",
+    };
+    const page1 = {
+      fills: [{ entry_id: "e1", trade_time: "2024-01-15T10:30:00.000Z", side: "BUY", size: "1", price: "40000", commission: "2", product_id: "BTC-USD" }],
+      cursor: "p2",
+    };
+    const page2 = {
+      fills: [{ entry_id: "e2", trade_time: "2024-01-16T10:30:00.000Z", side: "SELL", size: "0.5", price: "41000", commission: "1", product_id: "BTC-USD" }],
+      cursor: "",
+    };
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/orders/historical/fills")) {
+        // Determine which page based on cursor param
+        if (url.includes("cursor=p2")) return new Response(JSON.stringify(page2), { status: 200, headers: { "content-type": "application/json" } });
+        return new Response(JSON.stringify(page1), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    const txns = await adapter.getTransactions(session, "a1");
+    expect(txns).toHaveLength(2);
+    expect(txns[0].type).toBe("credit"); // BUY
+    expect(txns[1].type).toBe("debit");  // SELL
+    // Two fills fetch calls (pages)
+    const fillsCalls = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c: unknown[]) => (c[0] as string).includes("/orders/historical/fills"));
+    expect(fillsCalls).toHaveLength(2);
+  });
+
+  it("fiat account → [] (fetcher NOT called for fills)", async () => {
+    const listResponse = {
+      accounts: [{ uuid: "usd1", currency: "USD", type: "ACCOUNT_TYPE_FIAT", available_balance: { value: "500" } }],
+      has_next: false, cursor: "",
+    };
+    const fetcher = vi.fn(async () =>
+      new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } })
+    ) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    const txns = await adapter.getTransactions(session, "usd1");
+    expect(txns).toEqual([]);
+    // Only the listAccounts fetch should have been called, no fills fetch
+    const fillsCalls = (fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls.filter((c: unknown[]) => (c[0] as string).includes("/orders/historical/fills"));
+    expect(fillsCalls).toHaveLength(0);
+  });
+
+  it("proof_token_required no-throw (SCA returns [] without error)", async () => {
+    const listResponse = {
+      accounts: [{ uuid: "a1", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } }],
+      has_next: false, cursor: "",
+    };
+    const fetcher = vi.fn(async (url: string) => {
+      if (url.includes("/orders/historical/fills")) {
+        return new Response(JSON.stringify({ fills: [], cursor: "", proof_token_required: true }),
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response(JSON.stringify(listResponse), { status: 200, headers: { "content-type": "application/json" } });
+    }) as unknown as FetchLike;
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    await adapter.listAccounts(session);
+    const txns = await adapter.getTransactions(session, "a1");
+    expect(txns).toEqual([]);
+  });
+});
+
+describe("coinbase adapter — runIngest integration", () => {
+  it("flows through runIngest into SQLite: accounts, holdings, balances, transactions", async () => {
+    const db = openDb(":memory:");
+    const fetcher = vi.fn(async (url: string) => {
+      // List accounts (no slash after /accounts means it's the list endpoint)
+      if (url.includes("/accounts") && !url.includes("/accounts/")) {
+        return new Response(JSON.stringify({
+          accounts: [
+            { uuid: "a1", name: "BTC Wallet", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } },
+            { uuid: "usd1", name: "USD Wallet", currency: "USD", type: "ACCOUNT_TYPE_FIAT", available_balance: { value: "500" } },
+          ],
+          has_next: false, cursor: "",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      // Single account lookup
+      if (url.includes("/accounts/a1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "a1", name: "BTC Wallet", currency: "BTC", type: "ACCOUNT_TYPE_CRYPTO", available_balance: { value: "1" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.includes("/accounts/usd1")) {
+        return new Response(JSON.stringify({
+          account: { uuid: "usd1", name: "USD Wallet", currency: "USD", type: "ACCOUNT_TYPE_FIAT", available_balance: { value: "500" } },
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      // Trade fills
+      if (url.includes("/orders/historical/fills")) {
+        return new Response(JSON.stringify({
+          fills: [{
+            entry_id: "e1", trade_time: "2024-01-15T10:30:00.000Z", side: "BUY",
+            size: "0.5", price: "40000", commission: "1.25", product_id: "BTC-USD",
+          }],
+          cursor: "",
+        }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      // Market price
+      if (url.includes("/market/products/BTC-USD")) {
+        return new Response(JSON.stringify({ price: "64000" }),
+          { status: 200, headers: { "content-type": "application/json" } });
+      }
+      return new Response("{}", { status: 404 });
+    }) as unknown as FetchLike;
+
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const registry: AdapterRegistry = new Map([["coinbase", adapter as never]]);
+    const result = await runIngest(db, registry, { coinbase: { keyName: KEY_NAME, privateKey: TEST_PRIVATE_KEY } });
+
+    expect(result.accounts).toBe(2);
+    expect(result.holdings).toBe(2);   // BTC (crypto) + USD (cashEquivalent)
+    expect(result.transactions).toBe(1);
+    expect(result.errors).toBe(0);
+
+    // Accounts persisted
+    const acct1 = db.prepare("SELECT * FROM accounts WHERE id=?").get("coinbase:a1") as { id: string; provider_id: string; kind: string };
+    expect(acct1).toBeTruthy();
+    expect(acct1.provider_id).toBe("coinbase");
+    expect(acct1.kind).toBe("crypto");
+    const acct2 = db.prepare("SELECT * FROM accounts WHERE id=?").get("coinbase:usd1") as { id: string };
+    expect(acct2).toBeTruthy();
+
+    // Holding persisted: CRYPTO:BTC with price
+    const h = db.prepare("SELECT * FROM holdings WHERE account_id=?").get("coinbase:a1") as { symbol: string; quantity: number; price: number };
+    expect(h).toBeTruthy();
+    expect(h.symbol).toBe("CRYPTO:BTC");
+    expect(h.quantity).toBe(1);
+    expect(h.price).toBe(64000);
+
+    // Balance persisted: fiat cash for usd1
+    const bal = getBalance(db, "coinbase:usd1");
+    expect(bal).toBeTruthy();
+    expect(bal!.cash).toBe(500);
+
+    // Transaction persisted
+    const txns = listTransactions(db, "coinbase:a1");
+    expect(txns).toHaveLength(1);
+    expect(txns[0].id).toBe("e1");
+    expect(txns[0].type).toBe("credit");
+    expect(txns[0].symbol).toBe("BTC");
   });
 });
