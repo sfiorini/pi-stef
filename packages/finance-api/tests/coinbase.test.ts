@@ -97,6 +97,16 @@ describe("coinbase adapter — listAccounts (JWT + pagination)", () => {
     const session = await adapter.authenticate(CREDS);
     await expect(adapter.listAccounts(session)).rejects.toThrow("/accounts 500");
   });
+
+  it("breaks on has_next=true with empty cursor (single page, fetcher called once)", async () => {
+    const fetcher = mockFetcher({ accounts: [{ uuid: "a1", currency: "BTC" }], has_next: true, cursor: "" });
+    const adapter = createCoinbaseAdapter({ fetcher });
+    const session = await adapter.authenticate(CREDS);
+    const accounts = await adapter.listAccounts(session);
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({ providerAccountId: "a1", currency: "BTC" });
+    expect((fetcher as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+  });
 });
 
 describe("coinbase adapter — getHoldings", () => {

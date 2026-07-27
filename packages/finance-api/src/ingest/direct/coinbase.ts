@@ -7,6 +7,7 @@ const BASE = "https://api.coinbase.com" + API_PATH;
 const HOST = "api.coinbase.com";
 const STABLE = new Set(["USD", "USDC", "USDT", "DAI", "EUR", "GBP"]);
 export const MAX_FILL_PAGES = 50;
+export const MAX_ACCOUNT_PAGES = 100;
 
 interface CoinbaseAccount {
   uuid?: string; name?: string; currency?: string; type?: string;
@@ -69,7 +70,7 @@ export function createCoinbaseAdapter(deps: CoinbaseDeps = {}): ProviderAdapter 
       const creds = s.creds ?? {};
       const out: CoinbaseAccount[] = [];
       let cursor: string | undefined;
-      for (;;) {
+      for (let page = 0; page < MAX_ACCOUNT_PAGES; page++) {
         const query: Record<string, string> = { limit: "250" };
         if (cursor) query.cursor = cursor;
         const body = (await request(creds, "GET", "/accounts", query)) as

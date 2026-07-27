@@ -210,7 +210,7 @@ These transaction types require the **v2 OAuth2 authentication** path, which CDP
 | `401 Unauthorized` | Wrong key type (Ed25519 instead of P-256) | Recreate the API key with **P-256 / ES256** key type |
 | `401 Unauthorized` | Expired JWT (clock skew > 120s) | Sync your server's clock (`ntpdate` or equivalent) |
 | `401 Unauthorized` | `uris` claim mismatch | Ensure the key format is correct (`organizations/{org_id}/apiKeys/{key_id}`) and the PEM is the matching private key |
-| `401 Unauthorized` | Private key format wrong | Ensure PEM starts with `-----BEGIN EC PRIVATE KEY-----` (not `-----BEGIN PRIVATE KEY-----`) |
+| `401 Unauthorized` | Private key format wrong | Ensure the PEM is a valid EC key: `-----BEGIN EC PRIVATE KEY-----` (SEC1) or `-----BEGIN PRIVATE KEY-----` (PKCS8) — both are accepted by createPrivateKey |
 | `429 Too Many Requests` | Rate limit exceeded (10,000/hr) | Wait for the rate limit window to reset; reduce sync frequency |
 | Empty accounts (`[]`) | No crypto wallets in the Coinbase account | Check that your Coinbase account has wallets; verify you're using the correct organization's API key |
 | Missing deposits/withdrawals | Fills-only limitation | CDP v3 keys only expose trade fills. Use [File Import](./finance-api-file-import) with a Coinbase CSV export for deposits and withdrawals |
