@@ -87,7 +87,7 @@ Working providers in this release do **not** use the server's `secrets.json`:
 - **SimpleFIN** — credentials live in the **client's** `config.json` on your workstation and are sent per-request. See [SimpleFIN setup](#simplefin-setup) below.
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is reserved for future server-side providers (Coinbase, Teller) that are currently stubs:
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the **server**) is for server-side providers. Coinbase uses server-side CDP API keys (see the [Coinbase guide](https://sfiorini.github.io/pi-stef/packages/finance-api-coinbase.html)); Teller remains a stub:
 
 ```json
 {
@@ -107,7 +107,7 @@ Each provider's required credentials are documented under [Providers](#providers
 | Provider | Kind | Auth | Status |
 |----------|------|------|--------|
 | File Import (CSV/OFX) | brokerage/banking | `filePath` or `content` (per-request) | ✅ Working |
-| Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ⚠️ Stub (HMAC not implemented) |
+| Coinbase | crypto | `keyName` + `privateKey` (in `secrets.json`) | ✅ Working (CDP ES256 JWT) |
 | SnapTrade | brokerage | `clientId` + `consumerKey` (in client `config.json`, passed per-request) | ✅ Working |
 | SimpleFIN | banking | `setupToken` → `accessUrl` (in client `config.json`, auto-persisted after first sync) | ✅ Working |
 | Teller | banking | `token` (in `secrets.json`) | ⚠️ Stub |
@@ -437,7 +437,7 @@ There is no `Symbol` column (the parser's required key). Even if renamed, the da
    Use the `BASE/USD` form so the parser classifies the row as crypto (`assetClass: "crypto"`, `securityType: "crypto"`). A bare `BTC` would import as equity.
 4. Import with `POST /v1/import`.
 
-**Future:** A direct Coinbase API aggregator stub (`src/ingest/direct/coinbase.ts`) is planned for a future release. When implemented, it will pull positions directly via API key (HMAC-signed).
+**Note:** A direct Coinbase API provider (`src/ingest/direct/coinbase.ts`) is implemented and pulls positions via CDP ES256-JWT API keys. See the [Coinbase guide](https://sfiorini.github.io/pi-stef/packages/finance-api-coinbase.html).
 
 #### Banks (e.g. Bank of America)
 

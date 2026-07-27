@@ -74,7 +74,7 @@ Working providers in this release do **not** use the server's `secrets.json`:
 - **SimpleFIN** — credentials live in the **client's** `config.json` and are sent per-request. See the [SimpleFIN guide](./finance-api-simplefin).
 - **File Import** — no stored credentials; the file path is provided per-request.
 
-The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is reserved for future server-side providers (Coinbase, Teller) that are currently stubs.
+The `secrets.json` file (at `~/.pi/sf/finance/secrets.json` on the server) is for server-side providers. [Coinbase](./finance-api-coinbase) uses server-side CDP API keys; Teller remains a stub.
 
 ## Providers
 
@@ -83,7 +83,7 @@ Providers are **co-equal** — enable any combination, and multiple providers ru
 | Provider | Kind | Status |
 |----------|------|--------|
 | [File Import](./finance-api-file-import) | brokerage/banking | ✅ Working |
-| Coinbase | crypto | ⚠️ Stub |
+| [Coinbase](./finance-api-coinbase) | crypto | ✅ Working |
 | [SnapTrade](./finance-api-snaptrade) | brokerage | ✅ Working |
 | [SimpleFIN](./finance-api-simplefin) | banking | ✅ Working |
 | Teller | banking | ⚠️ Stub |

@@ -46,6 +46,7 @@ export default defineConfig({
           { text: "finance-api File Import", link: "/packages/finance-api-file-import" },
           { text: "finance-api SnapTrade", link: "/packages/finance-api-snaptrade" },
           { text: "finance-api SimpleFIN", link: "/packages/finance-api-simplefin" },
+          { text: "finance-api Coinbase", link: "/packages/finance-api-coinbase" },
           { text: "paths", link: "/packages/paths" },
         ],
       },
