@@ -62,6 +62,21 @@ describe("generateScript", () => {
     const s = generateScript({ ...flow, agents: { reviewer: { model: "sonnet" } }, phases: [{ id: "rev", agent: "reviewer", prompt: "Review." }] });
     expect(s).toMatch(/agentType:\s*['"]reviewer['"]/);
   });
+
+  it("tier-2 agent phase bakes YAML model verbatim; config never overrides it", () => {
+    const s = generateScript({
+      name: "t", description: "d", input: "prompt",
+      agents: { scanner: { model: "haiku" } },
+      phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
+    });
+    expect(s).toMatch(/model:\s*"haiku"/);
+    const s2 = generateScript({
+      name: "t", description: "d", input: "prompt",
+      agents: { scanner: { model: "haiku" } },
+      phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
+    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null } });
+    expect(s2).not.toContain("config-rev");
+  });
 });
 
 describe("generateScript skill-phase slug handoff + model hints (M5)", () => {

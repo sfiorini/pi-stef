@@ -65,4 +65,20 @@ describe("buildAutoReadyMessage", () => {
     expect(msg).toContain("planner: (inherit orchestrator)");
     expect(msg).toContain(skillDocPath("sf-flow-auto"));
   });
+
+  it("renders the per-phase model summary and the 'config does not apply to tier-2' note", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "w", inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/w.yaml",
+      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: null, auditorModel: null, synthModel: null, designerModel: null },
+      phaseModels: [
+        { phase: "impl", kind: "tier1-skill", skill: "sf-flow-implement", model: "dev", source: "config (representative role)" },
+        { phase: "scan", kind: "tier2-agent", agent: "scanner", model: "haiku", source: "YAML agents.<name>.model" },
+      ],
+    });
+    expect(msg).toContain("Tier-1 config (applies to tier-1 skill phases only");
+    expect(msg).toContain("impl (tier1-skill, skill sf-flow-implement): dev");
+    expect(msg).toContain("scan (tier2-agent, agent scanner): haiku");
+    expect(msg).toContain("config does NOT apply to tier-2 agents");
+  });
 });

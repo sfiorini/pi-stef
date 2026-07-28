@@ -9,6 +9,59 @@
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
 import type { ResolvedModels } from "./config/schema.js";
+import type { FlowYaml } from "./yaml/schema.js";
+
+export type PhaseModelInfo = {
+  phase: string;
+  kind: "tier1-skill" | "tier2-agent" | "other";
+  skill?: string;
+  agent?: string;
+  /** The model this phase will ACTUALLY use per precedence, or null = inherit orchestrator. */
+  model: string | null;
+  /** Human label of where `model` came from. */
+  source: string;
+};
+
+/**
+ * Summarize the model EACH phase will actually use, per the documented precedence:
+ *  - tier-1 skill phase (sf-flow-plan/implement/audit): a REPRESENTATIVE config-chain
+ *    model (the skill's primary role) — indicative only; tier-1 skills self-resolve
+ *    ALL their role agents (researcher/designer/planner/reviewer/developer) from the
+ *    full config chain per the documented Model resolution chain.
+ *  - tier-2 agent phase: YAML agents.<name>.model (baked by generate.ts agentOpts),
+ *    else .md model:, else inherit orchestrator. CONFIG HAS NO EFFECT on tier-2 agent
+ *    phases — by design.
+ */
+export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | null): PhaseModelInfo[] {
+  const TIER1 = new Set(["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]);
+  const tier1ModelFor = (skill: string): string | null => {
+    if (skill === "sf-flow-plan") return models?.researcherModel ?? null;
+    if (skill === "sf-flow-implement") return models?.developerModel ?? null;
+    if (skill === "sf-flow-audit") return models?.reviewerModel ?? null;
+    return null;
+  };
+  return flow.phases.map((ph) => {
+    if (ph.skill) {
+      const isTier1 = TIER1.has(ph.skill);
+      return {
+        phase: ph.id,
+        kind: isTier1 ? "tier1-skill" : "other",
+        skill: ph.skill,
+        model: isTier1 ? tier1ModelFor(ph.skill) : null,
+        source: isTier1 ? (tier1ModelFor(ph.skill) ? "config (representative role)" : "inherit orchestrator") : "inherit orchestrator",
+      };
+    }
+    const def = ph.agent ? flow.agents[ph.agent] : undefined;
+    const yamlModel = def?.model ?? null;
+    return {
+      phase: ph.id,
+      kind: "tier2-agent",
+      agent: ph.agent,
+      model: yamlModel,
+      source: yamlModel ? "YAML agents.<name>.model" : "inherit orchestrator (.md model: / orchestrator)",
+    };
+  });
+}
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -59,6 +112,8 @@ export interface AutoReadyInput {
   script?: string;
   /** Resolved models, rendered as a reference table for the orchestrator. Optional. */
   models?: ResolvedModels | null;
+  /** Optional per-phase model summary (accurate per precedence). */
+  phaseModels?: PhaseModelInfo[];
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
@@ -80,7 +135,7 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
   }
   if (opts.models) {
     lines.push(``);
-    lines.push(`Resolved models (config; inherit the orchestrator when null):`);
+    lines.push(`Tier-1 config (applies to tier-1 skill phases only; inherit the orchestrator when null):`);
     lines.push(`- reviewer: ${opts.models.reviewerModel ?? "(inherit orchestrator)"}`);
     lines.push(`- researcher: ${opts.models.researcherModel ?? "(inherit orchestrator)"}`);
     lines.push(`- developer: ${opts.models.developerModel ?? "(inherit orchestrator)"}`);
@@ -88,6 +143,15 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     lines.push(`- auditor: ${opts.models.auditorModel ?? "(inherit orchestrator)"}`);
     lines.push(`- synth: ${opts.models.synthModel ?? "(inherit orchestrator)"}`);
     lines.push(`- designer: ${opts.models.designerModel ?? "(inherit orchestrator)"}`);
+    if (opts.phaseModels && opts.phaseModels.length) {
+      lines.push(``);
+      lines.push(`Per-phase models (what each phase ACTUALLY uses):`);
+      for (const p of opts.phaseModels) {
+        const who = p.skill ? `skill ${p.skill}` : `agent ${p.agent}`;
+        const note = p.kind === "tier2-agent" ? "  [config does NOT apply to tier-2 agents]" : "";
+        lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}${note}`);
+      }
+    }
   }
   lines.push(``);
   lines.push(`Now read the skill file at ${skillDocPath("sf-flow-auto")}.`);

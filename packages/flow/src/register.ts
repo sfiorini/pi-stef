@@ -9,7 +9,7 @@ import { loadFlowYaml } from "./yaml/load.js";
 import { generateScript } from "./yaml/generate.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
-import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
+import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir } from "./paths.js";
 import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
@@ -275,11 +275,13 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       // no nested general-purpose twin).
       let script: string | null = null;
       let models: ResolvedModels | null = null;
+      let phaseModels: ReturnType<typeof summarizePhaseModels> = [];
       try {
         const flow = await loadFlowYaml(resolved);
         const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
         script = generateScript(flow, { models: defaults });
         models = defaults;
+        phaseModels = summarizePhaseModels(flow, defaults);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -302,6 +304,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               resolvedWorkflowPath: resolved,
               script,
               models,
+              phaseModels,
             }),
           },
         ],
