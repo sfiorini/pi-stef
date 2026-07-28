@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.0.4] - 2026-07-28
+### Changed
+- fix(cursor): force-refresh models live in /cursor-refresh-models
+- docs(cursor): update api-key JSDoc to reflect disk-based auth
+
+
 ## [1.0.3] - 2026-07-24
 ### Changed
 - fix(cursor): read/write ~/.pi/agent/auth.json directly for credentials (AuthStorage is not exported in pi 0.81.1; fixes /cursor-login + streaming key read)
