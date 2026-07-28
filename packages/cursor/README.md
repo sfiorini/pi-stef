@@ -68,6 +68,10 @@ extensions/cursor.ts → src/index.ts (registerProvider + slash cmds)
 
 **Request flow:** `streamSimple(model, context, options)` → resolve API key → acquire pooled agent → build prompt + expose pi tools → `agent.send({onDelta, onStep})` → map to pi event stream → `run.wait()` / `run.cancel()`.
 
+**Tool exposure & continuity** — Pi tools are exposed to the Cursor agent as in-process `customTools` callbacks. `@cursor/sdk` registers them as a synthetic `custom-user-tools` MCP server to the model, so the model invokes them through the normal MCP tool path — there is **no loopback HTTP server**. When the model calls a tool, the provider emits pi `toolcall_*` events and parks on a deferred keyed by the SDK `callId`; the stream ends with `toolUse` and the next pi turn resumes the same run and resolves the deferred (`tool-bridge.ts` / `tool-result-bridge.ts`).
+
+**Stall-survivability** — the `@cursor/sdk` stall budget is internal and not tunable, so a stalled run that the SDK would silently auto-retry is bounded by a watchdog (`PI_CURSOR_RUN_WATCHDOG_MS`, default `120000` ms). If a run doesn't settle within the budget it is cancelled and surfaced as a terminal error (pi recovers/retries) instead of hanging; a wedged prior run is recovered on the next turn via `local.force`. Set `PI_CURSOR_ENABLE_AGENT_RETRIES=0` to surface transport/stall errors on first failure instead of auto-retrying.
+
 ## Configuration
 
 ### Environment Variables
@@ -75,10 +79,14 @@ extensions/cursor.ts → src/index.ts (registerProvider + slash cmds)
 | Variable | Description |
 |----------|-------------|
 | `CURSOR_API_KEY` | Cursor API key (alternative to `/cursor-login`) |
+| `PI_CURSOR_AUTH_JSON_PATH` | Override the auth.json path read for the stored Cursor credential (default: `~/.pi/agent/auth.json`) |
 | `PI_CURSOR_HTTP_1_1` | Force HTTP/1.1 transport. Truthy: `1`/`true`/`on`/`yes`/`enabled` (case/whitespace-insensitive). Useful for VPN/proxy environments. |
 | `PI_CURSOR_DISABLE_MODEL_CACHE` | Disable the 24h model disk cache |
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | Override the model cache TTL (default: 24h) |
 | `PI_CURSOR_PROVIDER_DEBUG` | Enable debug logging (`1` to activate) |
+| `PI_CURSOR_PROVIDER_EXTENSION_DEBUG_FILE` | Override the extension debug log file path (used when `PI_CURSOR_PROVIDER_DEBUG` is on; default: a timestamped temp file under the system temp dir) |
+| `PI_CURSOR_RUN_WATCHDOG_MS` | Bounded no-hang watchdog budget (ms), default `120000`. Bounds the run race so a stalled + silently auto-retried run can never hang pi; invalid/`0` falls back to the default. |
+| `PI_CURSOR_ENABLE_AGENT_RETRIES` | Enable `@cursor/sdk` transport + stall auto-retry (default `true`). Set `0`/`false`/`no` to surface transport/stall errors on first failure instead of silently auto-retrying. |
 
 ### Debug Logging
 

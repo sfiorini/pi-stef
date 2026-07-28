@@ -145,11 +145,14 @@ Agents are pooled with a 4-dimensional key: `scopeKey + cwd + modelSelection + s
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CURSOR_API_KEY` | — | Cursor API key |
+| `PI_CURSOR_AUTH_JSON_PATH` | `~/.pi/agent/auth.json` | Override the auth.json path read for the stored Cursor credential |
 | `PI_CURSOR_HTTP_1_1` | — | Force HTTP/1.1 transport (truthy: `1`/`true`/`on`/`yes`/`enabled`) |
 | `PI_CURSOR_DISABLE_MODEL_CACHE` | — | Disable 24h model disk cache |
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | `86400000` | Model cache TTL in ms |
 | `PI_CURSOR_PROVIDER_DEBUG` | — | Enable debug logging |
+| `PI_CURSOR_PROVIDER_EXTENSION_DEBUG_FILE` | temp file | Override the extension debug log file path (used when `PI_CURSOR_PROVIDER_DEBUG` is on; default: a timestamped temp file under the system temp dir) |
 | `PI_CURSOR_RUN_WATCHDOG_MS` | `120000` | Bounded no-hang watchdog budget (ms). Read per-call; bounds the `run.wait()` / `bridge.whenPending()` race so a stalled + silently auto-retried run can never hang pi forever. Invalid/`0` falls back to the default. See *Tool Exposure — In-Process `customTools`* (Stall-survivability). |
+| `PI_CURSOR_ENABLE_AGENT_RETRIES` | `true` | Enable @cursor/sdk transport + stall auto-retry (SDK headless default). Set `0`/`false`/`no` to surface transport/stall errors on first failure instead of silently auto-retrying. |
 
 > **Removed debug scripts:** the legacy `scripts/debug-log-timeline.mjs` and
 > `scripts/capture-frame-trace.mjs` were deleted because they imported/reference
