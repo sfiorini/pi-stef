@@ -168,4 +168,38 @@ describe("session-agent", () => {
     // disposeAll should clean up both
     disposeAllSessionAgents();
   });
+
+  // S-M5-4: enableAgentRetries must be configurable (default true, SDK default unchanged)
+  it("S-M5-4: enableAgentRetries=false passed through to the local block", async () => {
+    const agents = new Map<string, FakeAgent>();
+    const loadSdk = makeFakeLoadSdk(agents);
+    const createAgent = vi.fn(async (sdk: unknown, opts: { apiKey: string; model: ModelSelection; mode: string; local: { cwd: string; enableAgentRetries: boolean } }) => {
+      const s = sdk as { Agent: { create: (o: any) => Promise<any> } };
+      return s.Agent.create(opts);
+    });
+
+    const { release } = await acquireSessionAgent(
+      { ...baseOpts, enableAgentRetries: false },
+      { loadSdk, createAgent },
+    );
+
+    expect(createAgent).toHaveBeenCalledOnce();
+    expect(createAgent.mock.calls[0][1].local.enableAgentRetries).toBe(false);
+    release();
+  });
+
+  it("S-M5-4: enableAgentRetries defaults to true when omitted", async () => {
+    const agents = new Map<string, FakeAgent>();
+    const loadSdk = makeFakeLoadSdk(agents);
+    const createAgent = vi.fn(async (sdk: unknown, opts: { apiKey: string; model: ModelSelection; mode: string; local: { cwd: string; enableAgentRetries: boolean } }) => {
+      const s = sdk as { Agent: { create: (o: any) => Promise<any> } };
+      return s.Agent.create(opts);
+    });
+
+    const { release } = await acquireSessionAgent(baseOpts, { loadSdk, createAgent });
+
+    expect(createAgent).toHaveBeenCalledOnce();
+    expect(createAgent.mock.calls[0][1].local.enableAgentRetries).toBe(true);
+    release();
+  });
 });

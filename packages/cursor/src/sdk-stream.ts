@@ -449,6 +449,22 @@ function finalize(
   session.partial.usage.totalTokens =
     session.partial.usage.input + session.partial.usage.output;
 
+  // A wedged/errored run must map to a TERMINAL status — never left "running"
+  // or masquerading as "length"/"stop". Surface it as an error so pi recovers/
+  // retries instead of appearing to hang. Exactly one `session.currentRun =
+  // undefined` runs on this path (the early return skips the one below).
+  // (S-M5-2)
+  if (result.status === "error") {
+    session.partial.stopReason = "error";
+    const msg =
+      session.currentRun?.error?.message ??
+      "Cursor run ended with status 'error'";
+    session.partial.errorMessage = msg;
+    stream.push({ type: "error", reason: "error", error: session.partial });
+    session.currentRun = undefined;
+    return;
+  }
+
   const reason: "stop" | "length" | "toolUse" = session.bridge.hasPending()
     ? "toolUse"
     : result.status === "cancelled" || result.status === "finished"

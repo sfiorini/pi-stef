@@ -28,10 +28,19 @@ export interface SDKAgent {
   close(): Promise<void>;
 }
 
+/** Status of a Cursor SDK Run (mirrors @cursor/sdk Run.status). */
+export type SDKRunStatus = "running" | "finished" | "error" | "cancelled";
+
 /** Minimal mirror of the SDK Run object. */
 export interface SDKRun {
   wait(): Promise<SDKRunResult>;
   cancel(): Promise<void>;
+  /** Current run status (mirrors @cursor/sdk Run.status). Optional so test fakes may omit it. */
+  readonly status?: SDKRunStatus;
+  /** Status-change listener (mirrors @cursor/sdk Run.onDidChangeStatus). Optional on the mirror. */
+  onDidChangeStatus?(listener: (status: SDKRunStatus) => void): () => void;
+  /** Terminal failure details (mirrors @cursor/sdk Run.error). Optional so fakes may omit it. */
+  readonly error?: { message: string; code?: string };
 }
 
 /** Minimal mirror of the SDK RunResult. */
@@ -123,6 +132,9 @@ export interface AcquireSessionAgentOpts {
   cwd: string;
   scopeKey: string;
   toolNames: string[];
+  /** Enable @cursor/sdk transport + stall auto-retry. Default true (SDK default for
+   *  headless). Set false to surface transport/stall errors on first failure. */
+  enableAgentRetries?: boolean;
 }
 
 /**
@@ -194,13 +206,16 @@ export async function acquireSessionAgent(
   const loadSdk = deps?.loadSdk ?? (async () => loadCursorSdk());
   const createAgent = deps?.createAgent ?? defaultCreateAgent;
   const sdk = await loadSdk();
+  // SDK default is `true` (headless); allow callers (watchdog/recovery path,
+  // advanced users) to disable silent transport/stall auto-retry. (S-M5-4)
+  const enableAgentRetries = opts.enableAgentRetries ?? true;
   const agent = await createAgent(sdk, {
     apiKey: opts.apiKey,
     model: opts.modelSelection,
     mode: "agent",
     local: {
       cwd: opts.cwd,
-      enableAgentRetries: true,
+      enableAgentRetries,
     },
   });
 

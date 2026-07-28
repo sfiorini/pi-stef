@@ -798,6 +798,48 @@ describe("streamCursor (S-62 two-phase)", () => {
     await execPromise;
   });
 
+  // Case 9 (S-M5-2): NEW-turn run resolves { status: "error" } → terminal error (never "length")
+  it("case 9: S-M5-2 — run resolves { status: 'error' } → terminal error event + stopReason 'error'", async () => {
+    const { deps, fakeRun, runDeferred, fakeSession } = await createFakeDeps();
+
+    // Simulate a wedged/errored run: wait() resolves with status "error" and the
+    // run carries terminal failure details (mirrors @cursor/sdk Run.error).
+    (fakeRun as { error?: { message: string } }).error = { message: "boom" };
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    // Wait for send → runPhase reaches the race
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    // Resolve the run with status "error"
+    runDeferred.resolve({ status: "error" });
+
+    const result = await stream.result();
+    // MUST be a terminal error, NEVER "length" (which would masquerade as success)
+    expect(result.stopReason).toBe("error");
+    expect(result.errorMessage).toContain("boom");
+
+    // An error event must have been pushed (not a done event)
+    const errorEvent = events.find((e) => e.type === "error") as Extract<
+      AssistantMessageEvent,
+      { type: "error" }
+    >;
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent.reason).toBe("error");
+    expect(events.filter((e) => e.type === "done")).toHaveLength(0);
+
+    // The settled run is cleared so the next NEW turn starts fresh
+    expect(fakeSession.currentRun).toBeUndefined();
+  });
+
   // Case 7: P0 regression — multi-turn: second turn content is NOT empty
   it("case 7: P0 — second turn content is NOT empty (coordinator partial stays valid)", async () => {
     const { fakeSession, deps, fireDelta, runDeferred } = await createFakeDeps();
