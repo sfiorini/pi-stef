@@ -134,25 +134,27 @@ describe("resolveFlowModels", () => {
   });
 
   it("resolves every role independently from its config group", () => {
+    // Values are well-formed bare aliases (>= 2 chars) so they pass the
+    // normalizeModelSpec chokepoint verbatim; each role is independent.
     const cfg: FlowConfig = {
-      reviewer: { model: "r" },
-      researcher: { model: "rs" },
-      developer: { model: "d" },
-      planner: { model: "p" },
-      auditor: { model: "a" },
-      synth: { model: "s" },
-      designer: { model: "x" },
+      reviewer: { model: "rev" },
+      researcher: { model: "res" },
+      developer: { model: "dev" },
+      planner: { model: "pln" },
+      auditor: { model: "aud" },
+      synth: { model: "syn" },
+      designer: { model: "des" },
       audit: { threshold: 0.94, max_rounds: 5 },
       worktree: { branch_prefix: "flow/" },
     };
     expect(resolveFlowModels(cfg)).toEqual({
-      reviewerModel: "r",
-      researcherModel: "rs",
-      developerModel: "d",
-      plannerModel: "p",
-      auditorModel: "a",
-      synthModel: "s",
-      designerModel: "x",
+      reviewerModel: "rev",
+      researcherModel: "res",
+      developerModel: "dev",
+      plannerModel: "pln",
+      auditorModel: "aud",
+      synthModel: "syn",
+      designerModel: "des",
     });
   });
 
@@ -162,6 +164,18 @@ describe("resolveFlowModels", () => {
     const m = resolveFlowModels(DEFAULT_CONFIG);
     expect(m.auditorModel).toBe("env/a");
     expect(m.synthModel).toBe("env/s");
+  });
+
+  it("malformed override/config/env resolve to null (omit); well-formed passes through", () => {
+    // A malformed override (empty id segment) and malformed env both atomically
+    // become null (omit at dispatch) instead of a broken/hybrid spec.
+    process.env.SF_FLOW_DEVELOPER_MODEL = "/bogus"; // malformed env (empty provider)
+    const m = resolveFlowModels(DEFAULT_CONFIG, { reviewer: "anthropic/" });
+    expect(m.reviewerModel).toBeNull(); // malformed override → omit
+    expect(m.developerModel).toBeNull(); // malformed env → omit
+    // well-formed override resolves verbatim
+    const m2 = resolveFlowModels(DEFAULT_CONFIG, { reviewer: "anthropic/opus" });
+    expect(m2.reviewerModel).toBe("anthropic/opus");
   });
 });
 

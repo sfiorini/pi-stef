@@ -10,6 +10,7 @@ import {
   type ResolvedFlowConfig,
   type ResolvedModels,
 } from "./schema.js";
+import { normalizeModelSpec } from "./model-spec.js";
 
 export class ConfigValidationError extends Error {
   constructor(
@@ -127,16 +128,17 @@ export function resolveFlowModels(cfg: FlowConfig, overrides: ModelOverrides = {
     const key = `${role}Model` as keyof ResolvedModels;
     const ov = overrides[role];
     if (ov) {
-      out[key] = ov;
+      out[key] = normalizeModelSpec(ov);
       continue;
     }
     const cfgM = cfgModel(cfg, role);
     if (cfgM) {
-      out[key] = cfgM;
+      out[key] = normalizeModelSpec(cfgM);
       continue;
     }
     const envName = `SF_FLOW_${role.toUpperCase()}_MODEL`;
-    out[key] = process.env[envName] ?? null;
+    // normalizeModelSpec(undefined) returns null, so the previous `?? null` is preserved.
+    out[key] = normalizeModelSpec(process.env[envName]);
   }
   return out;
 }
