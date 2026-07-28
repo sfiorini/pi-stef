@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-28
+### Changed
+- revert(atlassian): undo premature version bump + manual changelog entry
+- test(atlassian): cover numeric-id branch and software void-tool 204 path (audit P3)
+- docs(atlassian): add CHANGELOG entry and bump version to 0.4.2 (S-M14)
+- test(atlassian): add end-to-end regression test for void/204 handling (S-M13)
+- fix(atlassian): guard registerTool against void/204 responses (S-M12)
+- test(atlassian): add failing unit tests for registerTool void/204 handling (S-M11)
+
+
 ## [0.4.1] - 2026-06-18
 ### Changed
 - docs(atlassian,catalog): document Confluence slash commands and catalog hot-reload
