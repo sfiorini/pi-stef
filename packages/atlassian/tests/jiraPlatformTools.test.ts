@@ -357,4 +357,21 @@ describe("Jira platform tool registration", () => {
     expect(result).toBeDefined();
     expect(result!.content[0].text).toContain("Test issue");
   });
+
+  it("returns a string success message when a void tool receives a 204/undefined response", async () => {
+    const pi = new FakePi();
+    const http = new RecordingHttp();
+    http.responses.push(undefined);
+    const jira = new JiraPlatformClient(http as never);
+
+    registerJiraPlatformTools(pi as never, { jira });
+    const tool = pi.tools.find((item) => item.name === "jira_update_issue")!;
+
+    const result = await tool.execute("call-204", { issueIdOrKey: "ABC-1", summary: "Updated" });
+
+    expect(typeof result.content[0].text).toBe("string");
+    expect(result.content[0].text).toContain("jira_update_issue succeeded");
+    expect(result.content[0].text).toContain("ABC-1");
+    expect(result.details).toBeUndefined();
+  });
 });
