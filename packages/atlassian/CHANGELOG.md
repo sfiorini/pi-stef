@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- fix(atlassian): guard registerTool against void/204 responses so void-returning tools (jira_update_issue, jira_delete_issue, jira_transition_issue, jira_create_issue_link, jira_remove_issue_link, jira_delete_board, jira_delete_sprint, jira_move_issues_to_sprint, jira_rank_backlog_issues, confluence_delete_page) return a readable success message instead of crashing when the underlying HTTP call returns HTTP 204 / undefined
 
 ## [0.4.1] - 2026-06-18
 ### Changed
