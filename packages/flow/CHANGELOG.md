@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-28
+### Changed
+- fix(cursor): finalize maps SDK cancelled→terminal error + audit P3 polish [audit]
+- chore(flow): Q4 live-capture script + runbook for model-hybrid trigger [M3]
+- fix(flow): classify raw phase as 'other' in summarizePhaseModels [M2 P2]
+- feat(flow): accurate per-phase model reporting + skill clarification [M2]
+- feat(flow): atomic model-spec guard (normalizeModelSpec) + Tier-1 resolution wiring [M1]
+
+
 ## [0.4.1] - 2026-07-23
 ### Fixed
 - fix(flow): `sf_flow_auto` now runs `skill:` phases INLINE in the orchestrator instead of spawning a nested `general-purpose` twin. The tool pre-generates the pi-dw script (loads + validates the YAML, resolves models via `loadAndResolveDefaults`, calls `generateScript`) and the skill-phase branch emits a `log()` inline directive naming the exact `SKILL.md` path (`skillDocPath`); the orchestrator reads + executes each skill itself — matching the direct `sf_flow_implement` path (one orchestrator, no twin). `buildAutoReadyMessage` now renders the script + a 7-row resolved-model table. The loop-on-skill-phase ban stays (a skill phase returns no structured verdict to gate on).
