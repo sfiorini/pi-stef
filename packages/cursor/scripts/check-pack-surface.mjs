@@ -8,7 +8,6 @@ const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
 const requiredFiles = [
   "extensions/cursor.ts",
   "src/index.ts",
-  "src/proxy.ts",
   "src/auth.ts",
   "src/h2-bridge.mjs",
   "README.md",

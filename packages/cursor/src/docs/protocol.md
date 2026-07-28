@@ -12,8 +12,7 @@ import { Agent, Cursor } from "@cursor/sdk";
 // Create a new agent session
 const agent = await Agent.create({
   apiKey,
-  mcpServers: [/* MCP server URLs for tool exposure */],
-  // optional: cwd, model selection, etc.
+  local: { cwd, customTools, enableAgentRetries },
 });
 
 // Resume an existing agent session
@@ -88,15 +87,33 @@ Usage is resolved in priority order:
 | `length` | `length` |
 | Error | `error` |
 
-## Tool Exposure — MCP Loopback
+## Tool Exposure — In-Process `customTools`
 
-Pi tools are exposed to Cursor agents via a loopback MCP server:
+Pi tools are exposed to the Cursor agent as **in-process callback tools** via
+`@cursor/sdk`'s `Agent.create({ local: { customTools } })` (and per-`send`
+`local.customTools`). The SDK registers them as a synthetic
+`custom-user-tools` MCP server; the model discovers and invokes them through
+the same MCP meta-tool path as any other server (`GetMcpTools` / `CallMcpTool`),
+but the calls are satisfied by in-process callbacks in this provider — there is
+**no loopback HTTP server and no `127.0.0.1:0` socket**.
 
-1. `src/tool-bridge.ts` creates an MCP server on `127.0.0.1:0`
-2. Each pi tool is registered as a `pi__*` MCP tool
-3. The MCP server URL is passed to `Agent.create({ mcpServers })`
-4. Cursor tool calls → bridge converts to pi `tool_call` → waits for pi result → returns MCP `CallToolResult`
-5. Abort signal cancels pending tool calls + `run.cancel()`
+Cross-turn continuation:
+1. `src/tool-bridge.ts` `buildCustomTools()` wraps each pi tool as a `pi__<name>`
+   custom tool whose `execute()` emits pi `toolcall_*` events (via the
+   turn-coordinator) and returns the bridge's pending promise.
+2. The deferred is keyed by the SDK delta `callId` — the same id pi echoes in the
+   next turn's `toolResult`, so `resolveFromToolResults` always matches.
+3. When a tool parks, `bridge.whenPending()` wins the race and the stream ends
+   with `done("toolUse")`; the next pi turn RESUMEs the same SDK run and resolves
+   the pending call(s).
+
+Stall-survivability (B′): the `@cursor/sdk` stall budget is internal/minified and
+not publicly tunable; a stalled run that `enableAgentRetries` would silently
+auto-retry is bounded by a watchdog (`PI_CURSOR_RUN_WATCHDOG_MS`, default 120000).
+If neither `run.wait()` nor `bridge.whenPending()` settles within the budget, the
+run is cancelled, pending calls are rejected, and a terminal error is surfaced so
+pi recovers/retries instead of hanging. A wedged prior run is recovered on the next
+NEW TURN via `local.force: true`. Abort cancels the run + rejects pending calls.
 
 ## Model Discovery Flow
 
@@ -132,3 +149,11 @@ Agents are pooled with a 4-dimensional key: `scopeKey + cwd + modelSelection + s
 | `PI_CURSOR_DISABLE_MODEL_CACHE` | — | Disable 24h model disk cache |
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | `86400000` | Model cache TTL in ms |
 | `PI_CURSOR_PROVIDER_DEBUG` | — | Enable debug logging |
+| `PI_CURSOR_RUN_WATCHDOG_MS` | `120000` | Bounded no-hang watchdog budget (ms). Read per-call; bounds the `run.wait()` / `bridge.whenPending()` race so a stalled + silently auto-retried run can never hang pi forever. Invalid/`0` falls back to the default. See *Tool Exposure — In-Process `customTools`* (Stall-survivability). |
+
+> **Removed debug scripts:** the legacy `scripts/debug-log-timeline.mjs` and
+> `scripts/capture-frame-trace.mjs` were deleted because they imported/reference
+> the retired `src/proxy.ts` (the old loopback MCP/bridge-subprocess architecture)
+> that no shipped code implements. The remaining `scripts/check-pack-surface.mjs`
+> had its stale `src/proxy.ts` check entry removed; `scripts/refresh-models.ts`
+> is unaffected.
