@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-28
+### Changed
+- docs(cursor): document all PI_CURSOR_* env knobs (ENABLE_AGENT_RETRIES, RUN_WATCHDOG_MS, PROVIDER_EXTENSION_DEBUG_FILE, AUTH_JSON_PATH) + sync customTools/stall-survivability narrative to docs-site & README
+- fix(cursor): P3 follow-ups — pack-surface cleanup, wire enableAgentRetries env, drop dead SDKRun mirror members [M7]
+- fix(cursor): finalize maps SDK cancelled→terminal error + audit P3 polish [audit]
+- docs(cursor): correct customTools protocol + remove stale proxy/MCP scripts [M6]
+- fix(cursor): bounded no-hang watchdog + force-recovery for wedged runs [M5b]
+- feat(cursor): SDKRun status mirror + finalize error mapping + configurable retries [M5a]
+- fix(cursor): canonical toolCallId correlation + missing-id guard [M4]
+
+
 ## [1.0.4] - 2026-07-28
 ### Changed
 - fix(cursor): force-refresh models live in /cursor-refresh-models
