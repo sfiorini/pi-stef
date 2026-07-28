@@ -942,6 +942,107 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(turn2Types).toContain("done");
   });
 
+  // Case 10 (S-M5-3): NEW turn wedged (run.wait() never resolves, bridge never arms)
+  // → watchdog fires → terminal error + run.cancel called. Proves NO HANG.
+  it("case 10: S-M5-3 — wedged NEW turn → watchdog fires → terminal error + cancel", async () => {
+    vi.stubEnv("PI_CURSOR_RUN_WATCHDOG_MS", "50");
+    try {
+      const { deps, fakeRun } = await createFakeDeps();
+
+      const stream = streamCursor(
+        fakeModel(),
+        { messages: [] } as unknown as Context,
+        undefined,
+        deps as unknown as Parameters<typeof streamCursor>[3],
+      );
+      const events = collectStreamEvents(stream);
+
+      // Wait for send → race is set up
+      await vi.waitFor(() => {
+        expect(deps.loadSdk).toHaveBeenCalled();
+      });
+
+      // run.wait() never resolves, bridge never arms → watchdog fires after ~50ms.
+      // The stream MUST end (not hang) with a terminal error.
+      const result = await stream.result();
+      expect(result.stopReason).toBe("error");
+      expect(result.errorMessage).toContain("wedged");
+
+      // The watchdog must have cancelled the wedged run
+      expect(fakeRun.cancel).toHaveBeenCalled();
+
+      // A terminal error event (not a done event)
+      const errorEvent = events.find((e) => e.type === "error") as Extract<
+        AssistantMessageEvent,
+        { type: "error" }
+      >;
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.reason).toBe("error");
+      expect(events.filter((e) => e.type === "done")).toHaveLength(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // Case 11 (S-M5-5): priorRunWasWedged=true + firstTurn:false → NEW TURN
+  // agent.send called with local.force===true; flag reset to false after.
+  it("case 11: S-M5-5 — priorRunWasWedged → force:true on NEW TURN + flag reset", async () => {
+    const { deps, fakeSession, runDeferred } = await createFakeDeps();
+    fakeSession.firstTurn = false;
+    fakeSession.priorRunWasWedged = true;
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [{ role: "user", content: "hi" }] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    collectStreamEvents(stream);
+
+    // Wait for send to complete + flag to reset (runs right after the await)
+    await vi.waitFor(() => {
+      expect(fakeSession.agent.send).toHaveBeenCalled();
+      expect(fakeSession.priorRunWasWedged).toBe(false);
+    });
+
+    // agent.send must have been called with local.force === true
+    const sendOpts = (
+      fakeSession.agent.send as ReturnType<typeof vi.fn>
+    ).mock.calls[0][1] as { local?: { force?: boolean; customTools?: unknown } };
+    expect(sendOpts.local?.force).toBe(true);
+
+    // Resolve to finish the stream cleanly
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
+  });
+
+  // Case 12 (S-M5-5): priorRunWasWedged unset → local.force absent (no behavior change)
+  it("case 12: S-M5-5 — no prior wedge → local.force absent", async () => {
+    const { deps, fakeSession, runDeferred } = await createFakeDeps();
+    fakeSession.firstTurn = false;
+    // priorRunWasWedged is intentionally unset (undefined)
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [{ role: "user", content: "hi" }] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    collectStreamEvents(stream);
+
+    await vi.waitFor(() => {
+      expect(fakeSession.agent.send).toHaveBeenCalled();
+    });
+
+    const sendOpts = (
+      fakeSession.agent.send as ReturnType<typeof vi.fn>
+    ).mock.calls[0][1] as { local?: { force?: boolean; customTools?: unknown } };
+    expect(sendOpts.local?.force).toBeUndefined();
+
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
+  });
+
   // Case 6: default resolver (no resolveApiKey dep) → error (no key in test env)
   it("case 6: default resolver uses resolveCursorRuntimeApiKey", async () => {
     const { deps } = await createFakeDeps();

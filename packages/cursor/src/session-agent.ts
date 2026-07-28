@@ -78,6 +78,11 @@ export interface SessionAgent {
   modelSelection: ModelSelection;
   /** Stored API key. */
   apiKey: string;
+  /** Set by the no-hang watchdog (S-M5-3) when the prior run was wedged; read
+   *  + reset at NEW TURN (S-M5-5) to pass `local.force:true` so the fresh run
+   *  starts cleanly instead of colliding with a persisted wedged run. It
+   *  SURVIVES the `session.currentRun = undefined;` clear before `agent.send`. */
+  priorRunWasWedged?: boolean;
 }
 
 // ─── Pool ───────────────────────────────────────────────────────────────────
