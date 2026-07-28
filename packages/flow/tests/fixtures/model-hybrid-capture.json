@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Q4 live-capture evidence for Issue #2 (model-hybrid fabrication by buildFallbackModel).",
+  "inputSpec": "anthropic/claude-opus-5",
+  "hybridSpec": "anthropic/gpt-5.6-terra",
+  "intermediates": {
+    "point1_generateBakedLiteral": {
+      "file": "packages/flow/src/yaml/generate.ts",
+      "line": 48,
+      "code": "if (def?.model) parts.push(`model: ${JSON.stringify(def.model)}`);",
+      "captures": "tier-2 agent `model:` value baked into the generated script (def.model)"
+    },
+    "point2_piDwExplicitModel": {
+      "file": "@quintinshaw/pi-dynamic-workflows/dist/workflow.js",
+      "lines": "156-157",
+      "code": "const explicitModel = agentOptions.model ?? agentDef?.model;\nconst modelSpec = explicitModel ?? (agentOptions.tier ? undefined : resolveModelForPhase(assignedPhase, routingConfig));",
+      "captures": "modelSpec (explicit or routing-derived) and the orchestrator mainModel"
+    },
+    "point3_buildFallbackModel": {
+      "file": "@quintinshaw/pi-dynamic-workflows/dist/model-spec.js",
+      "defLine": 140,
+      "callLine": 231,
+      "factory": "function buildFallbackModel(provider, modelId, availableModels) { ... return { ...baseModel, id: modelId, name: modelId }; }",
+      "note": "THE HYBRID FACTORY: keeps `provider` from the provider's base model, overwrites `id`/`name` with the unresolvable pattern.",
+      "resolvedFallbackModel": {
+        "provider": "anthropic",
+        "id": "gpt-5.6-terra",
+        "name": "gpt-5.6-terra"
+      },
+      "resolveWarning": "Model \"gpt-5.6-terra\" not found for provider \"anthropic\". Using custom model id."
+    }
+  },
+  "canonicalSpec": "anthropic/gpt-5.6-terra",
+  "guardWouldReject": false,
+  "guard": {
+    "source": "inline-replica",
+    "sampleMalformed": "anthropic/",
+    "guardWouldRejectMalformed": true,
+    "scope": "normalizeModelSpec rejects MALFORMED specs (empty segments, multi-segment, slash-only). A WELL-FORMED fabricated hybrid like 'anthropic/gpt-5.6-terra' PASSES the shape-check (guardWouldReject === false): the guard cannot tell a real model id from a bogus one by shape alone. Protection against that class is the Tier-1 omission behavior (a spec that cannot be resolved to a real model is omitted rather than handed to buildFallbackModel) plus accurate per-phase reporting (M2)."
+  },
+  "requiredDeepPathResolved": false,
+  "timestamp": "2026-07-28T19:28:22.321Z"
+}
