@@ -66,4 +66,15 @@ describe("registerTool void/204 handling", () => {
     const tool = pi.tools[0]!;
     await expect(tool.execute("call-5", {})).rejects.toThrow("kaboom");
   });
+
+  it("stringifies numeric identifiers in the success message", async () => {
+    const pi = fakePi();
+    registerTool(pi as never, "jira_delete_board", "Delete a board.", {}, async () => undefined);
+
+    const tool = pi.tools[0]!;
+    const result = await tool.execute("call-6", { boardId: 7 });
+
+    expect(result.content[0].text).toBe("jira_delete_board succeeded (7).");
+    expect(result.details).toBeUndefined();
+  });
 });

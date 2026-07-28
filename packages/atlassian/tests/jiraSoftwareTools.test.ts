@@ -208,4 +208,21 @@ describe("Jira Software tool registration", () => {
     await expect(tool?.execute("call-1", { projectKeyOrId: "ABC" })).resolves.toMatchObject({ details: { values: [] } });
     expect(software.getAgileBoards).toHaveBeenCalledWith({ projectKeyOrId: "ABC", signal: undefined });
   });
+
+  it("returns a string success message when a void Agile tool receives a 204/undefined response", async () => {
+    const pi = new FakePi();
+    const http = new RecordingHttp();
+    http.responses.push(undefined);
+    const client = new JiraSoftwareClient(http as never);
+
+    registerJiraSoftwareTools(pi as never, { software: client });
+    const tool = pi.tools.find((item) => item.name === "jira_delete_board")!;
+
+    const result = await tool.execute("call-204", { boardId: 7 });
+
+    expect(typeof result.content[0].text).toBe("string");
+    expect(result.content[0].text).toContain("jira_delete_board succeeded");
+    expect(result.content[0].text).toContain("7");
+    expect(result.details).toBeUndefined();
+  });
 });
