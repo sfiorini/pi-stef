@@ -2,11 +2,13 @@
  * Model discovery for the Cursor provider.
  *
  * Precedence (highest to lowest):
- *   1. Live `Cursor.models.list({apiKey})` → write cache
- *   2. Fresh cache (TTL not expired, matching fingerprint)
+ *   1. Fresh cache (TTL not expired, matching fingerprint) — skipped when forceRefresh
+ *   2. Live `Cursor.models.list({apiKey})` → write cache
  *   3. Stale cache (maxAgeMs: Infinity — fingerprint matches)
  *   4. Bundled `FALLBACK_MODEL_ITEMS`
  *
+ * With `forceRefresh`, step 1 is skipped so the live call always runs (used by
+ * `/cursor-refresh-models`).
  * If no API key is resolved, goes straight to fallback.
  * Never throws — callers always get a result.
  */
@@ -37,6 +39,12 @@ export interface DiscoverModelsOptions {
   loadSdk?: () => Promise<CursorSdkModule>;
   /** Injectable API-key resolver (for tests). Default: env-only resolution. */
   resolveApiKey?: () => Promise<string | undefined>;
+  /**
+   * Bypass the fresh-cache check (step 1) and force a live SDK call.
+   * Used by `/cursor-refresh-models`. The live result still overwrites the
+   * cache; stale-cache fallback (step 3) remains in effect if live fails.
+   */
+  forceRefresh?: boolean;
 }
 
 export interface DiscoverModelsResult {
@@ -66,8 +74,8 @@ export async function discoverModels(
 
   const fp = fingerprintApiKey(apiKey);
 
-  // Step 2: fresh cache (skip if cache disabled)
-  if (!cursorModelCacheDisabled()) {
+  // Step 2: fresh cache (skip if cache disabled, or forceRefresh requested)
+  if (!opts.forceRefresh && !cursorModelCacheDisabled()) {
     const cached = readCachedModelList({ apiKeyFingerprint: fp });
     if (cached) {
       return { items: cached.items, source: "cache" };

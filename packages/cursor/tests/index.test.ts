@@ -142,3 +142,96 @@ describe("cursor provider registration", () => {
     expect(cmdNames).toContain("cursor-refresh-models");
   });
 });
+
+describe("cursor-refresh-models command", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.resetModules();
+  });
+
+  type Source = "live" | "cache" | "fallback";
+
+  /** Wire up the extension with a mocked discoverModels, then invoke the
+   * refresh handler once and return the captured registerProvider + notify. */
+  async function runRefresh(source: Source, items: ModelListItem[]) {
+    vi.doMock("@earendil-works/pi-coding-agent", () => ({
+      AuthStorage: {
+        create: () => ({ get: () => undefined, set: () => {} }),
+      },
+    }));
+    vi.doMock("../src/model-discovery", () => ({
+      discoverModels: vi.fn().mockResolvedValue({ items, source }),
+    }));
+
+    const registerProvider = vi.fn();
+    const registerCommand = vi.fn();
+    const fakePi = {
+      registerProvider,
+      registerCommand,
+      on: vi.fn(),
+    } as unknown as Parameters<typeof import("../src/index").default>[0];
+
+    const mod = await import("../src/index");
+    await mod.default(fakePi);
+
+    const refreshEntry = registerCommand.mock.calls.find(
+      (c: unknown[]) => c[0] === "cursor-refresh-models",
+    ) as unknown as [
+      string,
+      {
+        handler: (
+          args: string,
+          ctx: { ui?: { notify?: (msg: string, level: string) => void } },
+        ) => Promise<void>,
+      },
+    ];
+    const notify = vi.fn();
+    await refreshEntry[1].handler("", { ui: { notify } });
+
+    return { registerProvider, notify };
+  }
+
+  it("on live source: re-registers models live and reports success without 'restart'", async () => {
+    const { registerProvider, notify } = await runRefresh("live", [
+      { id: "new-cursor-model", displayName: "New Cursor Model" },
+    ]);
+
+    // registerProvider called twice: startup + the live refresh (live update).
+    expect(registerProvider).toHaveBeenCalledTimes(2);
+    const refreshCall = registerProvider.mock.calls[1]!;
+    expect(refreshCall[0]).toBe("cursor");
+    const modelIds = (
+      refreshCall[1] as { models: Array<{ id: string }> }
+    ).models.map((m) => m.id);
+    expect(modelIds).toContain("new-cursor-model");
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    const [msg, level] = notify.mock.calls[0]!;
+    expect(msg).toMatch(/Refreshed cursor models/i);
+    expect(msg).not.toMatch(/restart/i);
+    expect(level).toBe("info");
+  });
+
+  it("on fallback source: does NOT re-register (no clobber) and warns", async () => {
+    const { registerProvider, notify } = await runRefresh("fallback", [
+      { id: "fallback-only-model", displayName: "Fallback" },
+    ]);
+
+    // registerProvider called once (startup only) — in-memory list untouched.
+    expect(registerProvider).toHaveBeenCalledTimes(1);
+
+    expect(notify).toHaveBeenCalledTimes(1);
+    const [, level] = notify.mock.calls[0]!;
+    expect(level).toBe("warning");
+  });
+
+  it("on cache source: does NOT re-register (no clobber) and warns", async () => {
+    const { registerProvider, notify } = await runRefresh("cache", [
+      { id: "cached-model", displayName: "Cached" },
+    ]);
+
+    expect(registerProvider).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledTimes(1);
+    expect(notify.mock.calls[0]![1]).toBe("warning");
+  });
+});

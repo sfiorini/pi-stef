@@ -6,7 +6,7 @@
  *
  * Usage:
  *   /cursor-login <key>        — store an API key (from https://cursor.com/dashboard → API Keys)
- *   /cursor-refresh-models     — re-discover models and notify
+ *   /cursor-refresh-models     — re-discover models live and notify
  *
  * Legacy OAuth credentials are detected at startup and produce a migration warning.
  */
@@ -404,12 +404,27 @@ export default async function (pi: ExtensionAPI) {
     pi.registerCommand("cursor-refresh-models", {
       description: "Re-discover Cursor models. Usage: /cursor-refresh-models",
       handler: async (_args: string, ctx) => {
-        const { discoverModels: refresh } = await import("./model-discovery.js");
-        const r = await refresh({});
-        ctx?.ui?.notify?.(
-          `Refreshed Cursor model cache (${r.items.length} models, source: ${r.source}). Restart pi to apply.`,
-          "info",
-        );
+        const { discoverModels } = await import("./model-discovery.js");
+        // forceRefresh bypasses the on-disk cache so the live Cursor API is
+        // always called; a successful live call overwrites the cache.
+        const r = await discoverModels({ forceRefresh: true });
+        if (r.source === "live") {
+          // Live data confirmed: replace the in-memory model list immediately
+          // so the new model is usable without restarting pi.
+          register(pi, r.items);
+          ctx?.ui?.notify?.(
+            `Refreshed cursor models (${r.items.length}). Models updated.`,
+            "info",
+          );
+        } else {
+          // Couldn't reach the live API (no key, or request failed). Leave the
+          // in-memory list untouched so a previously live list isn't clobbered
+          // by stale cache / bundled fallback data.
+          ctx?.ui?.notify?.(
+            `Couldn't reach the Cursor API. ${r.items.length} cached/fallback models are currently shown — models not changed.`,
+            "warning",
+          );
+        }
       },
     });
   }

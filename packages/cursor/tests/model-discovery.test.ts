@@ -187,4 +187,90 @@ describe("discoverModels", () => {
     expect(result.source).toBe("cache");
     expect(result.items).toEqual(FAKE_MODELS);
   });
+
+  it("forceRefresh bypasses a fresh cache hit, fetches live, and writes the cache", async () => {
+    const { fingerprintApiKey } = await import("../src/sensitive-text");
+    const fp = fingerprintApiKey(FAKE_API_KEY);
+
+    // Fresh cache hit — would short-circuit without forceRefresh
+    const readCachedModelList = vi.fn().mockReturnValue({
+      items: FAKE_MODELS,
+      apiKeyFingerprint: fp,
+      savedAt: Date.now(),
+    });
+    const writeCachedModelList = vi.fn();
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return { ...orig, readCachedModelList, writeCachedModelList };
+    });
+
+    const liveModels: ModelListItem[] = [
+      { id: "new-model", displayName: "New Model" },
+    ];
+    const fakeList = vi.fn().mockResolvedValue(liveModels);
+    const fakeSdk = { Cursor: { models: { list: fakeList } } };
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    const result = await freshDiscover({
+      forceRefresh: true,
+      resolveApiKey: async () => FAKE_API_KEY,
+      loadSdk: async () => fakeSdk as never,
+    });
+
+    expect(result.source).toBe("live");
+    expect(result.items).toEqual(liveModels);
+    expect(fakeList).toHaveBeenCalledWith({ apiKey: FAKE_API_KEY });
+    expect(writeCachedModelList).toHaveBeenCalledTimes(1);
+    const [items, fingerprint] = writeCachedModelList.mock.calls[0];
+    expect(items).toEqual(liveModels);
+    expect(fingerprint).toBe(fp);
+  });
+
+  it("without forceRefresh, a fresh cache hit short-circuits and never calls live", async () => {
+    const { fingerprintApiKey } = await import("../src/sensitive-text");
+    const fp = fingerprintApiKey(FAKE_API_KEY);
+
+    const readCachedModelList = vi.fn().mockReturnValue({
+      items: FAKE_MODELS,
+      apiKeyFingerprint: fp,
+      savedAt: Date.now(),
+    });
+    const writeCachedModelList = vi.fn();
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return { ...orig, readCachedModelList, writeCachedModelList };
+    });
+
+    const fakeList = vi.fn();
+    const fakeSdk = { Cursor: { models: { list: fakeList } } };
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    const result = await freshDiscover({
+      resolveApiKey: async () => FAKE_API_KEY,
+      loadSdk: async () => fakeSdk as never,
+    });
+
+    expect(result.source).toBe("cache");
+    expect(fakeList).not.toHaveBeenCalled();
+    expect(writeCachedModelList).not.toHaveBeenCalled();
+  });
+
+  it("forceRefresh with no API key returns fallback without calling live", async () => {
+    const fakeList = vi.fn();
+    const fakeSdk = { Cursor: { models: { list: fakeList } } };
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    const result = await freshDiscover({
+      forceRefresh: true,
+      resolveApiKey: async () => undefined,
+      loadSdk: async () => fakeSdk as never,
+    });
+
+    expect(result.source).toBe("fallback");
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(fakeList).not.toHaveBeenCalled();
+  });
 });

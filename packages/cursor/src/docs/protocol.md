@@ -100,12 +100,19 @@ Pi tools are exposed to Cursor agents via a loopback MCP server:
 
 ## Model Discovery Flow
 
-`discoverModels({ apiKey, forceRefresh })` resolves models in priority order:
+`discoverModels({ forceRefresh })` resolves models in priority order (the API key
+is resolved internally — stored cred → `CURSOR_API_KEY` → none):
 
-1. **Cache** — Check `~/.pi/agent/cursor-sdk-model-list.json` (TTL 24h, keyed by `sha256(apiKey)[:16]`, mode 0600)
+1. **Cache** — Check `~/.pi/agent/cursor-sdk-model-list.json` (TTL 24h, keyed by `sha256(apiKey)[:16]`, mode 0600). *Skipped when `forceRefresh` is set.*
 2. **Live** — Call `Cursor.models.list({ apiKey })`, save to cache
 3. **Stale cache** — Use expired cache if live call fails
 4. **Fallback** — Use bundled `FALLBACK_MODEL_ITEMS` from `model-fallback.generated.ts`
+
+`/cursor-refresh-models` runs `discoverModels({ forceRefresh: true })` so the live
+API is always called (bypassing the cache). On success it overwrites the cache and
+re-registers the provider models in-memory, so a newly added model is available
+immediately without restarting pi. If the live call fails it leaves the in-memory
+list untouched and warns.
 
 ## Agent Pooling
 
