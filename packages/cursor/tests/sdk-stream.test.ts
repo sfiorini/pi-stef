@@ -840,6 +840,50 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(fakeSession.currentRun).toBeUndefined();
   });
 
+  // Case 9b (audit P2): NEW-turn run resolves { status: "cancelled" } WITHOUT a
+  // user abort (so the `aborted` flag is false) — this is an SDK-initiated
+  // cancellation (stall detector / transport). It MUST map to a terminal error,
+  // NEVER fall through to the "stop" branch (which would masquerade a
+  // failed/stalled run as success).
+  it("case 9b: audit P2 — run resolves { status: 'cancelled' } (not aborted) → terminal error + stopReason 'error'", async () => {
+    const { deps, runDeferred, fakeSession } = await createFakeDeps();
+
+    // No error.message on the run (cancelled is SDK-initiated, not a thrown error).
+    // The fallback message must therefore mention "cancelled".
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    const events = collectStreamEvents(stream);
+
+    // Wait for send → runPhase reaches the race
+    await vi.waitFor(() => {
+      expect(deps.loadSdk).toHaveBeenCalled();
+    });
+
+    // Resolve the run with status "cancelled" — SDK-initiated, NOT a user abort
+    runDeferred.resolve({ status: "cancelled" });
+
+    const result = await stream.result();
+    // MUST be a terminal error, NEVER "stop" (which would masquerade as success)
+    expect(result.stopReason).toBe("error");
+    expect(result.errorMessage).toContain("cancelled");
+
+    // An error event must have been pushed (not a done event)
+    const errorEvent = events.find((e) => e.type === "error") as Extract<
+      AssistantMessageEvent,
+      { type: "error" }
+    >;
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent.reason).toBe("error");
+    expect(events.filter((e) => e.type === "done")).toHaveLength(0);
+
+    // The settled run is cleared so the next NEW turn starts fresh
+    expect(fakeSession.currentRun).toBeUndefined();
+  });
+
   // Case 7: P0 regression — multi-turn: second turn content is NOT empty
   it("case 7: P0 — second turn content is NOT empty (coordinator partial stays valid)", async () => {
     const { fakeSession, deps, fireDelta, runDeferred } = await createFakeDeps();
@@ -963,8 +1007,12 @@ describe("streamCursor (S-62 two-phase)", () => {
       });
 
       // run.wait() never resolves, bridge never arms → watchdog fires after ~50ms.
-      // The stream MUST end (not hang) with a terminal error.
+      // The stream MUST end (not hang) with a terminal error. Capture timing so a
+      // watchdog regression (e.g. budget ignored / default 120s) fails fast and
+      // precisely instead of timing out the whole suite.
+      const start = Date.now();
       const result = await stream.result();
+      expect(Date.now() - start).toBeLessThan(500); // budget 50ms via stubEnv
       expect(result.stopReason).toBe("error");
       expect(result.errorMessage).toContain("wedged");
 
@@ -979,6 +1027,81 @@ describe("streamCursor (S-62 two-phase)", () => {
       expect(errorEvent).toBeDefined();
       expect(errorEvent.reason).toBe("error");
       expect(events.filter((e) => e.type === "done")).toHaveLength(0);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  // Case 10b (audit P3 optional): RESUME turn wedged (currentRun.wait() never
+  // resolves, no further tool call arms) → watchdog fires → terminal error +
+  // cancel. Mirrors Case 10 but on the RESUME path (identical raceWithWatchdog).
+  it("case 10b: audit P3 — wedged RESUME turn → watchdog fires → terminal error + cancel", async () => {
+    vi.stubEnv("PI_CURSOR_RUN_WATCHDOG_MS", "50");
+    try {
+      const { fakeSession, deps } = await createFakeDeps();
+
+      // Pre-arm the bridge with a pending tool call (simulates a paused prior turn)
+      fakeSession.bridge.pending(
+        "tc1",
+        "read_file",
+        '{"path":"/tmp/hello.txt"}',
+      );
+
+      // The session has an active currentRun whose wait() NEVER settles (wedged).
+      const wedgedRun = {
+        wait: () =>
+          new Promise<{ status: string; usage?: Record<string, number> }>(() => {}),
+        cancel: vi.fn(async () => {}),
+      };
+      fakeSession.currentRun = wedgedRun;
+      fakeSession.firstTurn = false;
+
+      // Provide the tool-result for tc1 so resolveFromToolResults drains the
+      // pending call; the resumed run then never produces a further tool call,
+      // so bridge.whenPending() never fires → watchdog fires after ~50ms.
+      const contextMessages = [
+        {
+          role: "toolResult",
+          toolCallId: "tc1",
+          toolName: "read_file",
+          content: [{ type: "text", text: "file contents here" }],
+          isError: false,
+          timestamp: Date.now(),
+        },
+      ];
+
+      const stream = streamCursor(
+        fakeModel(),
+        { messages: contextMessages } as unknown as Context,
+        undefined,
+        deps as unknown as Parameters<typeof streamCursor>[3],
+      );
+      const events = collectStreamEvents(stream);
+
+      // Wait for runPhase to set session.targetStream (RESUME branch entered)
+      await vi.waitFor(() => {
+        expect(fakeSession.targetStream).toBeDefined();
+      });
+
+      const start = Date.now();
+      const result = await stream.result();
+      expect(Date.now() - start).toBeLessThan(500); // budget 50ms via stubEnv
+      expect(result.stopReason).toBe("error");
+      expect(result.errorMessage).toContain("wedged");
+
+      // The watchdog must have cancelled the wedged resumed run
+      expect(wedgedRun.cancel).toHaveBeenCalled();
+
+      const errorEvent = events.find((e) => e.type === "error") as Extract<
+        AssistantMessageEvent,
+        { type: "error" }
+      >;
+      expect(errorEvent).toBeDefined();
+      expect(errorEvent.reason).toBe("error");
+      expect(events.filter((e) => e.type === "done")).toHaveLength(0);
+
+      // priorRunWasWedged must be set so the next NEW turn force-recovers
+      expect(fakeSession.priorRunWasWedged).toBe(true);
     } finally {
       vi.unstubAllEnvs();
     }

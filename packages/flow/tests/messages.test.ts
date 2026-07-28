@@ -127,5 +127,8 @@ describe("summarizePhaseModels", () => {
     const myPhaseLine = msg.split("\n").find((l) => l.includes("myphase"));
     expect(myPhaseLine).toBeDefined();
     expect(myPhaseLine).not.toContain("config does NOT apply to tier-2 agents");
+    // A raw phase has no skill/agent — render "(no agent)", never "agent undefined".
+    expect(myPhaseLine).toContain("(no agent)");
+    expect(myPhaseLine).not.toContain("agent undefined");
   });
 });

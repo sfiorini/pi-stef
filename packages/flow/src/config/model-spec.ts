@@ -1,8 +1,9 @@
 /**
  * Atomic model-spec normalizer — the single chokepoint that guarantees a
- * resolved model spec is a REAL, well-formed `provider/modelId` (or a bare
- * registry id) and NEVER a cross-source hybrid spliced from two different
- * sources (the root cause of Issue #2: buildFallbackModel in
+ * resolved model spec is a **well-formed** `provider/modelId` (shape check;
+ * does NOT validate against the model registry) or a bare registry id, and
+ * NEVER a cross-source hybrid spliced from two different sources (the root
+ * cause of Issue #2: buildFallbackModel in
  * @quintinshaw/pi-dynamic-workflows keeps one source's `provider` and
  * overwrites `id` from another).
  *

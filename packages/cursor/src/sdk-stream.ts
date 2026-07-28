@@ -563,20 +563,30 @@ function finalize(
   // retries instead of appearing to hang. Exactly one `session.currentRun =
   // undefined` runs on this path (the early return skips the one below).
   // (S-M5-2)
-  if (result.status === "error") {
+  // A wedged/errored/cancelled run must map to a TERMINAL status — never left
+  // "running" or masquerading as "length"/"stop". Any `cancelled` reaching
+  // here is SDK-initiated (stall detector / transport): user aborts are caught
+  // earlier by the `aborted` flag (error path above finalize). Surface as an
+  // error so pi recovers/retries instead of appearing to hang. Exactly one
+  // `session.currentRun = undefined` runs on this path (the early return skips
+  // the one below). (S-M5-2; audit P2 widened error→cancelled.)
+  if (result.status === "error" || result.status === "cancelled") {
     session.partial.stopReason = "error";
-    const msg =
-      session.currentRun?.error?.message ??
-      "Cursor run ended with status 'error'";
+    const msg = session.currentRun?.error?.message
+      ?? (result.status === "cancelled"
+        ? "Cursor run cancelled (SDK stall/transport)"
+        : "Cursor run ended with status 'error'");
     session.partial.errorMessage = msg;
     stream.push({ type: "error", reason: "error", error: session.partial });
     session.currentRun = undefined;
     return;
   }
 
+  // `cancelled` can no longer reach here (handled above); `toolUse` precedence
+  // is unchanged.
   const reason: "stop" | "length" | "toolUse" = session.bridge.hasPending()
     ? "toolUse"
-    : result.status === "cancelled" || result.status === "finished"
+    : result.status === "finished"
       ? "stop"
       : "length";
 

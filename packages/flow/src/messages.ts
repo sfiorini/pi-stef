@@ -155,7 +155,7 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
       lines.push(``);
       lines.push(`Per-phase models (what each phase ACTUALLY uses):`);
       for (const p of opts.phaseModels) {
-        const who = p.skill ? `skill ${p.skill}` : `agent ${p.agent}`;
+        const who = p.skill ? `skill ${p.skill}` : p.agent ? `agent ${p.agent}` : "(no agent)";
         const note = p.kind === "tier2-agent" ? "  [config does NOT apply to tier-2 agents]" : "";
         lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}${note}`);
       }
