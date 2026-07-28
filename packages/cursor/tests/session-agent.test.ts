@@ -202,4 +202,44 @@ describe("session-agent", () => {
     expect(createAgent.mock.calls[0][1].local.enableAgentRetries).toBe(true);
     release();
   });
+
+  // S-P3-2: enableAgentRetries is now a 6th pool-key dimension — acquisitions
+  // that differ ONLY in retries must pool separately (distinct keys → distinct
+  // wrappers), so a no-retry probe can't accidentally resume a retrying run.
+  it("S-P3-2: distinct enableAgentRetries → distinct pool keys (no reuse)", async () => {
+    const agents = new Map<string, FakeAgent>();
+    const loadSdk = makeFakeLoadSdk(agents);
+
+    // retries=true (default / omitted) — released back to the pool
+    const r1 = await acquireSessionAgent(baseOpts, { loadSdk });
+    r1.release();
+
+    // Same opts but retries=false — must NOT reuse the retries=true wrapper.
+    // (Wrapper identity is the real pool-key signal here: the fake SDK dedupes
+    // the underlying agent by apiKey+model, so we assert on the wrapper, not
+    // the agent object.)
+    const r2 = await acquireSessionAgent(
+      { ...baseOpts, enableAgentRetries: false },
+      { loadSdk },
+    );
+
+    expect(r1.session).not.toBe(r2.session);
+    r2.release();
+  });
+
+  it("S-P3-2: same enableAgentRetries (both omitted/true) → still reuses", async () => {
+    const agents = new Map<string, FakeAgent>();
+    const loadSdk = makeFakeLoadSdk(agents);
+
+    const r1 = await acquireSessionAgent(baseOpts, { loadSdk });
+    r1.release();
+    // Explicit true must pool with omitted (both normalize to true)
+    const r2 = await acquireSessionAgent(
+      { ...baseOpts, enableAgentRetries: true },
+      { loadSdk },
+    );
+
+    expect(r1.session).toBe(r2.session);
+    r2.release();
+  });
 });

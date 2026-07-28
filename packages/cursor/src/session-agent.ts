@@ -5,9 +5,9 @@
  * accumulating partial message so that turn N+1 can RESUME the same SDK run
  * rather than starting a fresh `agent.send`.
  *
- * Pool key (5 dimensions): `scopeKey \0 cwd \0 JSON(modelSelection) \0
- * sorted(toolNames) \0 apiKey[:16]`.  Same key → reuse the same wrapper
- * (its currentRun/bridge/coordinator survive across pi turns).
+ * Pool key (6 dimensions): `scopeKey \0 cwd \0 JSON(modelSelection) \0
+ * sorted(toolNames) \0 apiKey[:16] \0 enableAgentRetries`.  Same key → reuse the
+ * same wrapper (its currentRun/bridge/coordinator survive across pi turns).
  *
  * NO `@cursor/sdk` import — uses local mirror types.
  */
@@ -28,18 +28,27 @@ export interface SDKAgent {
   close(): Promise<void>;
 }
 
-/** Status of a Cursor SDK Run (mirrors @cursor/sdk Run.status). */
+/** Status of a Cursor SDK Run (mirrors @cursor/sdk Run.status). Kept as the
+ *  canonical status union even though the provider loop does not observe the
+ *  run handle's status (see `SDKRun`). */
 export type SDKRunStatus = "running" | "finished" | "error" | "cancelled";
 
-/** Minimal mirror of the SDK Run object. */
+/**
+ * Minimal mirror of the SDK Run object.
+ *
+ * Stall detection does NOT observe this handle's status: the provider loop
+ * (`sdk-stream.ts`) uses a bounded timer-based watchdog (`raceWithWatchdog`)
+ * together with `run.wait()` + the `SDKRunResult.status` / `run.error` fields
+ * to detect wedged/cancelled runs. (The `status` / `onDidChangeStatus`
+ * mirror members were removed as dead — never read in production; the
+ * watchdog is timer-based, not status-based.)
+ */
 export interface SDKRun {
   wait(): Promise<SDKRunResult>;
   cancel(): Promise<void>;
-  /** Current run status (mirrors @cursor/sdk Run.status). Optional so test fakes may omit it. */
-  readonly status?: SDKRunStatus;
-  /** Status-change listener (mirrors @cursor/sdk Run.onDidChangeStatus). Optional on the mirror. */
-  onDidChangeStatus?(listener: (status: SDKRunStatus) => void): () => void;
-  /** Terminal failure details (mirrors @cursor/sdk Run.error). Optional so fakes may omit it. */
+  /** Terminal failure details (mirrors @cursor/sdk Run.error). Read by
+   *  `finalize()` to surface a failure message. Optional so test fakes may
+   *  omit it. */
   readonly error?: { message: string; code?: string };
 }
 
@@ -99,7 +108,7 @@ const pool = new Map<string, PoolEntry>();
 const allEntries = new Set<PoolEntry>();
 
 /**
- * Build the 5-dimensional pool key.
+ * Build the 6-dimensional pool key.
  */
 function buildPoolKey(
   scopeKey: string,
@@ -107,9 +116,10 @@ function buildPoolKey(
   modelSelection: ModelSelection,
   toolNames: string[],
   apiKey: string,
+  enableAgentRetries: boolean,
 ): string {
   const sortedTools = toolNames.slice().sort().join(",");
-  return `${scopeKey}\0${cwd}\0${JSON.stringify(modelSelection)}\0${sortedTools}\0${apiKey.slice(0, 16)}`;
+  return `${scopeKey}\0${cwd}\0${JSON.stringify(modelSelection)}\0${sortedTools}\0${apiKey.slice(0, 16)}\0${enableAgentRetries}`;
 }
 
 /**
@@ -185,12 +195,18 @@ export async function acquireSessionAgent(
   opts: AcquireSessionAgentOpts,
   deps?: AcquireSessionAgentDeps,
 ): Promise<{ session: SessionAgent; release: () => void }> {
+  // Normalize once: an omitted value is equivalent to `true` (SDK default),
+  // so omitted-vs-explicit-true acquisitions pool TOGETHER. (S-P3-2: this is
+  // the 6th pool-key dimension — distinct retries must not share a wrapper.)
+  const enableAgentRetries = opts.enableAgentRetries ?? true;
+
   const key = buildPoolKey(
     opts.scopeKey,
     opts.cwd,
     opts.modelSelection,
     opts.toolNames,
     opts.apiKey,
+    enableAgentRetries,
   );
 
   const idle = pool.get(key);
@@ -211,9 +227,6 @@ export async function acquireSessionAgent(
   const loadSdk = deps?.loadSdk ?? (async () => loadCursorSdk());
   const createAgent = deps?.createAgent ?? defaultCreateAgent;
   const sdk = await loadSdk();
-  // SDK default is `true` (headless); allow callers (watchdog/recovery path,
-  // advanced users) to disable silent transport/stall auto-retry. (S-M5-4)
-  const enableAgentRetries = opts.enableAgentRetries ?? true;
   const agent = await createAgent(sdk, {
     apiKey: opts.apiKey,
     model: opts.modelSelection,

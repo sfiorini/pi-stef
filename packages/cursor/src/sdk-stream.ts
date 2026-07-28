@@ -215,6 +215,23 @@ function resolveWatchdogMs(budgetMs?: number): number {
 }
 
 /**
+ * Resolve whether the @cursor/sdk transport + stall auto-retry is enabled for
+ * the NEXT agent acquisition. Read PER-CALL (not at module load) so it can be
+ * toggled between turns / by tests via `vi.stubEnv(...)`.
+ *
+ * Default `true` (the SDK headless default — `enableAgentRetries` silently
+ * auto-retries transport stalls). Set `PI_CURSOR_ENABLE_AGENT_RETRIES` to
+ * `"0"`, `"false"`, or `"no"` (case-insensitive) to surface transport/stall
+ * errors on first failure instead. Any other value (incl. unset / empty)
+ * resolves to `true`. (S-P3-2 — makes the S-M5-4 knob reachable in production.)
+ */
+export function resolveEnableAgentRetries(): boolean {
+  const raw = process.env.PI_CURSOR_ENABLE_AGENT_RETRIES?.trim().toLowerCase();
+  if (raw === "0" || raw === "false" || raw === "no") return false;
+  return true;
+}
+
+/**
  * Race `competitors` with a bounded watchdog. If NONE settle within the budget,
  * the run is cancelled, pending tool calls rejected, and a `WedgedRunError` is
  * thrown (caller pushes a terminal error) — guaranteeing the stream ALWAYS ends.
@@ -321,6 +338,9 @@ async function runPhase(
         cwd: process.cwd(),
         scopeKey: (options as { sessionId?: string } | undefined)?.sessionId ?? "default",
         toolNames,
+        // S-P3-2: read PI_CURSOR_ENABLE_AGENT_RETRIES per-call so the
+        // configurable knob (S-M5-4) is actually reachable in production.
+        enableAgentRetries: resolveEnableAgentRetries(),
       },
       undefined as unknown as AcquireSessionAgentDeps,
     );

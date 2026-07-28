@@ -1,6 +1,6 @@
 process.env.PI_CURSOR_AUTH_JSON_PATH ??= "/tmp/pi-stef-cursor-test-noauth.json";
-import { describe, expect, it, vi } from "vitest";
-import { streamCursor, streamCursorLazy } from "../src/sdk-stream";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { streamCursor, streamCursorLazy, resolveEnableAgentRetries } from "../src/sdk-stream";
 import type {
   AssistantMessageEvent,
   AssistantMessage,
@@ -75,7 +75,6 @@ async function createFakeDeps() {
       // When cancel is called (e.g. from abort), reject the deferred
       runDeferred.reject(new Error("aborted"));
     }),
-    status: "running" as string,
   };
 
   // Captured customTools from agent.send (for tests that need to execute them)
@@ -1189,5 +1188,103 @@ describe("streamCursor (S-62 two-phase)", () => {
 
     const types = events.map((e) => e.type);
     expect(types).toContain("error");
+  });
+});
+
+// ─── S-P3-2: PI_CURSOR_ENABLE_AGENT_RETRIES env wiring ───────────────────────
+
+describe("resolveEnableAgentRetries (S-P3-2)", () => {
+  const KEY = "PI_CURSOR_ENABLE_AGENT_RETRIES";
+  beforeEach(() => {
+    delete process.env[KEY];
+  });
+  afterEach(() => {
+    delete process.env[KEY];
+  });
+
+  it("defaults to true when unset", () => {
+    expect(resolveEnableAgentRetries()).toBe(true);
+  });
+
+  it.each(["0", "false", "no"])('returns false for %j', (val) => {
+    process.env[KEY] = val;
+    expect(resolveEnableAgentRetries()).toBe(false);
+  });
+
+  it.each(["FALSE", "No", "NO", "False", "  false  ", "\t0"])(
+    "is case- and whitespace-insensitive (%j → false)",
+    (val) => {
+      process.env[KEY] = val;
+      expect(resolveEnableAgentRetries()).toBe(false);
+    },
+  );
+
+  it.each(["1", "true", "yes", "on", "anything-else", ""])(
+    "returns true for non-falsy token %j",
+    (val) => {
+      process.env[KEY] = val;
+      expect(resolveEnableAgentRetries()).toBe(true);
+    },
+  );
+});
+
+describe("runPhase wires enableAgentRetries from env (S-P3-2)", () => {
+  const KEY = "PI_CURSOR_ENABLE_AGENT_RETRIES";
+
+  beforeEach(() => {
+    delete process.env[KEY];
+  });
+  afterEach(() => {
+    delete process.env[KEY];
+  });
+
+  it("PI_CURSOR_ENABLE_AGENT_RETRIES=0 → _acquire receives enableAgentRetries:false", async () => {
+    process.env[KEY] = "0";
+    const { deps, runDeferred } = await createFakeDeps();
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    collectStreamEvents(stream);
+
+    await vi.waitFor(() => {
+      expect(deps.acquireSessionAgent).toHaveBeenCalled();
+    });
+
+    const calls = (deps.acquireSessionAgent as unknown as {
+      mock: { calls: Array<[{ enableAgentRetries?: boolean }]> };
+    }).mock.calls;
+    expect(calls[0][0].enableAgentRetries).toBe(false);
+
+    // Let the run settle so the stream closes cleanly
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
+  });
+
+  it("env unset → _acquire receives enableAgentRetries:true (default)", async () => {
+    const { deps, runDeferred } = await createFakeDeps();
+
+    const stream = streamCursor(
+      fakeModel(),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+    collectStreamEvents(stream);
+
+    await vi.waitFor(() => {
+      expect(deps.acquireSessionAgent).toHaveBeenCalled();
+    });
+
+    const calls = (deps.acquireSessionAgent as unknown as {
+      mock: { calls: Array<[{ enableAgentRetries?: boolean }]> };
+    }).mock.calls;
+    expect(calls[0][0].enableAgentRetries).toBe(true);
+
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
   });
 });
