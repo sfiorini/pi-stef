@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "../src/messages.js";
+import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "../src/messages.js";
+import type { FlowYaml } from "../src/yaml/schema.js";
 
 describe("buildImplementReadyMessage", () => {
   it("directs the agent to cd into the worktree and read the sf-flow-implement skill file", () => {
@@ -80,5 +81,51 @@ describe("buildAutoReadyMessage", () => {
     expect(msg).toContain("impl (tier1-skill, skill sf-flow-implement): dev");
     expect(msg).toContain("scan (tier2-agent, agent scanner): haiku");
     expect(msg).toContain("config does NOT apply to tier-2 agents");
+  });
+});
+
+describe("summarizePhaseModels", () => {
+  const rawPhaseFlow: FlowYaml = {
+    name: "raw-flow",
+    description: "flow with a raw phase",
+    input: "prompt",
+    agents: {},
+    phases: [{ id: "myphase", raw: "console.log('hello');" }],
+  };
+
+  it("classifies a raw phase as 'other' with no model resolution", () => {
+    const summary = summarizePhaseModels(rawPhaseFlow, null);
+    expect(summary).toHaveLength(1);
+    expect(summary[0]).toMatchObject({
+      phase: "myphase",
+      kind: "other",
+      model: null,
+    });
+  });
+
+  it("renders a raw phase WITHOUT the tier-2 note in buildAutoReadyMessage", () => {
+    const summary = summarizePhaseModels(rawPhaseFlow, null);
+    const msg = buildAutoReadyMessage({
+      workflowName: "raw-flow",
+      inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/raw.yaml",
+      // A non-null models object is required for the per-phase block to render.
+      models: {
+        reviewerModel: "rev",
+        researcherModel: "rs",
+        developerModel: "dev",
+        plannerModel: null,
+        auditorModel: null,
+        synthModel: null,
+        designerModel: null,
+      },
+      phaseModels: summary,
+    });
+    expect(msg).toContain("myphase");
+    expect(msg).toContain("other");
+    // The tier-2 note must NOT appear for a raw ("other") phase.
+    const myPhaseLine = msg.split("\n").find((l) => l.includes("myphase"));
+    expect(myPhaseLine).toBeDefined();
+    expect(myPhaseLine).not.toContain("config does NOT apply to tier-2 agents");
   });
 });

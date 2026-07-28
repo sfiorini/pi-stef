@@ -51,6 +51,14 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
         source: isTier1 ? (tier1ModelFor(ph.skill) ? "config (representative role)" : "inherit orchestrator") : "inherit orchestrator",
       };
     }
+    if (ph.raw) {
+      return {
+        phase: ph.id,
+        kind: "other" as const,
+        model: null,
+        source: "raw phase (no model resolution)",
+      };
+    }
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
     const yamlModel = def?.model ?? null;
     return {
