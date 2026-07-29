@@ -153,14 +153,18 @@ describe("cursor-refresh-models command", () => {
 
   /** Wire up the extension with a mocked discoverModels, then invoke the
    * refresh handler once and return the captured registerProvider + notify. */
-  async function runRefresh(source: Source, items: ModelListItem[]) {
+  async function runRefresh(
+    source: Source,
+    items: ModelListItem[],
+    reason?: "no-api-key" | "live-error" | "live-empty",
+  ) {
     vi.doMock("@earendil-works/pi-coding-agent", () => ({
       AuthStorage: {
         create: () => ({ get: () => undefined, set: () => {} }),
       },
     }));
     vi.doMock("../src/model-discovery", () => ({
-      discoverModels: vi.fn().mockResolvedValue({ items, source }),
+      discoverModels: vi.fn().mockResolvedValue({ items, source, reason }),
     }));
 
     const registerProvider = vi.fn();
@@ -233,5 +237,22 @@ describe("cursor-refresh-models command", () => {
     expect(registerProvider).toHaveBeenCalledTimes(1);
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0]![1]).toBe("warning");
+  });
+
+  it("tailors the warning message by reason", async () => {
+    const items = [{ id: "x", displayName: "X" }];
+
+    const noKey = await runRefresh("fallback", items, "no-api-key");
+    expect(noKey.notify.mock.calls[0]![0]).toMatch(/No Cursor API key configured.*\/cursor-login/i);
+
+    const empty = await runRefresh("fallback", items, "live-empty");
+    expect(empty.notify.mock.calls[0]![0]).toMatch(/Cursor API returned no models/i);
+
+    const liveErr = await runRefresh("fallback", items, "live-error");
+    expect(liveErr.notify.mock.calls[0]![0]).toMatch(/Couldn't reach the Cursor API.*live call failed/i);
+
+    // No reason (e.g. stale cache with no live-attempt detail) → default reachability message.
+    const noReason = await runRefresh("fallback", items);
+    expect(noReason.notify.mock.calls[0]![0]).toMatch(/Couldn't reach the Cursor API/i);
   });
 });

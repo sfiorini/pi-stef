@@ -425,10 +425,13 @@ export default async function (pi: ExtensionAPI) {
           // Couldn't reach the live API (no key, or request failed). Leave the
           // in-memory list untouched so a previously live list isn't clobbered
           // by stale cache / bundled fallback data.
-          ctx?.ui?.notify?.(
-            `Couldn't reach the Cursor API. ${r.items.length} cached/fallback models are currently shown — models not changed.`,
-            "warning",
-          );
+          const msg =
+            r.reason === "no-api-key"
+              ? `No Cursor API key configured — run \`/cursor-login <key>\` (or set CURSOR_API_KEY). ${r.items.length} fallback models shown — models not changed.`
+              : r.reason === "live-empty"
+                ? `Cursor API returned no models. ${r.items.length} cached/fallback models shown — models not changed.`
+                : `Couldn't reach the Cursor API (live call failed). ${r.items.length} cached/fallback models shown — models not changed. Enable PI_CURSOR_PROVIDER_DEBUG=1 for details.`;
+          ctx?.ui?.notify?.(msg, "warning");
         }
       },
     });

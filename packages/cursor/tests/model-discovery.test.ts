@@ -186,6 +186,7 @@ describe("discoverModels", () => {
 
     expect(result.source).toBe("cache");
     expect(result.items).toEqual(FAKE_MODELS);
+    expect(result.reason).toBe("live-error");
   });
 
   it("forceRefresh bypasses a fresh cache hit, fetches live, and writes the cache", async () => {
@@ -270,6 +271,7 @@ describe("discoverModels", () => {
     });
 
     expect(result.source).toBe("fallback");
+    expect(result.reason).toBe("no-api-key");
     expect(result.items.length).toBeGreaterThan(0);
     expect(fakeList).not.toHaveBeenCalled();
   });
@@ -298,6 +300,7 @@ describe("discoverModels", () => {
     });
 
     expect(result.source).toBe("fallback");
+    expect(result.reason).toBe("live-error");
     expect(onLiveError).toHaveBeenCalledTimes(1);
     const err = onLiveError.mock.calls[0][0];
     expect(err).toBeInstanceOf(Error);
@@ -330,5 +333,29 @@ describe("discoverModels", () => {
     });
 
     expect(result.source).toBe("fallback");
+    expect(result.reason).toBe("live-error");
+  });
+
+  it("returns reason live-empty when the live API responds with zero models", async () => {
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return {
+        ...orig,
+        readCachedModelList: vi.fn().mockReturnValue(null),
+        writeCachedModelList: vi.fn(),
+      };
+    });
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    const result = await freshDiscover({
+      forceRefresh: true,
+      resolveApiKey: async () => FAKE_API_KEY,
+      loadSdk: async () =>
+        ({ Cursor: { models: { list: async () => [] } } }) as never,
+    });
+
+    expect(result.source).toBe("fallback");
+    expect(result.reason).toBe("live-empty");
   });
 });

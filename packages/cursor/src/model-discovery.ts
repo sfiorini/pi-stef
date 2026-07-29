@@ -54,6 +54,8 @@ export interface DiscoverModelsOptions {
 export interface DiscoverModelsResult {
   items: ModelListItem[];
   source: "live" | "cache" | "fallback";
+  /** Why source is not "live" (undefined when source === "live" or a normal fresh-cache hit). */
+  reason?: "no-api-key" | "live-error" | "live-empty";
 }
 
 // ── Main entry ──
@@ -73,7 +75,7 @@ export async function discoverModels(
   // Step 1: resolve API key
   const apiKey = await resolveApiKey();
   if (!apiKey) {
-    return { items: fallbackItems, source: "fallback" };
+    return { items: fallbackItems, source: "fallback", reason: "no-api-key" };
   }
 
   const fp = fingerprintApiKey(apiKey);
@@ -87,6 +89,7 @@ export async function discoverModels(
   }
 
   // Step 3: live SDK call
+  let liveFailReason: "live-error" | "live-empty" | undefined = undefined;
   try {
     const sdk = await loadSdk();
     const liveItems = await sdk.Cursor.models.list({ apiKey });
@@ -99,8 +102,10 @@ export async function discoverModels(
       return { items: liveItems, source: "live" };
     }
     // Empty list → fall through to stale cache / fallback
+    liveFailReason = "live-empty";
   } catch (err) {
     // SDK error → surface the reason (if requested), then fall through to stale cache / fallback.
+    liveFailReason = "live-error";
     // Guard the callback so a throwing logger can't break discoverModels' never-throws contract.
     try {
       opts.onLiveError?.(err);
@@ -113,12 +118,12 @@ export async function discoverModels(
   if (!cursorModelCacheDisabled()) {
     const stale = readCachedModelList({ apiKeyFingerprint: fp, maxAgeMs: Infinity });
     if (stale) {
-      return { items: stale.items, source: "cache" };
+      return { items: stale.items, source: "cache", reason: liveFailReason };
     }
   }
 
   // Step 5: bundled fallback
-  return { items: fallbackItems, source: "fallback" };
+  return { items: fallbackItems, source: "fallback", reason: liveFailReason };
 }
 
 // ── Default API-key resolver ──
