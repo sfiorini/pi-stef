@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-07-29
+### Changed
+- fix(cursor): surface model-refresh live-call errors via debug log (onLiveError)
+
+
 ## [1.2.0] - 2026-07-29
 ### Changed
 - docs(cursor): complete docs for 1.0.4 — customTools narrative on docs-site+README, document AUTH_JSON_PATH + PROVIDER_EXTENSION_DEBUG_FILE env vars
