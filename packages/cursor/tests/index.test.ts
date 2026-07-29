@@ -255,4 +255,20 @@ describe("cursor-refresh-models command", () => {
     const noReason = await runRefresh("fallback", items);
     expect(noReason.notify.mock.calls[0]![0]).toMatch(/Couldn't reach the Cursor API/i);
   });
+
+  it("reports the actually-registered model count, not discoverModels' item count", async () => {
+    const { FALLBACK_MODELS, processModels } = await import("../src/model-config");
+    const expected = processModels(FALLBACK_MODELS).length; // what register([]) loads on no-key
+
+    // Pass a deliberately different item count to prove the message uses registeredModelCount.
+    const { notify } = await runRefresh("fallback", [
+      { id: "a", displayName: "A" },
+      { id: "b", displayName: "B" },
+    ], "no-api-key");
+
+    const msg = notify.mock.calls[0]![0] as string;
+    // registeredModelCount (expected) differs from the mocked items.length (2) → proves accuracy.
+    expect(expected).not.toBe(2);
+    expect(msg).toContain(`${expected} cursor models currently loaded`);
+  });
 });

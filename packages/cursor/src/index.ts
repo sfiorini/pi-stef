@@ -331,9 +331,13 @@ function registerExtensionDebugHooks(pi: ExtensionAPI) {
  * on providers that declare custom models (it's metadata on each Model object). */
 const CURSOR_API_BASE_URL = "https://api.cursor.com";
 
+/** Number of cursor models currently registered with pi (updated by register()). */
+let registeredModelCount = 0;
+
 function register(pi: ExtensionAPI, rawItems: ModelListItem[]) {
   const cursorModels = mapModelListItems(rawItems);
   const processed = processModels(cursorModels.length ? cursorModels : FALLBACK_MODELS);
+  registeredModelCount = processed.length;
   pi.registerProvider("cursor", {
     api: "cursor-sdk",
     baseUrl: CURSOR_API_BASE_URL,
@@ -418,19 +422,21 @@ export default async function (pi: ExtensionAPI) {
           // so the new model is usable without restarting pi.
           register(pi, r.items);
           ctx?.ui?.notify?.(
-            `Refreshed cursor models (${r.items.length}). Models updated.`,
+            `Refreshed cursor models (${registeredModelCount}). Models updated.`,
             "info",
           );
         } else {
           // Couldn't reach the live API (no key, or request failed). Leave the
           // in-memory list untouched so a previously live list isn't clobbered
-          // by stale cache / bundled fallback data.
+          // by stale cache / bundled fallback data. Report the count actually
+          // registered (register() falls back to the hardcoded FALLBACK_MODELS
+          // when given an empty list, which is NOT r.items).
           const msg =
             r.reason === "no-api-key"
-              ? `No Cursor API key configured — run \`/cursor-login <key>\` (or set CURSOR_API_KEY). ${r.items.length} fallback models shown — models not changed.`
+              ? `No Cursor API key configured — run \`/cursor-login <key>\` (or set CURSOR_API_KEY). ${registeredModelCount} cursor models currently loaded — not changed.`
               : r.reason === "live-empty"
-                ? `Cursor API returned no models. ${r.items.length} cached/fallback models shown — models not changed.`
-                : `Couldn't reach the Cursor API (live call failed). ${r.items.length} cached/fallback models shown — models not changed. Enable PI_CURSOR_PROVIDER_DEBUG=1 for details.`;
+                ? `Cursor API returned no models. ${registeredModelCount} cursor models currently loaded — not changed.`
+                : `Couldn't reach the Cursor API (live call failed). ${registeredModelCount} cursor models currently loaded — not changed. Enable PI_CURSOR_PROVIDER_DEBUG=1 for details.`;
           ctx?.ui?.notify?.(msg, "warning");
         }
       },
