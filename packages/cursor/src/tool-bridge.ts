@@ -52,25 +52,9 @@ export function buildCustomTools(
       execute(
         args: Record<string, unknown>,
         ctx: { toolCallId?: string },
-      ): SDKCustomToolResult | Promise<SDKCustomToolResult> {
-        // Canonical id MUST be the SDK delta callId — the same id pi echoes back in
-        // the next turn's toolResult, so `resolveFromToolResults` always matches.
-        // A synthetic Date.now() id can never be matched, leaving execute() pending
-        // forever (hang). If the SDK omits toolCallId, surface an in-band error
-        // (guard) instead of parking a deferred that can never resolve.
-        const toolCallId = ctx.toolCallId;
+      ): Promise<SDKCustomToolResult> {
+        const toolCallId = ctx.toolCallId ?? `pi-${name}-${Date.now()}`;
         const argsJson = JSON.stringify(args ?? {});
-        if (!toolCallId) {
-          return {
-            content: [
-              {
-                type: "text",
-                text: `Cursor customTool "${name}" invoked without a toolCallId; cannot correlate the result across turns.`,
-              },
-            ],
-            isError: true,
-          } satisfies SDKCustomToolResult;
-        }
 
         // Emit pi toolcall_start + toolcall_delta so the stream renders the call
         emit.start(toolCallId, name, argsJson);
@@ -80,12 +64,14 @@ export function buildCustomTools(
         // supplies the tool result via resolveFromToolResults.
         // On rejection (abort/error), catch and return an isError result
         // so the SDK gets a proper result rather than a thrown rejection.
-        return bridge.pending(toolCallId, name, argsJson).catch(
-          (err: Error): SDKCustomToolResult => ({
-            content: [{ type: "text", text: err.message }],
-            isError: true,
-          }),
-        );
+        return bridge
+          .pending(toolCallId, name, argsJson)
+          .catch(
+            (err: Error): SDKCustomToolResult => ({
+              content: [{ type: "text", text: err.message }],
+              isError: true,
+            }),
+          );
       },
     };
 

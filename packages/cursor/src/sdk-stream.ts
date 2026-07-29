@@ -34,7 +34,6 @@ import {
   acquireSessionAgent,
   type AcquireSessionAgentDeps,
   type SDKRun,
-  type SDKRunResult,
   type SessionAgent,
 } from "./session-agent.js";
 import { buildFullContextPrompt, buildIncrementalPrompt } from "./context-builder.js";
@@ -170,103 +169,6 @@ function makeEmitter(
   };
 }
 
-// ─── No-hang watchdog (S-M5-3) ───────────────────────────────────────────────
-
-/** Outcome of a no-hang-watched race: the run finished, or it paused on a
- *  further tool call. (Explicit union so raceWithWatchdog<T> type-checks a
- *  heterogeneous competitor array — Promise.race infers this automatically but a
- *  standalone generic helper does not.) */
-type WatchedRaceOutcome =
-  | { k: "done"; r: SDKRunResult }
-  | { k: "paused" };
-
-/**
- * Thrown by the no-hang watchdog when NEITHER `run.wait()` NOR
- * `bridge.whenPending()` settles within the budget — i.e. the run is wedged
- * (parked on a tool call while the @cursor/sdk stall detector cancels it and
- * `enableAgentRetries` silently auto-retries). Surfaced as a terminal error so
- * pi recovers/retries instead of hanging forever.
- */
-class WedgedRunError extends Error {
-  constructor() {
-    super("Cursor run wedged (stall) during tool park — aborted to recover.");
-    this.name = "WedgedRunError";
-  }
-}
-
-/**
- * Resolve the watchdog budget for ONE race (ms). Read PER-CALL (not at module
- * load) so tests can `vi.stubEnv("PI_CURSOR_RUN_WATCHDOG_MS", "50")` and have
- * it take effect — a module-load constant would defeat `stubEnv`. The
- * @cursor/sdk stall budget is internal & not publicly tunable; this bounds the
- * race so a stalled + auto-retried run can never hang pi forever.
- *
- * Precedence: explicit `budgetMs` arg > `PI_CURSOR_RUN_WATCHDOG_MS` env >
- * 120000 (generously above the SDK's ~90s heartbeat but bounded). Invalid /
- * non-positive env → 120000.
- */
-function resolveWatchdogMs(budgetMs?: number): number {
-  if (budgetMs != null) return budgetMs;
-  const parsed = Number.parseInt(
-    process.env.PI_CURSOR_RUN_WATCHDOG_MS ?? "120000",
-    10,
-  );
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 120000;
-}
-
-/**
- * Resolve whether the @cursor/sdk transport + stall auto-retry is enabled for
- * the NEXT agent acquisition. Read PER-CALL (not at module load) so it can be
- * toggled between turns / by tests via `vi.stubEnv(...)`.
- *
- * Default `true` (the SDK headless default — `enableAgentRetries` silently
- * auto-retries transport stalls). Set `PI_CURSOR_ENABLE_AGENT_RETRIES` to
- * `"0"`, `"false"`, or `"no"` (case-insensitive) to surface transport/stall
- * errors on first failure instead. Any other value (incl. unset / empty)
- * resolves to `true`. (S-P3-2 — makes the S-M5-4 knob reachable in production.)
- */
-export function resolveEnableAgentRetries(): boolean {
-  const raw = process.env.PI_CURSOR_ENABLE_AGENT_RETRIES?.trim().toLowerCase();
-  if (raw === "0" || raw === "false" || raw === "no") return false;
-  return true;
-}
-
-/**
- * Race `competitors` with a bounded watchdog. If NONE settle within the budget,
- * the run is cancelled, pending tool calls rejected, and a `WedgedRunError` is
- * thrown (caller pushes a terminal error) — guaranteeing the stream ALWAYS ends.
- *
- * CRITICAL: each competitor is drained with a no-op `.catch(() => {})` so a
- * LATE rejection from a losing competitor (caused by this function's OWN
- * `cancel()` / `rejectAll()` when the watchdog fires) can NEVER surface as an
- * unhandled rejection (Node >=15 would crash — the exact hang the watchdog
- * exists to prevent). The raced value is untouched.
- */
-function raceWithWatchdog<T>(
-  session: SessionAgent,
-  competitors: Promise<T>[],
-  budgetMs?: number,
-): Promise<T> {
-  // Drain losing/late rejections so the watchdog's own cancel()/rejectAll()
-  // can never become an unhandled rejection.
-  for (const p of competitors) p.catch(() => {});
-
-  let timer: NodeJS.Timeout | undefined;
-  const watchdog = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      (session.currentRun as SDKRun | undefined)?.cancel?.()?.catch?.(() => {});
-      session.bridge.rejectAll(
-        new Error("Cursor run wedged (stall) — pending tool calls rejected."),
-      );
-      reject(new WedgedRunError());
-    }, resolveWatchdogMs(budgetMs));
-    timer.unref?.(); // don't keep the event loop alive for the watchdog alone
-  });
-  return Promise.race([...competitors, watchdog]).finally(() => {
-    if (timer) clearTimeout(timer);
-  });
-}
-
 // ─── streamCursor ────────────────────────────────────────────────────────────
 
 /**
@@ -338,9 +240,6 @@ async function runPhase(
         cwd: process.cwd(),
         scopeKey: (options as { sessionId?: string } | undefined)?.sessionId ?? "default",
         toolNames,
-        // S-P3-2: read PI_CURSOR_ENABLE_AGENT_RETRIES per-call so the
-        // configurable knob (S-M5-4) is actually reachable in production.
-        enableAgentRetries: resolveEnableAgentRetries(),
       },
       undefined as unknown as AcquireSessionAgentDeps,
     );
@@ -388,36 +287,20 @@ async function runPhase(
         return;
       }
 
-      // Race: resumed run completes OR pauses on a further tool call — bounded
-      // by the no-hang watchdog so a stalled run can never hang pi forever.
-      let raceResult: WatchedRaceOutcome;
-      try {
-        raceResult = await raceWithWatchdog<WatchedRaceOutcome>(session, [
-          session.currentRun.wait().then((r) => ({ k: "done" as const, r })),
-          session.bridge.whenPending().then(() => ({ k: "paused" as const })),
-        ]);
-      } catch (e) {
-        // Only the watchdog (WedgedRunError) is handled here. Any OTHER
-        // rejection — notably the abort path where onAbort→cancel()→run.wait()
-        // rejects with Error("aborted") — MUST fall through to the outer
-        // catch (err) so it is classified correctly (aborted vs error).
-        if (!(e instanceof WedgedRunError)) throw e;
-        // Watchdog fired: surface a TERMINAL error so pi recovers.
-        session.priorRunWasWedged = true; // NEW-TURN force-recovery signal (S-M5-5)
-        const p = session.partial;
-        p.stopReason = "error";
-        p.errorMessage = e.message;
-        stream.push({ type: "error", reason: "error", error: p });
-        return; // finally still runs release?.() + stream.end(...)
-      }
+      // Race: resumed run completes OR pauses on a further tool call
+      const raceResult = await Promise.race([
+        session.currentRun
+          .wait()
+          .then((r) => ({ k: "done" as const, r })),
+        session.bridge.whenPending().then(() => ({ k: "paused" as const })),
+      ]);
 
-      // POST-RACE logic is UNCHANGED from today: update index, branch on
-      // paused/done, honor `aborted`.
       // P1-a: update lastSentMessageIndex so the next NEW TURN only sends new messages
       session.lastSentMessageIndex = context.messages.length;
 
+      // Drain the losing promise to avoid unhandled rejection
       if (raceResult.k === "paused") {
-        session.currentRun.wait().catch(() => {}); // redundant safety drain (harmless)
+        session.currentRun.wait().catch(() => {});
         // P2-a: aborted → error, not done
         if (aborted) {
           session.bridge.rejectAll(new Error("aborted"));
@@ -426,10 +309,14 @@ async function runPhase(
           stream.push({ type: "error", reason: "aborted", error: session.partial });
         } else {
           session.partial.stopReason = "toolUse";
-          stream.push({ type: "done", reason: "toolUse", message: session.partial });
+          stream.push({
+            type: "done",
+            reason: "toolUse",
+            message: session.partial,
+          });
         }
       } else {
-        session.bridge.whenPending().catch(() => {}); // redundant safety drain (harmless)
+        session.bridge.whenPending().catch(() => {});
         // P2-a: aborted → error, not finalize
         if (aborted) {
           session.bridge.rejectAll(new Error("aborted"));
@@ -470,12 +357,6 @@ async function runPhase(
 
       // Capture session in a local const for the callbacks
       const sess = session;
-      // priorRunWasWedged was set by the watchdog catch (S-M5-3) if the prior
-      // run was wedged; it SURVIVES the `session.currentRun = undefined;` clear
-      // above, so we key off this explicit flag (not a currentRun.status
-      // heuristic, which would be dead code here since currentRun was cleared)
-      // to force a clean recovery via the SDK's wedge-recovery knob.
-      const priorWedged = !!sess.priorRunWasWedged;
       const run: SDKRun = await sess.agent.send(prompt, {
         onDelta: (a: { update: Record<string, unknown> }) =>
           sess.coordinator.handleDelta(
@@ -483,35 +364,21 @@ async function runPhase(
           ),
         onStep: (a: { step: ConversationStep }) =>
           sess.coordinator.handleStep(a),
-        local: { customTools, ...(priorWedged ? { force: true } : {}) },
+        local: { customTools },
       });
-      sess.priorRunWasWedged = false; // reset once the fresh run is engaged
       sess.currentRun = run;
 
-      // Race: run completes OR a tool becomes pending (run paused inside
-      // execute) — bounded by the no-hang watchdog so a stalled run can never
-      // hang pi forever.
-      let raceResult: WatchedRaceOutcome;
-      try {
-        raceResult = await raceWithWatchdog<WatchedRaceOutcome>(sess, [
-          run.wait().then((r) => ({ k: "done" as const, r })),
-          sess.bridge.whenPending().then(() => ({ k: "paused" as const })),
-        ]);
-      } catch (e) {
-        // Only the watchdog (WedgedRunError) is handled here; other rejections
-        // (e.g. abort via cancel()→run.wait()) fall through to the outer catch.
-        if (!(e instanceof WedgedRunError)) throw e;
-        // Watchdog fired: surface a TERMINAL error so pi recovers.
-        sess.priorRunWasWedged = true; // NEW-TURN force-recovery signal (S-M5-5)
-        const p = sess.partial;
-        p.stopReason = "error";
-        p.errorMessage = e.message;
-        stream.push({ type: "error", reason: "error", error: p });
-        return;
-      }
+      // Race: run completes OR a tool becomes pending (run paused inside execute)
+      const raceResult = await Promise.race([
+        run
+          .wait()
+          .then((r) => ({ k: "done" as const, r })),
+        sess.bridge.whenPending().then(() => ({ k: "paused" as const })),
+      ]);
 
+      // Drain the losing promise
       if (raceResult.k === "paused") {
-        run.wait().catch(() => {}); // redundant safety drain (harmless)
+        run.wait().catch(() => {});
         // P2-a: aborted → error, not done
         if (aborted) {
           sess.bridge.rejectAll(new Error("aborted"));
@@ -520,10 +387,14 @@ async function runPhase(
           stream.push({ type: "error", reason: "aborted", error: sess.partial });
         } else {
           sess.partial.stopReason = "toolUse";
-          stream.push({ type: "done", reason: "toolUse", message: sess.partial });
+          stream.push({
+            type: "done",
+            reason: "toolUse",
+            message: sess.partial,
+          });
         }
       } else {
-        sess.bridge.whenPending().catch(() => {}); // redundant safety drain (harmless)
+        sess.bridge.whenPending().catch(() => {});
         // P2-a: aborted → error, not finalize
         if (aborted) {
           sess.bridge.rejectAll(new Error("aborted"));
@@ -578,35 +449,9 @@ function finalize(
   session.partial.usage.totalTokens =
     session.partial.usage.input + session.partial.usage.output;
 
-  // A wedged/errored run must map to a TERMINAL status — never left "running"
-  // or masquerading as "length"/"stop". Surface it as an error so pi recovers/
-  // retries instead of appearing to hang. Exactly one `session.currentRun =
-  // undefined` runs on this path (the early return skips the one below).
-  // (S-M5-2)
-  // A wedged/errored/cancelled run must map to a TERMINAL status — never left
-  // "running" or masquerading as "length"/"stop". Any `cancelled` reaching
-  // here is SDK-initiated (stall detector / transport): user aborts are caught
-  // earlier by the `aborted` flag (error path above finalize). Surface as an
-  // error so pi recovers/retries instead of appearing to hang. Exactly one
-  // `session.currentRun = undefined` runs on this path (the early return skips
-  // the one below). (S-M5-2; audit P2 widened error→cancelled.)
-  if (result.status === "error" || result.status === "cancelled") {
-    session.partial.stopReason = "error";
-    const msg = session.currentRun?.error?.message
-      ?? (result.status === "cancelled"
-        ? "Cursor run cancelled (SDK stall/transport)"
-        : "Cursor run ended with status 'error'");
-    session.partial.errorMessage = msg;
-    stream.push({ type: "error", reason: "error", error: session.partial });
-    session.currentRun = undefined;
-    return;
-  }
-
-  // `cancelled` can no longer reach here (handled above); `toolUse` precedence
-  // is unchanged.
   const reason: "stop" | "length" | "toolUse" = session.bridge.hasPending()
     ? "toolUse"
-    : result.status === "finished"
+    : result.status === "cancelled" || result.status === "finished"
       ? "stop"
       : "length";
 

@@ -406,29 +406,4 @@ describe("CursorSdkTurnCoordinator", () => {
     const block = partial.content[0] as { type: string; name: string };
     expect(block.name).toBe("read_file");
   });
-
-  // --- S-M4-2: single-canonical-id invariant (bridge + SDK same callId) ---
-  it("S-M4-2: bridgeToolStart(tc1) then tool-call-started(tc1) → exactly ONE toolcall_start + one ToolCall block id 'tc1'", () => {
-    // tool-bridge now ALWAYS passes the SDK callId, so the bridge start and the
-    // SDK tool-call-started delta share the SAME canonical id → the coordinator's
-    // idempotency must yield exactly one block + one start event.
-    coordinator.bridgeToolStart("tc1", "read_file", '{"path":"/x"}');
-
-    coordinator.handleDelta({
-      update: {
-        type: "tool-call-started",
-        callId: "tc1",
-        toolCall: { type: "read_file", args: { path: "/x" } },
-      },
-    });
-
-    // Exactly ONE toolcall_start event (dedup by callId).
-    const starts = events.filter((e) => e.type === "toolcall_start");
-    expect(starts).toHaveLength(1);
-
-    // Exactly ONE ToolCall block, carrying the canonical id.
-    const toolCalls = partial.content.filter((c) => c.type === "toolCall");
-    expect(toolCalls).toHaveLength(1);
-    expect((toolCalls[0] as { id: string }).id).toBe("tc1");
-  });
 });

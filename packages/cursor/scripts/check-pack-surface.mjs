@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 const packageRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const pkg = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
 
-// NOTE: `src/auth.ts` (→ `src/api-key.ts`) and `src/h2-bridge.mjs` were removed
-// in an earlier refactor; do NOT re-list them here.
 const requiredFiles = [
   "extensions/cursor.ts",
   "src/index.ts",
+  "src/proxy.ts",
+  "src/auth.ts",
+  "src/h2-bridge.mjs",
   "README.md",
 ];
 
