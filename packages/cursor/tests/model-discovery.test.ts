@@ -273,4 +273,62 @@ describe("discoverModels", () => {
     expect(result.items.length).toBeGreaterThan(0);
     expect(fakeList).not.toHaveBeenCalled();
   });
+
+  it("invokes onLiveError and falls back when the live SDK call throws", async () => {
+    const onLiveError = vi.fn();
+    // No fresh/stale cache → a live failure falls through to bundled fallback.
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return {
+        ...orig,
+        readCachedModelList: vi.fn().mockReturnValue(null),
+        writeCachedModelList: vi.fn(),
+      };
+    });
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    const result = await freshDiscover({
+      forceRefresh: true,
+      resolveApiKey: async () => FAKE_API_KEY,
+      loadSdk: async () => {
+        throw new Error("Cursor API unreachable");
+      },
+      onLiveError,
+    });
+
+    expect(result.source).toBe("fallback");
+    expect(onLiveError).toHaveBeenCalledTimes(1);
+    const err = onLiveError.mock.calls[0][0];
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe("Cursor API unreachable");
+  });
+
+  it("still returns fallback (never throws) when onLiveError itself throws", async () => {
+    // No cache → live failure falls through to bundled fallback.
+    vi.doMock("../src/model-cache", async (importOriginal) => {
+      const orig = await importOriginal<typeof import("../src/model-cache")>();
+      return {
+        ...orig,
+        readCachedModelList: vi.fn().mockReturnValue(null),
+        writeCachedModelList: vi.fn(),
+      };
+    });
+
+    const { discoverModels: freshDiscover } = await import("../src/model-discovery");
+
+    // A throwing callback must NOT escape discoverModels (never-throws contract).
+    const result = await freshDiscover({
+      forceRefresh: true,
+      resolveApiKey: async () => FAKE_API_KEY,
+      loadSdk: async () => {
+        throw new Error("Cursor API unreachable");
+      },
+      onLiveError: () => {
+        throw new Error("logger broke");
+      },
+    });
+
+    expect(result.source).toBe("fallback");
+  });
 });

@@ -45,6 +45,10 @@ export interface DiscoverModelsOptions {
    * cache; stale-cache fallback (step 3) remains in effect if live fails.
    */
   forceRefresh?: boolean;
+  /** Called with the error when the live `Cursor.models.list` call throws
+   *  (step 2). Use to surface the failure reason (e.g. debug logging). The
+   *  discovery still falls through to stale cache / fallback; never throws. */
+  onLiveError?: (err: unknown) => void;
 }
 
 export interface DiscoverModelsResult {
@@ -95,8 +99,14 @@ export async function discoverModels(
       return { items: liveItems, source: "live" };
     }
     // Empty list → fall through to stale cache / fallback
-  } catch {
-    // SDK error → fall through to stale cache / fallback
+  } catch (err) {
+    // SDK error → surface the reason (if requested), then fall through to stale cache / fallback.
+    // Guard the callback so a throwing logger can't break discoverModels' never-throws contract.
+    try {
+      opts.onLiveError?.(err);
+    } catch {
+      // ignore callback errors — discovery must still return a result
+    }
   }
 
   // Step 4: stale cache (maxAgeMs: Infinity — any matching fingerprint)

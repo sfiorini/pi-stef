@@ -376,7 +376,9 @@ export default async function (pi: ExtensionAPI) {
 
   // Discover models at startup (live → cache → fallback)
   const { discoverModels } = await import("./model-discovery.js");
-  const initial = await discoverModels();
+  const initial = await discoverModels({
+    onLiveError: (e) => debugExtensionLog("model_discovery.live_error", { message: e instanceof Error ? e.message : String(e) }),
+  });
   debugExtensionLog("model_discovery.startup", {
     source: initial.source,
     count: initial.items.length,
@@ -407,7 +409,10 @@ export default async function (pi: ExtensionAPI) {
         const { discoverModels } = await import("./model-discovery.js");
         // forceRefresh bypasses the on-disk cache so the live Cursor API is
         // always called; a successful live call overwrites the cache.
-        const r = await discoverModels({ forceRefresh: true });
+        const r = await discoverModels({
+          forceRefresh: true,
+          onLiveError: (e) => debugExtensionLog("model_discovery.live_error", { message: e instanceof Error ? e.message : String(e) }),
+        });
         if (r.source === "live") {
           // Live data confirmed: replace the in-memory model list immediately
           // so the new model is usable without restarting pi.
