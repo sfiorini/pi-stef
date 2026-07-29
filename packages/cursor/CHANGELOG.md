@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-07-29
+### Changed
+- fix(cursor): make /cursor-refresh-models message reflect the actual cause
+
+
 ## [1.2.1] - 2026-07-29
 ### Changed
 - fix(cursor): surface model-refresh live-call errors via debug log (onLiveError)
