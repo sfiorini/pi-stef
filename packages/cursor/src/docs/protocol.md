@@ -12,7 +12,7 @@ import { Agent, Cursor } from "@cursor/sdk";
 // Create a new agent session
 const agent = await Agent.create({
   apiKey,
-  mcpServers: [/* MCP server URLs for tool exposure */],
+  local: { cwd, enableAgentRetries: true }, // pi tools exposed as in-process customTools per agent.send
   // optional: cwd, model selection, etc.
 });
 
@@ -88,15 +88,25 @@ Usage is resolved in priority order:
 | `length` | `length` |
 | Error | `error` |
 
-## Tool Exposure — MCP Loopback
+## Tool Exposure — In-Process `customTools`
 
-Pi tools are exposed to Cursor agents via a loopback MCP server:
+Pi tools are exposed to the Cursor agent as **in-process callback tools** via
+`@cursor/sdk`'s `customTools` (passed per `agent.send({ local: { customTools } })`).
+The SDK registers them as a synthetic `custom-user-tools` MCP server, so the model
+discovers and invokes them through the same MCP meta-tool path as any other server
+(`GetMcpTools` / `CallMcpTool`) — but the calls are satisfied by in-process
+callbacks in this provider. There is **no loopback HTTP server and no
+`127.0.0.1:0` socket**.
 
-1. `src/tool-bridge.ts` creates an MCP server on `127.0.0.1:0`
-2. Each pi tool is registered as a `pi__*` MCP tool
-3. The MCP server URL is passed to `Agent.create({ mcpServers })`
-4. Cursor tool calls → bridge converts to pi `tool_call` → waits for pi result → returns MCP `CallToolResult`
-5. Abort signal cancels pending tool calls + `run.cancel()`
+Cross-turn continuation:
+1. `src/tool-bridge.ts` `buildCustomTools()` wraps each pi tool as a `pi__<name>`
+   custom tool whose `execute()` emits pi `toolcall_*` events (via the
+   turn-coordinator) and returns the bridge's pending promise.
+2. The deferred is keyed by the tool call id and resolves when a later pi turn
+   supplies the tool result via `resolveFromToolResults`.
+3. When a tool parks, the stream ends with `done("toolUse")`; the next pi turn
+   RESUMEs the same SDK run and resolves the pending call(s). Abort cancels the
+   run and rejects pending calls.
 
 ## Model Discovery Flow
 
