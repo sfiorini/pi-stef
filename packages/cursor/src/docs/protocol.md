@@ -138,7 +138,9 @@ Agents are pooled with a 4-dimensional key: `scopeKey + cwd + modelSelection + s
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `CURSOR_API_KEY` | — | Cursor API key |
+| `PI_CURSOR_AUTH_JSON_PATH` | `~/.pi/agent/auth.json` | Override the auth.json path read for the stored Cursor credential |
 | `PI_CURSOR_HTTP_1_1` | — | Force HTTP/1.1 transport (truthy: `1`/`true`/`on`/`yes`/`enabled`) |
 | `PI_CURSOR_DISABLE_MODEL_CACHE` | — | Disable 24h model disk cache |
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | `86400000` | Model cache TTL in ms |
 | `PI_CURSOR_PROVIDER_DEBUG` | — | Enable debug logging |
+| `PI_CURSOR_PROVIDER_EXTENSION_DEBUG_FILE` | temp file | Override the extension debug log file path (used when `PI_CURSOR_PROVIDER_DEBUG` is on; default: a timestamped temp file under the system temp dir) |

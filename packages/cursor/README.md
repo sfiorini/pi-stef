@@ -68,6 +68,8 @@ extensions/cursor.ts → src/index.ts (registerProvider + slash cmds)
 
 **Request flow:** `streamSimple(model, context, options)` → resolve API key → acquire pooled agent → build prompt + expose pi tools → `agent.send({onDelta, onStep})` → map to pi event stream → `run.wait()` / `run.cancel()`.
 
+**Tool exposure & continuity** — Pi tools are exposed to the Cursor agent as in-process `customTools` callbacks. `@cursor/sdk` registers them as a synthetic `custom-user-tools` MCP server to the model, so the model invokes them through the normal MCP tool path — there is **no loopback HTTP server**. When the model calls a tool, the provider emits pi `toolcall_*` events and parks on a deferred keyed by the tool call id; the stream ends with `toolUse` and the next pi turn resumes the same run and resolves the deferred (`tool-bridge.ts` / `tool-result-bridge.ts`).
+
 ## Configuration
 
 ### Environment Variables
@@ -75,10 +77,12 @@ extensions/cursor.ts → src/index.ts (registerProvider + slash cmds)
 | Variable | Description |
 |----------|-------------|
 | `CURSOR_API_KEY` | Cursor API key (alternative to `/cursor-login`) |
+| `PI_CURSOR_AUTH_JSON_PATH` | Override the auth.json path read for the stored Cursor credential (default: `~/.pi/agent/auth.json`) |
 | `PI_CURSOR_HTTP_1_1` | Force HTTP/1.1 transport. Truthy: `1`/`true`/`on`/`yes`/`enabled` (case/whitespace-insensitive). Useful for VPN/proxy environments. |
 | `PI_CURSOR_DISABLE_MODEL_CACHE` | Disable the 24h model disk cache |
 | `PI_CURSOR_MODEL_CACHE_TTL_MS` | Override the model cache TTL (default: 24h) |
 | `PI_CURSOR_PROVIDER_DEBUG` | Enable debug logging (`1` to activate) |
+| `PI_CURSOR_PROVIDER_EXTENSION_DEBUG_FILE` | Override the extension debug log file path (used when `PI_CURSOR_PROVIDER_DEBUG` is on; default: a timestamped temp file under the system temp dir) |
 
 ### Debug Logging
 
