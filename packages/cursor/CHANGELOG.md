@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.3] - 2026-07-29
+### Changed
+- fix(cursor): report actually-registered model count in /cursor-refresh-models
+
+
 ## [1.2.2] - 2026-07-29
 ### Changed
 - fix(cursor): make /cursor-refresh-models message reflect the actual cause
