@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-29
+### Changed
+- docs(cursor): complete docs for 1.0.4 — customTools narrative on docs-site+README, document AUTH_JSON_PATH + PROVIDER_EXTENSION_DEBUG_FILE env vars
+- chore(cursor): re-apply independent M6/M7 doc+script cleanups on 1.0.4 base
+- revert(cursor): back out 1.1.0 provider changes, restore 1.0.4 behavior (flow retained)
+
+
 ## [1.1.0] - 2026-07-28
 ### Changed
 - docs(cursor): document all PI_CURSOR_* env knobs (ENABLE_AGENT_RETRIES, RUN_WATCHDOG_MS, PROVIDER_EXTENSION_DEBUG_FILE, AUTH_JSON_PATH) + sync customTools/stall-survivability narrative to docs-site & README
