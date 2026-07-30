@@ -2,16 +2,6 @@
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-07-30
-### Added
-- feat(flow): `researcher` agent now "researches everywhere" — frontmatter sets `isolated: false` + `extensions: [web, atlassian]` with `ext:web/*` and `ext:atlassian/*` tools surfaced. Body documents private-source access (GitHub via `gh`, Confluence/Jira via atlassian tools, SSO fallback via `sf_web_login`). **Cross-workflow impact:** this affects ALL researcher spawns (sf-flow-plan Phase 1, `research-report`, `deep-research`) — explorer and analyst remain `isolated: true`.
-- feat(flow): `deep-research` workflow promoted to built-in — ships in `packages/flow/workflows/`, seeded via `/sf-flow-seed`, validated in the examples test. Researcher phase `isolated: false`; explorer + analyst `isolated: true`.
-- docs(flow): first-class docs — new "Agent isolation in flow workflows" + "Authenticated source access" sections in flow.md; new "Agent Isolation & Auth" guide (`/guides/agent-isolation-and-auth`); cross-links in atlassian.md/web.md/getting-started.md/profiles.md; README + SKILL.md updated.
-### Changed
-- fix(flow): `sf_flow_auto` no longer halts after reading the skill — the auto-ready message now opens with "Continue executing now — do not stop after this tool returns." and closes with an explicit no-halt/no-confirmation directive (mirrors `sf_flow_implement`); SKILL.md Phase 3 reinforced.
-### Upgrade notes
-- Run `pi update @pi-stef/flow` then `/sf-flow-seed`. If you customized `~/.pi/agent/agents/researcher.md` or `~/.pi/sf/flow/workflows/deep-research.yaml`, the new defaults are written beside them as `researcher.md.new` / `deep-research.yaml.new` — review and adopt the `extensions`/`isolated:false` frontmatter.
-
 ## [0.5.0] - 2026-07-28
 ### Changed
 - fix(cursor): finalize maps SDK cancelled→terminal error + audit P3 polish [audit]
