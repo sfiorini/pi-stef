@@ -15,7 +15,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
 | **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **8 defaults**; you edit/add freely (write-once) |
-| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **4 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
+| **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **5 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Config does NOT define agents or workflows
@@ -77,12 +77,12 @@ Eight write-once agent definitions ship in `packages/flow/agents/` and are copie
 | `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high |
 | `synth` | Synthesis / Report Writer | read, write | medium |
 | `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
-| `researcher` | Researcher — codebase + web research, cited claims | read, grep, find, ls, bash | medium |
+| `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium |
 
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Seven are config-backed; one is Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` example flow (the flow's inline `model: sonnet` overrides config for that flow). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`.
+- **Seven are config-backed; one is Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`.
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -90,7 +90,7 @@ Eight write-once agent definitions ship in `packages/flow/agents/` and are copie
 
 ## Built-in workflows (examples)
 
-Four reference flows ship in `packages/flow/workflows/`. They are **global** defaults — copy them once with `/sf-flow-seed` (or they seed lazily on first use) into `~/.pi/sf/flow/workflows/`, where they're available in **every** project:
+Five reference flows ship in `packages/flow/workflows/`. They are **global** defaults — copy them once with `/sf-flow-seed` (or they seed lazily on first use) into `~/.pi/sf/flow/workflows/`, where they're available in **every** project:
 
 | Workflow | File | What it does |
 |----------|------|--------------|
@@ -98,6 +98,7 @@ Four reference flows ship in `packages/flow/workflows/`. They are **global** def
 | `ship-feature` | `ship-feature.yaml` | Plan → implement → audit a feature, gated until `APPROVED` |
 | `auth-audit` | `auth-audit.yaml` | Scan route files, fan out audits, dedup, synthesize a report |
 | `research-report` | `research-report.yaml` | Multi-perspective research with cross-checking + synthesis |
+| `deep-research` | `deep-research.yaml` | Clarify scope via a research brief, then parallel code + web research with an analyst write-up |
 
 - **Global defaults** live at `~/.pi/sf/flow/workflows/`; a **project override** at `<repo>/.pi/sf/flow/workflows/<name>.yaml` shadows the global one (resolved project→global by `sf_flow_auto`).
 - **`/<name>` commands** (`/code-review`, …) register at pi startup from the global + current-project workflow dirs.
@@ -169,6 +170,8 @@ Run a defined flow end-to-end with **no human gates**.
 | `input` | Yes | `prompt` · path to a markdown file · `prd:<path>` · `jira STORY-123` |
 
 Input forms: `prompt` (verbatim), `md-file` (file contents), `prd:<path>` (parsed PRD), `jira STORY-123` (resolved via `@pi-stef/atlassian`). Phases run sequentially; intra-phase fan-out via `parallel()`; loops run to a terminal state (success / no-op / blocked / exhausted).
+
+The auto-proceed directive is built into the tool's ready message — the orchestrator continues without stopping, so **no manual 'Proceed' is required**. Every phase runs to completion or a terminal state.
 
 ### sf_flow_create_workflow
 
@@ -329,6 +332,29 @@ When a skill or phase needs to spawn an agent, the type is resolved deterministi
 A missing `researcher.md` does **not** fall back to the built-in `Explore` (which forces Haiku) — it yields `general-purpose`, inheriting the orchestrator model. This rule is encoded in code (`resolveAgentType`) + stated verbatim in every tier-1 skill, so the direct (tool) path and the workflow (`skill:` phase) path spawn the same agent type.
 
 The orchestrator is **orchestrator-only**: in `/sf-flow-implement` it writes no code — it delegates each milestone to the `developer` agent and runs the per-milestone reviewer gate.
+
+## Agent isolation in flow workflows
+
+Agents spawn either isolated (`isolated: true`: fresh context, extensions/skills/`ext:*` tools stripped, built-ins + `bash` + env + network preserved) or un-isolated (`isolated: false`: inherits parent, extensions/skills loaded per frontmatter). Among the built-in agents, **only `researcher` is un-isolated** (`isolated: false` + `extensions: [web, atlassian]`); `explorer` and `analyst` stay isolated.
+
+| Aspect | `isolated: true` | `isolated: false` |
+|--------|------------------|-------------------|
+| Context | fresh (no parent) | inherits parent |
+| Extension tools (`sf_web_*`, `confluence_*`, …) | stripped | loaded per `extensions:` |
+| Built-in tools + `bash` + env + network | preserved | preserved |
+| Skills | off | per `skills:` |
+
+The agent `.md` frontmatter is **authoritative** ("sticky"): `extensions:` declared there load whenever the agent spawns — including from a workflow's inline `agent()` call. A flow YAML **cannot** add an `extensions:` field (the `AgentDef` schema has none); it can only flip `isolated:` and set advisory `tools:`. To grant an extension to an agent, edit its `.md`. See the [Agent Isolation & Auth](/guides/agent-isolation-and-auth) guide for the full model and recipes.
+
+## Authenticated source access for flow agents
+
+An un-isolated `researcher` can reach private sources:
+
+- **Private GitHub** — `gh` is pre-authenticated and works even when isolated: `gh pr view <url> --json …`, `gh pr diff <url>`.
+- **Confluence / Jira** — the `@pi-stef/atlassian` tools (`confluence_page`, `jira_issue`, …) need `ATLASSIAN_BASE_URL`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`.
+- **Confluence SSO fallback** — `sf_web_login` (once) then `sf_web_fetch { url, profile, mode: "browser" }`.
+
+Full recipes + an env-var checklist live in the [Agent Isolation & Auth](/guides/agent-isolation-and-auth) guide.
 
 ## Plan standard (exhaustive milestone plans)
 

@@ -22,6 +22,7 @@ export default defineConfig({
           { text: "Getting Started", link: "/getting-started" },
           { text: "Catalog Guide", link: "/catalog-guide" },
           { text: "Profiles & Sharing", link: "/profiles" },
+          { text: "Agent Isolation & Auth", link: "/guides/agent-isolation-and-auth" },
           { text: "Migrating from superpowers-adapter", link: "/migrating-from-superpowers-adapter" },
           { text: "Migrating from team & pair", link: "/migrating-from-team-and-pair" },
         ],
