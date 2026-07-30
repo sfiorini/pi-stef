@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-30
+### Changed
+- chore(flow): restore 0.5.0 + drop manual changelog (let pnpm release bump+tag)
+- fix(flow): audit P2 — grant sf_web_login/session to researcher; P3 doc/clarity fixes
+- docs(flow): fix stale workflow count in sf-flow-seed SKILL (P2)
+- chore(flow): release 0.6.0 — version, changelog, docs (M5)
+- docs(flow): atlassian/web sections, cross-links, README, SKILL no-halt (M4-B)
+- feat(flow): promote deep-research workflow to built-in + seed (M3)
+- feat(flow): researcher agent researches everywhere (web + atlassian) (M2)
+- fix(flow): sf_flow_auto no longer halts after reading the skill (M1)
+
+
 ## [0.5.0] - 2026-07-28
 ### Changed
 - fix(cursor): finalize maps SDK cancelled→terminal error + audit P3 polish [audit]
