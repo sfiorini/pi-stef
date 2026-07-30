@@ -1,8 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { ensureAgentFiles, resolveAgentType } from "../src/agents.js";
+
+const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const FLOW_AGENTS = [
   "reviewer.md",
@@ -82,5 +85,26 @@ describe("resolveAgentType", () => {
   it("accepts bare agent keys (no .md) too — used by generate.ts", () => {
     expect(resolveAgentType("reviewer", ["reviewer", "researcher"])).toBe("reviewer");
     expect(resolveAgentType("planner", ["reviewer"])).toBe("Plan");
+  });
+});
+
+describe("researcher agent definition", () => {
+  it("declares extensions:[web,atlassian], isolated:false, skills:false, and ext: selectors", () => {
+    const content = readFileSync(join(pkgRoot, "agents", "researcher.md"), "utf8");
+    expect(content).toMatch(/extensions:\s*\[.*web.*atlassian.*\]/);
+    expect(content).toMatch(/isolated:\s*false/);
+    expect(content).toMatch(/skills:\s*false/);
+    expect(content).toContain("ext:web/");
+    expect(content).toContain("ext:atlassian/");
+  });
+  it("documents private/authenticated source access", () => {
+    const content = readFileSync(join(pkgRoot, "agents", "researcher.md"), "utf8");
+    expect(content).toContain("gh pr view");
+    expect(content).toContain("confluence_page");
+    expect(content).toContain("ATLASSIAN_BASE_URL");
+    expect(content).toContain("ATLASSIAN_API_TOKEN");
+    expect(content).toContain("sf_web_login");
+    expect(content).toContain("jira_issue");
+    expect(content).toContain("story_context");
   });
 });
