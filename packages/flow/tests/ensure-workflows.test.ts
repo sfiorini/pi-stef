@@ -11,6 +11,7 @@ const EXAMPLES = [
   "ship-feature.yaml",
   "auth-audit.yaml",
   "research-report.yaml",
+  "deep-research.yaml",
 ];
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");

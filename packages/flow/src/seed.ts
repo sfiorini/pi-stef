@@ -16,7 +16,7 @@ export const AGENT_FILES = [
   "researcher.md",
 ] as const;
 
-/** The four bundled example workflows (shipped under `<pkg>/workflows/`). */
+/** The five bundled example workflows (shipped under `<pkg>/workflows/`). */
 export const WORKFLOW_FILES = [
   "code-review.yaml",
   "ship-feature.yaml",
@@ -130,7 +130,7 @@ export function seedAgents(agentsDir: string, mode: SeedMode): Promise<SeedResul
   return seedAll(agentsDir, "agents", AGENT_FILES, mode);
 }
 
-/** Seed the four example workflows into a workflows directory. */
+/** Seed the five example workflows into a workflows directory. */
 export function seedWorkflows(workflowsDir: string, mode: SeedMode): Promise<SeedResult[]> {
   return seedAll(workflowsDir, "workflows", WORKFLOW_FILES, mode);
 }
