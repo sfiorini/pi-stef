@@ -41,6 +41,18 @@ describe("buildAutoReadyMessage", () => {
     expect(msg).toContain(skillDocPath("sf-flow-auto"));
   });
 
+  it("includes the auto-proceed directive (no halt after tool return, no confirmation)", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "deep-research",
+      inputSummary: "prompt: research X",
+      resolvedWorkflowPath: "/h/.pi/sf/flow/workflows/deep-research.yaml",
+    });
+    expect(msg).toContain("Continue executing now — do not stop after this tool returns.");
+    expect(msg).toContain("Do not stop after reading the skill.");
+    expect(msg).toContain("Do not ask for confirmation.");
+    expect(msg).toContain(skillDocPath("sf-flow-auto"));
+  });
+
   it("renders the generated script block + 7-row model table when script + models are passed", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "ship-feature",

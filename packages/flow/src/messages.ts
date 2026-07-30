@@ -126,6 +126,8 @@ export interface AutoReadyInput {
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
   const lines: string[] = [
+    `Continue executing now — do not stop after this tool returns.`,
+    ``,
     `Running flow "${opts.workflowName}" end-to-end.`,
     `Input: ${opts.inputSummary}`,
     `Workflow file: ${opts.resolvedWorkflowPath}`,
@@ -162,6 +164,7 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     }
   }
   lines.push(``);
-  lines.push(`Now read the skill file at ${skillDocPath("sf-flow-auto")}.`);
+  lines.push(`Read and execute the skill file at ${skillDocPath("sf-flow-auto")} in full: run every phase`);
+  lines.push(`to a terminal state. Do not stop after reading the skill. Do not ask for confirmation.`);
   return lines.join("\n").replace(/\n+$/g, "\n");
 }
