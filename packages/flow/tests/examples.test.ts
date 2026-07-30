@@ -8,7 +8,7 @@ import { generateScript } from "../src/yaml/generate.js";
 import type { FlowYaml } from "../src/yaml/schema.js";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const EXAMPLES = ["auth-audit", "ship-feature", "code-review", "research-report"];
+const EXAMPLES = ["auth-audit", "ship-feature", "code-review", "research-report", "deep-research"];
 
 describe("bundled example workflows", () => {
   for (const name of EXAMPLES) {

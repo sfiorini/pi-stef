@@ -22,6 +22,7 @@ export const WORKFLOW_FILES = [
   "ship-feature.yaml",
   "auth-audit.yaml",
   "research-report.yaml",
+  "deep-research.yaml",
 ] as const;
 
 export type SeedMode = "write-once" | "with-new";
