@@ -50,7 +50,7 @@ Flow's skills are discovered natively via `pi.skills`. To author flows that pull
 /sf-flow-plan add OAuth login
 /sf-flow-implement 2026-07-20-oauth-login
 
-# 3. Run a reusable flow end-to-end (seed the 4 examples to ~/.pi/sf/flow/workflows via /sf-flow-seed)
+# 3. Run a reusable flow end-to-end (seed the 5 examples to ~/.pi/sf/flow/workflows via /sf-flow-seed)
 sf_flow_auto code-review "review the auth changes"
 ```
 

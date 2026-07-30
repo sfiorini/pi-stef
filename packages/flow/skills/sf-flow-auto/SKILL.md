@@ -29,6 +29,7 @@ The sf_flow_auto tool already resolved the workflow file (project `<repo>/.pi/sf
 - `jira` → resolve the story via @pi-stef/atlassian (Jira), pass description+acceptance as `args.input`
 
 ### Phase 3: Run the flow
+**Do not stop after reading this skill.** Execute every phase to completion or a terminal state. No human gates.
 Execute the generated pi-dw script with `args.input`. Phases run sequentially; intra-phase fan-out via `parallel()`. Loops (`until_dry` / `until:approved`) run to completion. `skill:` phases run INLINE — you read + execute each skill file in full and dispatch role agents via the Agent tool; do NOT spawn a `general-purpose` subagent for a skill phase.
 
 ### Phase 4: Terminal state

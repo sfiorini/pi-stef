@@ -116,6 +116,12 @@ chmod 600 ~/.pi/sf/atlassian/config.json
 
 The `chmod 600` step is recommended so the file is only readable by your user — the API token grants full Jira and Confluence access for the email's account.
 
+## Using Atlassian tools in flow agents
+
+To use Confluence/Jira tools from a flow agent (e.g. the `researcher`), the agent's `.md` frontmatter must declare `extensions: [atlassian]` **and** run `isolated: false`. An `isolated: true` agent strips extension tools regardless of the `extensions:` declaration. Then set the env vars (`ATLASSIAN_BASE_URL`/`ATLASSIAN_DOMAIN`, `ATLASSIAN_EMAIL`, `ATLASSIAN_API_TOKEN`).
+
+See the [Agent Isolation & Auth](/guides/agent-isolation-and-auth) guide for the full isolation model and Confluence/Jira recipes.
+
 ## Development CLI
 
 `tsx` is a workspace dev-dependency, not a global binary. Run the CLI through `pnpm exec` from the repo root so the local install is picked up:

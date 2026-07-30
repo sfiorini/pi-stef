@@ -63,6 +63,18 @@ Create or refresh a named CloakBrowser login profile.
 | `url` | string | yes | Login page URL |
 | `profile` | string | no | Browser profile name |
 
+## Authenticated browsing with sf_web_login profiles
+
+For sites behind a login (e.g. a Confluence instance requiring SAML SSO), create a named profile once, then fetch with it:
+
+````text
+sf_web_login   { url, profile: "confluence" }                        # once — stores cookies
+sf_web_fetch   { url, profile: "confluence", mode: "browser" }       # renders with the stored session
+sf_web_session { action: "list" }                                    # inspect stored profiles
+````
+
+Re-run `sf_web_login` when sessions expire (you'll see redirects to a login page). For Confluence/Jira, prefer the native `@pi-stef/atlassian` tools when they work — they're faster and return structured content; use `sf_web_*` as the SSO fallback. A flow agent using these needs `extensions: [web]` + `isolated: false` in its frontmatter. See [Agent Isolation & Auth](/guides/agent-isolation-and-auth).
+
 ## No-Key Search Setup
 
 Search works without API keys. Configure SearXNG for best results:

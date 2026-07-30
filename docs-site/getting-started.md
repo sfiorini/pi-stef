@@ -91,4 +91,5 @@ This imports their entire catalog (including profiles) and installs all packages
 
 - [Catalog Guide](/catalog-guide) — deep dive into catalog management
 - [Profiles & Sharing](/profiles) — manage different package sets for different machines
+- [Agent Isolation & Auth](/guides/agent-isolation-and-auth) — configure flow agents for authenticated source access
 - [Packages](/packages/) — explore all available packages

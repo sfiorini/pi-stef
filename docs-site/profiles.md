@@ -96,3 +96,9 @@ This replaces your entire local catalog with the imported one, including all pro
 - `/ct init --from-gist` replaces your entire catalog — it does not merge
 - There is no command to import a single profile from another user's gist
 - You can manually copy profile entries between `cat.yaml` files
+
+## See also
+
+- [Agent Isolation & Auth](/guides/agent-isolation-and-auth) — for configuring flow agent access to private sources
+- [Getting Started](/getting-started)
+- [Catalog Guide](/catalog-guide)
