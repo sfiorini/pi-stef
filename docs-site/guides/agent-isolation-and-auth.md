@@ -35,7 +35,9 @@ The last three rows are the key insight: an isolated agent **can still shell out
 
 ---
 
-## The built-in flow agents
+## Agents in the deep-research workflow
+
+Of these, only `researcher` is a shipped agent file (`~/.pi/agent/agents/researcher.md`, seeded by `/sf-flow-seed`); `explorer` and `analyst` are spawned inline by the `deep-research` workflow and have no shipped `.md`.
 
 | Agent | `isolated` | `extensions` | Reaches private sources? |
 |-------|-----------|--------------|--------------------------|

@@ -2,6 +2,7 @@ name: deep-research
 description: Clarify scope through a reusable research brief, then run targeted parallel research and write a detailed Markdown report.
 input: prompt
 agents:
+  # NOTE: this workflow runs a single raw: phase; the inline agent() calls below set their own model/thinking/isolated, so these per-agent fields are advisory documentation (researcher.isolated:false mirrors agents/researcher.md).
   explorer:
     tools: [read, grep, find, ls]
     model: cursor/gpt-5.6-sol

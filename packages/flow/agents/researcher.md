@@ -1,6 +1,6 @@
 ---
 description: Researcher — codebase + web + private-source research, cited claims
-tools: read, grep, find, ls, bash, ext:web/sf_web_search, ext:web/sf_web_fetch, ext:atlassian/confluence_page, ext:atlassian/confluence_get_page, ext:atlassian/jira_issue, ext:atlassian/jira_get_issue, ext:atlassian/story_context
+tools: read, grep, find, ls, bash, ext:web/sf_web_search, ext:web/sf_web_fetch, ext:web/sf_web_login, ext:web/sf_web_session, ext:atlassian/confluence_page, ext:atlassian/confluence_get_page, ext:atlassian/jira_issue, ext:atlassian/jira_get_issue, ext:atlassian/story_context
 extensions: [web, atlassian]
 isolated: false
 skills: false
