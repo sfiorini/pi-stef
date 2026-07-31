@@ -910,25 +910,57 @@ export function contextValuesFromItem(item: ModelListItem): ContextValueInfo[] {
   );
 }
 
+function expandModelListItem(item: ModelListItem): CursorModel[] {
+  const parsed = parseModelId(item.id);
+  const suffixes = item.id.slice(parsed.base.length);
+  const ctx = contextValuesFromItem(item);
+  const reasoning = REASONING_ID_RE.test(item.id);
+  const supportsImages = !NON_IMAGE_ID_RE.test(item.id);
+  const maxTokens = 16_384;
+  const displayName = item.displayName || item.id;
+
+  if (ctx.length === 0) {
+    return [{
+      id: item.id, name: displayName, reasoning,
+      contextWindow: resolveSilentContextWindow(item.id), maxTokens, supportsImages,
+    }];
+  }
+
+  if (ctx.length === 1) {
+    const cv = ctx[0]!;
+    return [{
+      id: item.id, name: displayName, reasoning,
+      contextWindow: contextWindowFromParameter(cv.value), maxTokens,
+      requestedModelId: item.id, parameters: [{ id: "context", value: cv.value }], supportsImages,
+    }];
+  }
+
+  return ctx.map((cv) => {
+    const contextSuffix = contextIdPart(cv.value);
+    const expandedId = parsed.base + contextSuffix + suffixes;
+    const label = contextLabel(cv.value);
+    const baseName = cv.variantDisplayName ?? displayName;
+    const name = label ? `${baseName} ${label}` : baseName;
+    return {
+      id: expandedId, name, reasoning,
+      contextWindow: contextWindowFromParameter(cv.value), maxTokens,
+      requestedModelId: item.id, parameters: [{ id: "context", value: cv.value }], supportsImages,
+    };
+  });
+}
+
 /**
  * Convert SDK `ModelListItem[]` (from `Cursor.models.list()`) into the
  * `CursorModel[]` shape used by the rest of the provider pipeline.
  *
- * - `displayName` → `name` (falls back to `id`)
- * - default `contextWindow: 200_000`, `maxTokens: 16_384`
- * - `reasoning` inferred heuristically from `id`
- * - `supportsImages` defaults to `true` unless the id suggests otherwise
+ * Context-variant expansion:
+ * - Silent items (no variants/parameters) → resolveSilentContextWindow
+ * - Single context → one model with parameters
+ * - Multi context → one model per context value, with -1m suffix etc.
  *
  * Returns an empty array when given an empty input — callers should fall
  * back to `FALLBACK_MODELS` in that case.
  */
 export function mapModelListItems(items: ModelListItem[]): CursorModel[] {
-  return items.map((item) => ({
-    id: item.id,
-    name: item.displayName || item.id,
-    reasoning: REASONING_ID_RE.test(item.id),
-    contextWindow: 200_000,
-    maxTokens: 16_384,
-    supportsImages: !NON_IMAGE_ID_RE.test(item.id),
-  } satisfies CursorModel));
+  return items.flatMap(expandModelListItem);
 }
