@@ -26,15 +26,17 @@ const INDEX_URL = "https://cursor.com/docs/models-and-pricing";
 async function discoverSlugs(page: Page): Promise<string[]> {
   await page.goto(INDEX_URL, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(3000);
-  const slugs = await page.evaluate(() => {
-    const seen = new Set<string>();
-    for (const a of Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href^="/docs/models/"]'))) {
-      const m = a.href.match(/\/docs\/models\/([^/?#]+)/);
-      if (m && m[1]) seen.add(m[1]);
-    }
-    return [...seen];
-  });
-  return slugs;
+  // The rendered page links only ~10 featured models; the full ~45 live in the
+  // page's RSC payload (Next.js __next_f manifest of /docs/models/* paths) inside
+  // the raw HTML's inline <script> chunks. Regex the full HTML to catch them all
+  // (tolerates JSON-escaped slashes \/). Runs in Node — no in-browser helper, so
+  // esbuild's __name injection is a non-issue here.
+  const html = await page.content();
+  const seen = new Set<string>();
+  for (const m of html.matchAll(/\\?\/docs\\?\/models\\?\/([a-z0-9][a-z0-9-]+)/g)) {
+    seen.add(m[1]!);
+  }
+  return [...seen];
 }
 
 async function scrapeModelDetail(
@@ -44,45 +46,46 @@ async function scrapeModelDetail(
   await page.goto(`https://cursor.com/docs/models/${slug}`, { waitUntil: "domcontentloaded" });
   await page.waitForTimeout(2500);
 
-  // page.evaluate returns RAW strings. The DOM-only helpers (collectLeafTexts,
-  // findValue, isLabel) are inlined here because they use document/TreeWalker.
-  // parseContextText is NOT called here — it runs OUTSIDE evaluate (Node) so the
-  // top-level import is used (single source of truth for parsing; no TS6133).
-  const raw = await page.evaluate(() => {
-    const LABEL_RE: RegExp[] = [/^model\s+id$/i, /^context\s+window$/i, /^max(?:imum)?\s+context$/i];
-    const isLabel = (t: string): boolean => LABEL_RE.some((re) => re.test(t.trim()));
-    function collectLeafTexts(root: Element): string[] {
-      const out: string[] = [];
-      const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-      let n: Node | null;
-      while ((n = w.nextNode())) {
-        const t = (n.textContent ?? "").trim();
-        if (t) out.push(t);
-      }
+  // page.evaluate returns RAW strings; parseContextText runs OUTSIDE in Node
+  // (single source of truth; the top-level import is used → no TS6133).
+  //
+  // IMPORTANT: the evaluate body is passed as a STRING (an IIFE), not a function.
+  // tsx/esbuild injects a `__name(...)` helper around named function declarations
+  // to preserve names — but `__name` is undefined in the browser context, so a
+  // function-typed evaluate with inner named helpers throws ReferenceError.
+  // A string is not transpiled, so the browser sees plain JS. Regex escapes are
+  // doubled (\\s) because they live inside a template-literal string.
+  const raw = await page.evaluate(`(function () {
+    var LABEL_RE = [/^model\\s+id$/i, /^context\\s+window$/i, /^max(?:imum)?\\s+context$/i];
+    function isLabel(t) { return LABEL_RE.some(function (re) { return re.test(t.trim()); }); }
+    function collectLeafTexts(root) {
+      var out = [];
+      var w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      var n;
+      while ((n = w.nextNode())) { var t = (n.textContent || "").trim(); if (t) out.push(t); }
       return out;
     }
-    function findValue(leaves: string[], labelRe: RegExp): string | undefined {
-      for (let i = 0; i < leaves.length; i++) {
-        if (labelRe.test(leaves[i]!.trim())) {
-          const nxt = leaves[i + 1];
-          // ambiguity guard: if the next leaf is itself a label, the value is absent
+    function findValue(leaves, labelRe) {
+      for (var i = 0; i < leaves.length; i++) {
+        if (labelRe.test(leaves[i].trim())) {
+          var nxt = leaves[i + 1];
           if (nxt === undefined || isLabel(nxt)) return undefined;
           return nxt;
         }
       }
       return undefined;
     }
-    const root = document.querySelector("main") ?? document.body;
+    var root = document.querySelector("main") || document.body;
     if (!root) return null;
-    const leaves = collectLeafTexts(root);
-    const modelIdRaw = findValue(leaves, /^model\s+id$/i);
+    var leaves = collectLeafTexts(root);
+    var modelIdRaw = findValue(leaves, /^model\\s+id$/i);
     if (!modelIdRaw) return null;
     return {
       modelId: modelIdRaw.trim(),
-      contextWindowRaw: findValue(leaves, /^context\s+window$/i),
-      maxContextRaw: findValue(leaves, /^max(?:imum)?\s+context$/i),
+      contextWindowRaw: findValue(leaves, /^context\\s+window$/i),
+      maxContextRaw: findValue(leaves, /^max(?:imum)?\\s+context$/i)
     };
-  });
+  })()`) as { modelId: string; contextWindowRaw?: string; maxContextRaw?: string } | null;
 
   if (!raw) return null;
 
