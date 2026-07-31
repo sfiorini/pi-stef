@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-07-31
+### Changed
+- test(cursor): isolate tests from committed scraped data
+- chore(cursor): populate scraped context windows from docs (43 models)
+- fix(cursor): repair docs scraper (esbuild __name in evaluate + broaden slug discovery)
+- feat(cursor): scrape docs contexts in refresh-models + drift log
+- feat(cursor): add docs-context scraper module
+- chore(cursor): add playwright-core devDep for docs scraping
+- test(cursor): cover scraped-context injection + variant-unaffected invariant
+- test(cursor): cover parseContextText
+- feat(cursor): wire scraped-context fallback into resolveSilentContextWindow
+- feat(cursor): add scraped-contexts generated-file stub
+
+
 ## [1.3.0] - 2026-07-31
 ### Changed
 - chore(cursor): remove throwaway context-param verification probe
