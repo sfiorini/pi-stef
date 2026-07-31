@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterEach } from "vitest";
 import type { ModelListItem } from "../src/model-cache";
 import {
   contextValuesFromItem,
@@ -8,6 +8,7 @@ import {
   mapModelListItems,
   processModels,
   parseContextText,
+  setScrapedContextLookup,
 } from "../src/model-config";
 import type { CursorModel } from "../src/model-config";
 
@@ -505,4 +506,129 @@ describe("parseContextText", () => {
   it("returns undefined for none", () => expect(parseContextText("none")).toBeUndefined());
   it("returns undefined for garbage text", () => expect(parseContextText("garbage text")).toBeUndefined());
   it("trims whitespace: \"  1M  \"", () => expect(parseContextText("  1M  ")).toBe(1_000_000));
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// S-M1-4A: resolveSilentContextWindow — scraped injection
+// ═══════════════════════════════════════════════════════════════════
+
+describe("resolveSilentContextWindow — scraped injection", () => {
+  afterEach(() => setScrapedContextLookup({}));
+
+  it("KNOWN wins over scraped (gpt-5.4 → 272000 even with scraped 999000)", () => {
+    setScrapedContextLookup({ "gpt-5.4": { contextWindow: 999_000, slug: "gpt-5-4" } });
+    expect(resolveSilentContextWindow("gpt-5.4")).toBe(272_000);
+  });
+
+  it("scraped contextWindow for unknown model", () => {
+    setScrapedContextLookup({ "future-model": { contextWindow: 128_000, slug: "future-model" } });
+    expect(resolveSilentContextWindow("future-model")).toBe(128_000);
+  });
+
+  it("scraped maxContext (no contextWindow)", () => {
+    setScrapedContextLookup({ "future-model": { maxContext: 256_000, slug: "future-model" } });
+    expect(resolveSilentContextWindow("future-model")).toBe(256_000);
+  });
+
+  it("contextWindow preferred over maxContext when both present", () => {
+    setScrapedContextLookup({ "future-model": { contextWindow: 128_000, maxContext: 256_000, slug: "future-model" } });
+    expect(resolveSilentContextWindow("future-model")).toBe(128_000);
+  });
+
+  it("empty entry (slug only) → 200000", () => {
+    setScrapedContextLookup({ "empty-model": { slug: "empty-model" } });
+    expect(resolveSilentContextWindow("empty-model")).toBe(200_000);
+  });
+
+  it("model not in map → 200000", () => {
+    setScrapedContextLookup({ "other-model": { contextWindow: 128_000, slug: "other" } });
+    expect(resolveSilentContextWindow("unknown-model")).toBe(200_000);
+  });
+
+  it("backward compat (no setter called) — KNOWN works", () => {
+    // reset to default empty map, then check KNOWN still works
+    setScrapedContextLookup({});
+    expect(resolveSilentContextWindow("gpt-5.4")).toBe(272_000);
+  });
+
+  it("backward compat (no setter called) — unknown → 200000", () => {
+    setScrapedContextLookup({});
+    expect(resolveSilentContextWindow("unknown-model")).toBe(200_000);
+  });
+
+  it("effort-suffix stripped: claude-opus-5-medium → 300000 from KNOWN", () => {
+    setScrapedContextLookup({});
+    expect(resolveSilentContextWindow("claude-opus-5-medium")).toBe(300_000);
+  });
+
+  it("effort-suffix stripped: future-model-high → scraped", () => {
+    setScrapedContextLookup({ "future-model": { contextWindow: 512_000, slug: "future-model" } });
+    expect(resolveSilentContextWindow("future-model-high")).toBe(512_000);
+  });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// S-M1-4B: mapModelListItems — scraped context lookup
+// ═══════════════════════════════════════════════════════════════════
+
+describe("mapModelListItems — scraped context lookup", () => {
+  afterEach(() => setScrapedContextLookup({}));
+
+  it("silent + scraped → 1 model, scraped contextWindow, no parameters, no requestedModelId", () => {
+    setScrapedContextLookup({ "new-model": { contextWindow: 128_000, slug: "new-model" } });
+    const result = mapModelListItems([{ id: "new-model", displayName: "New Model" }]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.contextWindow).toBe(128_000);
+    expect(result[0]!.requestedModelId).toBeUndefined();
+    expect(result[0]!.parameters).toBeUndefined();
+  });
+
+  it("silent + KNOWN → KNOWN wins over scraped", () => {
+    setScrapedContextLookup({ "gpt-5.4": { contextWindow: 999_000, slug: "gpt-5-4" } });
+    const result = mapModelListItems([{ id: "gpt-5.4", displayName: "GPT-5.4" }]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.contextWindow).toBe(272_000);
+  });
+
+  it("backward compat (no setter) — KNOWN or 200000", () => {
+    setScrapedContextLookup({});
+    const known = mapModelListItems([{ id: "gpt-5.4", displayName: "GPT-5.4" }]);
+    expect(known[0]!.contextWindow).toBe(272_000);
+    const unknown = mapModelListItems([{ id: "some-model", displayName: "Some" }]);
+    expect(unknown[0]!.contextWindow).toBe(200_000);
+  });
+
+  it("exactly 1 model even with scraped {cw, max} (no expansion)", () => {
+    setScrapedContextLookup({ "new-model": { contextWindow: 128_000, maxContext: 256_000, slug: "new-model" } });
+    const result = mapModelListItems([{ id: "new-model", displayName: "New Model" }]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.contextWindow).toBe(128_000);
+  });
+
+  it("F4 NEGATIVE: variant-bearing item bypasses scraped entirely", () => {
+    setScrapedContextLookup({ "gpt-5.4": { contextWindow: 999_000, slug: "gpt-5-4" } });
+    const item: ModelListItem = {
+      id: "gpt-5.4",
+      displayName: "GPT-5.4",
+      variants: [
+        { params: [{ id: "context", value: "272k" }], isDefault: true },
+        { params: [{ id: "context", value: "1m" }], isDefault: false },
+      ],
+    };
+    const result = mapModelListItems([item]);
+    expect(result).toHaveLength(2);
+
+    const small = result.find((m) => m.id === "gpt-5.4");
+    const big = result.find((m) => m.id === "gpt-5.4-1m");
+    expect(small).toBeDefined();
+    expect(big).toBeDefined();
+    // contextWindow comes from contextWindowFromParameter("272k")/("1m"), NOT scraped 999000
+    expect(small!.contextWindow).toBe(272_000);
+    expect(big!.contextWindow).toBe(1_000_000);
+    // each has requestedModelId and parameters
+    expect(small!.requestedModelId).toBe("gpt-5.4");
+    expect(big!.requestedModelId).toBe("gpt-5.4");
+    expect(small!.parameters).toEqual([{ id: "context", value: "272k" }]);
+    expect(big!.parameters).toEqual([{ id: "context", value: "1m" }]);
+  });
 });
