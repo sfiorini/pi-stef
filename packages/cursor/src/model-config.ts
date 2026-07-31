@@ -35,6 +35,10 @@ export interface CursorParameterizedModel {
 
 import type { ModelListItem } from "./model-cache.js";
 import { FALLBACK_MODEL_ITEMS as rawFallbackModels } from "./model-fallback.generated.js";
+import { SCRAPED_MODEL_CONTEXTS } from "./model-scraped-contexts.generated.js";
+
+export interface ScrapedContextEntry { contextWindow?: number; maxContext?: number; slug: string; }
+export type ScrapedContextMap = Readonly<Record<string, ScrapedContextEntry>>;
 
 /** Core model descriptor used throughout the Cursor provider. */
 export interface CursorModel {
@@ -513,7 +517,7 @@ function parameterValue(parameters: CursorModelParameter[], id: string): string 
   return parameters.find((parameter) => parameter.id === id)?.value;
 }
 
-function contextWindowFromParameter(context: string | undefined, fallback = 200_000): number {
+export function contextWindowFromParameter(context: string | undefined, fallback = 200_000): number {
   if (context === "272k") return 272_000;
   if (context === "1m") return 1_000_000;
   const k = context?.match(/^(\d+)k$/i)?.[1];
@@ -521,6 +525,14 @@ function contextWindowFromParameter(context: string | undefined, fallback = 200_
   const m = context?.match(/^(\d+)m$/i)?.[1];
   if (m) return Number(m) * 1_000_000;
   return fallback;
+}
+
+export function parseContextText(text: string | undefined): number | undefined {
+  if (!text) return undefined;
+  const normalized = text.trim().toLowerCase();
+  if (!normalized || normalized === "-" || normalized === "n/a" || normalized === "none") return undefined;
+  const parsed = contextWindowFromParameter(normalized, Number.NaN);
+  return Number.isNaN(parsed) ? undefined : parsed;
 }
 
 function cursorEffortSuffix(value: string): string {
@@ -801,7 +813,7 @@ export function augmentCursorModels(
   return [...byId.values()];
 }
 
-const KNOWN_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
+export const KNOWN_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
   "claude-opus-5": 300_000,
   "claude-opus-4-8": 300_000,
   "claude-opus-4-7": 300_000,
@@ -818,9 +830,19 @@ const KNOWN_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
   "gpt-5.4": 272_000,
 };
 
+let activeScrapedContexts: ScrapedContextMap = SCRAPED_MODEL_CONTEXTS;
+export function setScrapedContextLookup(map: ScrapedContextMap): void { activeScrapedContexts = map; }
+
 export function resolveSilentContextWindow(id: string): number {
   const base = parseModelId(id).base;
-  return KNOWN_CONTEXT_WINDOWS[base] ?? 200_000;
+  const known = KNOWN_CONTEXT_WINDOWS[base];
+  if (known !== undefined) return known;
+  const scraped = activeScrapedContexts[base];
+  if (scraped) {
+    if (scraped.contextWindow !== undefined) return scraped.contextWindow;
+    if (scraped.maxContext !== undefined) return scraped.maxContext;
+  }
+  return 200_000;
 }
 
 export function normalizeContextWindow(model: CursorModel): CursorModel {
