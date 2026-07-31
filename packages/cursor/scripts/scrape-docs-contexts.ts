@@ -6,9 +6,13 @@
  * (`npx playwright install chromium`, or set PI_CURSOR_SCRAPE_CHANNEL=chrome).
  * Called by refresh-models.ts.
  */
+import { writeFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { chromium } from "playwright-core";
 import type { Browser, Page } from "playwright-core";
 import { parseContextText } from "../src/model-config.js";
+import type { ScrapedContextEntry } from "../src/model-config.js";
 
 export interface ScrapedModelContext {
   /** Canonical API model ID from the "Model ID" spec row (NOT the URL slug). */
@@ -19,6 +23,45 @@ export interface ScrapedModelContext {
   maxContext?: number;
   /** The docs URL slug used to reach this detail page. */
   slug: string;
+}
+
+/** Convert scraper results to the persisted map keyed by canonical model ID. */
+export function scrapedEntriesToMap(
+  entries: ScrapedModelContext[],
+): Record<string, ScrapedContextEntry> {
+  const map: Record<string, ScrapedContextEntry> = {};
+  for (const e of entries) {
+    map[e.modelId] = {
+      ...(e.contextWindow !== undefined ? { contextWindow: e.contextWindow } : {}),
+      ...(e.maxContext !== undefined ? { maxContext: e.maxContext } : {}),
+      slug: e.slug,
+    };
+  }
+  return map;
+}
+
+/** Build the exact contents of model-scraped-contexts.generated.ts from a map. */
+export function buildScrapedContextsContent(
+  map: Record<string, ScrapedContextEntry>,
+): string {
+  const keys = Object.keys(map).sort();
+  return [
+    "// AUTO-GENERATED scraped context-window lookup from cursor.com/docs/models-and-pricing.",
+    "// Regenerate via: pnpm --filter @pi-stef/cursor tsx scripts/scrape-docs-contexts.ts",
+    "//                 (no CURSOR_API_KEY needed; requires chromium: npx playwright install chromium)",
+    "//               or via the weekly cursor-scrape-release GitHub Action.",
+    "// MANUAL — not run in CI.",
+    "",
+    'import type { ScrapedContextEntry } from "./model-config.js";',
+    "",
+    "export const SCRAPED_MODEL_CONTEXTS: Record<string, ScrapedContextEntry> = {",
+    ...keys.map(
+      (k, i) =>
+        `  ${JSON.stringify(k)}: ${JSON.stringify(map[k])}${i < keys.length - 1 ? "," : ""}`,
+    ),
+    "};",
+    "",
+  ].join("\n");
 }
 
 const INDEX_URL = "https://cursor.com/docs/models-and-pricing";
@@ -132,4 +175,21 @@ export async function scrapeCursorModelContexts(): Promise<ScrapedModelContext[]
     console.warn(`[scrape] WARNING: only ${results.length} entries collected — cursor.com/docs DOM may have changed.`);
   }
   return results;
+}
+
+// CLI entry — when run directly, scrape the docs and write the generated file.
+// No CURSOR_API_KEY needed (docs-only). Requires a chromium browser.
+const __filename = fileURLToPath(import.meta.url);
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const resolvedOut = join(dirname(__filename), "..", "src", "model-scraped-contexts.generated.ts");
+  scrapeCursorModelContexts()
+    .then((entries) => {
+      const map = scrapedEntriesToMap(entries);
+      writeFileSync(resolvedOut, buildScrapedContextsContent(map), "utf8");
+      console.error(`Wrote ${Object.keys(map).length} scraped contexts to ${resolvedOut}`);
+    })
+    .catch((err: unknown) => {
+      console.error("Scrape failed:", err instanceof Error ? err.message : err);
+      process.exit(1);
+    });
 }

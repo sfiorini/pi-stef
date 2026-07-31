@@ -21,8 +21,7 @@ import {
   setScrapedContextLookup,
   KNOWN_CONTEXT_WINDOWS,
 } from "../src/model-config.js";
-import type { ScrapedContextEntry } from "../src/model-config.js";
-import { scrapeCursorModelContexts } from "./scrape-docs-contexts.js";
+import { scrapeCursorModelContexts, scrapedEntriesToMap, buildScrapedContextsContent } from "./scrape-docs-contexts.js";
 
 const apiKey = process.env.CURSOR_API_KEY?.trim();
 if (!apiKey) {
@@ -53,33 +52,9 @@ async function main(): Promise<void> {
   }
 
   // ── Step 2: Build scraped map + write model-scraped-contexts.generated.ts ──
-  const scrapedMap: Record<string, ScrapedContextEntry> = {};
-  for (const entry of scrapedEntries) {
-    scrapedMap[entry.modelId] = {
-      ...(entry.contextWindow !== undefined ? { contextWindow: entry.contextWindow } : {}),
-      ...(entry.maxContext !== undefined ? { maxContext: entry.maxContext } : {}),
-      slug: entry.slug,
-    };
-  }
-
-  const sortedKeys = Object.keys(scrapedMap).sort();
-  const scrapedFileContent = [
-    "// AUTO-GENERATED scraped context-window lookup from cursor.com/docs/models-and-pricing.",
-    "// Regenerate via: pnpm --filter @pi-stef/cursor refresh-models  (requires CURSOR_API_KEY + chromium)",
-    "// MANUAL — not run in CI",
-    "",
-    'import type { ScrapedContextEntry } from "./model-config.js";',
-    "",
-    "export const SCRAPED_MODEL_CONTEXTS: Record<string, ScrapedContextEntry> = {",
-    ...sortedKeys.map(
-      (k, i) =>
-        `  ${JSON.stringify(k)}: ${JSON.stringify(scrapedMap[k])}${i < sortedKeys.length - 1 ? "," : ""}`,
-    ),
-    "};",
-    "",
-  ].join("\n");
-  writeFileSync(OUT_SCRAPED, scrapedFileContent, "utf8");
-  console.log(`Wrote ${sortedKeys.length} scraped entries to ${OUT_SCRAPED}`);
+  const scrapedMap = scrapedEntriesToMap(scrapedEntries);
+  writeFileSync(OUT_SCRAPED, buildScrapedContextsContent(scrapedMap), "utf8");
+  console.log(`Wrote ${Object.keys(scrapedMap).length} scraped entries to ${OUT_SCRAPED}`);
 
   // ── Step 3: Inject scraped map into resolveSilentContextWindow ────────
   setScrapedContextLookup(scrapedMap);
