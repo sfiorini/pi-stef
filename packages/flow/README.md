@@ -131,7 +131,7 @@ Multi-milestone plan with parallel research and iterative reviewer approval. Pro
 | `researcher_model` | No | Override researcher model (inherits parent if unset) |
 | `designer_model` | No | Override designer model (inherits parent if unset) |
 
-Phases: fan out N researchers in parallel → codebase map → gather requirements one question at a time → design (brainstorming) → plan (writing-plans: milestones + `S-MN{seq}` stories) → iterative reviewer loop (fix P0/P1/P2, max 10 rounds) → write plan files → optional Telegram notify.
+Phases: fan out N researchers in parallel → codebase map → gather requirements one question at a time → design (brainstorming) → plan (writing-plans: milestones + `S-MN{seq}` stories) → **delta-review** iterative reviewer loop (round 1 comprehensive, round 2+ verifies prior findings as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED; max 10 rounds) → write plan files → optional Telegram notify.
 
 ### sf_flow_implement
 
@@ -142,7 +142,7 @@ Execute an approved plan in **one** worktree (`flow/<slug>`, git-only), TDD per 
 | `path` | Yes | Plan folder slug or path under `ai_plan/` |
 | `reviewer_model` | No | Override reviewer model |
 
-Per-milestone: TDD each story → reviewer loop → commit to worktree branch → update tracker. After all milestones: run `sf_flow_audit` on the accumulated diff; on `REVISE` loop back to the failing **story** (bounded by `audit.max_rounds`, default 5). Finish with `sf_flow_finalize`.
+Per-milestone: TDD each story → **delta-review** reviewer loop (round 1 comprehensive, round 2+ verifies prior findings; max 5 rounds) → commit to worktree branch → update tracker. After all milestones: run `sf_flow_audit` on the accumulated diff; on `REVISE` loop back to the failing **story** (bounded by `audit.max_rounds`, default 5). Finish with `sf_flow_finalize`.
 
 ### sf_flow_audit
 
@@ -282,7 +282,7 @@ A map of phase-id → loop. Two kinds:
 |--------|--------------|
 | **codereview** | pi-dw `/code-review`: **7 finder angles** (A/B/C correctness, D/E/F cleanup, G altitude). Each verified 3-way (CONFIRMED/PLAUSIBLE/REFUTED — REFUTED dropped), deduped by `file:line:summary`, ranked correctness > cleanup > altitude. Cap `MAX_DIFF_CHARS` (200000). |
 | **auditcode** | **10-section** self-checklist (Supply Chain & Security, Provenance & Metadata, Law of Demeter, …). `--gate` exits 1 on any failure; `qualityScore = 100*(total − must − should)/total`. |
-| **requestreview** | **Dual-blind AND-gate**: two independent reviewers must **both** pass (`mustFix == 0 && score >= threshold`). Bounded by `MAX_REVIEW_ITERATIONS` (5). |
+| **requestreview** | **Dual-blind AND-gate**: two independent reviewers must **both** pass (`mustFix == 0 && score >= threshold`). Bounded by `MAX_REVIEW_ITERATIONS` (5). **Delta-review:** round 1 comprehensive; from round 2 each auditor verifies its OWN prior findings as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED (only regressions traceable to a fix are added). |
 | **respondreview** | `categorize` (must/should/consider) + `applyOrder` (severity). If `apply_fixes`, applies in order then re-runs test/typecheck/lint. Every finding addressed. |
 
 ### `/sf-flow-audit` vs the `code-review` flow
@@ -319,7 +319,7 @@ The orchestrator is **orchestrator-only**: in `/sf-flow-implement` it writes no 
 
 ## Plan standard (exhaustive milestone plans)
 
-Plans are consumed by an implementer that may be a weaker model, so `/sf-flow-plan` enforces an **exhaustive** standard: every story must specify exact files + lines, a precise change (no vague verbs like "refactor"/"improve"), rationale, acceptance criteria, edge cases, test expectations, and dependencies — enough that a less-intelligent model can implement it with **zero remaining design decisions**. A completeness self-check runs before finalizing, and the reviewer gate REVISEs under-detailed stories independent of correctness. (This applies to both the plan tool and a workflow's plan phase — both execute the same skill.)
+Plans are consumed by an implementer that may be a weaker model, so `/sf-flow-plan` enforces an **exhaustive** standard: every story must specify exact files + lines, a precise change (no vague verbs like "refactor"/"improve"), rationale, acceptance criteria, edge cases, test expectations, and dependencies — enough that a less-intelligent model can implement it with **zero remaining design decisions**. A completeness self-check runs before finalizing, and the reviewer gate REVISEs under-detailed stories independent of correctness. (This applies to both the plan tool and a workflow's plan phase — both execute the same skill.) The reviewer loop uses **delta-review** for convergence: round 1 is a comprehensive from-scratch review; from round 2 the reviewer verifies each prior finding as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED, and only regressions traceable to a fix are added.
 
 ---
 
