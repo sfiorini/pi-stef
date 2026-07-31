@@ -85,7 +85,7 @@ The full refresh command (`CURSOR_API_KEY=… pnpm --filter @pi-stef/cursor refr
 
 ### Automated (CI)
 
-A GitHub Actions workflow (`cursor-scrape-release.yml`) runs weekly and automatically keeps the scraped contexts up to date. If the result differs from the committed file, it cuts a patch release so the update reaches npm.
+A GitHub Actions workflow (`cursor-scrape-release.yml`) runs weekly (once enabled) and automatically keeps the scraped contexts up to date. If the result differs from the committed file, it cuts a patch release so the update reaches npm.
 
 To trigger a manual run, go to **Actions** → **Cursor scrape + auto-release** → **Run workflow**.
 
