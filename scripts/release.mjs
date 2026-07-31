@@ -12,7 +12,8 @@ const PACKAGES_DIR = join(ROOT, "packages");
 /** Read the value of a --flag <value> arg from process.argv. */
 function getArgValue(name) {
   const i = process.argv.indexOf(name);
-  return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : undefined;
+  const val = i !== -1 ? process.argv[i + 1] : undefined;
+  return val && !val.startsWith("-") ? val : undefined;
 }
 
 /**
@@ -410,6 +411,11 @@ async function main() {
     console.log(`\nSelected (non-interactive): ${found.dirName}`);
   }
 
+  if (!pkgArg && bumpArg) {
+    console.error("❌ --pkg is required when --bump is given.");
+    process.exit(1);
+  }
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   if (!pkgArg) {
     selected = await selectPackage(rl, pkgs);
@@ -442,6 +448,7 @@ async function main() {
     ? (() => {
         if (!["patch", "minor", "major"].includes(bumpArg)) {
           console.error(`❌ Invalid --bump "${bumpArg}" (patch|minor|major).`);
+          rl.close();
           process.exit(1);
         }
         return bumpArg;
