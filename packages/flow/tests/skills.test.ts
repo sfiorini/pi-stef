@@ -98,4 +98,43 @@ describe("flow skills", () => {
     expect(raw).toContain("general-purpose");
     expect(raw).toContain("NEVER falls back to implementing");
   });
+
+  it("encodes the delta-review protocol across the 3 skills + reviewer/auditor/planner/developer (delta-review)", () => {
+    const plan = readFileSync(join(skillsDir, "sf-flow-plan", "SKILL.md"), "utf8");
+    const impl = readFileSync(join(skillsDir, "sf-flow-implement", "SKILL.md"), "utf8");
+    const audit = readFileSync(join(skillsDir, "sf-flow-audit", "SKILL.md"), "utf8");
+    const reviewer = readFileSync(join(pkgRoot, "agents", "reviewer.md"), "utf8");
+    const auditor = readFileSync(join(pkgRoot, "agents", "auditor.md"), "utf8");
+    const planner = readFileSync(join(pkgRoot, "agents", "planner.md"), "utf8");
+    const developer = readFileSync(join(pkgRoot, "agents", "developer.md"), "utf8");
+
+    for (const [name, raw] of [["sf-flow-plan", plan], ["sf-flow-implement", impl], ["sf-flow-audit", audit]] as const) {
+      expect(raw, `${name} mentions delta-review`).toContain("delta-review");
+      expect(raw, `${name} mentions verification mode`).toContain("verification mode");
+      expect(raw, `${name} mentions canonical`).toContain("canonical");
+    }
+
+    expect(plan).toContain("Max **10 rounds**");
+    expect(impl).toContain("Max **5 rounds**");
+    expect(audit).toContain("Max **5 rounds**");
+
+    for (const [name, raw] of [["reviewer", reviewer], ["auditor", auditor]] as const) {
+      expect(raw, `${name} defines FIXED`).toContain("FIXED");
+      expect(raw, `${name} defines PARTIALLY-FIXED`).toContain("PARTIALLY-FIXED");
+      expect(raw, `${name} defines NOT-FIXED`).toContain("NOT-FIXED");
+      expect(raw, `${name} defines NEW-ISSUE-INTRODUCED`).toContain("NEW-ISSUE-INTRODUCED");
+    }
+
+    expect(planner).toContain("re-spawned");
+    expect(developer).toContain("re-spawned");
+
+    // regression guard: pre-existing M4/M6 substrings still present
+    expect(plan).toContain("Plan standard");
+    expect(plan).toContain("ZERO remaining design decisions");
+    expect(reviewer).toContain("HARD GATE");
+    expect(reviewer).toContain("under-detailed");
+    expect(planner).toContain("completeness self-check");
+    expect(impl).toContain("write NO code");
+    expect(impl).toContain("NEVER falls back to implementing");
+  });
 });

@@ -26,8 +26,14 @@ Dispatch the code-review builtin with `buildCodeReviewPrompt(diff, repoRoot)`. I
 ### Phase 3: audit-code self-checklist (--gate)
 Run the 10-section checklist (`CHECKLIST_SECTIONS`) against the changed files (churn-ranked first). In `--gate` mode: `gateExitCode` returns 1 on ANY failure, 0 only if all pass. Write the full report to `specs/verifications/AUDIT-<slug>.md`.
 
-### Phase 4: request-review (dual-blind AND-gate)
-Dispatch TWO independent `auditor` agents (A, B) (`subagent_type: "auditor"`; model from config or inherit orchestrator), with NO shared context (neither sees the other's report). Compute each score via `qualityScore`; both must pass (`andGatePasses`: `mustFix==0 && score>=threshold`). If either fails → REVISE → respond-review → re-dispatch both. Max `MAX_REVIEW_ITERATIONS` (5); iteration 6 forbidden (`isApproved`).
+### Phase 4: request-review (dual-blind AND-gate, delta-review, max 5 rounds)
+**Round 1 (comprehensive, dual-blind):** dispatch TWO independent `auditor` agents (A, B) (`subagent_type: "auditor"`; model from config or inherit orchestrator), with NO shared context (neither sees the other's report). Each returns `{ findings, verdict }`; capture `canonicalA` and `canonicalB` with `[Fn]` IDs via `assignFindingIds` (`src/audit/verification.ts`). Compute each score via `qualityScore`; both must pass (`andGatePasses`: `mustFix == 0 && score >= threshold`). If both pass → `APPROVED`.
+
+**Round N ≥ 2 (verification, dual-blind):** run Phase 5 (respond-review) to apply fixes, then re-dispatch BOTH auditors in **verification mode**. Each auditor gets ITS OWN prior canonical list (`canonicalA` / `canonicalB` — they remain blind to each other), the round number, and the new diff; each classifies its prior findings as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED and reports only regressions traceable to a fix. Evolve each canonical list independently with `evolveCanonical` (NEVER merge the two). **APPROVED iff** (1) auditor A: `verificationApproved` (all prior blocking FIXED/NEW-ISSUE + no new blocking regression), (2) auditor B: same, AND (3) both `qualityScore`s ≥ threshold. Dual-blind preservation: same round + same diff, but each auditor receives only its own canonical list.
+
+**Cap:** Max **5 rounds** (matches `MAX_REVIEW_ITERATIONS`); iteration 6 is forbidden (`isApproved`). On exhaustion flag `⚠ NON-CONVERGENT: audit did not converge after 5 rounds` and return the last-round verdict. **Fresh-review reset:** if the fix diff is >50% of the total diff, reset to a comprehensive round-1 review (clear BOTH canonical lists; the round counter does not reset).
+
+**Round-1 mechanics unchanged:** the rewrite PRESERVES `qualityScore`, `andGatePasses` (`mustFix == 0 && score >= threshold`), and `isApproved` (iteration 6 forbidden) exactly as today; delta-review only adds the round-2+ verification pass and the per-auditor canonical-list evolution.
 
 ### Phase 5: respond-review (fix-apply)
 If `apply_fixes`: `categorize` findings (P0/P1 must-fix, P2 should-fix, P3 consider), `applyOrder` (severity), apply in order, run test/typecheck/lint, report. In auto mode: skip `consider` confirmations, note them. HARD GATE: every finding is addressed (fix, disagree+document, or clarify).

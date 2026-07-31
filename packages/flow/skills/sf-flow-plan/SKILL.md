@@ -64,8 +64,16 @@ Dispatch the **planner** agent to turn the approved design into an exhaustive mi
 
 The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting the Plan standard (all 7 fields, no vague verbs) and having run its **completeness self-check**. The orchestrator does NOT write the plan inline — it delegates entirely to the planner agent.
 
-### Phase 6: Iterative Plan Review
-Spawn the reviewer agent (`Agent({ subagent_type: "reviewer", model: "<reviewer_model>" })`). The reviewer returns **REVISE** for ANY story missing required Plan-standard detail — **independent of correctness** — so under-detailed stories are caught even when the plan is technically right. Also parse the verdict for P0/P1/P2; fix + re-submit. Max 10 rounds.
+### Phase 6: Iterative Plan Review (delta-review, max 10 rounds)
+**Round 1 (comprehensive):** Spawn the reviewer agent (`Agent({ subagent_type: "reviewer", model: "<reviewer_model>" })`) in comprehensive mode (full from-scratch review). Capture the reviewer's `## Findings` as the **canonical list**, assigning sequential IDs `F1`,`F2`,… via `assignFindingIds` (`src/audit/verification.ts`), sorted by severity (P0→P3) then file then line; render it with `renderCanonicalList`. The reviewer returns **REVISE** for ANY story missing required Plan-standard detail — **independent of correctness** — so under-detailed stories are caught even when the plan is technically right. If `APPROVED` on round 1 → Phase 7.
+
+**Round N ≥ 2 (verification):** Re-spawn the **planner** (`Agent({ subagent_type: "planner", model: "<planner_model>" })`) with the canonical list, instructing it to address EACH `[Fn]` finding precisely (no regressions, minimal changes, report per-finding what changed). Then re-spawn the **reviewer** in **verification mode**: pass it the canonical `[Fn]` list + the round number + the revised plan. The reviewer classifies each prior finding as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED and reports only regressions traceable to a specific `[Fn]` fix in `## Findings`. The orchestrator NEVER edits the plan directly — it always re-spawns the planner. Parse the reviewer's verification with `parseVerification` and evolve the canonical list with `evolveCanonical` (drop FIXED, keep PARTIALLY-FIXED/NOT-FIXED, drop original + append regression for NEW-ISSUE, keep no-entry); reassign fresh IDs each round. Use the shared helpers in `src/audit/verification.ts`.
+
+**APPROVED iff** `verificationApproved` is true: every prior BLOCKING (P0/P1/P2) finding is FIXED or NEW-ISSUE-INTRODUCED, AND no new blocking regression. P3 never blocks. On APPROVED → Phase 7.
+
+**Cap:** Max **10 rounds** total (the round counter never resets). On exhaustion emit the best-effort plan and flag `⚠ NON-CONVERGENT: reviewer did not approve after 10 rounds; remaining findings listed in final-transcript.md` in the plan header, then proceed to Phase 7.
+
+**Fresh-review reset (escape hatch):** if the planner's fix set touches >50% of the stories, the orchestrator MAY reset to a comprehensive round-1 review (clear the canonical list). The round counter does NOT reset. Default: reset at >50%.
 
 ### Phase 7: Generate Plan Files
 Write `ai_plan/YYYY-MM-DD-<slug>/` with: `original-plan.md`, `final-transcript.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md`.
