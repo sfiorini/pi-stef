@@ -457,3 +457,30 @@ describe("processModels no-collision", () => {
     expect(result[1]!).toMatchObject({ id: "gpt-5.4-1m", supportsEffort: true, contextWindow: 1_000_000 });
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// S-M2-4: FALLBACK_MODELS normalization
+// ═══════════════════════════════════════════════════════════════════
+
+import { FALLBACK_MODELS } from "../src/model-config";
+
+describe("FALLBACK_MODELS normalization", () => {
+  it("models with -1m base suffix have contextWindow 1000000", () => {
+    const oneMillion = FALLBACK_MODELS.filter((m) => {
+      const base = parseModelId(m.id).base;
+      return base.endsWith("-1m");
+    });
+    expect(oneMillion.length).toBeGreaterThan(0);
+    for (const m of oneMillion) {
+      expect(m.contextWindow).toBe(1_000_000);
+    }
+  });
+
+  it("models with base gpt-5.4 have contextWindow 272000", () => {
+    const gpt54 = FALLBACK_MODELS.filter((m) => parseModelId(m.id).base === "gpt-5.4");
+    expect(gpt54.length).toBeGreaterThan(0);
+    for (const m of gpt54) {
+      expect(m.contextWindow).toBe(272_000);
+    }
+  });
+});

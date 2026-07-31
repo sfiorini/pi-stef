@@ -837,10 +837,12 @@ export function normalizeContextWindow(model: CursorModel): CursorModel {
 
 export const FALLBACK_MODELS: CursorModel[] = augmentCursorModels(
   rawFallbackModels as CursorModel[],
-).map((model) => ({
-  ...model,
-  reasoning: supportsReasoningModelId(model.id),
-}));
+)
+  .map(normalizeContextWindow)
+  .map((model) => ({
+    ...model,
+    reasoning: supportsReasoningModelId(model.id),
+  }));
 
 // ── ModelListItem → CursorModel mapping (for live/cache discovery) ──
 
