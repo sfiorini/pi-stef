@@ -1,6 +1,8 @@
 // AUTO-GENERATED scraped context-window lookup from cursor.com/docs/models-and-pricing.
-// Regenerate via: pnpm --filter @pi-stef/cursor refresh-models  (requires CURSOR_API_KEY + chromium)
-// MANUAL — not run in CI
+// Regenerate via: pnpm --filter @pi-stef/cursor tsx scripts/scrape-docs-contexts.ts
+//                 (no CURSOR_API_KEY needed; requires chromium: npx playwright install chromium)
+//               or via the weekly cursor-scrape-release GitHub Action.
+// MANUAL — not run in CI.
 
 import type { ScrapedContextEntry } from "./model-config.js";
 
