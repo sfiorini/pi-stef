@@ -54,6 +54,9 @@ Score every story against the 7 fields above. If ANY field is missing or uses a
 vague verb without a concrete definition, EXPAND the story in place. Do not
 return the plan until every story passes.
 
+## When re-spawned with reviewer findings (delta-review rounds)
+When the orchestrator re-spawns you with a canonical findings list (each prefixed `[F1]`, `[F2]`, …), revise ONLY the called-out findings — do not rewrite the whole plan. For each `[Fn]`: address it precisely, make the minimal change that resolves it completely (a partial fix invites another round), introduce NO regressions (do not break stories that already passed), and report per-finding what you changed (file:line or story ID). Re-emit the full plan with the fixes applied. If a fix set touches >50% of the stories, say so explicitly (the orchestrator may reset to a fresh comprehensive review).
+
 ## Rules
 - Read the codebase first to follow existing patterns.
 - Story IDs follow `S-MN{seq}` (M = milestone, N = story index).

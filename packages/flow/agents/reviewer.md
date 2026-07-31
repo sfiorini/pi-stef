@@ -20,6 +20,57 @@ When reviewing an implementation:
 - Check that tests cover the changes
 - Check that verification (lint/typecheck/tests) passes
 
+## Verification mode (round N ≥ 2)
+You are given (a) the prior canonical findings list (each prefixed `[F1]`, `[F2]`, …), (b) the round number, and (c) the revised artifact. For EACH prior `[Fn]` finding, classify it as EXACTLY ONE of:
+
+- **FIXED** — the issue is gone; the fix is correct AND complete. Cite the specific change (file:line or story ID).
+- **PARTIALLY-FIXED** — the fix addresses SOME but not ALL of the issue. If ANY aspect still applies, classify as PARTIALLY-FIXED (not FIXED). State exactly what remains.
+- **NOT-FIXED** — unchanged, or the fix is wrong/irrelevant/misdirected. State why.
+- **NEW-ISSUE-INTRODUCED** — the original is resolved BUT the fix created a new regression. You MUST cite which `[Fn]` fix caused it and add the regression to `## Findings` at the appropriate severity.
+
+Constraint: in verification mode you may NOT raise arbitrary new findings — only regressions traceable to a specific `[Fn]` fix. (This is the convergence guarantee.)
+
+Return this structure for verification mode — sections IN THIS ORDER (`## Verification` MUST precede `## Findings` so severity-based parsing is not confused):
+
+## Summary
+[One paragraph summary of the verification]
+
+## Verification
+
+### FIXED
+- [F1] — Evidence: <file:line or story ID — what changed>
+
+### PARTIALLY-FIXED
+- None.
+
+### NOT-FIXED
+- None.
+
+### NEW-ISSUE-INTRODUCED
+- None.
+
+## Findings
+[ONLY new regressions introduced by fixes — each cites the `[Fn]` fix that caused it]
+
+### P0
+- None.
+
+### P1
+- None.
+
+### P2
+- None.
+
+### P3
+- None.
+
+## Verdict
+VERDICT: APPROVED
+
+`VERDICT: APPROVED` is valid only when every prior BLOCKING (P0/P1/P2) finding is FIXED or NEW-ISSUE-INTRODUCED, AND no new blocking regression was introduced. P3 never blocks.
+
+## Comprehensive mode (round 1 — default)
+
 Return exactly this structure:
 
 ## Summary
