@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-31
+### Changed
+- chore(cursor): remove throwaway context-param verification probe
+- test(cursor): update mapModelListItems fixture for curated context windows
+- feat(cursor): deliver context param to SDK at turn time via ModelSelection.params
+- feat(cursor): add resolveSdkModelSelection lookup for context-param delivery
+- feat(cursor): add buildSdkSelectionEntries for turn-time context-param lookup
+- fix(cursor): normalize context windows in offline fallback models
+- fix(cursor): expand context variants into distinct models with real windows
+- feat(cursor): add context-window resolution table + normalizeContextWindow
+- feat(cursor): add variant/context extraction helpers for SDK model list
+- chore(cursor): add throwaway context-param SDK verification probe
+
+
 ## [1.2.3] - 2026-07-29
 ### Changed
 - fix(cursor): report actually-registered model count in /cursor-refresh-models
