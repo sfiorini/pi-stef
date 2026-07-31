@@ -966,3 +966,25 @@ function expandModelListItem(item: ModelListItem): CursorModel[] {
 export function mapModelListItems(items: ModelListItem[]): CursorModel[] {
   return items.flatMap(expandModelListItem);
 }
+
+// ── Turn-time SDK model-selection lookup (§4f) ──
+
+export interface SdkSelectionEntry {
+  requestedModelId?: string;
+  contextParam?: { id: string; value: string };
+}
+
+export function buildSdkSelectionEntries(
+  processed: ProcessedModel[],
+): Map<string, SdkSelectionEntry> {
+  const entries = new Map<string, SdkSelectionEntry>();
+  for (const model of processed) {
+    const contextParam = model.parameters?.find((p) => p.id === "context");
+    if (!model.requestedModelId && !contextParam) continue;
+    entries.set(model.id, {
+      ...(model.requestedModelId ? { requestedModelId: model.requestedModelId } : {}),
+      ...(contextParam ? { contextParam: { id: contextParam.id, value: contextParam.value } } : {}),
+    });
+  }
+  return entries;
+}

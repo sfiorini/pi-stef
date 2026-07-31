@@ -1,6 +1,8 @@
 process.env.PI_CURSOR_AUTH_JSON_PATH ??= "/tmp/pi-stef-cursor-test-noauth.json";
 import { describe, expect, it, vi } from "vitest";
 import { streamCursor, streamCursorLazy } from "../src/sdk-stream";
+import { buildSdkSelectionEntries } from "../src/model-config";
+import type { ProcessedModel } from "../src/model-config";
 import type {
   AssistantMessageEvent,
   AssistantMessage,
@@ -923,5 +925,92 @@ describe("streamCursor (S-62 two-phase)", () => {
 
     const types = events.map((e) => e.type);
     expect(types).toContain("error");
+  });
+});
+
+// ── S-M3-1: buildSdkSelectionEntries ─────────────────────────────────────────
+
+function makeProcessed(overrides?: Partial<ProcessedModel>): ProcessedModel {
+  return {
+    id: "claude-opus-5",
+    name: "Claude Opus 5",
+    reasoning: true,
+    contextWindow: 300_000,
+    maxTokens: 16_384,
+    supportsEffort: false,
+    ...overrides,
+  };
+}
+
+describe("buildSdkSelectionEntries", () => {
+  it("context param + requestedModelId → entry with both fields", () => {
+    const models: ProcessedModel[] = [
+      makeProcessed({
+        id: "claude-opus-5-1m",
+        requestedModelId: "claude-opus-5",
+        parameters: [
+          { id: "context", value: "1m" },
+          { id: "reasoning", value: "high" },
+        ],
+      }),
+    ];
+    const entries = buildSdkSelectionEntries(models);
+    expect(entries.get("claude-opus-5-1m")).toEqual({
+      requestedModelId: "claude-opus-5",
+      contextParam: { id: "context", value: "1m" },
+    });
+  });
+
+  it("requestedModelId only (no context param) → entry with requestedModelId", () => {
+    const models: ProcessedModel[] = [
+      makeProcessed({
+        id: "default",
+        requestedModelId: "backend-m",
+      }),
+    ];
+    const entries = buildSdkSelectionEntries(models);
+    expect(entries.get("default")).toEqual({
+      requestedModelId: "backend-m",
+    });
+  });
+
+  it("reasoning excluded — only context param captured", () => {
+    const models: ProcessedModel[] = [
+      makeProcessed({
+        id: "claude-opus-5-272k",
+        requestedModelId: "claude-opus-5",
+        parameters: [
+          { id: "context", value: "272k" },
+          { id: "reasoning", value: "high" },
+        ],
+      }),
+    ];
+    const entries = buildSdkSelectionEntries(models);
+    expect(entries.get("claude-opus-5-272k")?.contextParam).toEqual({
+      id: "context",
+      value: "272k",
+    });
+  });
+
+  it("bare (no requestedModelId, no context) → not in map", () => {
+    const models: ProcessedModel[] = [makeProcessed()];
+    const entries = buildSdkSelectionEntries(models);
+    expect(entries.has("claude-opus-5")).toBe(false);
+    expect(entries.size).toBe(0);
+  });
+
+  it("mixed bare + parameterized → size 1, only parameterized present", () => {
+    const models: ProcessedModel[] = [
+      makeProcessed(), // bare
+      makeProcessed({
+        id: "claude-opus-5-1m",
+        requestedModelId: "claude-opus-5",
+        parameters: [{ id: "context", value: "1m" }],
+      }),
+    ];
+    const entries = buildSdkSelectionEntries(models);
+    expect(entries.size).toBe(1);
+    expect(entries.has("claude-opus-5")).toBe(false);
+    expect(entries.has("claude-opus-5-1m")).toBe(true);
   });
 });
