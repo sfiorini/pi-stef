@@ -801,6 +801,40 @@ export function augmentCursorModels(
   return [...byId.values()];
 }
 
+const KNOWN_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
+  "claude-opus-5": 300_000,
+  "claude-opus-4-8": 300_000,
+  "claude-opus-4-7": 300_000,
+  "fable-5": 300_000,
+  "claude-sonnet-5": 300_000,
+  "claude-opus-4-6": 200_000,
+  "claude-sonnet-4-6": 200_000,
+  "claude-sonnet-4": 200_000,
+  "claude-sonnet-4-5": 200_000,
+  "gpt-5.6-sol": 272_000,
+  "gpt-5.6-terra": 272_000,
+  "gpt-5.6-luna": 272_000,
+  "gpt-5.5": 272_000,
+  "gpt-5.4": 272_000,
+};
+
+export function resolveSilentContextWindow(id: string): number {
+  const base = parseModelId(id).base;
+  return KNOWN_CONTEXT_WINDOWS[base] ?? 200_000;
+}
+
+export function normalizeContextWindow(model: CursorModel): CursorModel {
+  const base = parseModelId(model.id).base;
+  if (base.endsWith("-1m")) {
+    return model.contextWindow === 1_000_000 ? model : { ...model, contextWindow: 1_000_000 };
+  }
+  const known = KNOWN_CONTEXT_WINDOWS[base];
+  if (known !== undefined) {
+    return model.contextWindow === known ? model : { ...model, contextWindow: known };
+  }
+  return model;
+}
+
 export const FALLBACK_MODELS: CursorModel[] = augmentCursorModels(
   rawFallbackModels as CursorModel[],
 ).map((model) => ({

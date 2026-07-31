@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModelListItem } from "../src/model-cache";
-import { contextValuesFromItem } from "../src/model-config";
+import { contextValuesFromItem, resolveSilentContextWindow, normalizeContextWindow } from "../src/model-config";
+import type { CursorModel } from "../src/model-config";
 
 describe("contextValuesFromItem", () => {
   it("multi: 300k default + 1m", () => {
@@ -127,5 +128,100 @@ describe("contextValuesFromItem", () => {
       displayName: "",
     };
     expect(contextValuesFromItem(item)).toEqual([]);
+  });
+});
+
+describe("resolveSilentContextWindow", () => {
+  it("known: gpt-5.4 → 272000", () => {
+    expect(resolveSilentContextWindow("gpt-5.4")).toBe(272_000);
+  });
+
+  it("known: gpt-5.6-sol → 272000", () => {
+    expect(resolveSilentContextWindow("gpt-5.6-sol")).toBe(272_000);
+  });
+
+  it("known: claude-opus-5 → 300000", () => {
+    expect(resolveSilentContextWindow("claude-opus-5")).toBe(300_000);
+  });
+
+  it("known: claude-sonnet-5 → 300000", () => {
+    expect(resolveSilentContextWindow("claude-sonnet-5")).toBe(300_000);
+  });
+
+  it("unknown default: gemini-3-flash → 200000", () => {
+    expect(resolveSilentContextWindow("gemini-3-flash")).toBe(200_000);
+  });
+
+  it("unknown default: grok-4.5 → 200000", () => {
+    expect(resolveSilentContextWindow("grok-4.5")).toBe(200_000);
+  });
+
+  it("unknown default: auto-smart → 200000", () => {
+    expect(resolveSilentContextWindow("auto-smart")).toBe(200_000);
+  });
+
+  it("effort-suffix-stripped: gpt-5.4-high → 272000", () => {
+    expect(resolveSilentContextWindow("gpt-5.4-high")).toBe(272_000);
+  });
+
+  it("effort-suffix-stripped: claude-opus-5-medium → 300000", () => {
+    expect(resolveSilentContextWindow("claude-opus-5-medium")).toBe(300_000);
+  });
+});
+
+describe("normalizeContextWindow", () => {
+  it("-1m → 1M", () => {
+    const model: CursorModel = {
+      id: "claude-4-sonnet-1m",
+      name: "Sonnet 4 1M",
+      reasoning: false,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    };
+    expect(normalizeContextWindow(model).contextWindow).toBe(1_000_000);
+  });
+
+  it("-1m + effort → 1M", () => {
+    const model: CursorModel = {
+      id: "gpt-5.4-1m-high",
+      name: "GPT-5.4 1M High",
+      reasoning: true,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    };
+    expect(normalizeContextWindow(model).contextWindow).toBe(1_000_000);
+  });
+
+  it("curated: gpt-5.4-medium → 272000", () => {
+    const model: CursorModel = {
+      id: "gpt-5.4-medium",
+      name: "GPT-5.4 Medium",
+      reasoning: true,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    };
+    expect(normalizeContextWindow(model).contextWindow).toBe(272_000);
+  });
+
+  it("keep existing: gemini-3-flash → 200000", () => {
+    const model: CursorModel = {
+      id: "gemini-3-flash",
+      name: "Gemini 3 Flash",
+      reasoning: false,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    };
+    expect(normalizeContextWindow(model).contextWindow).toBe(200_000);
+  });
+
+  it("same ref when unchanged", () => {
+    const model: CursorModel = {
+      id: "gemini-3-flash",
+      name: "Gemini 3 Flash",
+      reasoning: false,
+      contextWindow: 200_000,
+      maxTokens: 16_384,
+    };
+    expect(normalizeContextWindow(model)).toBe(model);
   });
 });
