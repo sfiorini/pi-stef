@@ -260,7 +260,7 @@ async function runPhase(
     const acquired = await _acquire(
       {
         apiKey,
-        modelSelection: { id: stripProviderPrefix(model.id) },
+        modelSelection: resolveSdkModelSelection(model.id),
         cwd: process.cwd(),
         scopeKey: (options as { sessionId?: string } | undefined)?.sessionId ?? "default",
         toolNames,

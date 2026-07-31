@@ -1077,3 +1077,83 @@ describe("resolveSdkModelSelection", () => {
     expect(resolveSdkModelSelection("cursor/b")).toEqual({ id: "y" });
   });
 });
+
+// ── S-M3-3: streamCursor — context-param model selection ─────────────────────
+
+describe("streamCursor — context-param model selection", () => {
+  beforeEach(() => {
+    __resetSdkModelSelectionLookupForTests();
+  });
+
+  it("context-variant model passes resolved modelSelection with params to acquireSessionAgent", async () => {
+    setSdkModelSelectionLookup(
+      new Map([
+        [
+          "claude-opus-5-1m",
+          {
+            requestedModelId: "claude-opus-5",
+            contextParam: { id: "context", value: "1m" },
+          },
+        ],
+      ]),
+    );
+
+    const { deps, runDeferred, fireDelta } = await createFakeDeps();
+
+    const stream = streamCursor(
+      fakeModel({ id: "cursor/claude-opus-5-1m" }),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+
+    // Wait for acquireSessionAgent to be called
+    await vi.waitFor(() => {
+      expect(deps.acquireSessionAgent).toHaveBeenCalled();
+    });
+
+    // Extract the modelSelection passed to acquireSessionAgent
+    const acquireCall = (deps.acquireSessionAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(acquireCall.modelSelection).toEqual({
+      id: "claude-opus-5",
+      params: [{ id: "context", value: "1m" }],
+    });
+
+    // Complete the run so the stream ends cleanly
+    fireDelta({ type: "text-delta", text: "ok" });
+    fireDelta({
+      type: "turn-ended",
+      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    });
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
+  });
+
+  it("bare model (no lookup entry) passes stripped id without params", async () => {
+    __resetSdkModelSelectionLookupForTests();
+
+    const { deps, runDeferred, fireDelta } = await createFakeDeps();
+
+    const stream = streamCursor(
+      fakeModel({ id: "cursor/gemini-3-flash" }),
+      { messages: [] } as unknown as Context,
+      undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3],
+    );
+
+    await vi.waitFor(() => {
+      expect(deps.acquireSessionAgent).toHaveBeenCalled();
+    });
+
+    const acquireCall = (deps.acquireSessionAgent as ReturnType<typeof vi.fn>).mock.calls[0]![0];
+    expect(acquireCall.modelSelection).toEqual({ id: "gemini-3-flash" });
+
+    fireDelta({ type: "text-delta", text: "ok" });
+    fireDelta({
+      type: "turn-ended",
+      usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    });
+    runDeferred.resolve({ status: "finished" });
+    await stream.result();
+  });
+});

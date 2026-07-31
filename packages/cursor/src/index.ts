@@ -17,10 +17,10 @@ import { tmpdir } from "node:os";
 import { join as pathJoin } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import type { ModelListItem } from "./model-cache.js";
-import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels } from "./model-config.js";
+import { FALLBACK_MODELS, mapModelListItems, modelConfig, processModels, buildSdkSelectionEntries } from "./model-config.js";
 export * from "./model-config.js";
 import { CURSOR_API_KEY_CONFIG_VALUE, detectLegacyOAuthCredential, writeCursorApiKey } from "./api-key.js";
-import { streamCursorLazy } from "./sdk-stream.js";
+import { streamCursorLazy, setSdkModelSelectionLookup } from "./sdk-stream.js";
 import { disposeAllSessionAgents } from "./session-agent.js";
 
 let extensionDebugLogFilePath: string | undefined;
@@ -337,6 +337,7 @@ let registeredModelCount = 0;
 function register(pi: ExtensionAPI, rawItems: ModelListItem[]) {
   const cursorModels = mapModelListItems(rawItems);
   const processed = processModels(cursorModels.length ? cursorModels : FALLBACK_MODELS);
+  setSdkModelSelectionLookup(buildSdkSelectionEntries(processed));
   registeredModelCount = processed.length;
   pi.registerProvider("cursor", {
     api: "cursor-sdk",

@@ -43,7 +43,7 @@ export interface SDKRunResult {
 /** Model selection with an id and optional parameters. */
 export interface ModelSelection {
   id: string;
-  params?: Record<string, unknown>;
+  params?: Array<{ id: string; value: string }>;
 }
 
 // ─── SessionAgent wrapper ───────────────────────────────────────────────────

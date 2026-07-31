@@ -168,4 +168,67 @@ describe("session-agent", () => {
     // disposeAll should clean up both
     disposeAllSessionAgents();
   });
+
+  describe("context-param pool isolation", () => {
+    it("same base id, different context params → different sessions", async () => {
+      const agents = new Map<string, FakeAgent>();
+      const loadSdk = makeFakeLoadSdk(agents);
+
+      const r1 = await acquireSessionAgent(
+        {
+          ...baseOpts,
+          modelSelection: {
+            id: "claude-opus-5",
+            params: [{ id: "context", value: "300k" }],
+          },
+        },
+        { loadSdk },
+      );
+      const r2 = await acquireSessionAgent(
+        {
+          ...baseOpts,
+          modelSelection: {
+            id: "claude-opus-5",
+            params: [{ id: "context", value: "1m" }],
+          },
+        },
+        { loadSdk },
+      );
+
+      expect(r1.session).not.toBe(r2.session);
+      r1.release();
+      r2.release();
+    });
+
+    it("same base id + same params, release+reacquire → same session", async () => {
+      const agents = new Map<string, FakeAgent>();
+      const loadSdk = makeFakeLoadSdk(agents);
+
+      const r1 = await acquireSessionAgent(
+        {
+          ...baseOpts,
+          modelSelection: {
+            id: "claude-opus-5",
+            params: [{ id: "context", value: "1m" }],
+          },
+        },
+        { loadSdk },
+      );
+      r1.release();
+
+      const r2 = await acquireSessionAgent(
+        {
+          ...baseOpts,
+          modelSelection: {
+            id: "claude-opus-5",
+            params: [{ id: "context", value: "1m" }],
+          },
+        },
+        { loadSdk },
+      );
+
+      expect(r1.session).toBe(r2.session);
+      r2.release();
+    });
+  });
 });
