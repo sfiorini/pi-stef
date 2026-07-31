@@ -65,6 +65,9 @@ describe("mapModelListItems", () => {
     expect(sonnet.maxTokens).toBe(16_384);
     expect(sonnet.supportsImages).toBe(true);
 
+    const gpt54 = result[1]!;
+    expect(gpt54.contextWindow).toBe(272_000);
+
     const embed = result[3]!;
     expect(embed.reasoning).toBe(false);
     expect(embed.supportsImages).toBe(false);
