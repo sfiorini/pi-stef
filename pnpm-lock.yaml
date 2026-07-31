@@ -220,6 +220,10 @@ importers:
       '@pi-stef/web':
         specifier: ^0.3.0
         version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+    devDependencies:
+      playwright-core:
+        specifier: ^1.59.1
+        version: 1.60.0
 
   packages/figma:
     dependencies:

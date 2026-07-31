@@ -46,6 +46,9 @@
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*"
   },
+  "devDependencies": {
+    "playwright-core": "^1.59.1"
+  },
   "engines": {
     "node": ">=22.14"
   },
