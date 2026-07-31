@@ -46,6 +46,49 @@ The provider discovers available models from Cursor via `Cursor.models.list` and
 
 Reasoning effort is forwarded only when Cursor model metadata advertises effort support.
 
+## Cursor Model Scraping
+
+The Cursor SDK API omits context-window info for most ("silent") models. To fill this gap, `@pi-stef/cursor` scrapes `cursor.com/docs/models/<slug>` for the real **Context window** and **Max context** values and uses them as a fallback so silent models report their actual window instead of the 200 K default.
+
+**Precedence (highest wins):**
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | API context (live) | From `Cursor.models.list` |
+| 2 | `KNOWN_CONTEXT_WINDOWS` | Curated table |
+| 3 | Scraped contexts | Auto-generated from docs |
+| 4 | 200 K default | Final fallback |
+
+### Manual Refresh
+
+No API key is needed. One-time setup + regeneration:
+
+```sh
+# install a chromium browser for playwright-core
+npx playwright install chromium
+
+# regenerate the scraped-contexts file
+pnpm --filter @pi-stef/cursor tsx scripts/scrape-docs-contexts.ts
+```
+
+This writes `packages/cursor/src/model-scraped-contexts.generated.ts`. Commit the file and release (`pnpm release`).
+
+To use your system Chrome instead of the bundled Chromium:
+
+```sh
+PI_CURSOR_SCRAPE_CHANNEL=chrome pnpm --filter @pi-stef/cursor tsx scripts/scrape-docs-contexts.ts
+```
+
+::: tip
+The full refresh command (`CURSOR_API_KEY=… pnpm --filter @pi-stef/cursor refresh-models`) also refreshes the live model list — it requires an API key. The scrape-only CLI above does not.
+:::
+
+### Automated (CI)
+
+A GitHub Actions workflow (`cursor-scrape-release.yml`) runs weekly and automatically keeps the scraped contexts up to date. If the result differs from the committed file, it cuts a patch release so the update reaches npm.
+
+To trigger a manual run, go to **Actions** → **Cursor scrape + auto-release** → **Run workflow**.
+
 ## Architecture
 
 The provider uses the official `@cursor/sdk` to manage local Cursor agents. All streaming, transport, and reconnection logic is handled by the SDK.
