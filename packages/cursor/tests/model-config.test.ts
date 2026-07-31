@@ -1,4 +1,4 @@
-import { describe, expect, it, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import type { ModelListItem } from "../src/model-cache";
 import {
   contextValuesFromItem,
@@ -11,6 +11,13 @@ import {
   setScrapedContextLookup,
 } from "../src/model-config";
 import type { CursorModel } from "../src/model-config";
+
+// Isolate every test from the committed SCRAPED_MODEL_CONTEXTS data so results
+// are deterministic regardless of what the last docs scrape captured. Tests that
+// exercise the scraped lookup set their own map; this just guarantees the default.
+beforeEach(() => {
+  setScrapedContextLookup({});
+});
 
 // ═══════════════════════════════════════════════════════════════════
 // S-M2-1: contextValuesFromItem
