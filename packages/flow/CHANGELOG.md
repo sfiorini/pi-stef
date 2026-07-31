@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-31
+### Changed
+- docs(flow): document delta-review protocol in README (plan/implement/audit loops)
+- feat(flow): rewrite plan/implement/audit review loops to delta-review + add skills regression test
+- feat(flow): add delta-review verification mode to reviewer/auditor + re-spawn contract to planner/developer
+- feat(flow): add delta-review verification helper (assignFindingIds/parseVerification/evolveCanonical/verificationApproved)
+
+
 ## [0.6.0] - 2026-07-30
 ### Changed
 - chore(flow): restore 0.5.0 + drop manual changelog (let pnpm release bump+tag)
