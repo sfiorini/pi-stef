@@ -9,6 +9,12 @@ import { bumpVersion, convertFileDependencies, sanitize } from "./lib.mjs";
 const ROOT = resolve(import.meta.dirname, "..");
 const PACKAGES_DIR = join(ROOT, "packages");
 
+/** Read the value of a --flag <value> arg from process.argv. */
+function getArgValue(name) {
+  const i = process.argv.indexOf(name);
+  return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : undefined;
+}
+
 /**
  * Discover all packages in the monorepo.
  * Returns array of { dirName, name, version, pkgPath }.
@@ -382,8 +388,32 @@ async function main() {
     console.log(`  ${pkg.name} (${pkg.version})`);
   }
 
+  const dryRun = process.argv.includes("--dry-run");
+  const pkgArg = getArgValue("--pkg");
+  const bumpArg = getArgValue("--bump");
+  const yesFlag = process.argv.includes("--yes");
+  const noSyncCheck = process.argv.includes("--no-sync-check");
+
+  // Non-interactive package selection
+  let selected;
+  if (pkgArg) {
+    if (!bumpArg) {
+      console.error("❌ --bump is required when --pkg is given.");
+      process.exit(1);
+    }
+    const found = pkgs.find((p) => p.dirName === pkgArg);
+    if (!found) {
+      console.error(`❌ Unknown package: "${pkgArg}". Available: ${pkgs.map((p) => p.dirName).join(", ")}`);
+      process.exit(1);
+    }
+    selected = [found];
+    console.log(`\nSelected (non-interactive): ${found.dirName}`);
+  }
+
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  const selected = await selectPackage(rl, pkgs);
+  if (!pkgArg) {
+    selected = await selectPackage(rl, pkgs);
+  }
 
   if (!selected) {
     console.log("Aborted.");
@@ -392,8 +422,6 @@ async function main() {
   }
 
   console.log(`\nSelected: ${selected.map((p) => p.dirName).join(", ")}`);
-
-  const dryRun = process.argv.includes("--dry-run");
   if (dryRun) {
     console.log("🔍 DRY RUN mode — no files will be modified, no git operations.\n");
   }
@@ -401,14 +429,24 @@ async function main() {
   // Pre-flight checks (skip in dry-run)
   if (!dryRun) {
     assertCleanWorkingDir();
-    assertInSyncWithRemote();
+    if (!noSyncCheck) {
+      assertInSyncWithRemote();
+    }
     runTests();
   }
 
   // Select bump type
   const isAll = selected.length > 1;
   const bumpLabel = isAll ? "all packages" : selected[0].dirName;
-  const bumpType = await selectBumpType(rl, bumpLabel);
+  const bumpType = bumpArg
+    ? (() => {
+        if (!["patch", "minor", "major"].includes(bumpArg)) {
+          console.error(`❌ Invalid --bump "${bumpArg}" (patch|minor|major).`);
+          process.exit(1);
+        }
+        return bumpArg;
+      })()
+    : await selectBumpType(rl, bumpLabel);
 
   // Calculate new versions
   const releases = selected.map((pkg) => ({
@@ -421,11 +459,13 @@ async function main() {
   for (const r of releases) {
     console.log(`  ${r.dirName}: ${r.version} → ${r.newVersion}`);
   }
-  const confirm = await ask(rl, "\nProceed? (y/n): ");
-  if (confirm !== "y") {
-    console.log("Aborted.");
-    rl.close();
-    process.exit(0);
+  if (!yesFlag) {
+    const confirm = await ask(rl, "\nProceed? (y/n): ");
+    if (confirm !== "y") {
+      console.log("Aborted.");
+      rl.close();
+      process.exit(0);
+    }
   }
 
   // Update package.json files (version + private flag)
