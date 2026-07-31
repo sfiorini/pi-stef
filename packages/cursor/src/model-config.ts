@@ -815,6 +815,67 @@ const REASONING_ID_RE =
 const NON_IMAGE_ID_RE =
   /embed|instruct.*code|code-only|text-only|tts|whisper|moderation|dall-e/i;
 
+// ── ModelListItem variant/context extraction ──
+
+interface ModelListVariant {
+  params: { id: string; value: string }[];
+  displayName?: string;
+  isDefault?: boolean;
+}
+
+function isModelListVariant(v: unknown): v is ModelListVariant {
+  if (!v || typeof v !== "object") return false;
+  const obj = v as Record<string, unknown>;
+  if (!Array.isArray(obj.params)) return false;
+  return obj.params.every(
+    (p) =>
+      p && typeof p === "object" &&
+      typeof (p as Record<string, unknown>).id === "string" &&
+      typeof (p as Record<string, unknown>).value === "string",
+  );
+}
+
+function readModelListVariants(item: ModelListItem): ModelListVariant[] {
+  if (!Array.isArray(item.variants)) return [];
+  return item.variants.filter(isModelListVariant);
+}
+
+export interface ContextValueInfo {
+  value: string;
+  isDefault: boolean;
+  variantDisplayName?: string;
+}
+
+export function contextValuesFromItem(item: ModelListItem): ContextValueInfo[] {
+  const variants = readModelListVariants(item);
+  const byValue = new Map<string, ContextValueInfo>();
+  for (const variant of variants) {
+    const ctxParam = variant.params.find((p) => p.id === "context");
+    if (!ctxParam) continue;
+    if (!byValue.has(ctxParam.value)) {
+      byValue.set(ctxParam.value, {
+        value: ctxParam.value,
+        isDefault: variant.isDefault === true,
+        ...(variant.displayName ? { variantDisplayName: variant.displayName } : {}),
+      });
+    }
+  }
+  if (byValue.size === 0) {
+    const ctxDef = item.parameters?.find((p) => p.id === "context");
+    if (ctxDef) {
+      for (const v of ctxDef.values) {
+        if (!byValue.has(v.value)) {
+          byValue.set(v.value, { value: v.value, isDefault: isDefaultContext(v.value) });
+        }
+      }
+    }
+  }
+  if (byValue.size === 0) return [];
+  return [...byValue.values()].sort(
+    (a, b) => contextWindowFromParameter(a.value) - contextWindowFromParameter(b.value),
+  );
+}
+
 /**
  * Convert SDK `ModelListItem[]` (from `Cursor.models.list()`) into the
  * `CursorModel[]` shape used by the rest of the provider pipeline.
