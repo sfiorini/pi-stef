@@ -1,8 +1,13 @@
 process.env.PI_CURSOR_AUTH_JSON_PATH ??= "/tmp/pi-stef-cursor-test-noauth.json";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach } from "vitest";
 import { streamCursor, streamCursorLazy } from "../src/sdk-stream";
 import { buildSdkSelectionEntries } from "../src/model-config";
 import type { ProcessedModel } from "../src/model-config";
+import {
+  resolveSdkModelSelection,
+  setSdkModelSelectionLookup,
+  __resetSdkModelSelectionLookupForTests,
+} from "../src/sdk-stream";
 import type {
   AssistantMessageEvent,
   AssistantMessage,
@@ -1012,5 +1017,63 @@ describe("buildSdkSelectionEntries", () => {
     expect(entries.size).toBe(1);
     expect(entries.has("claude-opus-5")).toBe(false);
     expect(entries.has("claude-opus-5-1m")).toBe(true);
+  });
+});
+
+// ── S-M3-2: resolveSdkModelSelection ────────────────────────────────────────
+
+describe("resolveSdkModelSelection", () => {
+  beforeEach(() => {
+    __resetSdkModelSelectionLookupForTests();
+  });
+
+  it("context-variant: strips prefix and resolves via lookup", () => {
+    setSdkModelSelectionLookup(
+      new Map([
+        [
+          "claude-opus-5-1m",
+          {
+            requestedModelId: "claude-opus-5",
+            contextParam: { id: "context", value: "1m" },
+          },
+        ],
+      ]),
+    );
+    expect(resolveSdkModelSelection("cursor/claude-opus-5-1m")).toEqual({
+      id: "claude-opus-5",
+      params: [{ id: "context", value: "1m" }],
+    });
+  });
+
+  it("requestedId-only: no context param", () => {
+    setSdkModelSelectionLookup(
+      new Map([["default", { requestedModelId: "auto" }]]),
+    );
+    expect(resolveSdkModelSelection("cursor/default")).toEqual({ id: "auto" });
+  });
+
+  it("miss: returns stripped id as-is", () => {
+    __resetSdkModelSelectionLookupForTests();
+    expect(resolveSdkModelSelection("cursor/gemini-3-flash")).toEqual({
+      id: "gemini-3-flash",
+    });
+  });
+
+  it("empty map: returns stripped id as-is", () => {
+    __resetSdkModelSelectionLookupForTests();
+    expect(resolveSdkModelSelection("cursor/anything")).toEqual({
+      id: "anything",
+    });
+  });
+
+  it("replace-not-append: second set replaces first", () => {
+    setSdkModelSelectionLookup(
+      new Map([["a", { requestedModelId: "x" }]]),
+    );
+    setSdkModelSelectionLookup(
+      new Map([["b", { requestedModelId: "y" }]]),
+    );
+    expect(resolveSdkModelSelection("cursor/a")).toEqual({ id: "a" });
+    expect(resolveSdkModelSelection("cursor/b")).toEqual({ id: "y" });
   });
 });

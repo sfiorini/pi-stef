@@ -30,6 +30,7 @@ import {
 import { applyHttp1Config } from "./http1-config.js";
 import { resolveCursorRuntimeApiKey } from "./api-key.js";
 import { loadCursorSdk, type CursorSdkModule } from "./sdk-runtime.js";
+import type { SdkSelectionEntry } from "./model-config.js";
 import {
   acquireSessionAgent,
   type AcquireSessionAgentDeps,
@@ -82,6 +83,29 @@ function freshAssistantMessage(model: Model<Api>): AssistantMessage {
  */
 function stripProviderPrefix(id: string): string {
   return id.replace(/^cursor\//, "");
+}
+
+let sdkModelSelectionLookup: Map<string, SdkSelectionEntry> = new Map();
+
+export function setSdkModelSelectionLookup(entries: Map<string, SdkSelectionEntry>): void {
+  sdkModelSelectionLookup = new Map(entries);
+}
+
+export function __resetSdkModelSelectionLookupForTests(): void {
+  sdkModelSelectionLookup = new Map();
+}
+
+export function resolveSdkModelSelection(piModelId: string): {
+  id: string;
+  params?: Array<{ id: string; value: string }>;
+} {
+  const stripped = stripProviderPrefix(piModelId);
+  const entry = sdkModelSelectionLookup.get(stripped);
+  if (!entry) return { id: stripped };
+  return {
+    id: entry.requestedModelId ?? stripped,
+    ...(entry.contextParam ? { params: [entry.contextParam] } : {}),
+  };
 }
 
 /**
