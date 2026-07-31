@@ -7,6 +7,7 @@ import {
   parseModelId,
   mapModelListItems,
   processModels,
+  parseContextText,
 } from "../src/model-config";
 import type { CursorModel } from "../src/model-config";
 
@@ -483,4 +484,25 @@ describe("FALLBACK_MODELS normalization", () => {
       expect(m.contextWindow).toBe(272_000);
     }
   });
+});
+
+// ═══════════════════════════════════════════════════════════════════
+// S-M1-3: parseContextText
+// ═══════════════════════════════════════════════════════════════════
+
+describe("parseContextText", () => {
+  it("parses 1M", () => expect(parseContextText("1M")).toBe(1_000_000));
+  it("parses 272k", () => expect(parseContextText("272k")).toBe(272_000));
+  it("parses 272K (uppercase)", () => expect(parseContextText("272K")).toBe(272_000));
+  it("parses 100k", () => expect(parseContextText("100k")).toBe(100_000));
+  it("parses 2m", () => expect(parseContextText("2m")).toBe(2_000_000));
+  it("parses 200k", () => expect(parseContextText("200k")).toBe(200_000));
+  it("parses 128k", () => expect(parseContextText("128k")).toBe(128_000));
+  it("returns undefined for -", () => expect(parseContextText("-")).toBeUndefined());
+  it("returns undefined for empty string", () => expect(parseContextText("")).toBeUndefined());
+  it("returns undefined for undefined", () => expect(parseContextText(undefined)).toBeUndefined());
+  it("returns undefined for N/A", () => expect(parseContextText("N/A")).toBeUndefined());
+  it("returns undefined for none", () => expect(parseContextText("none")).toBeUndefined());
+  it("returns undefined for garbage text", () => expect(parseContextText("garbage text")).toBeUndefined());
+  it("trims whitespace: \"  1M  \"", () => expect(parseContextText("  1M  ")).toBe(1_000_000));
 });
