@@ -424,14 +424,13 @@ export class CursorSdkTurnCoordinator {
    *   - Otherwise create the ToolCall block + emit toolcall_start + delta.
    */
   bridgeToolStart(callId: string, name: string, argsJson: string): void {
-    const cleanName = name;
     const parsedArgs = parseArgsJson(argsJson);
     if (this._toolContentIndex.has(callId)) {
       // Already started (by SDK delta or prior bridgeToolStart) — just emit delta
       const idx = this._toolContentIndex.get(callId)!;
       const block = this._partial.content[idx] as ToolCall;
       if (block) {
-        if (cleanName) block.name = cleanName;
+        if (name) block.name = name;
         block.arguments = parsedArgs;
       }
       this._push({
@@ -449,7 +448,7 @@ export class CursorSdkTurnCoordinator {
     this._partial.content.push({
       type: "toolCall",
       id: callId,
-      name: cleanName,
+      name,
       arguments: parsedArgs,
     } as ToolCall);
     this._toolContentIndex.set(callId, idx);

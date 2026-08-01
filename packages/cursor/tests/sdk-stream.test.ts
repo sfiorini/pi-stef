@@ -805,6 +805,65 @@ describe("streamCursor (S-62 two-phase)", () => {
     await execPromise;
   });
 
+  // Case 9: two-turn RESUME — Turn 1 pauses on a custom tool, Turn 2 resolves it
+  it("case 9: two-turn RESUME — Turn 1 pauses on tool, Turn 2 resolves and completes", async () => {
+    const { fakeSession, deps, getCustomTools } = await createFakeDeps();
+    delete (deps as Record<string, unknown>).buildCustomTools; // real buildCustomTools
+
+    const contextTools = [
+      { name: "shell", description: "Run a shell command",
+        parameters: { type: "object", properties: { command: { type: "string" } } } },
+    ];
+
+    // ─── TURN 1 (NEW): execute → parks on bridge → done("toolUse") ───
+    const stream = streamCursor(fakeModel(),
+      { messages: [], tools: contextTools } as unknown as Context, undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3]);
+    const events = collectStreamEvents(stream);
+
+    await vi.waitFor(() => { expect(getCustomTools()).toBeDefined(); });
+    await new Promise((r) => setTimeout(r, 20)); // let runPhase reach Promise.race
+
+    const shellTool = getCustomTools()!["shell"];
+    expect(shellTool).toBeDefined();
+    const execPromise = shellTool.execute({ command: "ls" }, { toolCallId: "tc_resume" }).catch(() => {});
+
+    const result1 = await stream.result();
+    expect(result1.stopReason).toBe("toolUse");
+    expect(fakeSession.bridge.hasPending()).toBe(true);
+    expect(events.map((e) => e.type)).toContain("toolcall_start");
+    const block1 = result1.content.find((c) => c.type === "toolCall") as { type: string; name: string };
+    expect(block1.name).toBe("shell");
+
+    // ─── TURN 2 (RESUME): tool result drains bridge → finish("stop") ───
+    fakeSession.firstTurn = false;
+    const resumeDeferred = deferred<{ status: string; usage?: Record<string, number> }>();
+    fakeSession.currentRun = { wait: () => resumeDeferred.promise, cancel: vi.fn(async () => {}) };
+    fakeSession.targetStream = undefined;
+
+    const contextMessages2 = [{
+      role: "toolResult", toolCallId: "tc_resume", toolName: "shell",
+      content: [{ type: "text", text: "total 0" }], isError: false, timestamp: Date.now(),
+    }];
+
+    const stream2 = streamCursor(fakeModel(),
+      { messages: contextMessages2, tools: contextTools } as unknown as Context, undefined,
+      deps as unknown as Parameters<typeof streamCursor>[3]);
+    const events2 = collectStreamEvents(stream2);
+
+    await vi.waitFor(() => { expect(fakeSession.targetStream).toBeDefined(); });
+    await new Promise((r) => setTimeout(r, 10));
+    resumeDeferred.resolve({ status: "finished" });
+
+    const result2 = await stream2.result();
+    expect(result2.stopReason).toBe("stop");
+    expect(fakeSession.bridge.hasPending()).toBe(false);
+    expect(events2.find((e) => e.type === "done")).toBeTruthy();
+
+    const execResult = await execPromise;
+    expect(execResult).toEqual({ content: [{ type: "text", text: "total 0" }], isError: false });
+  });
+
   // Case 7: P0 regression — multi-turn: second turn content is NOT empty
   it("case 7: P0 — second turn content is NOT empty (coordinator partial stays valid)", async () => {
     const { fakeSession, deps, fireDelta, runDeferred } = await createFakeDeps();
