@@ -76,34 +76,28 @@ export function validateFlowYaml(input: unknown): ValidationResult {
   }
 
   if (flow.loops) {
-    for (const [phaseId, loop] of Object.entries(flow.loops)) {
-      // S-14: skip group-keyed loops here; S-15 adds full group-aware validation
-      if (flow.groups && phaseId in flow.groups) continue;
-      const phase = flow.phases.find((p) => p.id === phaseId);
-      if (!phase) {
-        errors.push(`loops.${phaseId}: no such phase`);
+    for (const [key, loop] of Object.entries(flow.loops)) {
+      const group = flow.groups?.[key];
+      if (group) {
+        if (loop.until_dry) { errors.push(`loops.${key}: until_dry is not valid on a group loop (use until: approved)`); continue; }
+        if (loop.until === "approved") {
+          const gatePhase = flow.phases.find((p) => p.id === group.phases[0]);
+          const gateAgent = gatePhase?.agent ? flow.agents[gatePhase.agent] : undefined;
+          if (!gateAgent?.schema || !(gateAgent.schema as Record<string, unknown>).verdict)
+            errors.push(`loops.${key}: until:approved requires the gate phase's agent ("${gatePhase?.agent}") to declare a verdict schema`);
+        }
         continue;
       }
-      if (phase.skill) {
-        errors.push(`loops.${phaseId}: loops are not supported on skill phases (a skill phase returns no structured verdict to gate on)`);
-        continue;
-      }
-      if (phase.raw) {
-        errors.push(`loops.${phaseId}: loops are not supported on raw phases`);
-        continue;
-      }
-      if (loop.until_dry && !phase.fanout) {
-        errors.push(
-          `loops.${phaseId}: until_dry requires the phase to set fanout (discovery loop runs over a list)`,
-        );
-      }
+      const phase = flow.phases.find((p) => p.id === key);
+      if (!phase) { errors.push(`loops.${key}: no such phase`); continue; }
+      if (phase.skill) { errors.push(`loops.${key}: loops are not supported on skill phases (a skill phase returns no structured verdict to gate on)`); continue; }
+      if (phase.raw) { errors.push(`loops.${key}: loops are not supported on raw phases`); continue; }
+      if (phase.questions) { errors.push(`loops.${key}: loops are not supported on questions phases (the follow-up loop is built-in)`); continue; }
+      if (loop.until_dry && !phase.fanout) errors.push(`loops.${key}: until_dry requires the phase to set fanout (discovery loop runs over a list)`);
       if (loop.until === "approved") {
         const ag = phase?.agent ? flow.agents[phase.agent] : undefined;
-        if (!ag?.schema || !(ag.schema as Record<string, unknown>).verdict) {
-          errors.push(
-            `loops.${phaseId}: until:approved requires phase agent to declare a verdict schema`,
-          );
-        }
+        if (!ag?.schema || !(ag.schema as Record<string, unknown>).verdict)
+          errors.push(`loops.${key}: until:approved requires phase agent to declare a verdict schema`);
       }
     }
   }

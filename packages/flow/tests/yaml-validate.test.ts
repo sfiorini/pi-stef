@@ -196,4 +196,64 @@ describe("validateFlowYaml", () => {
       'groups.review: no matching loops.review (a group must be looped)',
     );
   });
+
+  // S-15: loops become group-aware
+  it("rejects until_dry on a group loop", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "fix", agent: "a", prompt: "f" },
+      ],
+      loops: { review: { until_dry: true, max_rounds: 3 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'loops.review: until_dry is not valid on a group loop (use until: approved)',
+    );
+  });
+  it("rejects until:approved on group when gate agent lacks verdict schema", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku" } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "fix", agent: "a", prompt: "f" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      `loops.review: until:approved requires the gate phase's agent ("a") to declare a verdict schema`,
+    );
+  });
+  it("rejects a loop on a questions phase", () => {
+    const flow = {
+      ...base,
+      agents: { ...base.agents, elicitor: { model: "haiku" } },
+      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+      loops: { clarify: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'loops.clarify: loops are not supported on questions phases (the follow-up loop is built-in)',
+    );
+  });
+  it("group takes precedence on loop key collision (phase id == group name)", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { gate: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "fix", agent: "a", prompt: "f" },
+      ],
+      loops: { gate: { until_dry: true, max_rounds: 3 } },
+    };
+    // gate is both a phase id and a group name — group should take precedence
+    // so until_dry is rejected (group loop rule), NOT treated as a phase-level loop
+    expect(validateFlowYaml(flow).errors).toContain(
+      'loops.gate: until_dry is not valid on a group loop (use until: approved)',
+    );
+  });
 });
