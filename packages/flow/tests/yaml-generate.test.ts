@@ -181,4 +181,163 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     expect(s).toContain("${args.flow}");
     expect(s).toContain("${args.slug}");
   });
+
+  // S-21: pre-scan phaseToGroup + questions branch
+  it("emits QUESTIONS PHASE directive for a questions phase", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku", thinking: "high", isolated: true, schema: { questions: "array" } } },
+      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+    };
+    const s = generateScript(qFlow);
+    expect(s).toContain("QUESTIONS PHASE: elicitor");
+    expect(s).toContain("max 5 rounds");
+    expect(s).toContain("AskUserQuestion");
+    expect(s).toContain("sensible defaults");
+    expect(s).toContain('phase("clarify")');
+  });
+
+  it("defaults max_rounds to 5 when omitted", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku" } },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
+    };
+    const s = generateScript(qFlow);
+    expect(s).toContain("max 5 rounds");
+  });
+
+  it("questions branch is deterministic and idempotent", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku", thinking: "high", isolated: true, schema: { questions: "array" } } },
+      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+    };
+    const a = generateScript(qFlow);
+    const b = generateScript(qFlow);
+    expect(a).toBe(b);
+  });
+
+  it("mentions args.flow and args.slug in the QUESTIONS PHASE directive", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku" } },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
+    };
+    const s = generateScript(qFlow);
+    expect(s).toContain("${args.flow}");
+    expect(s).toContain("${args.slug}");
+  });
+
+  it("grouped phases are skipped (group emitted once, individual phases suppressed)", () => {
+    const gFlow: FlowYaml = {
+      name: "g", description: "d", input: "prompt",
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "review" },
+        { id: "fix", agent: "a", prompt: "fix" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    const s = generateScript(gFlow);
+    // group phase emitted
+    expect(s).toContain('phase("review")');
+    // individual phases are suppressed (not emitted separately)
+    expect(s).not.toContain('phase("gate")');
+    expect(s).not.toContain('phase("fix")');
+  });
+
+  // S-22: emitGroupLoop helper tests
+  describe("emitGroupLoop (group loops)", () => {
+    const groupFlow: FlowYaml = {
+      name: "g", description: "d", input: "prompt",
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "review it" },
+        { id: "fix", agent: "a", prompt: "fix it" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
+    };
+
+    it("emits phase(\"<g>\") for the group", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain('phase("review")');
+    });
+
+    it("emits for (let _round = _maxRounds", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain("for (let _round");
+      expect(s).toContain("_maxRounds");
+    });
+
+    it("gate verdict APPROVED check + blocking findings filter (F1 guarded form)", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain('_gate?.verdict === "APPROVED"');
+      expect(s).toContain('_findings.filter');
+      expect(s).toContain("_blocking");
+      // F1 invariant: null gate must NOT be treated as approval
+      expect(s).toContain("(_gate && _blocking.length === 0)");
+      expect(s).not.toContain("|| _blocking.length === 0) {");
+    });
+
+    it("emits _findingsJson + Canonical findings to address", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain("_findingsJson");
+      expect(s).toContain("Canonical findings to address");
+    });
+
+    it("emits NON-CONVERGENT log on exhaustion", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain("NON-CONVERGENT");
+    });
+
+    it("does NOT emit individual phase(\"gate\")/phase(\"fix\") for grouped phases", () => {
+      const s = generateScript(groupFlow);
+      expect(s).not.toContain('phase("gate")');
+      expect(s).not.toContain('phase("fix")');
+    });
+
+    it("deterministic and idempotent", () => {
+      const a = generateScript(groupFlow);
+      const b = generateScript(groupFlow);
+      expect(a).toBe(b);
+    });
+  });
+
+  // S-23: multi-group no-collision test
+  describe("multi-group no-collision", () => {
+    it("two groups get separate block scopes with no variable collision", () => {
+      const multiFlow: FlowYaml = {
+        name: "mg", description: "d", input: "prompt",
+        agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+        groups: {
+          loop1: { phases: ["g1", "f1"] },
+          loop2: { phases: ["g2", "f2"] },
+        },
+        phases: [
+          { id: "g1", agent: "a", prompt: "review 1" },
+          { id: "f1", agent: "a", prompt: "fix 1" },
+          { id: "g2", agent: "a", prompt: "review 2" },
+          { id: "f2", agent: "a", prompt: "fix 2" },
+        ],
+        loops: {
+          loop1: { until: "approved", fail_on: ["P0"], max_rounds: 5 },
+          loop2: { until: "approved", fail_on: ["P0"], max_rounds: 3 },
+        },
+      };
+      const s = generateScript(multiFlow);
+      // Two separate _maxRounds declarations (one per group)
+      expect(s.match(/const _maxRounds/g)?.length).toBe(2);
+      // Group phases emitted
+      expect(s).toContain('phase("loop1")');
+      expect(s).toContain('phase("loop2")');
+      // Individual phases are suppressed
+      expect(s).not.toContain('phase("g1")');
+      expect(s).not.toContain('phase("g2")');
+      expect(s).not.toContain('phase("f1")');
+      expect(s).not.toContain('phase("f2")');
+    });
+  });
 });

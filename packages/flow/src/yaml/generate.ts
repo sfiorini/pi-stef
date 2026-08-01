@@ -53,6 +53,52 @@ function agentOpts(
 }
 
 /**
+ * Emit a block-scoped group-loop: gate agent → filter findings → fix phases with
+ * findings appended → re-verify → until APPROVED / max_rounds.
+ * Gate phase resolved by id (group.phases[0]).
+ * F1 invariant: null/crashed gate must NOT be treated as approval.
+ */
+function emitGroupLoop(groupId: string, group: { phases: string[] }, flow: FlowYaml): string[] {
+  const loop = flow.loops?.[groupId];
+  const gatePhaseId = group.phases[0];
+  const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
+  const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
+  const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
+  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
+  const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
+  const maxRounds = loop?.max_rounds ?? 5;
+  const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
+  const lines: string[] = [];
+  lines.push(`phase(${JSON.stringify(groupId)});`);
+  lines.push(`{`);
+  lines.push(`  const _maxRounds = ${maxRounds};`);
+  lines.push(`  const _failOn = ${failOn};`);
+  lines.push(`  for (let _round = 1; _round <= _maxRounds; _round++) {`);
+  lines.push(`    log("Group loop " + ${JSON.stringify(groupId)} + " round " + _round + "/" + _maxRounds + " (gate: " + ${JSON.stringify(gatePhaseId)} + "). Dispatch the gate agent; on REVISE with blocking findings, dispatch fix phases with the canonical findings appended.");`);
+  lines.push(`    const _gate = await agent(${gatePromptLit}, ${gateOpts});`);
+  lines.push(`    const _findings = (_gate?.findings ?? []);`);
+  lines.push(`    const _blocking = _findings.filter((f) => _failOn.includes(f.severity));`);
+  lines.push(`    if (_gate?.verdict === "APPROVED" || (_gate && _blocking.length === 0)) { log("APPROVED — group " + ${JSON.stringify(groupId)}); break; }`);
+  lines.push(`    if (_round === _maxRounds) {`);
+  lines.push(`      log("⚠ NON-CONVERGENT: group " + ${JSON.stringify(groupId)} + " did not converge after " + _maxRounds + " rounds; findings: ");`);
+  lines.push(`      log(JSON.stringify(_findings));`);
+  lines.push(`      break;`);
+  lines.push(`    }`);
+  lines.push(`    const _findingsJson = JSON.stringify(_findings);`);
+  for (let i = 1; i < group.phases.length; i++) {
+    const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
+    const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
+    const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
+    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
+    const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
+    lines.push(`    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _findingsJson, ${fixOpts});`);
+  }
+  lines.push(`  }`);
+  lines.push(`}`);
+  return lines;
+}
+
+/**
  * Compile a validated FlowYaml into a pi-dynamic-workflows script string.
  * Deterministic + idempotent (no timestamps, no random order). The generator
  * trusts that incompatible loop/phase combos were rejected by validate.ts and
@@ -65,9 +111,42 @@ export function generateScript(
   const phaseTitles = flow.phases.map((p) => `{ title: ${singleQuote(titleCase(p.id))} }`).join(", ");
   const body: string[] = [];
 
+  // Pre-scan: map each phase to its group (for grouped-phase skip)
+  const phaseToGroup = new Map<string, string>();
+  if (flow.groups) for (const [groupId, group] of Object.entries(flow.groups))
+    for (const phaseId of group.phases) phaseToGroup.set(phaseId, groupId);
+  const emittedGroups = new Set<string>();
+
   for (const ph of flow.phases) {
+    // Grouped-phase skip: emit the group loop once, skip individual phases
+    if (phaseToGroup.has(ph.id)) {
+      const groupId = phaseToGroup.get(ph.id)!;
+      if (!emittedGroups.has(groupId)) { emittedGroups.add(groupId); body.push(...emitGroupLoop(groupId, flow.groups![groupId], flow)); }
+      continue;
+    }
     body.push(`phase(${JSON.stringify(ph.id)});`);
     const loop = flow.loops?.[ph.id];
+
+    // Questions branch: emit QUESTIONS PHASE directive with clarifying-questions follow-up loop
+    if (ph.questions) {
+      const maxRounds = ph.max_rounds ?? 5;
+      const qDef = flow.agents[ph.questions];
+      const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
+      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType);
+      const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\$");
+      const directive =
+        "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
+        "The orchestrator (YOU) must run a clarifying-questions follow-up loop. " +
+        "Dispatch the " + esc(ph.questions) + " agent via the Agent tool (subagent_type: " + qAgentType + ", " +
+        "model/thinking/isolated/schema per opts: " + qOpts + "). " +
+        "It returns { questions: string[] }. If NON-EMPTY: present each via AskUserQuestion (one at a time, " +
+        "multiple-choice when possible), collect answers, RE-DISPATCH with prior context + questions + answers. " +
+        "Repeat until EMPTY or " + maxRounds + " rounds. If unattended (no user): answer with sensible defaults " +
+        "and proceed (do not block). args.flow=${args.flow}, args.slug=${args.slug}.`";
+      body.push("log(" + directive + ");");
+      body.push("// elicitor agent opts: " + qOpts);
+      continue;
+    }
 
     if (ph.skill) {
       if (loop) {
