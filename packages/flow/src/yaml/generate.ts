@@ -133,7 +133,7 @@ export function generateScript(
       const qDef = flow.agents[ph.questions];
       const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
       const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType);
-      const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\$");
+      const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
         "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
         "The orchestrator (YOU) must run a clarifying-questions follow-up loop. " +
