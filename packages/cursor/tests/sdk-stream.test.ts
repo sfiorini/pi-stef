@@ -689,8 +689,8 @@ describe("streamCursor (S-62 two-phase)", () => {
           capturedCustomTools = opts.local.customTools as Record<string, { execute: Function }>;
           // Fire execute AFTER runPhase sets up the race (macrotask ensures race is ready)
           setTimeout(() => {
-            capturedCustomTools!["pi__read_file"]?.execute(
-              { path: "/tmp/x" },
+            capturedCustomTools!["shell"]?.execute(
+              { cmd: "ls" },
               { toolCallId: "tc_bridge" },
             );
           }, 5);
@@ -714,7 +714,7 @@ describe("streamCursor (S-62 two-phase)", () => {
     };
 
     const contextTools = [
-      { name: "read_file", description: "Read", parameters: { type: "object", properties: { path: { type: "string" } } } },
+      { name: "shell", description: "Run a shell command", parameters: { type: "object", properties: { command: { type: "string" } } } },
     ];
 
     const stream = streamCursor(
@@ -735,9 +735,9 @@ describe("streamCursor (S-62 two-phase)", () => {
     expect(allToolcallStarts.length).toBe(1);
     // contentIndex must be valid (0), not -1
     expect((allToolcallStarts[0] as AssistantMessageEvent & { contentIndex: number }).contentIndex).toBe(0);
-    // Name must be stripped of pi__ prefix
+    // Name is canonical tool name
     const toolBlock = (allToolcallStarts[0] as AssistantMessageEvent & { partial?: AssistantMessage }).partial?.content[0] as { type: string; name: string };
-    expect(toolBlock).toMatchObject({ type: "toolCall", name: "read_file" });
+    expect(toolBlock).toMatchObject({ type: "toolCall", name: "shell" });
 
     // At least one toolcall_delta
     const deltas = events.filter((e) => e.type === "toolcall_delta");
@@ -752,7 +752,7 @@ describe("streamCursor (S-62 two-phase)", () => {
 
     // Use pi-ai Context.tools format
     const contextTools = [
-      { name: "read_file", description: "Read", parameters: { type: "object", properties: { path: { type: "string" } } } },
+      { name: "shell", description: "Run a shell command", parameters: { type: "object", properties: { command: { type: "string" } } } },
     ];
 
     const stream = streamCursor(
@@ -770,16 +770,16 @@ describe("streamCursor (S-62 two-phase)", () => {
     await new Promise((r) => setTimeout(r, 20));
 
     const customTools = getCustomTools()!;
-    const readTool = customTools["pi__read_file"];
+    const readTool = customTools["shell"];
 
     // 1) Execute tool WITHOUT SDK started → bridgeToolStart creates block + emits start
-    const execPromise = readTool.execute({ path: "/tmp/x" }, { toolCallId: "tc_dedup" }).catch(() => {});
+    const execPromise = readTool.execute({ cmd: "ls" }, { toolCallId: "tc_dedup" }).catch(() => {});
 
     // 2) SDK ALSO fires tool-call-started for the SAME callId
     fireDelta({
       type: "tool-call-started",
       callId: "tc_dedup",
-      toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
+      toolCall: { type: "shell", args: { command: "ls" } },
     });
 
     // Still exactly one toolcall_start
@@ -790,7 +790,7 @@ describe("streamCursor (S-62 two-phase)", () => {
     fireDelta({
       type: "tool-call-completed",
       callId: "tc_dedup",
-      toolCall: { type: "pi__read_file", args: { path: "/tmp/x" } },
+      toolCall: { type: "shell", args: { command: "ls" } },
     });
 
     const result = await stream.result();

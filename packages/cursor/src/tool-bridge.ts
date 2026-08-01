@@ -29,14 +29,41 @@ interface PiTool {
 }
 
 /**
+ * Cursor's model-facing built-in tool names that must never be shadowed by a
+ * pi custom tool. Provenance: Cursor's leaked agent system prompt + the
+ * `ClientSideToolV2` catalog — these are the MODEL-FACING built-in names, NOT
+ * the SDK's internal `toolCall.type` literals. `@cursor/sdk` does not enumerate
+ * them, so this set is hand-maintained. When a pi tool name matches one of
+ * these, the tool is skipped and a warning is logged — the guard degrades
+ * false-negative-only (never false-positive).
+ */
+export const CURSOR_BUILTIN_TOOLS: ReadonlySet<string> = new Set([
+  "run_terminal_cmd",
+  "read_file",
+  "edit_file",
+  "codebase_search",
+  "list_dir",
+  "grep_search",
+  "file_search",
+  "delete_file",
+  "web_search",
+  "reapply",
+  "fetch_rules",
+  "diff_history",
+]);
+
+/**
  * Build a record of SDK custom tools from pi's tool list.
- * Each pi tool becomes a `pi__<name>` entry whose execute() emits
- * pi toolcall events and returns the bridge's pending promise.
+ * Each pi tool becomes an entry keyed by its own name whose execute() emits
+ * pi toolcall events and returns the bridge's pending promise. A tool whose
+ * name collides with `builtins` (Cursor built-ins by default) is skipped with
+ * a warning rather than shadowing it.
  */
 export function buildCustomTools(
   tools: PiTool[] | undefined,
   bridge: ToolResultBridge,
   emit: ToolCallEmitter,
+  builtins: ReadonlySet<string> = CURSOR_BUILTIN_TOOLS,
 ): Record<string, SDKCustomTool> {
   if (!tools || tools.length === 0) return {};
 
@@ -44,7 +71,13 @@ export function buildCustomTools(
 
   for (const tool of tools) {
     const { name, description, parameters } = tool.function;
-    const prefixedName = `pi__${name}`;
+
+    if (builtins.has(name)) {
+      console.warn(
+        `[cursor] skipping pi tool "${name}" — name collides with a Cursor built-in; choose a different tool name.`,
+      );
+      continue;
+    }
 
     const sdkTool: SDKCustomTool = {
       description,
@@ -75,7 +108,7 @@ export function buildCustomTools(
       },
     };
 
-    result[prefixedName] = sdkTool;
+    result[name] = sdkTool;
   }
 
   return result;

@@ -99,9 +99,11 @@ callbacks in this provider. There is **no loopback HTTP server and no
 `127.0.0.1:0` socket**.
 
 Cross-turn continuation:
-1. `src/tool-bridge.ts` `buildCustomTools()` wraps each pi tool as a `pi__<name>`
-   custom tool whose `execute()` emits pi `toolcall_*` events (via the
-   turn-coordinator) and returns the bridge's pending promise.
+1. `src/tool-bridge.ts` `buildCustomTools()` wraps each pi tool as a `<name>`
+   custom tool (canonical name, no prefix) whose `execute()` emits pi
+   `toolcall_*` events (via the turn-coordinator) and returns the bridge's
+   pending promise.  Tools whose name collides with a Cursor built-in
+   (see `CURSOR_BUILTIN_TOOLS` in `tool-bridge.ts`) are skipped with a warning.
 2. The deferred is keyed by the tool call id and resolves when a later pi turn
    supplies the tool result via `resolveFromToolResults`.
 3. When a tool parks, the stream ends with `done("toolUse")`; the next pi turn

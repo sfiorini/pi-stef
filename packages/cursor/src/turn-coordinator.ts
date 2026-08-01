@@ -244,7 +244,7 @@ export class CursorSdkTurnCoordinator {
           const idx = this._toolContentIndex.get(u.callId)!;
           const block = this._partial.content[idx] as ToolCall;
           if (block) {
-            block.name = stripToolPrefix(u.toolCall.type);
+            block.name = u.toolCall.type;
             if (u.toolCall.args) block.arguments = { ...u.toolCall.args };
           }
           this._push({
@@ -263,7 +263,7 @@ export class CursorSdkTurnCoordinator {
         this._partial.content.push({
           type: "toolCall",
           id: u.callId,
-          name: stripToolPrefix(u.toolCall.type),
+          name: u.toolCall.type,
           arguments: { ...u.toolCall.args },
         } as ToolCall);
         this._push({
@@ -294,7 +294,7 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: u.callId,
-            name: stripToolPrefix(nameFromTask),
+            name: nameFromTask,
             arguments: {},
           } as ToolCall);
           this._push({
@@ -327,14 +327,14 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: u.callId,
-            name: stripToolPrefix(u.toolCall.type),
+            name: u.toolCall.type,
             arguments: { ...u.toolCall.args },
           } as ToolCall);
         }
 
         // Update the ToolCall with final args
         const toolBlock = this._partial.content[idx] as ToolCall;
-        toolBlock.name = stripToolPrefix(u.toolCall.type);
+        toolBlock.name = u.toolCall.type;
         toolBlock.arguments = { ...u.toolCall.args };
 
         this._completedCalls.add(u.callId);
@@ -382,7 +382,7 @@ export class CursorSdkTurnCoordinator {
           this._partial.content.push({
             type: "toolCall",
             id: callId,
-            name: stripToolPrefix(step.message.name ?? step.message.type),
+            name: step.message.name ?? step.message.type,
             arguments: step.message.args ? { ...step.message.args } : {},
           } as ToolCall);
         }
@@ -424,7 +424,7 @@ export class CursorSdkTurnCoordinator {
    *   - Otherwise create the ToolCall block + emit toolcall_start + delta.
    */
   bridgeToolStart(callId: string, name: string, argsJson: string): void {
-    const cleanName = name.startsWith("pi__") ? name.slice(4) : name;
+    const cleanName = name;
     const parsedArgs = parseArgsJson(argsJson);
     if (this._toolContentIndex.has(callId)) {
       // Already started (by SDK delta or prior bridgeToolStart) — just emit delta
@@ -478,14 +478,6 @@ export class CursorSdkTurnCoordinator {
 }
 
 // ─── internal helpers ────────────────────────────────────────────────────────
-
-/**
- * Strip the `pi__` prefix that the tool-bridge adds to custom tool names.
- * e.g. `pi__read_file` → `read_file`; `shell` → `shell`.
- */
-function stripToolPrefix(name: string): string {
-  return name.replace(/^pi__/, "");
-}
 
 /**
  * Safely parse a JSON string into a Record. Returns {} on failure.

@@ -345,9 +345,9 @@ describe("CursorSdkTurnCoordinator", () => {
     expect(deltas).toHaveLength(2); // start delta + second delta
   });
 
-  // --- P2-c bridgeToolStart: strips pi__ prefix ---
-  it("bridgeToolStart: strips pi__ prefix from tool name", () => {
-    coordinator.bridgeToolStart("bt3", "pi__read_file", '{"path":"/y"}');
+  // --- P2-c bridgeToolStart: name passes through verbatim ---
+  it("bridgeToolStart: name passes through verbatim", () => {
+    coordinator.bridgeToolStart("bt3", "read_file", '{"path":"/y"}');
 
     const block = partial.content[0] as { type: string; name: string };
     expect(block.name).toBe("read_file");
@@ -362,14 +362,14 @@ describe("CursorSdkTurnCoordinator", () => {
       update: {
         type: "tool-call-started",
         callId: "bt4",
-        toolCall: { type: "pi__read_file", args: { path: "/z" } },
+        toolCall: { type: "read_file", args: { path: "/z" } },
       },
     });
 
     const starts = events.filter((e) => e.type === "toolcall_start");
     expect(starts).toHaveLength(1); // STILL exactly one
 
-    // The block should have updated name from SDK (pi__ stripped)
+    // The block should have updated name from SDK (canonical, passes through)
     const block = partial.content[0] as { type: string; name: string; arguments: Record<string, any> };
     expect(block.name).toBe("read_file");
   });
@@ -383,7 +383,7 @@ describe("CursorSdkTurnCoordinator", () => {
       update: {
         type: "tool-call-completed",
         callId: "bt5",
-        toolCall: { type: "pi__read_file", args: { path: "/w" } },
+        toolCall: { type: "read_file", args: { path: "/w" } },
       },
     });
 
@@ -392,13 +392,13 @@ describe("CursorSdkTurnCoordinator", () => {
     expect((ends[0] as AssistantMessageEvent & { toolCall?: { name: string } }).toolCall?.name).toBe("read_file");
   });
 
-  // --- P3: pi__ prefix stripped in tool-call-started ---
-  it("P3: tool-call-started with pi__ prefix → partial name is stripped", () => {
+  // --- P3: tool-call-started with canonical name → partial name unchanged ---
+  it("P3: tool-call-started with canonical name → partial name unchanged", () => {
     coordinator.handleDelta({
       update: {
         type: "tool-call-started",
-        callId: "tc_pi",
-        toolCall: { type: "pi__read_file", args: { path: "/tmp/strip" } },
+        callId: "tc_canon",
+        toolCall: { type: "read_file", args: { path: "/tmp/strip" } },
       },
     });
 
