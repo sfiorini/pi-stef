@@ -96,4 +96,31 @@ describe("validateFlowYaml", () => {
       }).ok,
     ).toBe(false);
   });
+  it("rejects undeclared questions agent", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        phases: [{ id: "clarify", questions: "ghost", max_rounds: 5, out: "reqs" }],
+      }).errors,
+    ).toContain('phase "clarify": questions "ghost" not defined in agents');
+  });
+  it("rejects questions + fanout", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        phases: [{ id: "clarify", questions: "elicitor", fanout: "items", max_rounds: 5, out: "reqs" }],
+      }).errors,
+    ).toContain('phase "clarify": questions and fanout are mutually exclusive');
+  });
+  it("accepts a valid questions phase", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+      }),
+    ).toEqual({ ok: true, errors: [] });
+  });
 });

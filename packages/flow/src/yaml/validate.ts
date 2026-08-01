@@ -30,12 +30,18 @@ export function validateFlowYaml(input: unknown): ValidationResult {
   const outs = new Set<string>();
 
   for (const ph of flow.phases) {
-    const runKinds = [ph.agent, ph.skill, ph.raw].filter(Boolean);
-    if (runKinds.length === 0) errors.push(`phase "${ph.id}": must set one of agent/skill/raw`);
+    const runKinds = [ph.agent, ph.skill, ph.raw, ph.questions].filter(Boolean);
+    if (runKinds.length === 0) errors.push(`phase "${ph.id}": must set one of agent/skill/raw/questions`);
     if (runKinds.length > 1)
-      errors.push(`phase "${ph.id}": set at most one of agent/skill/raw`);
+      errors.push(`phase "${ph.id}": set at most one of agent/skill/raw/questions`);
     if (ph.agent && !agentNames.has(ph.agent))
       errors.push(`phase "${ph.id}": agent "${ph.agent}" not defined in agents`);
+    if (ph.questions && !agentNames.has(ph.questions))
+      errors.push(`phase "${ph.id}": questions "${ph.questions}" not defined in agents`);
+    if (ph.questions && ph.fanout)
+      errors.push(`phase "${ph.id}": questions and fanout are mutually exclusive`);
+    if (ph.questions && ph.verify)
+      errors.push(`phase "${ph.id}": questions and verify are mutually exclusive`);
     // fanout only applies to agent phases (skill/raw are opaque to the generator).
     if (ph.fanout && (ph.skill || ph.raw))
       errors.push(`phase "${ph.id}": fanout is only supported on agent phases`);
