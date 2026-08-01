@@ -18,4 +18,15 @@ describe("flow yaml schema", () => {
   it("rejects unknown input type", () => {
     expect([...Value.Errors(FlowYamlSchema, { ...valid, input: "bogus" })].length).toBeGreaterThan(0);
   });
+  it("accepts a questions phase with max_rounds", () => {
+    const flow = {
+      ...valid,
+      agents: {
+        ...valid.agents,
+        elicitor: { tools: ["read"], thinking: "high", isolated: true },
+      },
+      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+    };
+    expect([...Value.Errors(FlowYamlSchema, flow)]).toHaveLength(0);
+  });
 });

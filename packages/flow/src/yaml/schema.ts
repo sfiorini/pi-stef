@@ -33,6 +33,8 @@ const PhaseDef = Type.Object(
     threshold: Type.Optional(Type.Number()),
     in: Type.Optional(Type.Union([Type.String(), Type.Array(Type.String())])),
     out: Type.Optional(Type.String()),
+    questions: Type.Optional(Type.String()),
+    max_rounds: Type.Optional(Type.Integer()),
   },
   { additionalProperties: false },
 );
