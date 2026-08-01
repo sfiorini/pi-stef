@@ -1,13 +1,12 @@
 name: Cursor scrape + auto-release
 
-# Manual trigger is always enabled. The weekly schedule is INTENTIONALLY COMMENTED
-# OUT until the first `workflow_dispatch` run confirms the plumbing (scrape → diff →
-# test → release → publish) works end-to-end. After a clean manual run, uncomment
-# the `schedule:` block below to enable weekly automation.
+# Manual trigger (workflow_dispatch) is always enabled. The weekly schedule runs
+# every Monday 06:00 UTC; it was enabled after a clean workflow_dispatch run
+# confirmed the plumbing (scrape → diff → test → release → publish) end-to-end.
 on:
   workflow_dispatch:
-  # schedule:
-  #   - cron: "0 6 * * 1"  # every Monday 06:00 UTC
+  schedule:
+    - cron: "0 6 * * 1"  # every Monday 06:00 UTC
 
 # A PAT is REQUIRED (not the default GITHUB_TOKEN): pushes made with the default
 # GITHUB_TOKEN do not trigger downstream workflows, so the tag push from release.mjs
