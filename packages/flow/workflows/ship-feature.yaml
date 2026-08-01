@@ -1,39 +1,104 @@
-# ship-feature: plan -> implement -> audit, end-to-end.
-#
-# Flow 0.2.0 model: tier-1 skill phases (sf-flow-plan / sf-flow-implement)
-# self-resolve their models from .pi/sf/flow/config.json (project then global;
-# unset => inherit the orchestrator) and exchange artifacts at CONVENTIONAL
-# slug-keyed locations — there is no compile-time path variable. sf_flow_auto
-# passes args.flow (this workflow's name) + args.slug (derived from args.input)
-# to every phase. So:
-#   plan      -> writes ai_plan/<slug>/
-#   implement -> works in the flow/<slug> git worktree
-#   audit     -> reviews the diff in the flow/<slug> worktree
-# `in:`/`out:` are informational only (echoed for clarity, not dataflow).
+# ship-feature: clarify → design → plan → plan-review loop → implement → impl-review loop → audit loop.
+# Fully decomposed tier-2 flow: every phase is an agent (no skill phases).
+# Groups make each review/audit a find→fix→re-verify loop.
+# args.flow + args.slug are passed to every phase by sf_flow_auto.
 name: ship-feature
-description: Plan, implement, and audit a feature end-to-end
+description: Clarify, design, plan, implement, and audit a feature end-to-end
 input: prompt
 agents:
-  auditor:
-    model: sonnet
+  elicitor:
+    tools: [read, grep, find, ls]
     thinking: high
     isolated: true
     schema:
-      verdict: "APPROVED|REVISE"
+      questions: array
+  designer:
+    tools: [read, grep, find, ls]
+    thinking: high
+    isolated: true
+  planner:
+    tools: [read, grep, find, ls]
+    thinking: medium
+    isolated: true
+  developer:
+    tools: [read, grep, find, ls, write, bash]
+    thinking: medium
+  reviewer:
+    tools: [read, grep, find, ls]
+    thinking: high
+    isolated: true
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
+  auditor:
+    tools: [read, grep, find, ls]
+    thinking: high
+    isolated: true
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
+groups:
+  plan-review:
+    phases: [review-plan, fix-plan]
+  impl-review:
+    phases: [review-impl, fix-impl]
+  audit-loop:
+    phases: [review-audit, fix-audit]
 phases:
+  - id: clarify
+    questions: elicitor
+    prompt: "Given this feature request, identify what is unclear about scope, constraints, success criteria, and edge cases. Return a questions array — empty if the task is clear enough to design."
+    max_rounds: 5
+    out: requirements
+  - id: design
+    agent: designer
+    in: requirements
+    out: design_doc
+    prompt: "Given the requirements, produce a design. Auto-finalize: skip the STATUS relay, pick the recommended approach, return the design directly."
   - id: plan
-    skill: sf-flow-plan
-    out: plan_path
+    agent: planner
+    in: design_doc
+    out: plan_doc
+    prompt: "Given the design, produce an exhaustive milestone plan with bite-sized stories (S-MN{seq})."
+  - id: review-plan
+    agent: reviewer
+    in: plan_doc
+    prompt: "Review the plan for completeness, correctness, and risk. Return findings P0-P3 + verdict."
+  - id: fix-plan
+    agent: planner
+    in: plan_doc
+    prompt: "Address the reviewer findings. Minimal changes, no regressions. Report per-finding."
   - id: implement
-    skill: sf-flow-implement
-    in: plan_path
-    out: worktree_path
-  - id: audit
+    agent: developer
+    in: plan_doc
+    out: impl_result
+    prompt: "Implement the plan using TDD (red/green/refactor). Run tests + typecheck. Commit locally."
+  - id: review-impl
+    agent: reviewer
+    in: impl_result
+    prompt: "Review the implementation diff against the plan. Return findings P0-P3 + verdict."
+  - id: fix-impl
+    agent: developer
+    in: impl_result
+    prompt: "Fix the reviewer findings. TDD: test first. Minimal diff, no regressions. Report per-finding."
+  - id: review-audit
     agent: auditor
-    in: worktree_path
-    prompt: "Review the diff produced by the implement phase (the flow/<slug> worktree for this run; sf_flow_auto passes args.slug). Return findings P0-P3 + verdict."
+    in: impl_result
+    prompt: "Audit the implementation for correctness, security, performance, and clarity. Return findings P0-P3 + verdict."
+  - id: fix-audit
+    agent: developer
+    in: impl_result
+    prompt: "Fix the audit findings. TDD: test first. Minimal diff, no regressions. Report per-finding."
 loops:
-  audit:
+  plan-review:
+    until: approved
+    fail_on: [P0, P1, P2]
+    max_rounds: 10
+  impl-review:
+    until: approved
+    fail_on: [P0, P1, P2]
+    max_rounds: 5
+  audit-loop:
     until: approved
     fail_on: [P0, P1, P2]
     max_rounds: 5
