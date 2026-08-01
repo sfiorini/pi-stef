@@ -75,6 +75,8 @@ The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting t
 
 **Fresh-review reset (escape hatch):** if the planner's fix set touches >50% of the stories, the orchestrator MAY reset to a comprehensive round-1 review (clear the canonical list). The round counter does NOT reset. Default: reset at >50%.
 
+> **Note:** The planner's fix step is what makes convergence possible — without it the reviewer sees the same artifact each round and the loop can never close.
+
 ### Phase 7: Generate Plan Files
 Write `ai_plan/YYYY-MM-DD-<slug>/` with: `original-plan.md`, `final-transcript.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md`.
 

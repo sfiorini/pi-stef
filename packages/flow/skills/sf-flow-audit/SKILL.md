@@ -38,6 +38,8 @@ Run the 10-section checklist (`CHECKLIST_SECTIONS`) against the changed files (c
 ### Phase 5: respond-review (fix-apply)
 If `apply_fixes`: `categorize` findings (P0/P1 must-fix, P2 should-fix, P3 consider), `applyOrder` (severity), apply in order, run test/typecheck/lint, report. In auto mode: skip `consider` confirmations, note them. HARD GATE: every finding is addressed (fix, disagree+document, or clarify).
 
+> **Note:** `apply_fixes: false` means report-only — findings returned, no code modified.
+
 ### Phase 6: Render + return
 Render the merged findings via `renderReport` (pair's `### P0...P3` + `## Verdict` format). Return `VERDICT: APPROVED` only if no P0/P1/P2 remain (`isBlocking`).
 
