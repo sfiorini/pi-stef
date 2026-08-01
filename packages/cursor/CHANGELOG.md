@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.3] - 2026-08-01
+### Changed
+- test(cursor): cover default CURSOR_BUILTIN_TOOLS skip path
+- test(cursor): add two-turn resume coverage for canonical tool keys
+- fix(cursor): register tools under canonical name, drop pi__ prefix
+
+
 ## [1.3.2] - 2026-08-01
 ### Changed
 - fix(cursor): add tsx devDep (was missing — CI scrape failed)
