@@ -1,13 +1,33 @@
+# code-review: audit ↔ fix group loop.
+# auditor gates (finds P0-P3), developer fixes, auditor re-verifies until APPROVED or max_rounds.
 name: code-review
-description: CodeRabbit-style review of a diff (audit triad)
+description: Audit ↔ fix loop (auditor gates, developer fixes, re-verify)
 input: prompt
-# A pure skill wrapper: no agents of its own. The audit triad runs via the
-# sf-flow-audit skill, which resolves its reviewer model from config (same as
-# /sf-flow-audit). Skill phases ignore any declared agent. To gate a review
-# until APPROVED using an agent phase, see ship-feature.yaml.
-agents: {}
+agents:
+  auditor:
+    tools: [read, grep, find, ls]
+    model: sonnet
+    thinking: high
+    isolated: true
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
+  developer:
+    tools: [read, grep, find, ls, write, bash]
+    model: sonnet
+    thinking: medium
+groups:
+  review:
+    phases: [review, fix]
 phases:
   - id: review
-    skill: sf-flow-audit
-    out: report
-loops: {}
+    agent: auditor
+    prompt: "Audit the diff for correctness, security, performance, and clarity. Return findings P0-P3 + verdict."
+  - id: fix
+    agent: developer
+    prompt: "Fix the audit findings using TDD."
+loops:
+  review:
+    until: approved
+    fail_on: [P0, P1, P2]
+    max_rounds: 5
