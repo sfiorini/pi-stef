@@ -1,22 +1,47 @@
-# flow template — the 3 knobs: agents, phases, loops
+# flow template — the 4 knobs: agents, phases, groups, loops
 # Edit and save as .pi/workflows/<name>.yaml, then run: sf_flow_auto <name> <input>
 name: my-flow
 description: One-line description of what this flow does
 input: prompt   # prompt | md-file | prd | jira
 
-agents:          # KNOB 1
+agents:          # KNOB 1 — declare agents + tools, model, thinking, schema
   worker:
     tools: [read, grep, find]
     model: haiku
     thinking: low
+  # elicitor:                                       # questions-phase agent
+  #   tools: [read, grep, find, ls]
+  #   thinking: high
+  #   isolated: true
+  #   schema:
+  #     questions: array                            # MUST declare questions schema
 
-phases:          # KNOB 2 — each phase runs one of: agent / skill / raw
+groups:          # KNOB 2 (optional) — named find→fix→re-verify loops
+  # review:                                         # group name = loop key
+  #   phases: [review, fix]                         # first phase = gate (≥2, all agent phases)
+
+phases:          # KNOB 3 — each phase runs one of: agent / skill / raw / questions
   - id: do
     agent: worker
     prompt: "Describe the task for the worker."
     out: result
+  # - id: clarify                                   # questions phase (4th kind)
+  #   questions: elicitor                           # must reference an agent in agents:
+  #   prompt: "Identify what is unclear…"
+  #   max_rounds: 5                                 # default 5; empty questions → no-op pass-through
+  #   out: requirements
+  # - id: review                                    # gate phase (first in group)
+  #   agent: auditor
+  #   prompt: "Review for correctness…"
+  # - id: fix                                       # fix phase (rest of group)
+  #   agent: developer
+  #   prompt: "Fix the findings…"
 
-loops:           # KNOB 3 (optional)
-  # do:
+loops:           # KNOB 4 (optional) — loop key is a phase id OR group name
+  # review:                                        # group name → group loop (find→fix→re-verify)
+  #   until: approved                               # gate agent verdict
+  #   fail_on: [P0, P1, P2]
+  #   max_rounds: 5
+  # do:                                            # phase id → phase loop
   #   until_dry: true
   #   max_rounds: 3
