@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-08-01
+### Changed
+- fix(cursor): add tsx devDep (was missing — CI scrape failed)
+- chore(cursor): regenerate scraped contexts (updated header)
+- feat(cursor): add standalone scrape CLI + shared emission helper
+
+
 ## [1.3.1] - 2026-07-31
 ### Changed
 - test(cursor): isolate tests from committed scraped data
