@@ -44,4 +44,4 @@ If `apply_fixes`: `categorize` findings (P0/P1 must-fix, P2 should-fix, P3 consi
 Render the merged findings via `renderReport` (pair's `### P0...P3` + `## Verdict` format). Return `VERDICT: APPROVED` only if no P0/P1/P2 remain (`isBlocking`).
 
 ## Telegram
-On completion, send a summary via the notify-telegram helper (`TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`).
+Send completion summary via notify-telegram.sh if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set.

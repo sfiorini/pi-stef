@@ -36,4 +36,4 @@ Execute the generated pi-dw script with `args.input`. Phases run sequentially; i
 Each phase exits success / no-op / blocked / exhausted. On blocked/exhausted, stop and report. No human gates; on completion return the flow's result.
 
 ### Phase 5: Telegram
-Send a completion summary via notify-telegram.sh.
+Send completion summary via notify-telegram.sh if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set.
