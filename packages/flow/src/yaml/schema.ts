@@ -60,6 +60,11 @@ const LoopDef = Type.Object(
   { additionalProperties: false },
 );
 
+const GroupDef = Type.Object(
+  { phases: Type.Array(Type.String(), { minItems: 2 }) },
+  { additionalProperties: false },
+);
+
 export const FlowYamlSchema = Type.Object(
   {
     name: Type.String(),
@@ -73,6 +78,7 @@ export const FlowYamlSchema = Type.Object(
     agents: Type.Record(Type.String(), AgentDef),
     phases: Type.Array(PhaseDef, { minItems: 1 }),
     loops: Type.Optional(Type.Record(Type.String(), LoopDef)),
+    groups: Type.Optional(Type.Record(Type.String(), GroupDef)),
   },
   { additionalProperties: false },
 );

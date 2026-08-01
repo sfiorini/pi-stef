@@ -29,4 +29,36 @@ describe("flow yaml schema", () => {
     };
     expect([...Value.Errors(FlowYamlSchema, flow)]).toHaveLength(0);
   });
+  it("accepts a groups map", () => {
+    const flow = {
+      name: "review-loop",
+      description: "audit then fix",
+      input: "prompt",
+      agents: {
+        auditor: { tools: ["read"], model: "sonnet", schema: { verdict: "APPROVED|REVISE" } },
+        developer: { tools: ["read", "write"], model: "sonnet" },
+      },
+      groups: { review: { phases: ["review", "fix"] } },
+      phases: [
+        { id: "review", agent: "auditor", prompt: "audit" },
+        { id: "fix", agent: "developer", prompt: "fix" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect([...Value.Errors(FlowYamlSchema, flow)]).toHaveLength(0);
+  });
+  it("rejects a group with fewer than 2 phases", () => {
+    const flow = {
+      name: "review-loop",
+      description: "audit then fix",
+      input: "prompt",
+      agents: {
+        auditor: { tools: ["read"], model: "sonnet" },
+      },
+      groups: { review: { phases: ["review"] } },
+      phases: [{ id: "review", agent: "auditor", prompt: "audit" }],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect([...Value.Errors(FlowYamlSchema, flow)].length).toBeGreaterThan(0);
+  });
 });
