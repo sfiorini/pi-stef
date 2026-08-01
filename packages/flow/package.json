@@ -34,8 +34,12 @@
     "skills/",
     "templates/",
     "agents/",
-    "workflows/"
+    "workflows/",
+    "bin/"
   ],
+  "bin": {
+    "notify-telegram.sh": "./bin/notify-telegram.sh"
+  },
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
