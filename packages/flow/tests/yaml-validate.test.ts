@@ -123,4 +123,77 @@ describe("validateFlowYaml", () => {
       }),
     ).toEqual({ ok: true, errors: [] });
   });
+
+  // S-14: groups cross-field rules
+  it("accepts a valid group with matching loop", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "review" },
+        { id: "fix", agent: "a", prompt: "fix" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow)).toEqual({ ok: true, errors: [] });
+  });
+  it("rejects a group referencing a nonexistent phase", () => {
+    const flow = {
+      ...base,
+      groups: { review: { phases: ["gate", "ghost"] } },
+      phases: [{ id: "gate", agent: "a", prompt: "r" }],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'groups.review: phase "ghost" does not exist',
+    );
+  });
+  it("rejects a phase belonging to two groups", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: {
+        g1: { phases: ["p", "fix1"] },
+        g2: { phases: ["p", "fix2"] },
+      },
+      phases: [
+        { id: "p", agent: "a", prompt: "gate", out: "o" },
+        { id: "fix1", agent: "a", prompt: "f1" },
+        { id: "fix2", agent: "a", prompt: "f2" },
+      ],
+      loops: { g1: { until: "approved", fail_on: ["P0"], max_rounds: 5 }, g2: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'groups.g2: phase "p" already belongs to group "g1"',
+    );
+  });
+  it("rejects a skill phase in a group", () => {
+    const flow = {
+      ...base,
+      groups: { review: { phases: ["gate", "sk"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "sk", skill: "sf-flow-plan", out: "x" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'groups.review: phase "sk" must be an agent phase (skill/raw/questions phases cannot participate in group loops)',
+    );
+  });
+  it("rejects a group with no matching loop", () => {
+    const flow = {
+      ...base,
+      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      groups: { review: { phases: ["gate", "fix"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "fix", agent: "a", prompt: "f" },
+      ],
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'groups.review: no matching loops.review (a group must be looped)',
+    );
+  });
 });

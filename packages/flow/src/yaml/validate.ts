@@ -58,8 +58,27 @@ export function validateFlowYaml(input: unknown): ValidationResult {
     if (ph.out) outs.add(ph.out);
   }
 
+  if (flow.groups) {
+    const phaseInGroup = new Map<string, string>();
+    for (const [groupId, group] of Object.entries(flow.groups)) {
+      for (const phaseId of group.phases) {
+        const phase = flow.phases.find((p) => p.id === phaseId);
+        if (!phase) { errors.push(`groups.${groupId}: phase "${phaseId}" does not exist`); continue; }
+        const existing = phaseInGroup.get(phaseId);
+        if (existing) errors.push(`groups.${groupId}: phase "${phaseId}" already belongs to group "${existing}"`);
+        else phaseInGroup.set(phaseId, groupId);
+        if (!phase.agent)
+          errors.push(`groups.${groupId}: phase "${phaseId}" must be an agent phase (skill/raw/questions phases cannot participate in group loops)`);
+      }
+      if (!flow.loops || !(groupId in flow.loops))
+        errors.push(`groups.${groupId}: no matching loops.${groupId} (a group must be looped)`);
+    }
+  }
+
   if (flow.loops) {
     for (const [phaseId, loop] of Object.entries(flow.loops)) {
+      // S-14: skip group-keyed loops here; S-15 adds full group-aware validation
+      if (flow.groups && phaseId in flow.groups) continue;
       const phase = flow.phases.find((p) => p.id === phaseId);
       if (!phase) {
         errors.push(`loops.${phaseId}: no such phase`);
