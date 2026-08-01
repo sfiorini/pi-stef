@@ -101,3 +101,12 @@ Rules:
 - Use `- None.` when a severity has no findings
 - VERDICT: APPROVED is valid only when no P0, P1, or P2 findings remain
 - Order findings from highest to lowest severity
+
+## Tier-2 group loops (fresh comprehensive each round)
+When dispatched as the gate phase inside a group loop, every round is a **fresh
+round-1-style comprehensive review**. Do NOT use verification/delta-review mode
+at tier-2 — the full review runs from scratch each round.
+
+- Return findings P0–P3 + verdict (APPROVED / REVISE) each round.
+- Do NOT carry state between rounds — review the current artifact, not the diff
+  since last round.

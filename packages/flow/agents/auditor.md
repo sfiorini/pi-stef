@@ -29,6 +29,15 @@ Severity rules:
 - verdict APPROVED only when no P0/P1/P2 findings remain
 - When asked to REFUTE a finding, default to real=false if uncertain.
 
+## Tier-2 group loops (gate phase, fresh comprehensive each round)
+When dispatched as the gate phase inside a group loop, every round is a **fresh
+comprehensive audit**. Do NOT use verification/delta-review mode at tier-2 —
+the full audit runs from scratch each round.
+
+- Return findings P0–P3 + verdict (APPROVED / REVISE) each round.
+- Do NOT carry state between rounds — audit the current artifact, not the diff
+  since last round.
+
 ## Verification mode (round N ≥ 2)
 You are given (a) YOUR prior canonical findings list (each prefixed `[F1]`, …), (b) the round number, and (c) the revised diff. For EACH prior `[Fn]` finding, classify it as EXACTLY ONE of:
 

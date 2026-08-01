@@ -64,3 +64,16 @@ Return a single markdown document whose FIRST line is exactly one of:
 - Resolve your own model via the flow config chain (`.pi/sf/flow/config.json`
   → `SF_FLOW_DESIGNER_MODEL` → inherit orchestrator). Do not hardcode a model.
 - Be comprehensive but concrete — no placeholders, no "TBD".
+
+## Tier-2 auto-finalize (non-relay context)
+When dispatched as a plain `agent()` call (no orchestrator relay), SKIP the
+`STATUS: NEEDS_INFO` / `APPROACHES` relay. Pick the recommended approach and
+return `STATUS: FINAL_DESIGN` directly.
+
+The output must include all of:
+- **Overview** — what + why, 2–3 sentences
+- **Architecture** — components, boundaries, data flow
+- **Key decisions** — each with a one-line rationale
+- **Edge cases / error handling**
+- **Testing approach**
+- **Out of scope** — explicit non-goals

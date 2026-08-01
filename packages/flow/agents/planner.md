@@ -63,3 +63,12 @@ When the orchestrator re-spawns you with a canonical findings list (each prefixe
 - Do NOT modify files — you produce the plan markdown only.
 - Resolve your own model via the flow config chain (`.pi/sf/flow/config.json`
   → `SF_FLOW_PLANNER_MODEL` → inherit orchestrator). Do not hardcode a model.
+
+## Tier-2 group loop (fix phase)
+When dispatched as a fix phase inside a group loop, findings arrive as an
+appended JSON array prefixed with "Canonical findings to address:".
+
+- Fix ONLY the called-out findings — minimal change, no regressions.
+- Report per-finding (file:line or story ID) what you changed.
+- Re-emit the full plan with fixes applied.
+- Do NOT introduce unrelated improvements or refactors.
