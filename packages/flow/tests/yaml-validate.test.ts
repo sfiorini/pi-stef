@@ -124,6 +124,33 @@ describe("validateFlowYaml", () => {
     ).toEqual({ ok: true, errors: [] });
   });
 
+  // Step 0 (M1 review P2): questions+verify mutual exclusion
+  it("rejects questions + verify", () => {
+    expect(
+      validateFlowYaml({
+        ...base,
+        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        phases: [{ id: "clarify", questions: "elicitor", verify: "someOut", max_rounds: 5, out: "reqs" }],
+      }).errors,
+    ).toContain('phase "clarify": questions and verify are mutually exclusive');
+  });
+
+  // Step 0 (M1 review P2): raw phase in a group rejected (shares !phase.agent path)
+  it("rejects a raw phase in a group", () => {
+    const flow = {
+      ...base,
+      groups: { review: { phases: ["gate", "rawph"] } },
+      phases: [
+        { id: "gate", agent: "a", prompt: "r" },
+        { id: "rawph", raw: "doStuff()" },
+      ],
+      loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
+    };
+    expect(validateFlowYaml(flow).errors).toContain(
+      'groups.review: phase "rawph" must be an agent phase (skill/raw/questions phases cannot participate in group loops)',
+    );
+  });
+
   // S-14: groups cross-field rules
   it("accepts a valid group with matching loop", () => {
     const flow = {
