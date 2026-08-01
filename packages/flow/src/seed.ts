@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The eight flow agent definitions (shipped under `<pkg>/agents/`). */
+/** The nine flow agent definitions (shipped under `<pkg>/agents/`). */
 export const AGENT_FILES = [
   "reviewer.md",
   "designer.md",
@@ -14,6 +14,7 @@ export const AGENT_FILES = [
   "synth.md",
   "scanner.md",
   "researcher.md",
+  "elicitor.md",
 ] as const;
 
 /** The five bundled example workflows (shipped under `<pkg>/workflows/`). */
@@ -125,7 +126,7 @@ async function seedAll(
   return results;
 }
 
-/** Seed the eight agents into a directory (the global discovery dir). */
+/** Seed the nine agents into a directory (the global discovery dir). */
 export function seedAgents(agentsDir: string, mode: SeedMode): Promise<SeedResult[]> {
   return seedAll(agentsDir, "agents", AGENT_FILES, mode);
 }
