@@ -143,4 +143,44 @@ describe("summarizePhaseModels", () => {
     expect(myPhaseLine).toContain("(no agent)");
     expect(myPhaseLine).not.toContain("agent undefined");
   });
+
+  // S-31: questions phase classification + hasConditionalGates
+  it("classifies a questions phase as tier2-agent with the questions agent name", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku", schema: { questions: "array" } } },
+      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+    };
+    const summary = summarizePhaseModels(qFlow, null);
+    expect(summary).toHaveLength(1);
+    expect(summary[0]).toMatchObject({
+      phase: "clarify",
+      kind: "tier2-agent",
+      agent: "elicitor",
+      model: "haiku",
+    });
+  });
+
+  it("renders conditional gates line when hasConditionalGates is true", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "q",
+      inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/q.yaml",
+      hasConditionalGates: true,
+    });
+    expect(msg).toContain("Conditional gates");
+    expect(msg).toContain("questions phases pause for user input");
+    expect(msg).not.toContain("No human gates");
+  });
+
+  it("renders original No human gates line when hasConditionalGates is omitted", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "q",
+      inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/q.yaml",
+    });
+    expect(msg).toContain("No human gates");
+    expect(msg).toContain("phases run to completion or a terminal state");
+    expect(msg).not.toContain("Conditional gates");
+  });
 });

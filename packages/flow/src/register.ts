@@ -276,12 +276,14 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       let script: string | null = null;
       let models: ResolvedModels | null = null;
       let phaseModels: ReturnType<typeof summarizePhaseModels> = [];
+      let hasConditionalGates = false;
       try {
         const flow = await loadFlowYaml(resolved);
         const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
         script = generateScript(flow, { models: defaults });
         models = defaults;
         phaseModels = summarizePhaseModels(flow, defaults);
+        hasConditionalGates = flow.phases.some((p) => !!p.questions);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -305,6 +307,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               script,
               models,
               phaseModels,
+              hasConditionalGates,
             }),
           },
         ],

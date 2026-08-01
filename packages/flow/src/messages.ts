@@ -59,6 +59,12 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
         source: "raw phase (no model resolution)",
       };
     }
+    if (ph.questions) {
+      const def = flow.agents[ph.questions];
+      const yamlModel = def?.model ?? null;
+      return { phase: ph.id, kind: "tier2-agent" as const, agent: ph.questions, model: yamlModel,
+        source: yamlModel ? "YAML agents.<name>.model" : "inherit orchestrator (.md model: / orchestrator)" };
+    }
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
     const yamlModel = def?.model ?? null;
     return {
@@ -122,6 +128,8 @@ export interface AutoReadyInput {
   models?: ResolvedModels | null;
   /** Optional per-phase model summary (accurate per precedence). */
   phaseModels?: PhaseModelInfo[];
+  /** Whether any phase uses `questions:` (conditional gates). */
+  hasConditionalGates?: boolean;
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
@@ -131,7 +139,9 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     `Running flow "${opts.workflowName}" end-to-end.`,
     `Input: ${opts.inputSummary}`,
     `Workflow file: ${opts.resolvedWorkflowPath}`,
-    `No human gates — phases run to completion or a terminal state.`,
+    opts.hasConditionalGates
+      ? `Conditional gates — questions phases pause for user input but auto-fallback to defaults if unattended; all other phases run to completion or a terminal state.`
+      : `No human gates — phases run to completion or a terminal state.`,
   ];
   if (opts.script) {
     lines.push(``);
