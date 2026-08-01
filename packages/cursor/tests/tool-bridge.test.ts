@@ -103,6 +103,21 @@ describe("buildCustomTools", () => {
     warn.mockRestore();
   });
 
+  it("default builtins set (3-arg call) skips a Cursor built-in name and warns", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const bridge = createToolResultBridge();
+    const emit = makeEmitter();
+    const tools: PiTool[] = [{ function: { name: "read_file", description: "Read" } }];
+
+    // 3-arg call — exercises the production default (CURSOR_BUILTIN_TOOLS)
+    const result = buildCustomTools(tools, bridge, emit);
+
+    expect(Object.keys(result)).toEqual([]);
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain("read_file");
+    warn.mockRestore();
+  });
+
   it("tool name not in explicit builtins set is registered and does not warn", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const bridge = createToolResultBridge();
