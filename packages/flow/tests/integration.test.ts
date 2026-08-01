@@ -5,28 +5,58 @@ import { andGatePasses } from "../src/audit/requestreview.js";
 import { renderReport } from "../src/audit/verdict.js";
 import type { FlowYaml } from "../src/yaml/schema.js";
 
-// ship-feature flow (plan -> implement -> audit) from the examples
+// Decomposed ship-feature flow: clarify → design → plan → plan-review loop → implement → impl-review loop → audit loop.
+// F2 invariant: clarify keeps its prompt.
 const shipFeature: FlowYaml = {
   name: "ship-feature",
-  description: "d",
+  description: "Clarify, design, plan, implement, and audit a feature end-to-end",
   input: "prompt",
-  agents: { auditor: { model: "sonnet", thinking: "high", isolated: true, schema: { verdict: "APPROVED|REVISE" } } },
+  agents: {
+    elicitor: { tools: ["read", "grep", "find", "ls"], thinking: "high", isolated: true, schema: { questions: "array" } },
+    designer: { tools: ["read", "grep", "find", "ls"], thinking: "high", isolated: true },
+    planner: { tools: ["read", "grep", "find", "ls"], thinking: "medium", isolated: true },
+    developer: { tools: ["read", "grep", "find", "ls", "write", "bash"], thinking: "medium" },
+    reviewer: { tools: ["read", "grep", "find", "ls"], thinking: "high", isolated: true, schema: { verdict: "APPROVED|REVISE", findings: "array" } },
+    auditor: { tools: ["read", "grep", "find", "ls"], thinking: "high", isolated: true, schema: { verdict: "APPROVED|REVISE", findings: "array" } },
+  },
+  groups: {
+    "plan-review": { phases: ["review-plan", "fix-plan"] },
+    "impl-review": { phases: ["review-impl", "fix-impl"] },
+    "audit-loop": { phases: ["review-audit", "fix-audit"] },
+  },
   phases: [
-    { id: "plan", skill: "sf-flow-plan", out: "plan_path" },
-    { id: "implement", skill: "sf-flow-implement", in: "plan_path", out: "worktree_path" },
-    { id: "audit", agent: "auditor", in: "worktree_path", prompt: "Review the diff produced by the implement phase (the flow/<slug> worktree for this run). Return findings P0-P3 + verdict." },
+    { id: "clarify", questions: "elicitor", prompt: "Given this feature request, identify what is unclear about scope, constraints, success criteria, and edge cases. Return a questions array — empty if the task is clear enough to design.", max_rounds: 5, out: "requirements" },
+    { id: "design", agent: "designer", in: "requirements", out: "design_doc", prompt: "Design." },
+    { id: "plan", agent: "planner", in: "design_doc", out: "plan_doc", prompt: "Plan." },
+    { id: "review-plan", agent: "reviewer", in: "plan_doc", prompt: "Review plan." },
+    { id: "fix-plan", agent: "planner", in: "plan_doc", prompt: "Fix plan." },
+    { id: "implement", agent: "developer", in: "plan_doc", out: "impl_result", prompt: "Implement." },
+    { id: "review-impl", agent: "reviewer", in: "impl_result", prompt: "Review impl." },
+    { id: "fix-impl", agent: "developer", in: "impl_result", prompt: "Fix impl." },
+    { id: "review-audit", agent: "auditor", in: "impl_result", prompt: "Audit." },
+    { id: "fix-audit", agent: "developer", in: "impl_result", prompt: "Fix audit." },
   ],
-  loops: { audit: { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
+  loops: {
+    "plan-review": { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 10 },
+    "impl-review": { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 },
+    "audit-loop": { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 },
+  },
 };
 
 describe("end-to-end chain (mocked engine)", () => {
-  it("validates + generates a deterministic script for the ship-feature flow", () => {
+  it("validates + generates a deterministic script for the decomposed ship-feature flow", () => {
     expect(validateFlowYaml(shipFeature).ok).toBe(true);
     const a = generateScript(shipFeature);
     const b = generateScript(shipFeature);
     expect(a).toBe(b);
-    expect(a).toContain("gate("); // audit loop compiles to gate()
-    expect(a).toContain("sf-flow-plan"); // skill phase present
+    expect(a).toContain("QUESTIONS PHASE");
+    expect(a).toContain("for (let _round");
+  });
+
+  it("decomposed ship-feature has no INLINE SKILL PHASE directives", () => {
+    const script = generateScript(shipFeature);
+    expect(script).not.toContain("INLINE SKILL PHASE");
+    expect(script).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
   });
 
   it("audit gate: REVISE on a P1 finding, APPROVED when clean", () => {
@@ -49,32 +79,21 @@ describe("end-to-end chain (mocked engine)", () => {
     expect(out).toContain("VERDICT: REVISE");
   });
 
-  it("plan->implement handoff: skill phases use conventional slug-keyed paths (args.flow/args.slug), not placeholder consts", () => {
-    const script = generateScript(shipFeature);
-    expect(script).toContain("args.slug");
-    expect(script).toContain("args.flow");
-    expect(script).toContain("sf-flow-plan");
-    expect(script).toContain("sf-flow-implement");
-    // the old placeholder const ("const x = \"skill:...\"") must NOT be emitted
-    expect(script).not.toMatch(/const \w+ = "skill:/);
-  });
-
-  it("ship-feature script has no general-purpose skill-phase twin + runs skill phases inline", () => {
-    const script = generateScript(shipFeature);
-    expect(script).toContain("INLINE SKILL PHASE");
-    expect(script).toContain("skills/sf-flow-plan/SKILL.md");
-    expect(script).toContain("skills/sf-flow-implement/SKILL.md");
-    expect(script).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
-  });
-
-  it("code-review flow runs the skill phase inline (no general-purpose twin)", () => {
+  it("rewritten code-review flow runs an audit↔fix group loop (no INLINE SKILL PHASE)", () => {
     const codeReview: FlowYaml = {
-      name: "code-review", description: "d", input: "prompt", agents: {},
-      phases: [{ id: "review", skill: "sf-flow-audit", out: "report" }], loops: {},
+      name: "code-review", description: "d", input: "prompt",
+      agents: {
+        auditor: { tools: ["read", "grep", "find", "ls"], model: "sonnet", thinking: "high", isolated: true, schema: { verdict: "APPROVED|REVISE", findings: "array" } },
+        developer: { tools: ["read", "grep", "find", "ls", "write", "bash"], model: "sonnet", thinking: "medium" },
+      },
+      groups: { review: { phases: ["review", "fix"] } },
+      phases: [ { id: "review", agent: "auditor", prompt: "Audit the diff." }, { id: "fix", agent: "developer", prompt: "Fix the findings." } ],
+      loops: { review: { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
     };
     const script = generateScript(codeReview);
-    expect(script).toContain("INLINE SKILL PHASE");
-    expect(script).toContain("skills/sf-flow-audit/SKILL.md");
-    expect(script).not.toMatch(/agentType:\s*['"]general-purpose['"]/);
+    expect(script).toContain('phase("review");');
+    expect(script).toContain("for (let _round");
+    expect(script).toContain("Canonical findings to address");
+    expect(script).not.toContain("INLINE SKILL PHASE");
   });
 });
