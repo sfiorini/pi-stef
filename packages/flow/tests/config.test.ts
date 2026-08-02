@@ -79,7 +79,7 @@ describe("flow config", () => {
 
 describe("resolveFlowModels", () => {
   const ROLES = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"] as const;
-  const envNames = ROLES.map((r) => `SF_FLOW_${r.toUpperCase()}_MODEL`);
+  const envNames = [...ROLES.map((r) => `SF_FLOW_${r.toUpperCase()}_MODEL`), "SF_FLOW_ELICITOR_MODEL"];
   const origEnv: Record<string, string | undefined> = {};
   beforeEach(() => {
     for (const name of envNames) {
@@ -94,7 +94,7 @@ describe("resolveFlowModels", () => {
     }
   });
 
-  it("returns all 7 model fields, all null when nothing is set (no throw)", () => {
+  it("returns all 8 model fields, all null when nothing is set (no throw)", () => {
     expect(resolveFlowModels(DEFAULT_CONFIG)).toEqual({
       reviewerModel: null,
       researcherModel: null,
@@ -103,6 +103,7 @@ describe("resolveFlowModels", () => {
       auditorModel: null,
       synthModel: null,
       designerModel: null,
+      elicitorModel: null,
     });
   });
 
@@ -155,6 +156,7 @@ describe("resolveFlowModels", () => {
       auditorModel: "aud",
       synthModel: "syn",
       designerModel: "des",
+      elicitorModel: null,
     });
   });
 
@@ -186,9 +188,12 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
   // front-end against real fixture FILES so the direct (tool) path and the
   // delegated (workflow skill) path provably agree. (The .md/orchestrator
   // inherit step is uniformly pi-subagents' concern, not compared here.)
-  const ROLE_ENVS = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"].map(
-    (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
-  );
+  const ROLE_ENVS = [
+    ...["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"].map(
+      (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
+    ),
+    "SF_FLOW_ELICITOR_MODEL",
+  ];
   const orig: Record<string, string | undefined> = {};
   beforeEach(() => {
     for (const n of ROLE_ENVS) {
@@ -227,5 +232,85 @@ describe("resolution parity: tool front-end == skill's documented chain (M5)", (
     expect(m.plannerModel).toBeNull(); // nothing set
     expect(m.synthModel).toBeNull(); // nothing set
     expect(m.designerModel).toBeNull(); // nothing set
+    expect(m.elicitorModel).toBeNull(); // nothing set
+  });
+});
+
+describe("resolveFlowModels elicitor", () => {
+  const orig: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    orig["SF_FLOW_ELICITOR_MODEL"] = process.env.SF_FLOW_ELICITOR_MODEL;
+    delete process.env.SF_FLOW_ELICITOR_MODEL;
+  });
+  afterEach(() => {
+    if (orig["SF_FLOW_ELICITOR_MODEL"]) process.env.SF_FLOW_ELICITOR_MODEL = orig["SF_FLOW_ELICITOR_MODEL"];
+    else delete process.env.SF_FLOW_ELICITOR_MODEL;
+  });
+
+  it("resolves elicitor model from config elicitor.model", () => {
+    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "config/el" } };
+    expect(resolveFlowModels(cfg).elicitorModel).toBe("config/el");
+  });
+
+  it("resolves elicitor model from env SF_FLOW_ELICITOR_MODEL", () => {
+    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
+    expect(resolveFlowModels(DEFAULT_CONFIG).elicitorModel).toBe("env/el");
+  });
+
+  it("config elicitor.model wins over env SF_FLOW_ELICITOR_MODEL", () => {
+    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
+    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "config/el" } };
+    expect(resolveFlowModels(cfg).elicitorModel).toBe("config/el");
+  });
+
+  it("malformed config elicitor.model blocks env (null + env set → null)", () => {
+    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
+    // "/bogus" is malformed (empty provider segment)
+    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "/bogus" } };
+    // Config present but malformed → null, does NOT fall through to env
+    expect(resolveFlowModels(cfg).elicitorModel).toBeNull();
+  });
+});
+
+describe("loadConfig elicitor group", () => {
+  it("accepts an elicitor config group", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ elicitor: { model: "anthropic/opus" } }),
+    );
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.elicitor.model).toBe("anthropic/opus");
+  });
+
+  it("rejects unknown top-level keys (additionalProperties: false)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ bogus: { model: "x" } }),
+    );
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
+  });
+
+  it("rejects bogus property inside elicitor group", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ elicitor: { model: "ok", bogus: true } }),
+    );
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
+  });
+
+  it("backward-compat: no elicitor in config → elicitor defaults to {}", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.elicitor).toEqual({});
   });
 });

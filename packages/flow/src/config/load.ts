@@ -67,6 +67,7 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
     auditor: { ...base.auditor, ...over.auditor },
     synth: { ...base.synth, ...over.synth },
     designer: { ...base.designer, ...over.designer },
+    elicitor: { ...base.elicitor, ...over.elicitor },
     audit: { ...base.audit, ...over.audit },
     worktree: { ...base.worktree, ...over.worktree },
   };
@@ -140,6 +141,9 @@ export function resolveFlowModels(cfg: FlowConfig, overrides: ModelOverrides = {
     // normalizeModelSpec(undefined) returns null, so the previous `?? null` is preserved.
     out[key] = normalizeModelSpec(process.env[envName]);
   }
+  // elicitor is NOT an AgentRole — resolve standalone
+  const elCfgM = cfg.elicitor?.model;
+  out.elicitorModel = elCfgM ? normalizeModelSpec(elCfgM) : normalizeModelSpec(process.env.SF_FLOW_ELICITOR_MODEL);
   return out;
 }
 
