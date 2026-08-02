@@ -2,7 +2,7 @@
 
 > Reusable multi-agent workflows and CodeRabbit-style code audit — **making workflows simple.**
 
-`flow` lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills.
+`flow` lets you describe a multi-agent workflow in ~15 lines of YAML (four knobs: **agents**, **phases**, **loops**, **groups**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills.
 
 It unifies `pair`'s plan/implement/review simplicity with `@quintinshaw/pi-dynamic-workflows`' dynamic orchestration and a CodeRabbit-style audit rigor. It supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see [Migrating from team & pair](/migrating-from-team-and-pair)).
 
@@ -197,9 +197,9 @@ Remove a flow worktree directory while **preserving** its branch. Call after `sf
 
 ---
 
-## Tier 2 — declarative YAML flows (the 3-knob model)
+## Tier 2 — declarative YAML flows (the 4-knob model)
 
-This is the heart of flow. Describe a workflow with three knobs and the generator compiles it into a pi-dynamic-workflows script.
+This is the heart of flow. Describe a workflow with four knobs and the generator compiles it into a pi-dynamic-workflows script.
 
 ```yaml
 # .pi/sf/flow/workflows/auth-audit.yaml

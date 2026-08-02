@@ -8,7 +8,7 @@ Built on [`@tintinweb/pi-subagents`](https://github.com/tintinweb/pi-subagents) 
 pi install npm:@pi-stef/flow
 ```
 
-Flow lets you describe a multi-agent workflow in ~15 lines of YAML (three knobs: **agents**, **phases**, **loops**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; it supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see https://sfiorini.github.io/pi-stef/migrating-from-team-and-pair).
+Flow lets you describe a multi-agent workflow in ~15 lines of YAML (four knobs: **agents**, **phases**, **loops**, **groups**) and run it end-to-end with no human gates. It also ships battle-tested plan/implement/audit skills. It unifies `pair`'s simplicity with pi-dynamic-workflows' orchestration and a CodeRabbit-style audit rigor; it supersedes the now-deprecated @pi-stef/team and @pi-stef/pair (see https://sfiorini.github.io/pi-stef/migrating-from-team-and-pair).
 
 Full docs: <https://sfiorini.github.io/pi-stef/packages/flow>
 
@@ -187,9 +187,9 @@ Remove a flow worktree directory while **preserving** its branch.
 
 ---
 
-## Tier 2 — declarative YAML flows (the 3-knob model)
+## Tier 2 — declarative YAML flows (the 4-knob model)
 
-Describe a workflow with three knobs; the generator compiles it into a pi-dynamic-workflows script.
+Describe a workflow with four knobs; the generator compiles it into a pi-dynamic-workflows script.
 
 ```yaml
 # .pi/sf/flow/workflows/auth-audit.yaml
