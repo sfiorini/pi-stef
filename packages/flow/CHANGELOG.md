@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-08-02
+### Changed
+- fix(flow): sanitize flow name (path-traversal) + register-error path + missing list + tool desc (audit)
+- docs(flow): README — adaptive create-workflow wizard + new params (S-41)
+- feat(flow): rewrite sf-flow-create-workflow SKILL as adaptive wizard (S-31)
+- feat(flow): real validate/write/register in sf_flow_create_workflow execute (S-22)
+- test(flow): add sf_flow_create_workflow execute handler tests (S-21)
+- feat(flow): add validateSection for partial-flow validation (S-12)
+- feat(flow): export TypeBox section schemas (S-11)
+
+
 ## [0.9.0] - 2026-08-02
 ### Changed
 - docs(flow): fix elicitor doc-comment nits (audit P3)
