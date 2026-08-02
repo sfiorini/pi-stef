@@ -114,7 +114,7 @@ function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
 }
 
 /**
- * Resolve all seven agent models from the deterministic front-end chain:
+ * Resolve all agent models (7 roles + elicitor) from the deterministic front-end chain:
  * 1. Override (tool param / prompt extraction) — if truthy
  * 2. Config group `.model` (project beats global via the loadConfig merge)
  * 3. Environment variable `SF_FLOW_<ROLE>_MODEL`
