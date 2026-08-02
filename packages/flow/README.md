@@ -79,7 +79,7 @@ Nine write-once agent definitions ship in `packages/flow/agents/` and are copied
 - **Write-once:** flow *never* overwrites an existing agent file — edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time.
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
-- **Seven are config-backed; two are Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model: sonnet` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is also a Tier-2 inline-model agent used by `questions` phases (its model is set inline in the workflow YAML, not in `config.json`).
+- **Seven are config-backed; one is config-fallback Tier-2; one is pure Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model: sonnet` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `scanner` is a pure Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is a Tier-2 agent used by `questions` phases — its model resolves inline YAML → `config elicitor.model` → env → `.md` → orchestrator (inline wins; the only Tier-2 agent with config fallback).
 
 **Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` also writes a write-once stub for any declared agent that doesn't yet exist.
 
@@ -371,11 +371,12 @@ Layered: project `.pi/sf/flow/config.json` over global `~/.pi/sf/flow/config.jso
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `<role>.model` | `string` | — | Model for one of the seven agents: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
+| `elicitor.model` | `string` | — | Model for the `elicitor` agent (questions-phase fallback). Inline YAML `model:` wins; config fallback; env; `.md`; orchestrator |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
 
-**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`.
+**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`, `SF_FLOW_ELICITOR_MODEL`.
 
 ### Model resolution chain (Tier 1 skills)
 
