@@ -7,13 +7,19 @@ import { loadAndResolveDefaults } from "./config/load.js";
 import type { ResolvedModels } from "./config/schema.js";
 import { loadFlowYaml } from "./yaml/load.js";
 import { generateScript } from "./yaml/generate.js";
+import { registerGeneratedFlow } from "./yaml/register.js";
+import { writeFlowYamlAsync } from "./yaml/write.js";
+import { validateFlowYaml, validateSection, type FlowSection } from "./yaml/validate.js";
+import type { FlowYaml } from "./yaml/schema.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
-import { resolveWorkflowPath, globalWorkflowsDir } from "./paths.js";
+import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
 import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
 import { join } from "node:path";
+import { load as parseYaml } from "js-yaml";
+import { existsSync } from "node:fs";
 
 export const FLOW_TOOL_NAMES = [
   "sf_flow_plan",
@@ -105,13 +111,114 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         agents_yaml: Type.Optional(Type.String({ description: "Pre-formed agents YAML to skip the interview." })),
         phases_yaml: Type.Optional(Type.String()),
         loops_yaml: Type.Optional(Type.String()),
+        groups_yaml: Type.Optional(Type.String()),
+        overwrite: Type.Optional(Type.Boolean()),
       },
       { additionalProperties: false },
     ) as any,
-    execute: async () => {
+    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+      const p = (params ?? {}) as {
+        name?: string;
+        description?: string;
+        input?: string;
+        agents_yaml?: string;
+        phases_yaml?: string;
+        loops_yaml?: string;
+        groups_yaml?: string;
+        overwrite?: boolean;
+      };
+      const repoRoot = ctx?.cwd ?? process.cwd();
+
+      // Path C: no params → wizard
+      const yamlKeys = ["agents_yaml", "phases_yaml", "loops_yaml", "groups_yaml"] as const;
+      const hasAnyParam = p.name || p.description || p.input || yamlKeys.some((k) => p[k]);
+      if (!hasAnyParam) {
+        return {
+          content: [{ type: "text" as const, text: `Now read the skill file at ${skillDocPath("sf-flow-create-workflow")}.` }],
+          details: { created: false, phase: "wizard" },
+        };
+      }
+
+      // Parse YAML sections
+      const parsed: Record<string, unknown> = {};
+      for (const key of yamlKeys) {
+        const raw = p[key];
+        if (!raw) continue;
+        try {
+          parsed[key.replace("_yaml", "")] = parseYaml(raw);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return {
+            content: [],
+            details: { phase: "parse-error", section: key.replace("_yaml", ""), error: msg },
+          };
+        }
+      }
+
+      // Path A: complete flow (name + description + input + agents + phases)
+      if (p.name && p.description && p.input && parsed.agents && parsed.phases) {
+        const flow: FlowYaml = {
+          name: p.name,
+          description: p.description,
+          input: p.input as FlowYaml["input"],
+          agents: parsed.agents as FlowYaml["agents"],
+          phases: parsed.phases as FlowYaml["phases"],
+          ...(parsed.loops ? { loops: parsed.loops as FlowYaml["loops"] } : {}),
+          ...(parsed.groups ? { groups: parsed.groups as FlowYaml["groups"] } : {}),
+        };
+
+        // Validate
+        const result = validateFlowYaml(flow);
+        if (!result.ok) {
+          return { content: [], details: { phase: "validation-error", errors: result.errors } };
+        }
+
+        // Collision check
+        const projectPath = join(projectWorkflowsDir(repoRoot), `${p.name}.yaml`);
+        const globalPath = join(globalWorkflowsDir(homedir()), `${p.name}.yaml`);
+        if ((existsSync(projectPath) || existsSync(globalPath)) && !p.overwrite) {
+          return { content: [], details: { phase: "collision", name: p.name } };
+        }
+
+        // Write + register
+        try {
+          const writtenPath = await writeFlowYamlAsync(projectWorkflowsDir(repoRoot), flow);
+          registerGeneratedFlow(pi, flow);
+          return { content: [], details: { phase: "done", writtenPath, name: p.name, created: true } };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { content: [], details: { phase: "register-error", error: msg } };
+        }
+      }
+
+      // Path B: partial — validate each present section
+      const requiredKeys = ["name", "description", "input"] as const;
+      const missing: string[] = requiredKeys.filter((k) => !p[k]);
+      for (const k of yamlKeys) {
+        const section = k.replace("_yaml", "") as FlowSection;
+        if (!parsed[section]) {
+          missing.push(section);
+        }
+      }
+
+      const allErrors: string[] = [];
+      const validSections: string[] = [];
+      for (const [section, value] of Object.entries(parsed)) {
+        const vr = validateSection(section as FlowSection, value);
+        if (!vr.ok) {
+          allErrors.push(...vr.errors);
+        } else {
+          validSections.push(section);
+        }
+      }
+
+      if (allErrors.length > 0) {
+        return { content: [], details: { phase: "validation-error", errors: allErrors } };
+      }
+
       return {
-        content: [{ type: "text" as const, text: `Now read the skill file at ${skillDocPath("sf-flow-create-workflow")}.` }],
-        details: { created: false, phase: "wizard" },
+        content: [],
+        details: { phase: "partial-valid", validSections, missing },
       };
     },
   });
