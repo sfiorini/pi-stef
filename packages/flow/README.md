@@ -384,6 +384,8 @@ Tier-1 skills **self-resolve** each agent's model: 1. a model passed in the invo
 
 > Tier 2 YAML agents ignore this chain — they use the inline `model:` field (else the `.md`, else the orchestrator).
 
+> **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with a config fallback.
+
 ### Model precedence
 
 A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
@@ -395,10 +397,15 @@ A common question: *if an agent `.md` sets a `model:` and config sets a differen
 | Tier 2 flow agent | set | set | (no effect) | **YAML** |
 | Tier 2 flow agent | set | omitted | (no effect) | **`.md`** (fallback) |
 | Tier 2 flow agent | omitted | omitted | (no effect) | orchestrator / session model |
+| `questions:` elicitor | set | set | (no effect) | **YAML** (inline wins) |
+| `questions:` elicitor | (applied if unset) | omitted | set | **config** (`elicitor.model`) |
+| `questions:` elicitor | (applied if unset) | omitted | unset | **`.md`** → else **orchestrator** |
 
 **Why config wins for Tier 1 (when set):** the skill self-resolves + passes the model *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding the `.md`. If config/env are both unset, the model is omitted so pi-subagents falls back to the `.md` `model:` (if any), else the orchestrator. The seven default agents ship with no `model:` — so an unset config simply inherits the orchestrator (no error).
 
 **Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the orchestrator). Config has no effect on Tier 2 agents.
+
+**Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with a config fallback: its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
 
 ---
 

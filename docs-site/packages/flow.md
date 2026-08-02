@@ -83,7 +83,7 @@ Nine write-once agent definitions ship in `packages/flow/agents/` and are copied
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Seven are config-backed; two are Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is also a Tier-2 inline-model agent used by `questions` phases (its model is set inline in the workflow YAML, not in `config.json`).
+- **Seven are config-backed; one is config-fallback Tier-2; one is pure Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a pure Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is a Tier-2 agent used by `questions` phases — its model resolves inline YAML → `config elicitor.model` → env → `.md` → orchestrator (inline wins; the only Tier-2 agent with config fallback).
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -408,11 +408,12 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
 | `<role>.model` | `string` | — | Model for one of the seven agents: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
+| `elicitor.model` | `string` | — | Model for the `elicitor` agent (questions-phase fallback). Inline YAML `model:` wins; config fallback; env; `.md`; orchestrator |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
 
-**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`.
+**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`, `SF_FLOW_ELICITOR_MODEL`.
 
 ### Model resolution chain (Tier 1 skills)
 
@@ -425,6 +426,8 @@ Tier-1 skills **self-resolve** each agent's model:
 
 > Note: Tier 2 YAML agents ignore this chain — they use the inline `model:` field in the YAML (else the `.md`, else the orchestrator).
 
+> **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with a config fallback.
+
 ### Model precedence
 
 A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
@@ -436,10 +439,15 @@ A common question: *if an agent `.md` sets a `model:` and config sets a differen
 | Tier 2 flow agent | set | set | (no effect) | **YAML** |
 | Tier 2 flow agent | set | omitted | (no effect) | **`.md`** (fallback) |
 | Tier 2 flow agent | omitted | omitted | (no effect) | orchestrator / session model |
+| `questions:` elicitor | set | set | (no effect) | **YAML** (inline wins) |
+| `questions:` elicitor | (applied if unset) | omitted | set | **config** (`elicitor.model`) |
+| `questions:` elicitor | (applied if unset) | omitted | unset | **`.md`** → else **orchestrator** |
 
 **Why config wins for Tier 1 (when set):** the skill self-resolves + passes the model *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding the `.md`. If config/env are both unset, the model is omitted so pi-subagents falls back to the `.md` `model:` (if any), else the orchestrator. The seven default agents ship with no `model:` — so an unset config simply inherits the orchestrator (no error).
 
 **Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the orchestrator). Config has no effect on Tier 2 agents.
+
+**Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with a config fallback: its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
 
 ---
 
