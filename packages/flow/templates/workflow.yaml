@@ -15,6 +15,10 @@ agents:          # KNOB 1 — declare agents + tools, model, thinking, schema
   #   isolated: true
   #   schema:
   #     questions: array                            # MUST declare questions schema
+  # notifier:                                      # Tier-2 opt-in: send a Telegram message
+  #   tools: [bash]
+  #   thinking: low
+  #   isolated: true
 
 groups:          # KNOB 2 (optional) — named find→fix→re-verify loops
   # review:                                         # group name = loop key
@@ -25,6 +29,10 @@ phases:          # KNOB 3 — each phase runs one of: agent / skill / raw / ques
     agent: worker
     prompt: "Describe the task for the worker."
     out: result
+  # - id: notify                                   # final notification phase
+  #   agent: notifier
+  #   prompt: "Flow complete"                       # STATIC message (literal — not interpolated)
+  #   out: notify_result
   # - id: clarify                                   # questions phase (4th kind)
   #   questions: elicitor                           # must reference an agent in agents:
   #   prompt: "Identify what is unclear…"
