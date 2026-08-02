@@ -3,6 +3,8 @@ import { createServer, type Server, type IncomingMessage } from "node:http";
 import { spawn } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const scriptPath = join(pkgRoot, "bin", "notify-telegram.sh");
@@ -118,5 +120,33 @@ describe("notify-telegram.sh", () => {
     );
     expect(exitCode).toBe(2);
     expect(stderr).toContain("chat id is required");
+  });
+
+  it("success: --message-file sends file contents (not path)", async () => {
+    const tmpFile = join(tmpdir(), `notify-test-${Date.now()}.txt`);
+    const fileContent = 'He said "done" via file';
+    writeFileSync(tmpFile, fileContent, "utf-8");
+    try {
+      requests.length = 0;
+      const env = {
+        ...baseEnv,
+        TELEGRAM_BOT_TOKEN: "test-token",
+        TELEGRAM_CHAT_ID: "test-chat",
+        TELEGRAM_API_BASE_URL: apiBase,
+      };
+      const { exitCode, stderr } = await runScript(
+        ["--message-file", tmpFile],
+        env,
+      );
+      expect(exitCode).toBe(0);
+      const last = requests[requests.length - 1];
+      expect(last).toBeDefined();
+      expect(last!.url).toBe("/bottest-token/sendMessage");
+      const form = parseForm(last!.body);
+      expect(form.chat_id).toBe("test-chat");
+      expect(form.text).toBe(fileContent);
+    } finally {
+      unlinkSync(tmpFile);
+    }
   });
 });
