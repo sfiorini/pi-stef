@@ -14,7 +14,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **9 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **10 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **5 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
@@ -66,7 +66,7 @@ You can also drive everything in natural language:
 
 ## Built-in agents
 
-Nine write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Ten write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
@@ -79,11 +79,12 @@ Nine write-once agent definitions ship in `packages/flow/agents/` and are copied
 | `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
 | `elicitor` | Requirements Elicitor — clarifying questions | read, grep, find, ls | high |
 | `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium |
+| `notifier` | Notifier — Telegram completion summary (opt-in, Tier-2) | bash | low |
 
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Seven are config-backed; one is config-fallback Tier-2; one is pure Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a pure Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is a Tier-2 agent used by `questions` phases — its model resolves inline YAML → `config elicitor.model` → env → `.md` → orchestrator (inline wins; the only Tier-2 agent with config fallback).
+- **Seven are config-backed; one is config-fallback Tier-2; two are pure Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a pure Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is a Tier-2 agent used by `questions` phases — its model resolves inline YAML → `config elicitor.model` → env → `.md` → orchestrator (inline wins; the only Tier-2 agent with config fallback). `notifier` is a pure Tier-2, opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -311,6 +312,30 @@ Two paths to the same result (a `.pi/sf/flow/workflows/<name>.yaml` runnable via
 
 - **Wizard** — `/sf-flow-create-workflow` (adaptive: suggests building blocks from local examples, validates sections incrementally, writes YAML + agent stubs, registers `/<name>`).
 - **By hand** — create `.pi/sf/flow/workflows/<name>.yaml` (project) or `~/.pi/sf/flow/workflows/<name>.yaml` (global) following the schema above. Run `sf_flow_create_workflow` once to validate + register `/<name>`, or just run `sf_flow_auto <name> <input>` directly (it validates + generates eagerly).
+
+### Notifications in custom workflows (Tier-2, opt-in)
+
+Flow ships an opt-in **notifier** agent that sends a one-line completion summary to Telegram via the bundled `notify-telegram.sh` script. It is a normal Tier-2 agent — declare it and run it from a final phase in any custom workflow:
+
+```yaml
+agents:
+  notifier:
+    tools: [bash]
+    thinking: low
+    isolated: true
+phases:
+  - id: notify
+    agent: notifier
+    prompt: "ship-feature complete"
+    out: notify_result
+```
+
+**Env-var contract** — the agent is a no-op (returns `skipped`) unless both are set:
+- `TELEGRAM_BOT_TOKEN` — the Telegram bot token.
+- `TELEGRAM_CHAT_ID` — the target chat id.
+- `TELEGRAM_API_BASE_URL` *(optional)* — defaults to `https://api.telegram.org` (set it to a mock host for tests).
+
+This is **Tier-2 only**: the Tier-1 skills (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) each send their own completion notification (unchanged), but a YAML flow controls notification declaratively — add the phase, omit it, or repoint the prompt. The agent never blocks or retries; a `skipped` result is a normal outcome.
 
 ---
 
