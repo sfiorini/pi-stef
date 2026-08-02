@@ -1,5 +1,6 @@
+import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
-import { FlowYamlSchema, type FlowYaml } from "./schema.js";
+import { FlowYamlSchema, AgentDef, PhaseDef, LoopDef, GroupDef, type FlowYaml } from "./schema.js";
 
 export interface ValidationResult {
   ok: boolean;
@@ -103,4 +104,20 @@ export function validateFlowYaml(input: unknown): ValidationResult {
   }
 
   return { ok: errors.length === 0, errors };
+}
+
+export type FlowSection = "agents" | "phases" | "loops" | "groups";
+
+const SECTION_SCHEMAS = {
+  agents: Type.Record(Type.String(), AgentDef),
+  phases: Type.Array(PhaseDef, { minItems: 1 }),
+  loops: Type.Record(Type.String(), LoopDef),
+  groups: Type.Record(Type.String(), GroupDef),
+} as const;
+
+export function validateSection(section: FlowSection, value: unknown): ValidationResult {
+  const schema = SECTION_SCHEMAS[section];
+  const errors = [...Value.Errors(schema, value)];
+  if (errors.length > 0) return { ok: false, errors: errors.map((e) => `${section}.${e.path}: ${e.message}`) };
+  return { ok: true, errors: [] };
 }

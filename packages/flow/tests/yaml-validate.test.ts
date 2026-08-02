@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateFlowYaml } from "../src/yaml/validate.js";
+import { validateFlowYaml, validateSection } from "../src/yaml/validate.js";
 
 const base = {
   name: "x",
@@ -282,5 +282,36 @@ describe("validateFlowYaml", () => {
     expect(validateFlowYaml(flow).errors).toContain(
       'loops.gate: until_dry is not valid on a group loop (use until: approved)',
     );
+  });
+});
+
+describe("validateSection", () => {
+  it("accepts valid agents section", () => {
+    expect(validateSection("agents", { worker: { model: "haiku" } })).toEqual({ ok: true, errors: [] });
+  });
+
+  it("accepts valid phases section", () => {
+    expect(validateSection("phases", [{ id: "p", agent: "a", prompt: "do", out: "o" }])).toEqual({ ok: true, errors: [] });
+  });
+
+  it("rejects agents section with invalid field", () => {
+    const result = validateSection("agents", { worker: { bogus_field: true } });
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]).toMatch(/^agents\./);
+  });
+
+  it("accepts valid loops section (structural only)", () => {
+    expect(validateSection("loops", { scan: { until_dry: true, max_rounds: 3 } })).toEqual({ ok: true, errors: [] });
+  });
+
+  it("rejects groups section with fewer than 2 phases (minItems)", () => {
+    const result = validateSection("groups", { review: { phases: ["only-one"] } });
+    expect(result.ok).toBe(false);
+  });
+
+  // PhaseDef doesn't enforce exactly one run-kind (agent/skill/raw) — that's a
+  // cross-field rule handled by validateFlowYaml, not the structural schema.
+  it("accepts a phase with only skill (structural — cross-field not enforced here)", () => {
+    expect(validateSection("phases", [{ id: "p", agent: "a", skill: "sf-flow-plan" }])).toEqual({ ok: true, errors: [] });
   });
 });
