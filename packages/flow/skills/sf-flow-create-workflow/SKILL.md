@@ -16,8 +16,9 @@ Ask the user ONE question at a time for any missing field:
 2. `description`
 3. `input` type (prompt / md-file / prd / jira)
 4. `agents` — for each agent: name, tools, model, thinking, isolated, and whether it needs a `schema` (e.g. verdict)
-5. `phases` — for each phase: id, run type (agent/skill/raw), prompt, and any fanout/verify/in/out
-6. `loops` — for any phase: until_dry or until:approved (+ fail_on + max_rounds)
+5. `phases` — for each phase: id, run type (agent/skill/raw/questions), prompt, and any fanout/verify/in/out. For `questions` phases: the agent name (must be declared in `agents`) and optional `max_rounds` (default 5)
+6. `loops` — for any phase or group: until_dry or until:approved (+ fail_on + max_rounds). Loop keys resolve group-first
+7. `groups` — optional: for each group, the gate phase id (first) + fix phase ids (rest, ≥2 total); all must be agent phases; the group name must have a matching `loops` entry
 
 ### Phase 2: Write the YAML
 Write the collected definition to `.pi/sf/flow/workflows/<name>.yaml` using the `writeFlowYaml` serializer (or write the file directly in the documented format).
@@ -38,10 +39,14 @@ Register `/<name>` (via `registerGeneratedFlow`) so the flow is runnable via `sf
 Tell the user: `Flow "<name>" created at .pi/sf/flow/workflows/<name>.yaml. Run it with: sf_flow_auto <name> "<prompt>" (or a file/PRD/Jira id).`
 
 ## YAML format
-The 3 knobs: `agents`, `phases`, `loops`. See the canonical template at `packages/flow/templates/workflow.yaml` and the spec §3. Each phase runs exactly one of `agent` / `skill` / `raw`. Cross-field rules (enforced by `validateFlowYaml`):
-- a phase must set exactly one of agent/skill/raw;
+The 4 knobs: `agents`, `phases`, `loops`, `groups`. See the canonical template at `packages/flow/templates/workflow.yaml` and the spec §3. Each phase runs exactly one of `agent` / `skill` / `raw` / `questions`. Cross-field rules (enforced by `validateFlowYaml`):
+- a phase must set exactly one of agent/skill/raw/questions;
+- `questions` must reference a name declared in `agents`; questions and fanout/verify are mutually exclusive;
 - `fanout` is only supported on agent phases, and requires the phase to declare `out`;
 - `until_dry` requires the phase to set `fanout`;
 - `until: approved` requires the phase agent to declare a verdict `schema`;
-- loops are not supported on skill/raw phases;
-- `out` values must be unique across phases.
+- loops are not supported on skill/raw/questions phases (questions has a built-in follow-up loop);
+- `out` values must be unique across phases;
+- `groups.<name>.phases` must be ≥2, all agent phases; a phase may belong to at most one group;
+- every `groups.<name>` must have a matching `loops.<name>`;
+- loop keys that match a group name resolve as group loops (group-first precedence over phase loops).
