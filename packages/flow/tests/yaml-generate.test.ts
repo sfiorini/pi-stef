@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { generateScript } from "../src/yaml/generate.js";
+import { validateFlowYaml } from "../src/yaml/validate.js";
 
 const flow = {
   name: "auth-audit",
@@ -408,5 +409,50 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       const s = generateScript(flow, { models });
       expect(s).not.toContain("config/el");
     });
+  });
+});
+
+describe("notifier agent phase (Tier-2 send mechanism)", () => {
+  const notifierFlow = {
+    name: "ping", description: "notify on done", input: "prompt" as const,
+    agents: { notifier: { tools: ["bash"], thinking: "low", isolated: true,
+      schema: { status: "sent|skipped|failed", detail: "string?" } } },
+    phases: [{ id: "notify", agent: "notifier", prompt: "Flow complete", out: "notify_result" }],
+  };
+
+  it("validates cleanly", () => {
+    const result = validateFlowYaml(notifierFlow);
+    expect(result).toEqual({ ok: true, errors: [] });
+  });
+
+  it("generates agentType, tools, isolated, thinking", () => {
+    const s = generateScript(notifierFlow);
+    expect(s).toMatch(/agentType:\s*["']notifier["']/);
+    expect(s).toContain('["bash"]');
+    expect(s).toContain('isolated: true');
+    expect(s).toMatch(/thinking:\s*["']low["']/);
+  });
+
+  it("emits the status schema verbatim", () => {
+    const s = generateScript(notifierFlow);
+    expect(s).toContain("sent|skipped|failed");
+  });
+
+  it("emits plain await agent() with no loopUntilDry/parallel/gate", () => {
+    const s = generateScript(notifierFlow);
+    expect(s).toContain("await agent(");
+    expect(s).not.toContain("loopUntilDry(");
+    expect(s).not.toContain("parallel(");
+    expect(s).not.toContain("gate(");
+  });
+
+  it("bakes static prompt verbatim + const notify_result =", () => {
+    const s = generateScript(notifierFlow);
+    expect(s).toContain("Flow complete");
+    expect(s).toMatch(/const notify_result\s*=/);
+  });
+
+  it("is deterministic", () => {
+    expect(generateScript(notifierFlow)).toBe(generateScript(notifierFlow));
   });
 });
