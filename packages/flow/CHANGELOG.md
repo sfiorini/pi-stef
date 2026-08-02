@@ -2,6 +2,34 @@
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-08-02
+### Changed
+- fix(flow): escape baked values in questions-phase directive (audit P2-1)
+- docs(flow): update intro/header to 4-knob model (G5 P3)
+- docs(flow): create-workflow wizard — questions + groups (S-74)
+- docs(flow): README + docs-site — questions/groups knobs, 19-rule table, 9 agents (S-71..S-73)
+- docs(flow): add elicitor to agents.ts JSDoc enumeration (G4 P3)
+- chore(flow): standardize Telegram sentence across skills (S-63)
+- chore(flow): vendor notify-telegram.sh into flow/bin + package.json bin (S-62)
+- feat(flow): add elicitor to AGENT_FILES + update counts to nine (S-61)
+- docs(flow): tier-1 prose emphasis notes in 4 SKILL.md files (S-54)
+- feat(flow): add tier-2 behavior notes to 5 agent definitions (S-53)
+- feat(flow): add elicitor agent for questions phases (S-52)
+- docs(flow): expand workflow template with questions + groups examples (S-51)
+- test(flow): update integration tests for decomposed workflows (S-43)
+- feat(flow): rewrite code-review.yaml as audit↔fix group loop (S-42)
+- feat(flow): decompose ship-feature.yaml into tier-2 phases (S-41)
+- refactor(flow): align questions-phase esc with skill-phase (M2 review P3)
+- feat(flow): conditional gates in auto-ready message (S-31,S-32)
+- feat(flow): add questions branch + emitGroupLoop to generator (S-21,S-22,S-23)
+- test(flow): cover questions+verify + raw-in-group (M1 review P2)
+- feat(flow): make loops group-aware (S-15)
+- feat(flow): add groups cross-field validation (S-14)
+- feat(flow): expand runKinds to 4 kinds + questions validation rules (S-13)
+- feat(flow): add GroupDef + groups map to FlowYamlSchema (S-12)
+- feat(flow): add questions + max_rounds to PhaseDef schema (S-11)
+
+
 ## [0.7.0] - 2026-07-31
 ### Changed
 - docs(flow): document delta-review protocol in README (plan/implement/audit loops)
