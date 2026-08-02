@@ -13,7 +13,7 @@ import type { FlowYaml } from "./yaml/schema.js";
 
 export type PhaseModelInfo = {
   phase: string;
-  kind: "tier1-skill" | "tier2-agent" | "other";
+  kind: "tier1-skill" | "tier2-agent" | "tier2-elicitor" | "other";
   skill?: string;
   agent?: string;
   /** The model this phase will ACTUALLY use per precedence, or null = inherit orchestrator. */
@@ -62,8 +62,10 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
     if (ph.questions) {
       const def = flow.agents[ph.questions];
       const yamlModel = def?.model ?? null;
-      return { phase: ph.id, kind: "tier2-agent" as const, agent: ph.questions, model: yamlModel,
-        source: yamlModel ? "YAML agents.<name>.model" : "inherit orchestrator (.md model: / orchestrator)" };
+      const configModel = models?.elicitorModel ?? null;
+      const resolved = yamlModel ?? configModel;
+      const source = yamlModel ? "YAML agents.<name>.model" : configModel ? "config elicitor.model" : "inherit orchestrator (.md model: / orchestrator)";
+      return { phase: ph.id, kind: "tier2-elicitor" as const, agent: ph.questions, model: resolved, source };
     }
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
     const yamlModel = def?.model ?? null;

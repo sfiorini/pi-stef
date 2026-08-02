@@ -67,6 +67,7 @@ describe("buildAutoReadyMessage", () => {
         auditorModel: null,
         synthModel: null,
         designerModel: null,
+        elicitorModel: null,
       },
     });
     expect(msg).toContain("```js");
@@ -83,7 +84,7 @@ describe("buildAutoReadyMessage", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "w", inputSummary: "prompt: x",
       resolvedWorkflowPath: "/w.yaml",
-      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: null, auditorModel: null, synthModel: null, designerModel: null },
+      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null },
       phaseModels: [
         { phase: "impl", kind: "tier1-skill", skill: "sf-flow-implement", model: "dev", source: "config (representative role)" },
         { phase: "scan", kind: "tier2-agent", agent: "scanner", model: "haiku", source: "YAML agents.<name>.model" },
@@ -130,6 +131,7 @@ describe("summarizePhaseModels", () => {
         auditorModel: null,
         synthModel: null,
         designerModel: null,
+        elicitorModel: null,
       },
       phaseModels: summary,
     });
@@ -155,7 +157,7 @@ describe("summarizePhaseModels", () => {
     expect(summary).toHaveLength(1);
     expect(summary[0]).toMatchObject({
       phase: "clarify",
-      kind: "tier2-agent",
+      kind: "tier2-elicitor",
       agent: "elicitor",
       model: "haiku",
     });
@@ -182,5 +184,79 @@ describe("summarizePhaseModels", () => {
     expect(msg).toContain("No human gates");
     expect(msg).toContain("phases run to completion or a terminal state");
     expect(msg).not.toContain("Conditional gates");
+  });
+
+  it("questions-phase tier2-elicitor row does NOT have '[config does NOT apply]' caveat while tier2-agent row DOES", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "w", inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/w.yaml",
+      models: { reviewerModel: "rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null },
+      phaseModels: [
+        { phase: "clarify", kind: "tier2-elicitor", agent: "elicitor", model: "haiku", source: "YAML agents.<name>.model" },
+        { phase: "scan", kind: "tier2-agent", agent: "scanner", model: "sonnet", source: "YAML agents.<name>.model" },
+      ],
+    });
+    const lines = msg.split("\n");
+    const clarifyLine = lines.find((l) => l.includes("clarify"))!;
+    const scanLine = lines.find((l) => l.includes("scan"))!;
+    expect(clarifyLine).not.toContain("[config does NOT apply");
+    expect(scanLine).toContain("[config does NOT apply to tier-2 agents]");
+  });
+
+  it("tier-1 config block has exactly 7 rows, no elicitor row", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "w", inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/w.yaml",
+      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: "pln", auditorModel: "aud", synthModel: "syn", designerModel: "des", elicitorModel: "el" },
+    });
+    // Tier-1 config block lists exactly 7 roles
+    const tier1Block = msg.split("\n").filter((l) => l.match(/^- (reviewer|researcher|developer|planner|auditor|synth|designer):/));
+    expect(tier1Block).toHaveLength(7);
+    // No elicitor row in the tier-1 config block
+    expect(msg).not.toContain("- elicitor:");
+  });
+
+  it("questions-phase uses elicitorModel from config (source: config elicitor.model)", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: {} },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
+    };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+    const summary = summarizePhaseModels(qFlow, models);
+    expect(summary[0]).toMatchObject({
+      kind: "tier2-elicitor",
+      model: "config/el",
+      source: "config elicitor.model",
+    });
+  });
+
+  it("questions-phase inline YAML model wins over elicitorModel config", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: { model: "yaml-el" } },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
+    };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+    const summary = summarizePhaseModels(qFlow, models);
+    expect(summary[0]).toMatchObject({
+      kind: "tier2-elicitor",
+      model: "yaml-el",
+      source: "YAML agents.<name>.model",
+    });
+  });
+
+  it("questions-phase inherits orchestrator when both inline and config are absent", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { elicitor: {} },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
+    };
+    const summary = summarizePhaseModels(qFlow, null);
+    expect(summary[0]).toMatchObject({
+      kind: "tier2-elicitor",
+      model: null,
+      source: "inherit orchestrator (.md model: / orchestrator)",
+    });
   });
 });
