@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-const AgentDef = Type.Object(
+export const AgentDef = Type.Object(
   {
     tools: Type.Optional(Type.Array(Type.String())),
     model: Type.Optional(Type.String()),
@@ -21,7 +21,7 @@ const AgentDef = Type.Object(
   { additionalProperties: false },
 );
 
-const PhaseDef = Type.Object(
+export const PhaseDef = Type.Object(
   {
     id: Type.String(),
     agent: Type.Optional(Type.String()),
@@ -39,7 +39,7 @@ const PhaseDef = Type.Object(
   { additionalProperties: false },
 );
 
-const LoopDef = Type.Object(
+export const LoopDef = Type.Object(
   {
     until_dry: Type.Optional(Type.Boolean()),
     until: Type.Optional(Type.Literal("approved")),
@@ -60,7 +60,7 @@ const LoopDef = Type.Object(
   { additionalProperties: false },
 );
 
-const GroupDef = Type.Object(
+export const GroupDef = Type.Object(
   { phases: Type.Array(Type.String(), { minItems: 2 }) },
   { additionalProperties: false },
 );

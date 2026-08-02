@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Value } from "@sinclair/typebox/value";
-import { FlowYamlSchema } from "../src/yaml/schema.js";
+import { FlowYamlSchema, AgentDef, PhaseDef, LoopDef, GroupDef } from "../src/yaml/schema.js";
 
 const valid = {
   name: "auth-audit",
@@ -60,5 +60,13 @@ describe("flow yaml schema", () => {
       loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
     };
     expect([...Value.Errors(FlowYamlSchema, flow)].length).toBeGreaterThan(0);
+  });
+
+  it("exports AgentDef, PhaseDef, LoopDef, GroupDef with .properties", () => {
+    for (const def of [AgentDef, PhaseDef, LoopDef, GroupDef]) {
+      expect(def).toBeDefined();
+      expect(def.properties).toBeDefined();
+      expect(typeof def.properties).toBe("object");
+    }
   });
 });
