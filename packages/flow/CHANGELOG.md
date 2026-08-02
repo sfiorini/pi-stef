@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-08-02
+### Changed
+- docs(flow): fix elicitor doc-comment nits (audit P3)
+- docs(flow): fix resolveFlowModels JSDoc count (impl-review P3)
+- docs(flow): document config-backed elicitor (M4 complete)
+- docs(flow): partial README — elicitor config + env var (M4 WIP)
+- feat(flow): report questions-phase elicitor model source (M3)
+- feat(flow): config-fallback model for questions-phase elicitor (M2)
+- feat(flow): add elicitor config group + resolution (M1)
+
+
 ## [0.8.0] - 2026-08-02
 ### Changed
 - fix(flow): escape baked values in questions-phase directive (audit P2-1)
