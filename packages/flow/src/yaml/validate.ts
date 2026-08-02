@@ -11,6 +11,13 @@ export interface ValidationResult {
 const RESERVED_NAME = /^sf[_-]flow[_-]/i;
 
 /**
+ * Kebab-case format: lowercase alphanumeric and hyphens, starting with an
+ * alphanumeric character. Blocks slashes, dots, underscores, path traversal
+ * sequences, and anything that could escape the workflows directory.
+ */
+const KEBAB_CASE_NAME = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
  * Validate a flow YAML object: structural (TypeBox) + cross-field rules the
  * schema can't express. Cross-field rules reject combinations the generator
  * can't honor so a loop/fanout is never silently swallowed.
@@ -25,6 +32,11 @@ export function validateFlowYaml(input: unknown): ValidationResult {
   if (RESERVED_NAME.test(flow.name)) {
     errors.push(
       `name "${flow.name}": reserved (the sf-flow-/sf_flow_ prefix is flow's own command namespace)`,
+    );
+  }
+  if (!KEBAB_CASE_NAME.test(flow.name)) {
+    errors.push(
+      `name "${flow.name}": must be kebab-case (lowercase alphanumeric and hyphens, starting alphanumeric — no slashes, dots, or path traversal)`,
     );
   }
   const agentNames = new Set(Object.keys(flow.agents));

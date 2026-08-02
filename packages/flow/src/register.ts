@@ -95,7 +95,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     name: "sf_flow_create_workflow",
     label: "sf_flow_create_workflow",
     description:
-      "Create or validate a reusable flow from a declarative agents/phases/loops definition. Interviews the user, writes .pi/sf/flow/workflows/<name>.yaml (project-scoped), and registers /<name>.",
+      "Adaptive wizard: consults local bundled examples, suggests building blocks, validates (full or per-section), writes + registers the flow.",
     parameters: Type.Object(
       {
         name: Type.Optional(Type.String()),
@@ -181,21 +181,27 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         }
 
         // Write + register
+        let writtenPath: string;
         try {
-          const writtenPath = await writeFlowYamlAsync(projectWorkflowsDir(repoRoot), flow);
+          writtenPath = await writeFlowYamlAsync(projectWorkflowsDir(repoRoot), flow);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          return { content: [], details: { phase: "write-error", error: msg } };
+        }
+        try {
           registerGeneratedFlow(pi, flow);
           return { content: [], details: { phase: "done", writtenPath, name: p.name, created: true } };
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          return { content: [], details: { phase: "register-error", error: msg } };
+          return { content: [], details: { phase: "register-error", writtenPath, name: p.name, error: msg } };
         }
       }
 
       // Path B: partial — validate each present section
       const requiredKeys = ["name", "description", "input"] as const;
+      const requiredYamlSections = ["agents", "phases"] as const;  // loops/groups are optional
       const missing: string[] = requiredKeys.filter((k) => !p[k]);
-      for (const k of yamlKeys) {
-        const section = k.replace("_yaml", "") as FlowSection;
+      for (const section of requiredYamlSections) {
         if (!parsed[section]) {
           missing.push(section);
         }

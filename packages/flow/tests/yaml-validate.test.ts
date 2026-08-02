@@ -17,6 +17,24 @@ describe("validateFlowYaml", () => {
     expect(validateFlowYaml({ ...base, name: "sf-flow-seed" }).ok).toBe(false);
     expect(validateFlowYaml({ ...base, name: "sf_flow_audit" }).ok).toBe(false);
   });
+
+  // P0: Path traversal via name — must be kebab-case
+  it("accepts valid kebab-case names", () => {
+    expect(validateFlowYaml({ ...base, name: "code-review" }).ok).toBe(true);
+    expect(validateFlowYaml({ ...base, name: "my-flow" }).ok).toBe(true);
+    expect(validateFlowYaml({ ...base, name: "a1" }).ok).toBe(true);
+    expect(validateFlowYaml({ ...base, name: "x" }).ok).toBe(true);
+  });
+  it("rejects path traversal in name", () => {
+    const err = 'must be kebab-case (lowercase alphanumeric and hyphens, starting alphanumeric — no slashes, dots, or path traversal)';
+    expect(validateFlowYaml({ ...base, name: "../evil" }).errors).toContain(`name "../evil": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "foo/bar" }).errors).toContain(`name "foo/bar": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "../../etc/x" }).errors).toContain(`name "../../etc/x": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "Foo" }).errors).toContain(`name "Foo": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "foo_bar" }).errors).toContain(`name "foo_bar": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "-leading" }).errors).toContain(`name "-leading": ${err}`);
+    expect(validateFlowYaml({ ...base, name: "has.space" }).errors).toContain(`name "has.space": ${err}`);
+  });
   it("rejects phase with no agent/skill/raw", () => {
     expect(validateFlowYaml({ ...base, phases: [{ id: "p", prompt: "do" }] }).ok).toBe(false);
   });
