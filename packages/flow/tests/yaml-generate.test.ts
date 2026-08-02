@@ -74,7 +74,7 @@ describe("generateScript", () => {
       name: "t", description: "d", input: "prompt",
       agents: { scanner: { model: "haiku" } },
       phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
-    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null } });
+    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null } });
     expect(s2).not.toContain("config-rev");
   });
 });
@@ -98,6 +98,8 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     plannerModel: null,
     auditorModel: "aud-model",
     synthModel: null,
+    designerModel: null,
+    elicitorModel: null,
   };
 
   it("injects args.flow/args.slug into skill-phase prompts (no placeholder const)", () => {
@@ -359,6 +361,52 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       expect(s).not.toContain('phase("g2")');
       expect(s).not.toContain('phase("f1")');
       expect(s).not.toContain('phase("f2")');
+    });
+  });
+
+  describe("questions-phase elicitor config fallback (M2)", () => {
+    it("questions-phase bakes elicitorModel from config when no inline model", () => {
+      const qFlow: FlowYaml = {
+        name: "q", description: "d", input: "prompt",
+        agents: { elicitor: { schema: { questions: "array" } } },
+        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+      };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const s = generateScript(qFlow, { models });
+      expect(s).toMatch(/model:\s*"config\/el"/);
+    });
+
+    it("inline YAML model wins over elicitorModel config", () => {
+      const qFlow: FlowYaml = {
+        name: "q", description: "d", input: "prompt",
+        agents: { elicitor: { model: "yaml-el", schema: { questions: "array" } } },
+        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+      };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const s = generateScript(qFlow, { models });
+      expect(s).toMatch(/model:\s*"yaml-el"/);
+      expect(s).not.toContain("config/el");
+    });
+
+    it("no model when both inline and config are absent", () => {
+      const qFlow: FlowYaml = {
+        name: "q", description: "d", input: "prompt",
+        agents: { elicitor: { schema: { questions: "array" } } },
+        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+      };
+      const s = generateScript(qFlow);
+      expect(s).not.toMatch(/model:\s*"[^"]+"/);
+    });
+
+    it("non-questions tier-2 agent does NOT pick up elicitorModel", () => {
+      const flow: FlowYaml = {
+        name: "t", description: "d", input: "prompt",
+        agents: { scanner: {} },
+        phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
+      };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const s = generateScript(flow, { models });
+      expect(s).not.toContain("config/el");
     });
   });
 });

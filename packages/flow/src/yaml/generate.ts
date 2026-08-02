@@ -38,6 +38,7 @@ function agentOpts(
   def: FlowYaml["agents"][string] | undefined,
   phase: string,
   agentType: string,
+  configModel?: string | null,
 ): string {
   const parts: string[] = [
     `label: ${JSON.stringify(name)}`,
@@ -45,7 +46,8 @@ function agentOpts(
     `agentType: ${JSON.stringify(agentType)}`,
   ];
   if (def?.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
-  if (def?.model) parts.push(`model: ${JSON.stringify(def.model)}`);
+  const resolvedModel = def?.model ?? configModel ?? undefined;
+  if (resolvedModel) parts.push(`model: ${JSON.stringify(resolvedModel)}`);
   if (def?.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
   if (def?.isolated) parts.push(`isolated: true`);
   if (def?.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
@@ -132,7 +134,8 @@ export function generateScript(
       const maxRounds = ph.max_rounds ?? 5;
       const qDef = flow.agents[ph.questions];
       const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
-      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType);
+      const qConfigModel = genOpts.models?.elicitorModel ?? null;
+      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType, qConfigModel);
       const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
         "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
