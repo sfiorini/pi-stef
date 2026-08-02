@@ -229,6 +229,27 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     expect(s).toContain("${args.slug}");
   });
 
+  it("escapes dangerous chars in agent name for questions-phase directive (P2-1)", () => {
+    // Agent key with backtick and ${ — would break template literal if unescaped
+    const dangerousKey = "my`bot${1}";
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { [dangerousKey]: { model: "haiku" } },
+      phases: [{ id: "clarify", questions: dangerousKey, out: "reqs" }],
+    };
+    // Must not throw — generation succeeds
+    const s = generateScript(qFlow);
+    // Directive still present
+    expect(s).toContain("QUESTIONS PHASE");
+    // The dangerous agent name appears ESCAPED (backslash-backtick, backslash-${) in the directive
+    expect(s).toContain("my\\`bot\\${1}");
+    // CRITICAL: the subagent_type value in the directive must also be escaped
+    // (otherwise the raw backtick in qAgentType would break the template literal)
+    expect(s).toContain("subagent_type: my\\`bot\\${1}");
+    // The opts line still has the raw value in the comment (not in the directive)
+    expect(s).toContain("// elicitor agent opts:");
+  });
+
   it("grouped phases are skipped (group emitted once, individual phases suppressed)", () => {
     const gFlow: FlowYaml = {
       name: "g", description: "d", input: "prompt",

@@ -137,8 +137,7 @@ export function generateScript(
       const directive =
         "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
         "The orchestrator (YOU) must run a clarifying-questions follow-up loop. " +
-        "Dispatch the " + esc(ph.questions) + " agent via the Agent tool (subagent_type: " + qAgentType + ", " +
-        "model/thinking/isolated/schema per opts: " + qOpts + "). " +
+        "Dispatch the " + esc(ph.questions) + " agent via the Agent tool (subagent_type: " + esc(qAgentType) + "). " +
         "It returns { questions: string[] }. If NON-EMPTY: present each via AskUserQuestion (one at a time, " +
         "multiple-choice when possible), collect answers, RE-DISPATCH with prior context + questions + answers. " +
         "Repeat until EMPTY or " + maxRounds + " rounds. If unattended (no user): answer with sensible defaults " +
