@@ -14,7 +14,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **8 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **9 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **5 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
@@ -66,7 +66,7 @@ You can also drive everything in natural language:
 
 ## Built-in agents
 
-Eight write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Nine write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
@@ -77,12 +77,13 @@ Eight write-once agent definitions ship in `packages/flow/agents/` and are copie
 | `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high |
 | `synth` | Synthesis / Report Writer | read, write | medium |
 | `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
+| `elicitor` | Requirements Elicitor — clarifying questions | read, grep, find, ls | high |
 | `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium |
 
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Seven are config-backed; one is Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`.
+- **Seven are config-backed; two are Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is also a Tier-2 inline-model agent used by `questions` phases (its model is set inline in the workflow YAML, not in `config.json`).
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -94,8 +95,8 @@ Five reference flows ship in `packages/flow/workflows/`. They are **global** def
 
 | Workflow | File | What it does |
 |----------|------|--------------|
-| `code-review` | `code-review.yaml` | CodeRabbit-style review of a diff (audit triad) |
-| `ship-feature` | `ship-feature.yaml` | Plan → implement → audit a feature, gated until `APPROVED` |
+| `code-review` | `code-review.yaml` | Audit↔fix loop (auditor gates, developer fixes, re-verify) |
+| `ship-feature` | `ship-feature.yaml` | Clarify → design → plan → implement → audit, with find→fix→re-verify group loops |
 | `auth-audit` | `auth-audit.yaml` | Scan route files, fan out audits, dedup, synthesize a report |
 | `research-report` | `research-report.yaml` | Multi-perspective research with cross-checking + synthesis |
 | `deep-research` | `deep-research.yaml` | Clarify scope via a research brief, then parallel code + web research with an analyst write-up |
@@ -235,7 +236,7 @@ A map of agent-name → definition. Each agent's *behavior* comes from its `.md`
 
 ### Knob 2 — `phases`
 
-An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw`:
+An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw` / `questions`:
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -243,6 +244,8 @@ An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw`:
 | `agent` | `string` | Run an agent (must be declared in `agents`) |
 | `skill` | `string` | Run a built-in skill (e.g. `sf-flow-audit`) — opaque to the generator |
 | `raw` | `string` | Run a raw pi-dw snippet — opaque to the generator |
+| `questions` | `string` | Run an elicitor agent with a built-in clarifying-questions follow-up loop |
+| `max_rounds` | `integer` | Max follow-up rounds for `questions` phases (default 5) |
 | `prompt` | `string` | Prompt template; the fanout item and prior `out` vars are interpolated (see examples) |
 | `fanout` | `string` | Iterate a list — a prior phase's `out` var or an `args.*` runtime input (agent phases only) |
 | `verify` | `string` | Cross-check a prior `out`; pass when `>= threshold` of items survive |
@@ -261,23 +264,44 @@ A map of phase-id → loop. Two kinds:
 | `fail_on` | gate | Severities that block: `[P0, P1, P2]` (default) |
 | `max_rounds` | both | Bound on iterations (default per flow) |
 
+### Knob — `groups` (optional)
+
+A map of group-name → `{ phases: [gate, ...fixers] }`. A group is a named collection of phases where the **first** phase is the gate (must have a `verdict` schema) and the rest are fix phases (all must be `agent` phases). When a `loops` key matches a group name (instead of a phase id), the generator emits a find→fix→re-verify loop: the gate runs → if REVISE with blocking findings, the fix phases run with findings appended → gate re-verifies → until APPROVED or max_rounds.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `phases` | `string[]` | ≥2 phase ids; all must be `agent` phases; first = gate, rest = fix |
+
+Loop keys resolve **group-first**: if a `loops` key matches both a group name and a phase id, the group wins.
+
 ### Validation rules
 
 `validateFlowYaml` enforces these cross-field rules so a loop/fanout is never silently swallowed (invalid flows fail at registration, not at runtime):
 
 | # | Rule |
 |---|------|
-| 1 | Each phase sets **exactly one** of `agent` / `skill` / `raw` |
+| 1 | Each phase sets **exactly one** of `agent` / `skill` / `raw` / `questions` |
 | 2 | `agent` must reference a name declared in `agents` |
-| 3 | `fanout` is allowed **only** on agent phases (skill/raw are opaque) |
-| 4 | `fanout` **requires** `out` (parallel results must be captured) |
-| 5 | `verify` must reference a **prior** phase's `out` |
-| 6 | `out` names must be **unique** across phases |
-| 7 | `loops.<phaseId>` must reference an existing phase |
-| 8 | Loops are **not** allowed on `skill` phases |
-| 9 | Loops are **not** allowed on `raw` phases |
-| 10 | `until_dry` **requires** the phase to set `fanout` |
-| 11 | `until: approved` **requires** the phase agent to declare a `schema.verdict` |
+| 3 | `questions` must reference a name declared in `agents` |
+| 4 | `questions` and `fanout` are mutually exclusive |
+| 5 | `questions` and `verify` are mutually exclusive |
+| 6 | `fanout` is allowed **only** on agent phases (skill/raw are opaque) |
+| 7 | `fanout` **requires** `out` (parallel results must be captured) |
+| 8 | `verify` must reference a **prior** phase's `out` |
+| 9 | `out` names must be **unique** across phases |
+| 10 | Every phase in `groups.<name>.phases` must exist and be an agent phase |
+| 11 | A phase may belong to **at most one** group |
+| 12 | Every `groups.<name>` must have a matching `loops.<name>` |
+| 13 | `loops.<key>` that matches a group: `until_dry` is not allowed (use `until: approved`) |
+| 14 | `loops.<key>` that matches a group with `until: approved`: the gate phase's agent must declare a `schema.verdict` |
+| 15 | `loops.<key>` that matches a phase: must reference an existing phase |
+| 16 | Loops are **not** allowed on `skill` phases |
+| 17 | Loops are **not** allowed on `raw` phases |
+| 18 | Loops are **not** allowed on `questions` phases (the follow-up loop is built-in) |
+| 19 | `until_dry` **requires** the phase to set `fanout` |
+| 19a | `until: approved` on a phase loop **requires** the phase agent to declare a `schema.verdict` |
+
+> **Caveat (rule 19a):** the guard checks `schema.verdict` presence only. An agent that declares a verdict schema but has no finding-capable tools (e.g. read-only with no analysis prompt) will always `APPROVE` — this is not structurally detectable.
 
 ### Defining a new flow
 
@@ -311,13 +335,15 @@ Both run the same audit triad, so they look interchangeable — but the wrapper 
 | What runs | the skill inline, in your current session | a generated pi-dw script that runs the skill phase INLINE — the orchestrator reads + executes the skill file (no nested agent) |
 | Model source | config (`reviewer.model`) | config (`reviewer.model`) — *via the skill* |
 | Result | findings + verdict into your chat | a flow result — the skill phase's `out` is **opaque** (a placeholder string) |
-| Gated loop | no (one-shot; `apply_fixes` applies once) | **not on a skill phase** (skill phases can't loop) |
+| Gated loop | no (one-shot; `apply_fixes` applies once) | **yes** — audit↔fix group loop (auditor gates, developer fixes, re-verify until APPROVED) |
 | Extensible | fixed skill steps | edit the YAML: add phases, chain it, version & share it |
 | Input | `target` (git ref / file / `workdir`) | `prompt` · `md-file` · `prd` · `jira` |
 
-Today `code-review.yaml` is a pure skill wrapper (no agent phases of its own), so functionally it's nearly identical to the skill — including the model source: both resolve the reviewer from config. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: a flow's **agent** phases get their model from the YAML (`agents.<name>.model`); its **skill** phases inherit the skill's config-driven model.
+Today `code-review.yaml` is an audit↔fix **group loop**: the auditor agent gates (finds P0-P3 + verdict), the developer agent fixes, and the auditor re-verifies until APPROVED or max_rounds. This gives it a structural advantage over the one-shot skill: findings are addressed and re-verified in a loop. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact with a gated fix loop — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: a flow's **agent** phases get their model from the YAML (`agents.<name>.model`); its **skill** phases inherit the skill's config-driven model.
 
-> **Need a gated audit loop in a flow?** A skill phase can't loop (it returns no structured verdict to gate on). Use an **agent** phase with `until: approved` instead — see the `audit` phase in `ship-feature.yaml`, which gates an auditor until `verdict: APPROVED`.
+> **Group loops are the fix mechanism.** The gate phase finds issues → the fix phase modifies code → the gate re-verifies → until APPROVED. Without the fix phase, the gate would see the same artifact each round and the loop could never close.
+
+> **Want a gated audit loop in your own flow?** Use a `groups` entry with an auditor gate phase + developer fix phase, and a matching `loops` entry with `until: approved`. The `code-review` flow demonstrates this pattern. A `skill` phase can't loop (it returns no structured verdict to gate on) — always use `agent` phases in groups.
 
 ---
 
