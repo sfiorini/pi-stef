@@ -12,8 +12,8 @@ export interface EnsureAgentFilesResult {
 }
 
 /**
- * Ensure the nine flow agent definition files exist in the global discovery dir
- * (`~/.pi/agent/agents/`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor.
+ * Ensure the ten flow agent definition files exist in the global discovery dir
+ * (`~/.pi/agent/agents/`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor, notifier.
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
  * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be

@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -85,6 +85,46 @@ describe("resolveAgentType", () => {
   it("accepts bare agent keys (no .md) too — used by generate.ts", () => {
     expect(resolveAgentType("reviewer", ["reviewer", "researcher"])).toBe("reviewer");
     expect(resolveAgentType("planner", ["reviewer"])).toBe("Plan");
+  });
+});
+
+describe("notifier agent definition", () => {
+  let content: string;
+  beforeAll(() => {
+    content = readFileSync(join(pkgRoot, "agents", "notifier.md"), "utf8");
+  });
+
+  it("frontmatter: tools, thinking, max_turns, isolated, description", () => {
+    expect(content).toMatch(/tools:\s*bash/);
+    expect(content).toMatch(/thinking:\s*low/);
+    expect(content).toMatch(/max_turns:\s*10/);
+    expect(content).toMatch(/isolated:\s*true/);
+    expect(content).toMatch(/description:/);
+  });
+
+  it("documents both env vars: TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID", () => {
+    expect(content).toContain("TELEGRAM_BOT_TOKEN");
+    expect(content).toContain("TELEGRAM_CHAT_ID");
+  });
+
+  it("defines all 3 statuses: sent, skipped, failed", () => {
+    expect(content).toContain('"sent"');
+    expect(content).toContain('"skipped"');
+    expect(content).toContain('"failed"');
+  });
+
+  it("invokes notify-telegram.sh bare-name with --message-file (no absolute path)", () => {
+    expect(content).toMatch(/notify-telegram\.sh --message-file/);
+    expect(content).not.toMatch(/\/notify-telegram\.sh/);
+  });
+
+  it("non-load-bearing rule: NEVER block, retry, or loop", () => {
+    expect(content).toMatch(/NEVER block, retry, or loop/i);
+  });
+
+  it("output contract: status + detail", () => {
+    expect(content).toContain("status");
+    expect(content).toContain("detail");
   });
 });
 
