@@ -30,7 +30,8 @@ export type PhaseModelInfo = {
  *    full config chain per the documented Model resolution chain.
  *  - tier-2 agent phase: YAML agents.<name>.model (baked by generate.ts agentOpts),
  *    else .md model:, else inherit orchestrator. CONFIG HAS NO EFFECT on tier-2 agent
- *    phases — by design.
+ *    phases — by design (exception: the `questions:`-phase elicitor falls back to
+ *    config `elicitor.model` when no inline YAML model is set).
  */
 export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | null): PhaseModelInfo[] {
   const TIER1 = new Set(["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]);

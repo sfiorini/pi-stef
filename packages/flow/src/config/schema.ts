@@ -2,7 +2,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 /**
  * Flow config schema. The seven agent model groups (`reviewer`/`researcher`/
- * `developer`/`planner`/`auditor`/`synth`/`designer`) plus elicitor, `audit` and `worktree` are all
+ * `developer`/`planner`/`auditor`/`synth`/`designer`) plus `elicitor`, `audit` and `worktree` are all
  * Optional so a minimal user config (e.g. `{"reviewer":{"model":"..."}}`)
  * validates. `loadConfig` deep-merges with DEFAULT_CONFIG, guaranteeing the
  * full shape at runtime (see `LoadedFlowConfig`).
