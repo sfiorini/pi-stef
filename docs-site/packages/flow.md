@@ -123,7 +123,7 @@ Five prose skills (fixed, battle-tested step sequences) plus a worktree helper:
 | Implement | `/sf-flow-implement` | `sf_flow_implement` | One worktree, TDD per story, **audit gate** before commit |
 | Audit | `/sf-flow-audit` | `sf_flow_audit` | CodeRabbit-style audit (7 angles + dual-blind AND-gate + fix-apply) |
 | Auto | `/sf-flow-auto` | `sf_flow_auto` | Run any defined flow end-to-end, no human gates |
-| Create Workflow | `/sf-flow-create-workflow` | `sf_flow_create_workflow` | Wizard: interview → agents/phases/loops YAML → `/<name>` |
+| Create Workflow | `/sf-flow-create-workflow` | `sf_flow_create_workflow` | Adaptive wizard: suggests building blocks from local examples, validates, writes, registers `/<name>` |
 | Seed | `/sf-flow-seed` | `sf_flow_seed` | Copy default agents + example workflows to their global locations |
 | — | `/sf-flow-finalize` | `sf_flow_finalize` | Remove a flow worktree dir, preserve its branch |
 
@@ -176,7 +176,7 @@ The auto-proceed directive is built into the tool's ready message — the orches
 
 ### sf_flow_create_workflow
 
-Turn intent into a validated flow. Interviews you one question at a time (skip if you pass all params), writes `.pi/sf/flow/workflows/<name>.yaml` (project-scoped), emits write-once agent stubs for any new agents, validates with `validateFlowYaml`, and registers `/<name>`.
+Adaptive wizard that consults local bundled example workflows to suggest building blocks by task archetype. Validates each section incrementally (partial) or full cross-field (complete). Writes YAML + agent stubs, registers `/<name>`.
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
@@ -186,6 +186,8 @@ Turn intent into a validated flow. Interviews you one question at a time (skip i
 | `agents_yaml` | No | Pre-formed agents YAML to skip the interview |
 | `phases_yaml` | No | Pre-formed phases YAML |
 | `loops_yaml` | No | Pre-formed loops YAML |
+| `groups_yaml` | No | Pre-formed groups YAML |
+| `overwrite` | No | Replace an existing workflow of the same name |
 
 ### sf_flow_finalize
 
@@ -307,7 +309,7 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 
 Two paths to the same result (a `.pi/sf/flow/workflows/<name>.yaml` runnable via `sf_flow_auto`):
 
-- **Wizard** — invoke `/sf-flow-create-workflow` and answer one question at a time. It writes the YAML, emits any missing agent stubs, validates, and registers `/<name>`.
+- **Wizard** — `/sf-flow-create-workflow` (adaptive: suggests building blocks from local examples, validates sections incrementally, writes YAML + agent stubs, registers `/<name>`).
 - **By hand** — create `.pi/sf/flow/workflows/<name>.yaml` (project) or `~/.pi/sf/flow/workflows/<name>.yaml` (global) following the schema above. Run `sf_flow_create_workflow` once to validate + register `/<name>`, or just run `sf_flow_auto <name> <input>` directly (it validates + generates eagerly).
 
 ---
