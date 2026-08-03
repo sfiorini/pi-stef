@@ -37,6 +37,13 @@ agents:
     schema:
       verdict: APPROVED|REVISE
       findings: array
+  notifier:
+    tools: [bash]
+    thinking: low
+    isolated: true
+    schema:
+      status: sent|skipped|failed
+      detail: string?
 groups:
   plan-review:
     phases: [review-plan, fix-plan]
@@ -89,6 +96,10 @@ phases:
     agent: developer
     in: impl_result
     prompt: "Fix the audit findings. TDD: test first. Minimal diff, no regressions. Report per-finding."
+  - id: notify
+    agent: notifier
+    prompt: "ship-feature complete"
+    out: notify_result
 loops:
   plan-review:
     until: approved

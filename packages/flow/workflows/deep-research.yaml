@@ -25,6 +25,13 @@ agents:
       briefPath: string
       researchPlan: array
       questions: array
+  notifier:
+    tools: [bash]
+    thinking: low
+    isolated: true
+    schema:
+      status: sent|skipped|failed
+      detail: string?
 phases:
   - id: orchestrate-deep-research
     raw: |
@@ -53,5 +60,7 @@ phases:
 
       const report = await agent(`You are the final deep-research analyst. Read the complete brief at ${intake.briefPath}. Synthesize the following independently gathered evidence:\n\nCODE/LOCAL FINDINGS:\n${JSON.stringify(codeFindings)}\n\nWEB/MIXED FINDINGS:\n${JSON.stringify(webFindings)}\n\nWrite a comprehensive, detailed, well-structured Markdown report with source citations under ai_plan/${intake.slug}/. Choose an appropriate descriptive filename, preserve the brief, clearly distinguish evidence from inference, include limitations or conflicts, and end with practical conclusions. Return only structured data containing reportPath and a concise summary for the caller.`, { label: "analyst", phase: "report", agentType: "analyst", tools: ["read", "write", "bash"], model: "cursor/gpt-5.6-sol", thinking: "high", isolated: true });
 
-      return { name: "deep-research", status: "complete", slug: intake.slug, briefPath: intake.briefPath, report };
+      const notify_result = await agent("deep-research complete", { label: "notifier", phase: "notify", agentType: "notifier", tools: ["bash"], isolated: true, schema: { status: "sent|skipped|failed", detail: "string?" } });
+
+      return { name: "deep-research", status: "complete", slug: intake.slug, briefPath: intake.briefPath, report, notify_result };
 loops: {}
