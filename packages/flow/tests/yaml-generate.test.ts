@@ -75,7 +75,7 @@ describe("generateScript", () => {
       name: "t", description: "d", input: "prompt",
       agents: { scanner: { model: "haiku" } },
       phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
-    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null } });
+    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null } });
     expect(s2).not.toContain("config-rev");
   });
 });
@@ -101,6 +101,8 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     synthModel: null,
     designerModel: null,
     elicitorModel: null,
+    notifierModel: null,
+    scannerModel: null,
   };
 
   it("injects args.flow/args.slug into skill-phase prompts (no placeholder const)", () => {
@@ -372,7 +374,7 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
         agents: { elicitor: { schema: { questions: "array" } } },
         phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
       };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
       const s = generateScript(qFlow, { models });
       expect(s).toMatch(/model:\s*"config\/el"/);
     });
@@ -383,7 +385,7 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
         agents: { elicitor: { model: "yaml-el", schema: { questions: "array" } } },
         phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
       };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
       const s = generateScript(qFlow, { models });
       expect(s).toMatch(/model:\s*"yaml-el"/);
       expect(s).not.toContain("config/el");
@@ -405,11 +407,27 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
         agents: { scanner: {} },
         phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
       };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
       const s = generateScript(flow, { models });
       expect(s).not.toContain("config/el");
     });
   });
+});
+
+describe("tier-2 agent config fallback (M6)", () => {
+  const withScanner = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: "config/sc" };
+  const withReviewer = { reviewerModel: "config/rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null };
+  const flow = (agents: Record<string, { model?: string }>, agent: string) => ({ name: "t", description: "d", input: "prompt" as const, agents, phases: [{ id: "p", agent, prompt: "go" }] });
+  it("(a) config + no inline → emits config model", () => { expect(generateScript(flow({ scanner: {} }, "scanner"), { models: withScanner })).toMatch(/model:\s*"config\/sc"/); });
+  it("(b) inline wins over config", () => { const s = generateScript(flow({ scanner: { model: "yaml/sc" } }, "scanner"), { models: withScanner }); expect(s).toMatch(/model:\s*"yaml\/sc"/); expect(s).not.toContain("config/sc"); });
+  it("(c) neither → no model emitted", () => { expect(generateScript(flow({ scanner: {} }, "scanner"))).not.toMatch(/model:\s*"[^"]+"/) });
+  it("(c2) models=null → no model", () => { expect(generateScript(flow({ scanner: {} }, "scanner"), { models: null })).not.toMatch(/model:\s*"[^"]+"/); });
+  it("(d) group-loop gate+fix with config → 2 matches", () => {
+    const g = { name: "g", description: "d", input: "prompt" as const, agents: { reviewer: { schema: { verdict: "APPROVED|REVISE" } }, developer: {} }, groups: { review: { phases: ["gate", "fix"] } }, phases: [{ id: "gate", agent: "reviewer", prompt: "r" }, { id: "fix", agent: "reviewer", prompt: "f" }], loops: { review: { until: "approved" as const, fail_on: ["P0"], max_rounds: 5 } } };
+    const s = generateScript(g, { models: withReviewer });
+    expect(s.match(/model:\s*"config\/rev"/g)).toHaveLength(2);
+  });
+  it("case-insensitive agent name", () => { expect(generateScript(flow({ Scanner: {} }, "Scanner"), { models: withScanner })).toMatch(/model:\s*"config\/sc"/); });
 });
 
 describe("notifier agent phase (Tier-2 send mechanism)", () => {

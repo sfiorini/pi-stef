@@ -1,5 +1,5 @@
 import type { FlowYaml } from "./schema.js";
-import type { ResolvedModels } from "../config/schema.js";
+import { configModelFor, type ResolvedModels } from "../config/schema.js";
 import { resolveAgentType } from "../agents.js";
 import { skillDocPath } from "../messages.js";
 
@@ -60,13 +60,14 @@ function agentOpts(
  * Gate phase resolved by id (group.phases[0]).
  * F1 invariant: null/crashed gate must NOT be treated as approval.
  */
-function emitGroupLoop(groupId: string, group: { phases: string[] }, flow: FlowYaml): string[] {
+function emitGroupLoop(groupId: string, group: { phases: string[] }, flow: FlowYaml, models: ResolvedModels | null): string[] {
   const loop = flow.loops?.[groupId];
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
   const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
   const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
-  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
+  const gateConfigModel = configModelFor(gatePhase.agent!, models);
+  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType, gateConfigModel);
   const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
   const maxRounds = loop?.max_rounds ?? 5;
   const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
@@ -91,7 +92,8 @@ function emitGroupLoop(groupId: string, group: { phases: string[] }, flow: FlowY
     const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
     const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
     const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
-    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
+    const fixConfigModel = configModelFor(fixPhase.agent!, models);
+    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType, fixConfigModel);
     const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
     lines.push(`    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _findingsJson, ${fixOpts});`);
   }
@@ -123,7 +125,7 @@ export function generateScript(
     // Grouped-phase skip: emit the group loop once, skip individual phases
     if (phaseToGroup.has(ph.id)) {
       const groupId = phaseToGroup.get(ph.id)!;
-      if (!emittedGroups.has(groupId)) { emittedGroups.add(groupId); body.push(...emitGroupLoop(groupId, flow.groups![groupId], flow)); }
+      if (!emittedGroups.has(groupId)) { emittedGroups.add(groupId); body.push(...emitGroupLoop(groupId, flow.groups![groupId], flow, genOpts.models ?? null)); }
       continue;
     }
     body.push(`phase(${JSON.stringify(ph.id)});`);
@@ -134,7 +136,7 @@ export function generateScript(
       const maxRounds = ph.max_rounds ?? 5;
       const qDef = flow.agents[ph.questions];
       const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
-      const qConfigModel = genOpts.models?.elicitorModel ?? null;
+      const qConfigModel = configModelFor(ph.questions, genOpts.models ?? null);
       const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType, qConfigModel);
       const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
@@ -187,7 +189,8 @@ export function generateScript(
     // anything else undeclared → general-purpose. `def` may be undefined for a
     // built-in fallback (agentOpts tolerates it).
     const agentType = resolveAgentType(ph.agent, Object.keys(flow.agents));
-    const opts = agentOpts(ph.agent, def, ph.id, agentType);
+    const agentConfigModel = configModelFor(ph.agent, genOpts.models ?? null);
+    const opts = agentOpts(ph.agent, def, ph.id, agentType, agentConfigModel);
     const promptLit = JSON.stringify(ph.prompt ?? "");
 
     if (ph.fanout) {
