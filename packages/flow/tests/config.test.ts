@@ -370,3 +370,93 @@ describe("configModelFor", () => {
     expect(configModelFor("scanner", m2)).toBe("scanner-m");
   });
 });
+
+describe("resolveFlowModels notifier + scanner", () => {
+  const envVars = ["SF_FLOW_NOTIFIER_MODEL", "SF_FLOW_SCANNER_MODEL"];
+  const origEnv: Record<string, string | undefined> = {};
+  beforeEach(() => {
+    for (const name of envVars) {
+      origEnv[name] = process.env[name];
+      delete process.env[name];
+    }
+  });
+  afterEach(() => {
+    for (const name of envVars) {
+      if (origEnv[name]) process.env[name] = origEnv[name];
+      else delete process.env[name];
+    }
+  });
+
+  it("resolves notifier/scanner model from config", () => {
+    const cfg = { ...DEFAULT_CONFIG, notifier: { model: "config/nt" }, scanner: { model: "config/sc" } };
+    const m = resolveFlowModels(cfg);
+    expect(m.notifierModel).toBe("config/nt");
+    expect(m.scannerModel).toBe("config/sc");
+  });
+
+  it("returns null when notifier/scanner config absent", () => {
+    const m = resolveFlowModels(DEFAULT_CONFIG);
+    expect(m.notifierModel).toBeNull();
+    expect(m.scannerModel).toBeNull();
+  });
+
+  it("NO env fallback — env vars SF_FLOW_NOTIFIER_MODEL / SF_FLOW_SCANNER_MODEL are ignored", () => {
+    process.env.SF_FLOW_NOTIFIER_MODEL = "env/nt";
+    process.env.SF_FLOW_SCANNER_MODEL = "env/sc";
+    const m = resolveFlowModels(DEFAULT_CONFIG);
+    expect(m.notifierModel).toBeNull();
+    expect(m.scannerModel).toBeNull();
+  });
+
+  it("malformed config value resolves to null", () => {
+    const cfg = { ...DEFAULT_CONFIG, notifier: { model: "/bogus" }, scanner: { model: "/bogus" } };
+    const m = resolveFlowModels(cfg);
+    expect(m.notifierModel).toBeNull();
+    expect(m.scannerModel).toBeNull();
+  });
+});
+
+describe("loadConfig notifier + scanner groups", () => {
+  it("accepts notifier + scanner config groups", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ notifier: { model: "anthropic/opus" }, scanner: { model: "anthropic/haiku" } }),
+    );
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.notifier.model).toBe("anthropic/opus");
+    expect(cfg.scanner.model).toBe("anthropic/haiku");
+  });
+
+  it("rejects bogus property inside notifier group", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ notifier: { model: "ok", bogus: true } }),
+    );
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
+  });
+
+  it("rejects bogus property inside scanner group", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ scanner: { model: "ok", bogus: true } }),
+    );
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
+  });
+
+  it("backward-compat: no notifier/scanner in config → defaults to {}", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.notifier).toEqual({});
+    expect(cfg.scanner).toEqual({});
+  });
+});
