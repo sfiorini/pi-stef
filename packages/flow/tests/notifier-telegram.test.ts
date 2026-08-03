@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { createServer, type Server, type IncomingMessage } from "node:http";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, unlinkSync } from "node:fs";
+import { writeFileSync, unlinkSync, mkdtempSync, mkdirSync, copyFileSync, chmodSync } from "node:fs";
 import { tmpdir } from "node:os";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -148,5 +148,51 @@ describe("notify-telegram.sh", () => {
     } finally {
       unlinkSync(tmpFile);
     }
+  });
+});
+
+describe("notifier PATH resolution (sandboxed HOME)", () => {
+  let realHome: string | undefined;
+  let realPath: string | undefined;
+  let sandbox: string;
+  let fixtureBin: string;
+
+  beforeAll(() => {
+    realHome = process.env.HOME;
+    realPath = process.env.PATH;
+    sandbox = mkdtempSync(join(tmpdir(), "flow-notifier-home-"));
+    fixtureBin = join(sandbox, ".pi", "agent", "npm", "node_modules", ".bin");
+    mkdirSync(fixtureBin, { recursive: true });
+    const dest = join(fixtureBin, "notify-telegram.sh");
+    copyFileSync(scriptPath, dest);
+    chmodSync(dest, 0o755);
+    process.env.HOME = sandbox;
+  });
+
+  afterAll(() => {
+    if (realHome === undefined) delete process.env.HOME;
+    else process.env.HOME = realHome;
+    if (realPath === undefined) delete process.env.PATH;
+    else process.env.PATH = realPath;
+  });
+
+  it("resolves notify-telegram.sh when PATH prepends the pi extension .bin dir", () => {
+    const r = spawnSync(
+      "bash",
+      ["-c", 'export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && command -v notify-telegram.sh'],
+      { env: { PATH: "/usr/bin:/bin", HOME: sandbox }, encoding: "utf-8" },
+    );
+    expect(r.status).toBe(0);
+    expect((r.stdout ?? "").trim()).toBe(join(fixtureBin, "notify-telegram.sh"));
+  });
+
+  it("does NOT resolve notify-telegram.sh on the default sanitized PATH (negative control)", () => {
+    const r = spawnSync(
+      "bash",
+      ["-c", "command -v notify-telegram.sh"],
+      { env: { PATH: "/usr/bin:/bin", HOME: sandbox }, encoding: "utf-8" },
+    );
+    expect(r.status).not.toBe(0);
+    expect((r.stdout ?? "").trim()).toBe("");
   });
 });
