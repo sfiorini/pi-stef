@@ -82,7 +82,7 @@ describe("buildAutoReadyMessage", () => {
     expect(msg).toContain(skillDocPath("sf-flow-auto"));
   });
 
-  it("renders the per-phase model summary and the 'config does not apply to tier-2' note", () => {
+  it("renders the per-phase model summary without the removed tier-2 config caveat", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "w", inputSummary: "prompt: x",
       resolvedWorkflowPath: "/w.yaml",
@@ -263,6 +263,22 @@ describe("summarizePhaseModels", () => {
     const summary = summarizePhaseModels(qFlow, null);
     expect(summary[0]).toMatchObject({
       kind: "tier2-elicitor",
+      model: null,
+      source: "inherit orchestrator (.md model: / orchestrator)",
+    });
+  });
+
+  it("non-elicitor questions agent ignores elicitorModel config (uses configModelFor)", () => {
+    const qFlow: FlowYaml = {
+      name: "q", description: "d", input: "prompt",
+      agents: { interviewer: {} },
+      phases: [{ id: "interview", questions: "interviewer", out: "reqs" }],
+    };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
+    const summary = summarizePhaseModels(qFlow, models);
+    expect(summary[0]).toMatchObject({
+      kind: "tier2-elicitor",
+      agent: "interviewer",
       model: null,
       source: "inherit orchestrator (.md model: / orchestrator)",
     });

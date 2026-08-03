@@ -413,7 +413,7 @@ Tier-1 skills **self-resolve** each agent's model: 1. a model passed in the invo
 
 > Tier 2 YAML agents use inline `model:` first (inline wins); an agent whose name matches a config group then falls back to `config.json`'s `<name>.model`, else `.md`, else orchestrator.
 
-> **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with a config fallback.
+> **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with an ENV-var fallback (`SF_FLOW_ELICITOR_MODEL`).
 
 ### Model precedence
 
@@ -435,7 +435,7 @@ A common question: *if an agent `.md` sets a `model:` and config sets a differen
 
 **Why YAML wins for Tier 2:** `agentOpts` resolves `def?.model ?? configModel ?? undefined` — inline YAML `model:` always wins. With no inline model, an agent whose name matches a config group (resolved via `configModelFor`) gets the config `<name>.model` baked in; otherwise the model is omitted so pi-subagents falls back to the `.md`'s `model:` (else the orchestrator).
 
-**Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with a config fallback: its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
+**Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with an ENV-var fallback (`SF_FLOW_ELICITOR_MODEL`): its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
 
 ---
 

@@ -63,9 +63,9 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
     if (ph.questions) {
       const def = flow.agents[ph.questions];
       const yamlModel = def?.model ?? null;
-      const configModel = models?.elicitorModel ?? null;
+      const configModel = configModelFor(ph.questions, models);
       const resolved = yamlModel ?? configModel;
-      const source = yamlModel ? "YAML agents.<name>.model" : configModel ? "config elicitor.model" : "inherit orchestrator (.md model: / orchestrator)";
+      const source = yamlModel ? "YAML agents.<name>.model" : configModel ? `config ${ph.questions}.model` : "inherit orchestrator (.md model: / orchestrator)";
       return { phase: ph.id, kind: "tier2-elicitor" as const, agent: ph.questions, model: resolved, source };
     }
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
