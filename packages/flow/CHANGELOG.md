@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-08-03
+### Changed
+- feat(flow): wire opt-in notify phase into ship-feature + deep-research
+- test(flow): cover notify-telegram.sh --message-file path (audit P3)
+- docs(flow): sf-flow-seed skill — ten agents + notifier (S-53)
+- docs(flow): README — notifier agent + Tier-2 notifications subsection (S-51)
+- test(flow): add notifier yaml plumbing test (S-41)
+- test(flow): add notify-telegram.sh mock-HTTP integration test (S-31)
+- feat(flow): add notifier example to workflow template (S-22)
+- feat(flow): make sf-flow-auto tier-2 (remove auto Phase 5 telegram) (S-21)
+- feat(flow): register notifier in seed/agents + definition test (S-12)
+- feat(flow): add notifier agent for opt-in Tier-2 notifications (S-11)
+
+
 ## [0.9.1] - 2026-08-02
 ### Changed
 - fix(flow): sanitize flow name (path-traversal) + register-error path + missing list + tool desc (audit)
