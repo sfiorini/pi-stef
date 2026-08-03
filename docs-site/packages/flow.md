@@ -26,7 +26,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 **Where the model comes from, per tier:**
 
 - **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — models **self-resolved** by the skill from `config.json` (project then global → env → inherit orchestrator). The tool pre-resolves + echoes them (visibility only); the skill is the resolver, so a workflow delegating via a `skill:` phase honors config too.
-- **Tier 2 YAML flows** — each agent sets its `model:` **inline in the YAML** (a fuzzy alias like `sonnet` or `haiku`), independent of `config.json` (falls back to the `.md` `model:`, else the orchestrator).
+- **Tier 2 YAML flows** — inline wins; with no inline model, an agent **whose name matches a config group** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`) falls back to `config.json`'s `<name>.model`, else `.md`, else orchestrator.
 
 ---
 
@@ -84,7 +84,7 @@ Ten write-once agent definitions ship in `packages/flow/agents/` and are copied 
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
 - **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Seven are config-backed; one is config-fallback Tier-2; two are pure Tier-2.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner` is a pure Tier-2 agent whose model is set **inline in its workflow YAML**, not in `config.json`. `elicitor` is a Tier-2 agent used by `questions` phases — its model resolves inline YAML → `config elicitor.model` → env → `.md` → orchestrator (inline wins; the only Tier-2 agent with config fallback). `notifier` is a pure Tier-2, opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
+- **Ten agents have config model groups (7 tier-1 + elicitor/notifier/scanner tier-2); inline YAML wins; bundled workflows are now configurable via config.json.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner`, `elicitor`, and `notifier` are config-backed Tier-2 agents whose model resolves **inline YAML → config `<name>.model` → .md → orchestrator** (inline wins) — like all Tier-2 agents with a matching config group. `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -434,8 +434,10 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `<role>.model` | `string` | — | Model for one of the seven agents: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
+| `<role>.model` | `string` | — | Model for one of the ten agents with a config group: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
 | `elicitor.model` | `string` | — | Model for the `elicitor` agent (questions-phase fallback). Inline YAML `model:` wins; config fallback; env; `.md`; orchestrator |
+| `notifier.model` | `string` | — | Model for the `notifier` agent (config-only; no env var). Inline YAML `model:` wins; else config; else `.md`; else orchestrator |
+| `scanner.model` | `string` | — | Model for the `scanner` agent (config-only; no env var). Inline YAML `model:` wins; else config; else `.md`; else orchestrator |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
@@ -451,28 +453,29 @@ Tier-1 skills **self-resolve** each agent's model:
 3. Environment — `SF_FLOW_<ROLE>_MODEL`.
 4. **Inherit the orchestrator model** (uniform fallback, no fail-fast). At dispatch, an unset model is *omitted* so pi-subagents applies the agent `.md` `model:` (if any) or inherits the orchestrator.
 
-> Note: Tier 2 YAML agents ignore this chain — they use the inline `model:` field in the YAML (else the `.md`, else the orchestrator).
+> Note: Tier 2 YAML agents use inline `model:` first (inline wins); an agent whose name matches a config group then falls back to `config.json`'s `<name>.model`, else `.md`, else orchestrator.
 
 > **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with a config fallback.
 
 ### Model precedence
 
-A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* Config is a **7-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); each group is `additionalProperties: false`.
+A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* **10-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`); each group is `additionalProperties: false`.
 
 | Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
 |---|---|---|---|---|
 | Tier 1 skill | (applied by pi-subagents only if config/env unset) | — | set | **config** |
 | Tier 1 skill | (applied if unset) | — | unset | **`.md`** → else **orchestrator** (uniform fallback) |
-| Tier 2 flow agent | set | set | (no effect) | **YAML** |
-| Tier 2 flow agent | set | omitted | (no effect) | **`.md`** (fallback) |
-| Tier 2 flow agent | omitted | omitted | (no effect) | orchestrator / session model |
+| Tier 2 flow agent (name-matches-group) | set | set | set | **YAML** (inline wins) |
+| Tier 2 flow agent (name-matches-group) | set | omitted | set | **config** (`<name>.model`) |
+| Tier 2 flow agent (name-matches-group) | set | omitted | unset | **`.md`** → else **orchestrator** |
+| Tier 2 flow agent (no matching group) | set | omitted | — | **`.md`** → else **orchestrator** |
 | `questions:` elicitor | set | set | (no effect) | **YAML** (inline wins) |
 | `questions:` elicitor | (applied if unset) | omitted | set | **config** (`elicitor.model`) |
 | `questions:` elicitor | (applied if unset) | omitted | unset | **`.md`** → else **orchestrator** |
 
 **Why config wins for Tier 1 (when set):** the skill self-resolves + passes the model *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding the `.md`. If config/env are both unset, the model is omitted so pi-subagents falls back to the `.md` `model:` (if any), else the orchestrator. The seven default agents ship with no `model:` — so an unset config simply inherits the orchestrator (no error).
 
-**Why YAML wins for Tier 2:** the generator emits `model:` into the agent call only when the YAML declares it (`generate.ts`: `if (def.model) parts.push(...)`). Omit it and pi-subagents falls back to the `.md`'s `model:` (else the orchestrator). Config has no effect on Tier 2 agents.
+**Why YAML wins for Tier 2:** `agentOpts` resolves `def?.model ?? configModel ?? undefined` — inline YAML `model:` always wins. With no inline model, an agent whose name matches a config group (resolved via `configModelFor`) gets the config `<name>.model` baked in; otherwise the model is omitted so pi-subagents falls back to the `.md`'s `model:` (else the orchestrator).
 
 **Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with a config fallback: its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
 
