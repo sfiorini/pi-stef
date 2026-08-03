@@ -81,7 +81,13 @@ The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting t
 Write `ai_plan/YYYY-MM-DD-<slug>/` with: `original-plan.md`, `final-transcript.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md`.
 
 ### Phase 8: Telegram Notification
-Send completion summary via notify-telegram.sh if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set.
+If `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` are set, send a one-line completion summary:
+
+```bash
+export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && notify-telegram.sh --message "<one-line summary>"
+```
+
+> The `export PATH=…` prepends the pi extension's `.bin` dir — the script is not on the default `PATH` in the agent shell, and each bash invocation is a fresh shell, so the `export` must be in the SAME command as the call (joined by `&&`).
 
 ## Tracker Discipline
 Update `story-tracker.md` before/after each story. Never proceed with stale state.

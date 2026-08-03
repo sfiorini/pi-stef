@@ -42,7 +42,15 @@ Run `sf-flow-audit` on the accumulated diff. On REVISE (any P0/P1/P2): loop back
 > **Note:** `apply_fixes: false` is report-only by design — the audit produces findings + verdict without modifying code.
 
 ### Phase 6: Finalization
-`cd` back to main checkout, call `sf_flow_finalize` (removes worktree dir, preserves `flow/<slug>` branch). Send completion summary via notify-telegram.sh if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set.
+`cd` back to main checkout, call `sf_flow_finalize` (removes worktree dir, preserves `flow/<slug>` branch).
+
+If `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` are set, send a one-line completion summary:
+
+```bash
+export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && notify-telegram.sh --message "<one-line summary>"
+```
+
+> The `export PATH=…` prepends the pi extension's `.bin` dir — the script is not on the default `PATH` in the agent shell, and each bash invocation is a fresh shell, so the `export` must be in the SAME command as the call (joined by `&&`).
 
 ## Tracker Discipline
 Update `story-tracker.md` before/after each story (the developer updates it as it works; the orchestrator verifies it stays current). Commit hash in Notes.

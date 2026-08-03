@@ -137,4 +137,12 @@ describe("flow skills", () => {
     expect(impl).toContain("write NO code");
     expect(impl).toContain("NEVER falls back to implementing");
   });
+
+  it("tier-1 skills document the PATH-prepend for notify-telegram.sh resolution", () => {
+    for (const dir of ["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]) {
+      const raw = readFileSync(join(skillsDir, dir, "SKILL.md"), "utf8");
+      expect(raw, `${dir} lacks the .bin PATH-prepend`).toContain("$HOME/.pi/agent/npm/node_modules/.bin");
+      expect(raw, `${dir} lacks the export PATH= form`).toMatch(/export\s+PATH=.*\.bin/);
+    }
+  });
 });

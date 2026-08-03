@@ -44,4 +44,10 @@ If `apply_fixes`: `categorize` findings (P0/P1 must-fix, P2 should-fix, P3 consi
 Render the merged findings via `renderReport` (pair's `### P0...P3` + `## Verdict` format). Return `VERDICT: APPROVED` only if no P0/P1/P2 remain (`isBlocking`).
 
 ## Telegram
-Send completion summary via notify-telegram.sh if `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` set.
+If `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` are set, send a one-line completion summary:
+
+```bash
+export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && notify-telegram.sh --message "<one-line summary>"
+```
+
+> The `export PATH=…` prepends the pi extension's `.bin` dir — the script is not on the default `PATH` in the agent shell, and each bash invocation is a fresh shell, so the `export` must be in the SAME command as the call (joined by `&&`).
