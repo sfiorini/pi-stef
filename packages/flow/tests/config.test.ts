@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { loadConfig, resolveFlowModels } from "../src/config/load.js";
-import { DEFAULT_CONFIG, type FlowConfig } from "../src/config/schema.js";
+import { DEFAULT_CONFIG, configModelFor, type FlowConfig, type ResolvedModels } from "../src/config/schema.js";
 
 describe("flow config", () => {
   it("returns DEFAULT_CONFIG when no files exist", async () => {
@@ -94,7 +94,7 @@ describe("resolveFlowModels", () => {
     }
   });
 
-  it("returns all 8 model fields, all null when nothing is set (no throw)", () => {
+  it("returns all 10 model fields, all null when nothing is set (no throw)", () => {
     expect(resolveFlowModels(DEFAULT_CONFIG)).toEqual({
       reviewerModel: null,
       researcherModel: null,
@@ -104,6 +104,8 @@ describe("resolveFlowModels", () => {
       synthModel: null,
       designerModel: null,
       elicitorModel: null,
+      notifierModel: null,
+      scannerModel: null,
     });
   });
 
@@ -145,6 +147,8 @@ describe("resolveFlowModels", () => {
       auditor: { model: "aud" },
       synth: { model: "syn" },
       designer: { model: "des" },
+      notifier: {},
+      scanner: {},
       audit: { threshold: 0.94, max_rounds: 5 },
       worktree: { branch_prefix: "flow/" },
     };
@@ -157,6 +161,8 @@ describe("resolveFlowModels", () => {
       synthModel: "syn",
       designerModel: "des",
       elicitorModel: null,
+      notifierModel: null,
+      scannerModel: null,
     });
   });
 
@@ -312,5 +318,55 @@ describe("loadConfig elicitor group", () => {
     const root = mkdtempSync(join(tmpdir(), "flow-root-"));
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.elicitor).toEqual({});
+  });
+});
+
+describe("configModelFor", () => {
+  const models: ResolvedModels = {
+    reviewerModel: "reviewer-m",
+    researcherModel: "researcher-m",
+    developerModel: "developer-m",
+    plannerModel: "planner-m",
+    auditorModel: "auditor-m",
+    synthModel: "synth-m",
+    designerModel: "designer-m",
+    elicitorModel: "elicitor-m",
+    notifierModel: "notifier-m",
+    scannerModel: "scanner-m",
+  };
+
+  it("returns the correct model for all 10 agent names", () => {
+    expect(configModelFor("reviewer", models)).toBe("reviewer-m");
+    expect(configModelFor("researcher", models)).toBe("researcher-m");
+    expect(configModelFor("developer", models)).toBe("developer-m");
+    expect(configModelFor("planner", models)).toBe("planner-m");
+    expect(configModelFor("auditor", models)).toBe("auditor-m");
+    expect(configModelFor("synth", models)).toBe("synth-m");
+    expect(configModelFor("designer", models)).toBe("designer-m");
+    expect(configModelFor("elicitor", models)).toBe("elicitor-m");
+    expect(configModelFor("notifier", models)).toBe("notifier-m");
+    expect(configModelFor("scanner", models)).toBe("scanner-m");
+  });
+
+  it("is case-insensitive (Scanner, NOTIFIER, Elicitor)", () => {
+    expect(configModelFor("Scanner", models)).toBe("scanner-m");
+    expect(configModelFor("NOTIFIER", models)).toBe("notifier-m");
+    expect(configModelFor("Elicitor", models)).toBe("elicitor-m");
+  });
+
+  it("returns null for unknown agent names", () => {
+    expect(configModelFor("unknown", models)).toBeNull();
+    expect(configModelFor("", models)).toBeNull();
+  });
+
+  it("returns null when models is null", () => {
+    expect(configModelFor("reviewer", null)).toBeNull();
+    expect(configModelFor("scanner", null)).toBeNull();
+  });
+
+  it("returns null when the matching field is null", () => {
+    const m2 = { ...models, reviewerModel: null };
+    expect(configModelFor("reviewer", m2)).toBeNull();
+    expect(configModelFor("scanner", m2)).toBe("scanner-m");
   });
 });

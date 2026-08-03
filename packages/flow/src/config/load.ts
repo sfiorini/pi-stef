@@ -68,6 +68,8 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
     synth: { ...base.synth, ...over.synth },
     designer: { ...base.designer, ...over.designer },
     elicitor: { ...base.elicitor, ...over.elicitor },
+    notifier: { ...base.notifier, ...over.notifier },
+    scanner: { ...base.scanner, ...over.scanner },
     audit: { ...base.audit, ...over.audit },
     worktree: { ...base.worktree, ...over.worktree },
   };
@@ -114,11 +116,13 @@ function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
 }
 
 /**
- * Resolve all agent models (7 roles + elicitor) from the deterministic front-end chain:
+ * Resolve all agent models (7 roles + elicitor + notifier + scanner) from the deterministic front-end chain:
  * 1. Override (tool param / prompt extraction) — if truthy
  * 2. Config group `.model` (project beats global via the loadConfig merge)
  * 3. Environment variable `SF_FLOW_<ROLE>_MODEL`
  * 4. null ⇒ caller inherits the orchestrator model (uniform fallback, no fail-fast)
+ *
+ * notifier/scanner are config-only (no override, no env var).
  *
  * Pure + synchronous (no I/O): takes a loaded config. The `.md` frontmatter →
  * orchestrator-inherit step is pi-subagents' concern at dispatch, NOT resolved here.
@@ -144,6 +148,9 @@ export function resolveFlowModels(cfg: FlowConfig, overrides: ModelOverrides = {
   // elicitor is NOT an AgentRole — resolve standalone
   const elCfgM = cfg.elicitor?.model;
   out.elicitorModel = elCfgM ? normalizeModelSpec(elCfgM) : normalizeModelSpec(process.env.SF_FLOW_ELICITOR_MODEL);
+  // notifier + scanner are config-only (no override, no env var).
+  out.notifierModel = normalizeModelSpec(cfg.notifier?.model);
+  out.scannerModel = normalizeModelSpec(cfg.scanner?.model);
   return out;
 }
 
