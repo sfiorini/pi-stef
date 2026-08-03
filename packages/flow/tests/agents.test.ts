@@ -122,6 +122,11 @@ describe("notifier agent definition", () => {
     expect(content).toMatch(/NEVER block, retry, or loop/i);
   });
 
+  it("documents the PATH-prepend for notify-telegram.sh resolution", () => {
+    expect(content).toContain("$HOME/.pi/agent/npm/node_modules/.bin");
+    expect(content).toMatch(/export\s+PATH=.*\.bin/);
+  });
+
   it("output contract: status + detail", () => {
     expect(content).toContain("status");
     expect(content).toContain("detail");

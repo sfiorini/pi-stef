@@ -29,7 +29,7 @@ msg_file="$(mktemp)"
 cat > "$msg_file" <<'NOTIFY_MSG'
 <paste your prompt verbatim here>
 NOTIFY_MSG
-notify-telegram.sh --message-file "$msg_file"
+export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && notify-telegram.sh --message-file "$msg_file"
 rc=$?
 rm -f "$msg_file"
 ```
@@ -38,8 +38,7 @@ rm -f "$msg_file"
 - non-zero → `{ "status": "failed", "detail": "<concise stderr reason>" }`
 - script not found on `PATH` → `{ "status": "failed", "detail": "notify-telegram.sh not found on PATH" }`
 
-Invoke `notify-telegram.sh` by **bare name** (it's on `node_modules/.bin` via the
-package `bin` entry) — no absolute path.
+`notify-telegram.sh` is NOT on the default PATH in the isolated agent environment. The combined `export PATH="$HOME/.pi/agent/npm/node_modules/.bin:$PATH" && notify-telegram.sh …` line prepends the pi extension's `.bin` dir so the bare name resolves — each bash tool call is a fresh shell, so the `export` must be in the SAME invocation as the call (joined by `&&`).
 
 ## Output contract
 
