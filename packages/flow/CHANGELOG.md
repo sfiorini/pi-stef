@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [0.10.1] - 2026-08-03
+### Changed
+- fix(flow): route questions-phase diagnostic through configModelFor + doc nits (audit)
+- docs(flow): README — tier-2 agents config-backed (S-61)
+- feat(flow): reflect tier-2 config fallback in auto-ready diagnostic (M4)
+- feat(flow): wire configModelFor into tier-2 agent + group-loop emit (M3)
+- feat(flow): resolve notifier/scanner config models (M2)
+- feat(flow): add notifier/scanner config groups + configModelFor (M1)
+
+
 ## [0.10.0] - 2026-08-03
 ### Changed
 - feat(flow): wire opt-in notify phase into ship-feature + deep-research
