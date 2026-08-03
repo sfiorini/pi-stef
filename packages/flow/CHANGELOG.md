@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [0.10.2] - 2026-08-03
+### Changed
+- test(flow): sandboxed-HOME PATH-resolution test for notifier (M3)
+- fix(flow): resolve notify-telegram.sh via PATH-prepend in tier-1 skills (M2)
+- fix(flow): resolve notify-telegram.sh via PATH-prepend in notifier agent (M1)
+
+
 ## [0.10.1] - 2026-08-03
 ### Changed
 - fix(flow): route questions-phase diagnostic through configModelFor + doc nits (audit)
