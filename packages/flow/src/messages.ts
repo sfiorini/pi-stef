@@ -8,7 +8,7 @@
 
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import type { ResolvedModels } from "./config/schema.js";
+import { configModelFor, type ResolvedModels } from "./config/schema.js";
 import type { FlowYaml } from "./yaml/schema.js";
 
 export type PhaseModelInfo = {
@@ -29,9 +29,9 @@ export type PhaseModelInfo = {
  *    ALL their role agents (researcher/designer/planner/reviewer/developer) from the
  *    full config chain per the documented Model resolution chain.
  *  - tier-2 agent phase: YAML agents.<name>.model (baked by generate.ts agentOpts),
- *    else .md model:, else inherit orchestrator. CONFIG HAS NO EFFECT on tier-2 agent
- *    phases — by design (exception: the `questions:`-phase elicitor falls back to
- *    config `elicitor.model` when no inline YAML model is set).
+ *    else config <group>.model (when the agent name matches a group),
+ *    else .md model:, else inherit orchestrator (inline wins).
+ *  - questions-phase elicitor: same chain via configModelFor.
  */
 export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | null): PhaseModelInfo[] {
   const TIER1 = new Set(["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]);
@@ -70,12 +70,14 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
     }
     const def = ph.agent ? flow.agents[ph.agent] : undefined;
     const yamlModel = def?.model ?? null;
+    const configModel = configModelFor(ph.agent ?? "", models);
+    const resolved = yamlModel ?? configModel;
     return {
       phase: ph.id,
       kind: "tier2-agent",
       agent: ph.agent,
-      model: yamlModel,
-      source: yamlModel ? "YAML agents.<name>.model" : "inherit orchestrator (.md model: / orchestrator)",
+      model: resolved,
+      source: yamlModel ? "YAML agents.<name>.model" : configModel ? `config ${ph.agent}.model` : "inherit orchestrator (.md model: / orchestrator)",
     };
   });
 }
@@ -158,7 +160,7 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
   }
   if (opts.models) {
     lines.push(``);
-    lines.push(`Tier-1 config (applies to tier-1 skill phases only; inherit the orchestrator when null):`);
+    lines.push(`Config model groups (tier-1 skills + tier-2 agents with a matching group; inline YAML wins; inherit the orchestrator when null):`);
     lines.push(`- reviewer: ${opts.models.reviewerModel ?? "(inherit orchestrator)"}`);
     lines.push(`- researcher: ${opts.models.researcherModel ?? "(inherit orchestrator)"}`);
     lines.push(`- developer: ${opts.models.developerModel ?? "(inherit orchestrator)"}`);
@@ -166,13 +168,14 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     lines.push(`- auditor: ${opts.models.auditorModel ?? "(inherit orchestrator)"}`);
     lines.push(`- synth: ${opts.models.synthModel ?? "(inherit orchestrator)"}`);
     lines.push(`- designer: ${opts.models.designerModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- notifier: ${opts.models.notifierModel ?? "(inherit orchestrator)"}`);
+    lines.push(`- scanner: ${opts.models.scannerModel ?? "(inherit orchestrator)"}`);
     if (opts.phaseModels && opts.phaseModels.length) {
       lines.push(``);
       lines.push(`Per-phase models (what each phase ACTUALLY uses):`);
       for (const p of opts.phaseModels) {
         const who = p.skill ? `skill ${p.skill}` : p.agent ? `agent ${p.agent}` : "(no agent)";
-        const note = p.kind === "tier2-agent" ? "  [config does NOT apply to tier-2 agents]" : "";
-        lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}${note}`);
+        lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}`);
       }
     }
   }

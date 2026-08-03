@@ -68,6 +68,8 @@ describe("buildAutoReadyMessage", () => {
         synthModel: null,
         designerModel: null,
         elicitorModel: null,
+        notifierModel: null,
+        scannerModel: null,
       },
     });
     expect(msg).toContain("```js");
@@ -84,16 +86,17 @@ describe("buildAutoReadyMessage", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "w", inputSummary: "prompt: x",
       resolvedWorkflowPath: "/w.yaml",
-      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null },
+      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null },
       phaseModels: [
         { phase: "impl", kind: "tier1-skill", skill: "sf-flow-implement", model: "dev", source: "config (representative role)" },
         { phase: "scan", kind: "tier2-agent", agent: "scanner", model: "haiku", source: "YAML agents.<name>.model" },
       ],
     });
-    expect(msg).toContain("Tier-1 config (applies to tier-1 skill phases only");
+    expect(msg).toContain("Config model groups (tier-1 skills + tier-2 agents with a matching group");
     expect(msg).toContain("impl (tier1-skill, skill sf-flow-implement): dev");
     expect(msg).toContain("scan (tier2-agent, agent scanner): haiku");
-    expect(msg).toContain("config does NOT apply to tier-2 agents");
+    expect(msg).not.toContain("config does NOT apply to tier-2 agents");
+    expect(msg).not.toContain("Tier-1 config (applies to tier-1 skill phases only");
   });
 });
 
@@ -132,6 +135,8 @@ describe("summarizePhaseModels", () => {
         synthModel: null,
         designerModel: null,
         elicitorModel: null,
+        notifierModel: null,
+        scannerModel: null,
       },
       phaseModels: summary,
     });
@@ -140,7 +145,7 @@ describe("summarizePhaseModels", () => {
     // The tier-2 note must NOT appear for a raw ("other") phase.
     const myPhaseLine = msg.split("\n").find((l) => l.includes("myphase"));
     expect(myPhaseLine).toBeDefined();
-    expect(myPhaseLine).not.toContain("config does NOT apply to tier-2 agents");
+    expect(myPhaseLine).not.toContain("[config does NOT apply");
     // A raw phase has no skill/agent — render "(no agent)", never "agent undefined".
     expect(myPhaseLine).toContain("(no agent)");
     expect(myPhaseLine).not.toContain("agent undefined");
@@ -186,11 +191,11 @@ describe("summarizePhaseModels", () => {
     expect(msg).not.toContain("Conditional gates");
   });
 
-  it("questions-phase tier2-elicitor row does NOT have '[config does NOT apply]' caveat while tier2-agent row DOES", () => {
+  it("neither tier2-elicitor nor tier2-agent row contains the removed [config does NOT apply] caveat", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "w", inputSummary: "prompt: x",
       resolvedWorkflowPath: "/w.yaml",
-      models: { reviewerModel: "rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null },
+      models: { reviewerModel: "rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null },
       phaseModels: [
         { phase: "clarify", kind: "tier2-elicitor", agent: "elicitor", model: "haiku", source: "YAML agents.<name>.model" },
         { phase: "scan", kind: "tier2-agent", agent: "scanner", model: "sonnet", source: "YAML agents.<name>.model" },
@@ -200,19 +205,22 @@ describe("summarizePhaseModels", () => {
     const clarifyLine = lines.find((l) => l.includes("clarify"))!;
     const scanLine = lines.find((l) => l.includes("scan"))!;
     expect(clarifyLine).not.toContain("[config does NOT apply");
-    expect(scanLine).toContain("[config does NOT apply to tier-2 agents]");
+    expect(scanLine).not.toContain("[config does NOT apply");
   });
 
-  it("tier-1 config block has exactly 7 rows, no elicitor row", () => {
+  it("config block has 9 rows (reviewer through scanner), no elicitor row", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "w", inputSummary: "prompt: x",
       resolvedWorkflowPath: "/w.yaml",
-      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: "pln", auditorModel: "aud", synthModel: "syn", designerModel: "des", elicitorModel: "el" },
+      models: { reviewerModel: "rev", researcherModel: "rs", developerModel: "dev", plannerModel: "pln", auditorModel: "aud", synthModel: "syn", designerModel: "des", elicitorModel: "el", notifierModel: "ntf", scannerModel: "sc" },
     });
-    // Tier-1 config block lists exactly 7 roles
-    const tier1Block = msg.split("\n").filter((l) => l.match(/^- (reviewer|researcher|developer|planner|auditor|synth|designer):/));
-    expect(tier1Block).toHaveLength(7);
-    // No elicitor row in the tier-1 config block
+    // Config block lists 9 roles (7 original + notifier + scanner)
+    const tier1Block = msg.split("\n").filter((l) => l.match(/^- (reviewer|researcher|developer|planner|auditor|synth|designer|notifier|scanner):/));
+    expect(tier1Block).toHaveLength(9);
+    // Contains notifier and scanner rows
+    expect(msg).toContain("- notifier: ntf");
+    expect(msg).toContain("- scanner: sc");
+    // No elicitor row in the config block
     expect(msg).not.toContain("- elicitor:");
   });
 
@@ -222,7 +230,7 @@ describe("summarizePhaseModels", () => {
       agents: { elicitor: {} },
       phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
     };
-    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
     const summary = summarizePhaseModels(qFlow, models);
     expect(summary[0]).toMatchObject({
       kind: "tier2-elicitor",
@@ -237,7 +245,7 @@ describe("summarizePhaseModels", () => {
       agents: { elicitor: { model: "yaml-el" } },
       phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
     };
-    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el" };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
     const summary = summarizePhaseModels(qFlow, models);
     expect(summary[0]).toMatchObject({
       kind: "tier2-elicitor",
@@ -258,5 +266,34 @@ describe("summarizePhaseModels", () => {
       model: null,
       source: "inherit orchestrator (.md model: / orchestrator)",
     });
+  });
+});
+
+describe("summarizePhaseModels tier2-agent config fallback", () => {
+  it("config fallback → source 'config scanner.model'", () => {
+    const f: FlowYaml = { name: "t", description: "d", input: "prompt", agents: { scanner: {} }, phases: [{ id: "scan", agent: "scanner", prompt: "go" }] };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: "config/sc" };
+    const summary = summarizePhaseModels(f, models);
+    expect(summary[0]).toMatchObject({ kind: "tier2-agent", model: "config/sc", source: "config scanner.model" });
+  });
+
+  it("inline YAML wins → source 'YAML agents.<name>.model'", () => {
+    const f: FlowYaml = { name: "t", description: "d", input: "prompt", agents: { scanner: { model: "yaml/sc" } }, phases: [{ id: "scan", agent: "scanner", prompt: "go" }] };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: "config/sc" };
+    const summary = summarizePhaseModels(f, models);
+    expect(summary[0]).toMatchObject({ kind: "tier2-agent", model: "yaml/sc", source: "YAML agents.<name>.model" });
+  });
+
+  it("models null → inherit orchestrator", () => {
+    const f: FlowYaml = { name: "t", description: "d", input: "prompt", agents: { scanner: {} }, phases: [{ id: "scan", agent: "scanner", prompt: "go" }] };
+    const summary = summarizePhaseModels(f, null);
+    expect(summary[0]).toMatchObject({ kind: "tier2-agent", model: null, source: "inherit orchestrator (.md model: / orchestrator)" });
+  });
+
+  it("unknown agent name 'custom' → no fallback, inherit orchestrator", () => {
+    const f: FlowYaml = { name: "t", description: "d", input: "prompt", agents: { custom: {} }, phases: [{ id: "x", agent: "custom", prompt: "go" }] };
+    const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: "config/sc" };
+    const summary = summarizePhaseModels(f, models);
+    expect(summary[0]).toMatchObject({ kind: "tier2-agent", model: null, source: "inherit orchestrator (.md model: / orchestrator)" });
   });
 });
