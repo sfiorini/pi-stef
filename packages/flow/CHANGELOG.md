@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-08-04
+### Changed
+- fix(flow): AI-generated ≤4-word slugs via orchestrator slug param
+
+
 ## [0.11.2] - 2026-08-04
 ### Changed
 - docs: drop deprecated @pi-stef/pair and @pi-stef/team references from docs-site, READMEs, and SKILL.md
