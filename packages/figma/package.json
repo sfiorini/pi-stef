@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/figma",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Pi extension for Figma REST API tools, compact design context, and Jira-linked Figma summaries.",
   "type": "module",
   "license": "MIT",
