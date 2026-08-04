@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-08-04
+### Changed
+- fix(flow): short slug, model directive, prompt-in-slug-folder (sf-flow-auto)
+
+
 ## [0.11.0] - 2026-08-04
 ### Changed
 - test(flow): auto e2e + finalize-survival + assert-files fix (M9)
