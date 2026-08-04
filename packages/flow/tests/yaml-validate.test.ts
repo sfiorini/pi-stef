@@ -401,6 +401,47 @@ describe("contract graph validation", () => {
     ]));
     expect(r.ok).toBe(true);
   });
+
+  it("rejects publish {{slug}} without outputs.slug", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", outputs: { publish: { x: "{{slug}}" } } },
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/\{\{slug\}\}.*outputs\.slug/i);
+  });
+
+  it("rejects publish {{dir}} without outputs.dir", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", outputs: { publish: { x: "{{dir}}" } } },
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/\{\{dir\}\}.*outputs\.dir/i);
+  });
+
+  it("accepts publish {{slug}}/{{dir}} when outputs.slug/outputs.dir are declared", () => {
+    const r = validateFlowYaml(base([{
+      id: "p", agent: "a",
+      outputs: { slug: { from: "input" }, dir: "ai_plan/{{slug}}", publish: { s: "{{slug}}", d: "{{dir}}" } },
+    }]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects a bare-name publish value that is a prior publish but NOT required in this phase", () => {
+    const r = validateFlowYaml(base([
+      { id: "p1", agent: "a", out: "doc" },
+      { id: "p2", agent: "a", outputs: { publish: { echo: "doc" } } }, // doc not required -> undefined ref
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/not \{\{|required input/i);
+  });
+
+  it("accepts a bare-name publish value that is a required input (republish)", () => {
+    const r = validateFlowYaml(base([
+      { id: "p1", agent: "a", out: "doc" },
+      { id: "p2", agent: "a", inputs: { require: ["doc"] }, outputs: { publish: { echo: "doc" } } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe("validateStrictProfile (ship-feature)", () => {

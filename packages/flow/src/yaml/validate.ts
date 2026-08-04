@@ -106,18 +106,41 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       if (a.template && !templateExists(a.template))
         errors.push(`phase "${ph.id}": artifact template "${a.template}" not found`);
     if (ph.outputs?.publish) {
+      // A publish value compiles to a JS expression; it must reference a name
+      // that is in THIS phase's scope, else the generated epilogue emits an
+      // undefined reference. In-scope = the phase out (const from the agent) or
+      // a required input (destructured in the prologue); {{slug}}/{{dir}} map to
+      // the slug/_dir consts this phase declares via outputs.slug/outputs.dir.
+      const reqNames = requiredNames(ph);
+      const inScope = (name: string) => name === ph.out || reqNames.includes(name);
       for (const [k, v] of Object.entries(ph.outputs.publish)) {
         if (!/^[a-z_][a-z0-9_]*$/i.test(k))
           errors.push(`phase "${ph.id}": publish name "${k}" is not a valid identifier`);
-        if (v === undefined) errors.push(`phase "${ph.id}": publish "${k}" has no value`);
-        // Bare-name publish values (not {{...}}, not a literal) must resolve to
-        // this phase's own out or a prior publish, else the generated JS would
-        // reference an undefined variable.
+        if (v === undefined) {
+          errors.push(`phase "${ph.id}": publish "${k}" has no value`);
+          continue;
+        }
         const vm = v.match(/^\{\{(\w+)\}\}$/);
-        if (!vm && /^[a-z_]\w*$/i.test(v) && v !== ph.out && !avail.has(v))
-          errors.push(
-            `phase "${ph.id}": publish value "${v}" is not {{...}}, a literal, the phase out, or a prior publish`,
-          );
+        if (vm) {
+          const name = vm[1];
+          if (name === "dir") {
+            if (!ph.outputs?.dir)
+              errors.push(`phase "${ph.id}": publish "{{dir}}" requires outputs.dir`);
+          } else if (name === "slug") {
+            if (!ph.outputs?.slug)
+              errors.push(`phase "${ph.id}": publish "{{slug}}" requires outputs.slug`);
+          } else if (!inScope(name)) {
+            errors.push(
+              `phase "${ph.id}": publish "{{${name}}}" must be the phase out or a required input (require it first to republish a prior value)`,
+            );
+          }
+        } else if (/^[a-z_]\w*$/i.test(v)) {
+          if (!inScope(v))
+            errors.push(
+              `phase "${ph.id}": publish value "${v}" is not {{...}}, a literal, the phase out, or a required input`,
+            );
+        }
+        // else: literal value — always safe.
       }
     }
   });

@@ -298,14 +298,26 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       expect(s).toContain("_maxRounds");
     });
 
-    it("gate verdict APPROVED check + blocking findings filter (F1 guarded form)", () => {
+    it("gate routes through the shared fail-closed _gateApproved (D4)", () => {
       const s = generateScript(groupFlow);
-      expect(s).toContain('_gate?.verdict === "APPROVED"');
-      expect(s).toContain('_findings.filter');
-      expect(s).toContain("_blocking");
-      // F1 invariant: null gate must NOT be treated as approval
-      expect(s).toContain("(_gate && _blocking.length === 0)");
-      expect(s).not.toContain("|| _blocking.length === 0) {");
+      expect(s).toMatch(/_gateApproved\(_gate\s*,\s*_failOn\)/);
+      expect(s).toContain("_findings.filter");
+      expect(s).toContain("_blocking"); // still emitted for the NON-CONVERGENT log
+      // F1/D4 invariant: the permissive OR-tail is gone; null/{} gate can never approve
+      expect(s).not.toContain("(_gate && _blocking.length === 0)");
+      expect(s).not.toContain('verdict === "APPROVED" ||');
+    });
+
+    it("emits the _gateApproved helper once for a gated workflow", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain("function _gateApproved(");
+      expect(s.match(/function _gateApproved\(/g)).toHaveLength(1);
+    });
+
+    it("non-convergence returns a blocked terminal (not approval)", () => {
+      const s = generateScript(groupFlow);
+      expect(s).toContain("NON-CONVERGENT");
+      expect(s).toMatch(/status:\s*"blocked"/);
     });
 
     it("emits _findingsJson + Canonical findings to address", () => {
@@ -428,6 +440,164 @@ describe("tier-2 agent config fallback (M6)", () => {
     expect(s.match(/model:\s*"config\/rev"/g)).toHaveLength(2);
   });
   it("case-insensitive agent name", () => { expect(generateScript(flow({ Scanner: {} }, "Scanner"), { models: withScanner })).toMatch(/model:\s*"config\/sc"/); });
+
+  it("(e) single-phase gate routes through _gateApproved (D4, no permissive tail)", () => {
+    const g: FlowYaml = {
+      name: "sg", description: "d", input: "prompt",
+      agents: { reviewer: { schema: { verdict: "APPROVED|REVISE" } } },
+      phases: [{ id: "rev", agent: "reviewer", prompt: "review", out: "verdict" }],
+      loops: { rev: { until: "approved", fail_on: ["P0"], max_rounds: 3 } },
+    };
+    const s = generateScript(g);
+    expect(s).toContain("function _gateApproved(");
+    expect(s).toMatch(/_gateApproved\(r\s*,\s*\[/);
+    // the old permissive `blocking.length === 0 ? { ok: true }` tail is gone
+    expect(s).not.toContain("blocking.length === 0 ? { ok: true }");
+  });
+});
+
+describe("generateScript contract envelope (M3)", () => {
+  it("emits the contract envelope with destructured inputs + resolved placeholders (S-M3-2)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt",
+      agents: { planner: {} },
+      phases: [{
+        id: "plan", agent: "planner", out: "plan_doc",
+        prompt: "Produce the plan.",
+        inputs: { require: ["design_doc"], inject: ["D: {{design_doc}}"] },
+        outputs: {
+          slug: { from: "input", prefix: "date" },
+          dir: "ai_plan/{{slug}}",
+          artifacts: [{ file: "milestone-plan.md", template: "@flow/plan/milestone-plan.md" }],
+          assert: ["nonempty"],
+          publish: { slug: "{{slug}}", plan_dir: "{{dir}}", plan_doc: "plan_doc" },
+        },
+      }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain('"load-required"');          // loadRequired emitted
+    expect(s).toContain("const design_doc = _req");  // loaded value DESTRUCTURED into a JS const
+    expect(s).toContain('"derive-slug"');
+    expect(s).toContain('"materialize"');
+    expect(s).toContain('"assert"');
+    expect(s).toContain('"complete"');          // one atomic publish+mark+persist call per phase
+    expect(s).toContain("ai_plan/${args.slug}"); // checkpoint state dir uses the run-level slug
+    expect(s).toContain("_assertRes");          // assert result is captured + guarded
+    // inject resolves {{design_doc}} to a JS ref, not a literal placeholder:
+    expect(s).toMatch(/\$\{design_doc\}/);
+    expect(s).not.toMatch(/"\{\{design_doc\}\}"/);
+    // publish resolves {{slug}}/{{dir}} to JS identifiers, not literal strings:
+    expect(s).toMatch(/slug:\s*slug/);
+    expect(s).toMatch(/plan_dir:\s*_dir/);
+    expect(s).not.toMatch(/"\{\{slug\}\}"/);
+  });
+
+  it("resurrects the dead in: shorthand by destructuring + injecting the value (S-M3-2)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [
+        { id: "p1", agent: "a", out: "doc", prompt: "make doc" },
+        { id: "p2", agent: "a", in: "doc", prompt: "use doc" },
+      ],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain("const doc = _req");   // p2 loads + destructures doc
+    expect(s).toMatch(/\$\{doc\}/);            // and interpolates it into the prompt
+  });
+
+  it("phases without contracts emit no prologue noise but still complete (resume marker)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [{ id: "p", agent: "a", prompt: "go" }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).not.toContain('"load-required"');
+    expect(s).not.toContain('"derive-slug"');
+    expect(s).toContain('"complete"'); // marks the phase success for resume
+  });
+
+  it("a blocked load-required returns a blocked terminal naming the phase", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [{ id: "p", agent: "a", inputs: { require: ["missing"] }, prompt: "go" }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain('status: "blocked"');
+    expect(s).toContain('finalPhase: "p"');
+  });
+
+  it("skill phase emits the assert envelope around the INLINE directive (S-M3-3)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: {},
+      phases: [{
+        id: "plan", skill: "sf-flow-plan",
+        outputs: {
+          slug: { from: "input" }, dir: "ai_plan/{{slug}}",
+          artifacts: [{ file: "milestone-plan.md", template: "@flow/plan/milestone-plan.md" }],
+          assert: ["nonempty"],
+          publish: { slug: "{{slug}}" },
+        },
+      }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain("INLINE SKILL PHASE");
+    expect(s).toContain('"assert"'); // sf_flow_contract assert envelope emitted
+    expect(s).toContain('"complete"');
+  });
+
+  it("emits a structured terminal result reading load-all (S-M3-4)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [{ id: "p", agent: "a", prompt: "go" }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain('"load-all"');
+    expect(s).toMatch(/status:\s*_final\.details\?\.blockedPhase/);
+    expect(s).toMatch(/finalPhase:/);
+    expect(s).toMatch(/resumeState:/);
+    // the old bare `return { name: "x" };` (name as the only field) is gone — the
+    // structured return always has a comma after name (status, finalPhase, …)
+    expect(s).not.toMatch(/return \{ name:[^,]*\};\s*$/);
+  });
+
+  it("worktree:prepare publishes the handle; worktree:finalize recovers it", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [
+        { id: "impl", agent: "a", worktree: "prepare", prompt: "build", out: "impl_result",
+          outputs: { publish: { impl_result: "impl_result" } } },
+        { id: "fin", agent: "a", worktree: "finalize", prompt: "done" },
+      ],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain("sf_flow_prepare({ slug: args.slug })");
+    expect(s).toContain("worktreePath: _wt?.worktreePath");
+    expect(s).toContain('require: ["worktreePath"]');
+    expect(s).toContain("sf_flow_finalize(");
+  });
+
+  it("questions/skill phases with out but no publish do NOT auto-publish an undefined ref (M3 P2)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt",
+      agents: { elicitor: { model: "haiku" } },
+      phases: [{ id: "clarify", questions: "elicitor", out: "reqs", max_rounds: 3 }],
+    };
+    const s = generateScript(flow as any);
+    // the epilogue completes the phase (marks success) but must NOT reference `reqs`
+    // (questions phases emit a directive, no `const reqs = …`).
+    expect(s).toContain('"complete"');
+    expect(s).not.toMatch(/outputs:\s*\{[^}]*reqs:/);
+  });
+
+  it("empty complete emits outputs: {} (no stray identifier)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      phases: [{ id: "p", agent: "a", prompt: "go" }],
+    };
+    const s = generateScript(flow as any);
+    expect(s).toContain("outputs: {}");
+    expect(s).not.toContain("outputs: {  }");
+  });
 });
 
 describe("notifier agent phase (Tier-2 send mechanism)", () => {
