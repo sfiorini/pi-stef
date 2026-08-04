@@ -167,11 +167,15 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       const group = flow.groups?.[key];
       if (group) {
         if (loop.until_dry) { errors.push(`loops.${key}: until_dry is not valid on a group loop (use until: approved)`); continue; }
+        if (loop.protocol === "canonical-delta" && loop.until !== "approved")
+          errors.push(`loops.${key}: protocol:canonical-delta requires until: approved (the canonical path gates on verification each round)`);
         if (loop.until === "approved") {
           const gatePhase = flow.phases.find((p) => p.id === group.phases[0]);
           const gateAgent = gatePhase?.agent ? flow.agents[gatePhase.agent] : undefined;
           if (!gateAgent?.schema || !(gateAgent.schema as Record<string, unknown>).verdict)
             errors.push(`loops.${key}: until:approved requires the gate phase's agent ("${gatePhase?.agent}") to declare a verdict schema`);
+          if (loop.protocol === "canonical-delta" && gateAgent?.schema && !(gateAgent.schema as Record<string, unknown>).findings)
+            errors.push(`loops.${key}: protocol:canonical-delta requires the gate phase's agent ("${gatePhase?.agent}") to declare a findings schema`);
         }
         continue;
       }
@@ -181,6 +185,8 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       if (phase.raw) { errors.push(`loops.${key}: loops are not supported on raw phases`); continue; }
       if (phase.questions) { errors.push(`loops.${key}: loops are not supported on questions phases (the follow-up loop is built-in)`); continue; }
       if (loop.until_dry && !phase.fanout) errors.push(`loops.${key}: until_dry requires the phase to set fanout (discovery loop runs over a list)`);
+      if (loop.protocol === "canonical-delta")
+        errors.push(`loops.${key}: protocol:canonical-delta is only valid on a group loop (a single-phase gate has no fix phases to evolve the canonical list against)`);
       if (loop.until === "approved") {
         const ag = phase?.agent ? flow.agents[phase.agent] : undefined;
         if (!ag?.schema || !(ag.schema as Record<string, unknown>).verdict)

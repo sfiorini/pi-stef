@@ -20,6 +20,15 @@ import { deriveSlug, materializeArtifacts, assertArtifacts } from "./contract/op
 import { WorkflowState, statePath, prepareRunState } from "./workflow/state.js";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
+import {
+  assignFindingIds,
+  evolveCanonical,
+  verificationApproved,
+  renderCanonicalList,
+  type VerificationEntry,
+  type NumberedFinding,
+} from "./audit/verification.js";
+import type { Finding } from "./audit/verdict.js";
 import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
 import { join } from "node:path";
 import { load as parseYaml } from "js-yaml";
@@ -713,6 +722,79 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           details: { error: msg },
         };
       }
+    },
+  });
+
+  // sf_flow_gate — canonical-delta audit-round helper (spec §13, D12/D13). Wraps
+  // the verification engine so a group/single-phase loop with protocol:
+  // canonical-delta carries [Fn]-numbered findings across rounds and AND-gates via
+  // verification, without emitting the engine logic inline into every script.
+  pi.registerTool({
+    name: "sf_flow_gate",
+    label: "sf_flow_gate",
+    description:
+      "Canonical-delta audit round transition. mode: canonical-round. Round 1 numbers the fresh findings; round >=2 evolves the canonical list (FIXED dropped, regressions appended) and reports whether verificationApproved. Returns {canonical, rendered, approved}.",
+    parameters: Type.Object(
+      {
+        mode: Type.Literal("canonical-round"),
+        round: Type.Integer(),
+        prior: Type.Array(
+          Type.Object(
+            {
+              severity: Type.String(),
+              file: Type.String(),
+              line: Type.Number(),
+              summary: Type.String(),
+              failure_scenario: Type.String(),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+        verification: Type.Array(
+          Type.Object(
+            { ref: Type.String(), status: Type.String(), evidence: Type.String() },
+            { additionalProperties: false },
+          ),
+        ),
+        newFindings: Type.Array(
+          Type.Object(
+            {
+              severity: Type.String(),
+              file: Type.String(),
+              line: Type.Number(),
+              summary: Type.String(),
+              failure_scenario: Type.String(),
+            },
+            { additionalProperties: false },
+          ),
+        ),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params): Promise<{ content: { type: "text"; text: string }[]; details: any }> => {
+      const p = (params ?? {}) as {
+        round: number;
+        prior: Finding[];
+        verification: VerificationEntry[];
+        newFindings: Finding[];
+      };
+      const strip = (n: NumberedFinding[]): Finding[] =>
+        n.map(({ severity, file, line, summary, failure_scenario }) => ({ severity, file, line, summary, failure_scenario }));
+      if (p.round <= 1) {
+        const numbered = assignFindingIds(p.newFindings);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ round: 1 }) }],
+          details: { canonical: strip(numbered), rendered: renderCanonicalList(numbered), approved: null },
+        };
+      }
+      const priorNumbered = assignFindingIds(p.prior);
+      const evolved = evolveCanonical(priorNumbered, p.verification, p.newFindings);
+      const numbered = assignFindingIds(evolved);
+      const approved = verificationApproved(priorNumbered, p.verification, p.newFindings);
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ round: p.round, approved }) }],
+        details: { canonical: strip(numbered), rendered: renderCanonicalList(numbered), approved },
+      };
     },
   });
 

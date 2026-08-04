@@ -5,7 +5,7 @@ import { FLOW_TOOL_NAMES, registerSfFlow } from "../src/register.js";
 // Helper tools the generator emits around contracts. They are registered as pi
 // tools (so the orchestrator can call them) but are NOT user slash commands, so
 // they are intentionally absent from FLOW_TOOL_NAMES.
-const HELPER_TOOLS = ["sf_flow_contract", "sf_flow_checkpoint", "sf_flow_prepare"];
+const HELPER_TOOLS = ["sf_flow_contract", "sf_flow_checkpoint", "sf_flow_prepare", "sf_flow_gate"];
 
 describe("flow register", () => {
   it("exports the expected tool names", () => {

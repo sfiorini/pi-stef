@@ -94,6 +94,10 @@ export const LoopDef = Type.Object(
     max_rounds: Type.Optional(Type.Integer()),
     consecutive_empty: Type.Optional(Type.Integer()),
     dedup_key: Type.Optional(Type.String()),
+    /** Audit protocol for an until:approved gate. `raw` (default) re-reviews fresh
+     *  each round; `canonical-delta` carries [Fn]-numbered findings across rounds
+     *  and AND-gates via verification (spec §13, D12/D13). */
+    protocol: Type.Optional(Type.Union([Type.Literal("canonical-delta"), Type.Literal("raw")])),
   },
   { additionalProperties: false },
 );

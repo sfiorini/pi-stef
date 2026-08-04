@@ -175,6 +175,85 @@ function emitContractEpilogue(ph: PhaseDef, flowName: string, body: string[], pr
 }
 
 /**
+ * Emit a canonical-delta group-loop (spec §13, D12/D13): the gate agent's
+ * findings are numbered [F1..Fn] and carried across rounds; round >=2 runs in
+ * verification mode and the loop AND-gates via sf_flow_gate (which wraps
+ * assignFindingIds/evolveCanonical/verificationApproved). Fix phases receive the
+ * canonical list, not the latest raw findings.
+ */
+function emitCanonicalGroupLoop(
+  groupId: string,
+  group: { phases: string[] },
+  flow: FlowYaml,
+  models: ResolvedModels | null,
+): string[] {
+  const loop = flow.loops?.[groupId];
+  const gatePhaseId = group.phases[0];
+  const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
+  const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
+  const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
+  const gateConfigModel = configModelFor(gatePhase.agent!, models);
+  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType, gateConfigModel);
+  const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
+  const maxRounds = loop?.max_rounds ?? 5;
+  const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
+  const lines: string[] = [];
+  lines.push(`phase(${JSON.stringify(groupId)});`);
+  lines.push(`{`);
+  lines.push(`  const _maxRounds = ${maxRounds};`);
+  lines.push(`  const _failOn = ${failOn};`);
+  lines.push(`  let _canonical = [];`); // Finding[] carried across rounds
+  lines.push(`  let _rendered = "";`);
+  lines.push(`  for (let _round = 1; _round <= _maxRounds; _round++) {`);
+  lines.push(
+    `    log("Canonical-delta group " + ${JSON.stringify(groupId)} + " round " + _round + "/" + _maxRounds + " (gate: " + ${JSON.stringify(gatePhaseId)} + "). Round 1: fresh review. Round >=2: verify each [Fn], fix phases address the canonical list.");`,
+  );
+  // round 1: bare gate prompt; round >=2: append the prior canonical list to verify
+  lines.push(
+    `    const _gate = await agent(${gatePromptLit} + (_round > 1 ? "\\n\\nPrior canonical findings (verify each [Fn] as FIXED/PARTIALLY-FIXED/NOT-FIXED/NEW-ISSUE-INTRODUCED):\\n" + _rendered : ""), ${gateOpts});`,
+  );
+  lines.push(`    const _findings = (_gate?.findings ?? []);`);
+  lines.push(`    const _verification = (_gate?.verification ?? []);`);
+  lines.push(
+    `    const _cr = await sf_flow_gate({ mode: "canonical-round", round: _round, prior: _canonical, verification: _verification, newFindings: _findings });`,
+  );
+  lines.push(`    _canonical = (_cr.details?.canonical ?? []);`);
+  lines.push(`    _rendered = (_cr.details?.rendered ?? "");`);
+  // round 1 approval = fail-closed verdict; round >=2 approval = verificationApproved
+  lines.push(
+    `    const _ok = (_round === 1) ? _gateApproved(_gate, _failOn).ok : (_cr.details?.approved === true);`,
+  );
+  lines.push(`    if (_ok) { log("APPROVED — canonical group " + ${JSON.stringify(groupId)}); break; }`);
+  lines.push(`    if (_round === _maxRounds) {`);
+  lines.push(
+    `      log("⚠ NON-CONVERGENT: canonical group " + ${JSON.stringify(groupId)} + " did not converge after " + _maxRounds + " rounds; canonical findings: ");`,
+  );
+  lines.push(`      log(_rendered || JSON.stringify(_canonical));`);
+  lines.push(
+    `      await sf_flow_checkpoint({ mode: "write", dir: \`ai_plan/\${args.slug}\`, phase: ${JSON.stringify(groupId)}, status: "blocked" });`,
+  );
+  lines.push(`      ${blockedReturn(flow.name, gatePhaseId)}`);
+  lines.push(`    }`);
+  for (let i = 1; i < group.phases.length; i++) {
+    const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
+    const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
+    const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
+    const fixConfigModel = configModelFor(fixPhase.agent!, models);
+    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType, fixConfigModel);
+    const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
+    lines.push(
+      `    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _rendered, ${fixOpts});`,
+    );
+  }
+  lines.push(`  }`);
+  lines.push(
+    `  await sf_flow_checkpoint({ mode: "complete", dir: \`ai_plan/\${args.slug}\`, phase: ${JSON.stringify(groupId)}, outputs: {}, artifacts: [] });`,
+  );
+  lines.push(`}`);
+  return lines;
+}
+
+/**
  * Emit a block-scoped group-loop: gate agent -> fail-closed gate -> fix phases with
  * findings appended -> re-verify -> until APPROVED / max_rounds.
  * F1/D4 invariant: null/crashed/malformed gate or REVISE-without-findings must NOT
@@ -187,6 +266,9 @@ function emitGroupLoop(
   models: ResolvedModels | null,
 ): string[] {
   const loop = flow.loops?.[groupId];
+  if (loop?.protocol === "canonical-delta") {
+    return emitCanonicalGroupLoop(groupId, group, flow, models);
+  }
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
   const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
