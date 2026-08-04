@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validateFlowYaml, validateSection } from "../src/yaml/validate.js";
+import { validateFlowYaml, validateSection, validateStrictProfile } from "../src/yaml/validate.js";
 
 const base = {
   name: "x",
@@ -300,6 +300,147 @@ describe("validateFlowYaml", () => {
     expect(validateFlowYaml(flow).errors).toContain(
       'loops.gate: until_dry is not valid on a group loop (use until: approved)',
     );
+  });
+});
+
+describe("contract graph validation", () => {
+  const base = (phases: any[]) => ({
+    name: "demo", description: "d", input: "prompt",
+    agents: { a: {} }, phases,
+  });
+
+  it("rejects an unresolved inputs.require", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", inputs: { require: ["nope"] } },
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/unresolved/i);
+  });
+
+  it("accepts require that resolves to a prior publish", () => {
+    const r = validateFlowYaml(base([
+      { id: "p1", agent: "a", outputs: { publish: { foo: "value-1" } } },
+      { id: "p2", agent: "a", inputs: { require: ["foo"] } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts require that resolves to the phase out shorthand", () => {
+    const r = validateFlowYaml(base([
+      { id: "p1", agent: "a", out: "doc" },
+      { id: "p2", agent: "a", inputs: { require: ["doc"] } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts require on the built-in 'input'/'flow' without a publish", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", inputs: { require: ["input", "flow"] } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("resurrects the in: shorthand as a require", () => {
+    const r = validateFlowYaml(base([
+      { id: "p1", agent: "a", out: "doc" },
+      { id: "p2", agent: "a", in: "doc" },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects worktree: finalize without a preceding prepare", () => {
+    const r = validateFlowYaml(base([{ id: "f", agent: "a", worktree: "finalize" }]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/finalize.*prepare/i);
+  });
+
+  it("accepts worktree: finalize after a prepare", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", worktree: "prepare" },
+      { id: "f", agent: "a", worktree: "finalize" },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("rejects an unresolvable artifact template", () => {
+    const r = validateFlowYaml(base([{
+      id: "p", agent: "a",
+      outputs: { slug: { from: "input" }, dir: "ai_plan/{{slug}}",
+        artifacts: [{ file: "x.md", template: "@flow/plan/does-not-exist.md" }] },
+    }]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/not found/i);
+  });
+
+  it("rejects a publish name that is not a valid identifier", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", outputs: { publish: { "bad-name!": "{{slug}}" } } },
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/not a valid identifier/i);
+  });
+
+  it("rejects a bare-name publish value that does not resolve", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", outputs: { publish: { plan_dir: "mystery" } } },
+    ]));
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toMatch(/not \{\{/i);
+  });
+
+  it("accepts a bare-name publish value equal to the phase out", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", out: "plan_doc", outputs: { publish: { plan_doc: "plan_doc" } } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+
+  it("accepts a literal (non-identifier) publish value", () => {
+    const r = validateFlowYaml(base([
+      { id: "p", agent: "a", outputs: { publish: { status: "all-done" } } },
+    ]));
+    expect(r.ok).toBe(true);
+  });
+});
+
+describe("validateStrictProfile (ship-feature)", () => {
+  const ship = (phases: any[]) => ({
+    name: "ship-feature", description: "d", input: "prompt",
+    agents: { a: {} }, phases,
+  });
+
+  it("is a no-op for a non-ship-feature flow", () => {
+    expect(validateStrictProfile({ ...ship([{ id: "p", agent: "a" }]), name: "code-review" })).toEqual([]);
+  });
+
+  it("flags a ship-feature with no plan-artifact producer", () => {
+    const errs = validateStrictProfile(ship([{ id: "plan", agent: "a" }]));
+    expect(errs.join("\n")).toMatch(/no phase produces plan artifacts/i);
+  });
+
+  it("is satisfied when a plan phase produces artifacts and implement requires slug", () => {
+    const errs = validateStrictProfile(ship([
+      { id: "plan", agent: "a", outputs: { artifacts: [{ file: "milestone-plan.md" }] } },
+      { id: "implement", agent: "a", inputs: { require: ["slug"] } },
+    ]));
+    expect(errs).toEqual([]);
+  });
+
+  it("flags an implement phase that does not require slug", () => {
+    const errs = validateStrictProfile(ship([
+      { id: "plan", agent: "a", outputs: { artifacts: [{ file: "milestone-plan.md" }] } },
+      { id: "implement", agent: "a", inputs: { require: ["plan_dir"] } },
+    ]));
+    expect(errs.join("\n")).toMatch(/implement phase must require "slug"/i);
+  });
+
+  it("validateFlowYaml does not run the strict profile when no phase declares outputs", () => {
+    // current (pre-migration) ship-feature has no outputs -> strict profile skipped
+    const r = validateFlowYaml({
+      name: "ship-feature", description: "d", input: "prompt",
+      agents: { a: {} }, phases: [{ id: "plan", agent: "a", prompt: "p" }],
+    });
+    expect(r.errors).toEqual([]);
   });
 });
 

@@ -1,10 +1,22 @@
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
+import { existsSync } from "node:fs";
 import { FlowYamlSchema, AgentDef, PhaseDef, LoopDef, GroupDef, type FlowYaml } from "./schema.js";
+import { requiredNames, availableBefore } from "./contract.js";
+import { resolveTemplate } from "../paths.js";
 
 export interface ValidationResult {
   ok: boolean;
   errors: string[];
+}
+
+/** Resolve a template ref and stat it; never throws (validation is read-only). */
+function templateExists(ref: string): boolean {
+  try {
+    return existsSync(resolveTemplate(ref));
+  } catch {
+    return false;
+  }
 }
 
 /** Flow's own slash-command namespace — user flows must not shadow these. */
@@ -71,6 +83,45 @@ export function validateFlowYaml(input: unknown): ValidationResult {
     if (ph.out) outs.add(ph.out);
   }
 
+  // Contract-graph rules (spec §16): every inputs.require must resolve to a
+  // prior publish/input; worktree:finalize needs a preceding prepare; artifact
+  // templates must exist; publish names/values must be codegen-safe. A missing
+  // require is exactly the "self-defeating dataflow" that makes a skipped phase
+  // block the next one instead of silently starving it.
+  let prepareSeen = false;
+  flow.phases.forEach((ph, i) => {
+    const avail = availableBefore(flow, i);
+    for (const req of requiredNames(ph)) {
+      if (!avail.has(req))
+        errors.push(
+          `phase "${ph.id}": inputs.require "${req}" is unresolved (no prior publish/input)`,
+        );
+    }
+    if (ph.worktree === "finalize" && !prepareSeen)
+      errors.push(
+        `phase "${ph.id}": worktree:finalize requires a preceding worktree:prepare phase`,
+      );
+    if (ph.worktree === "prepare") prepareSeen = true;
+    for (const a of ph.outputs?.artifacts ?? [])
+      if (a.template && !templateExists(a.template))
+        errors.push(`phase "${ph.id}": artifact template "${a.template}" not found`);
+    if (ph.outputs?.publish) {
+      for (const [k, v] of Object.entries(ph.outputs.publish)) {
+        if (!/^[a-z_][a-z0-9_]*$/i.test(k))
+          errors.push(`phase "${ph.id}": publish name "${k}" is not a valid identifier`);
+        if (v === undefined) errors.push(`phase "${ph.id}": publish "${k}" has no value`);
+        // Bare-name publish values (not {{...}}, not a literal) must resolve to
+        // this phase's own out or a prior publish, else the generated JS would
+        // reference an undefined variable.
+        const vm = v.match(/^\{\{(\w+)\}\}$/);
+        if (!vm && /^[a-z_]\w*$/i.test(v) && v !== ph.out && !avail.has(v))
+          errors.push(
+            `phase "${ph.id}": publish value "${v}" is not {{...}}, a literal, the phase out, or a prior publish`,
+          );
+      }
+    }
+  });
+
   if (flow.groups) {
     const phaseInGroup = new Map<string, string>();
     for (const [groupId, group] of Object.entries(flow.groups)) {
@@ -115,7 +166,30 @@ export function validateFlowYaml(input: unknown): ValidationResult {
     }
   }
 
+  // Strict profile for bundled ship-feature — only runs once a phase declares a
+  // contract (outputs). Full rules land when ship-feature migrates (M7); until
+  // then the gate keeps current workflows unaffected.
+  if (flow.phases.some((p) => p.outputs)) {
+    errors.push(...validateStrictProfile(flow));
+  }
+
   return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Extra invariants for the bundled ship-feature workflow (strict profile).
+ * Spec §16: the plan phase must produce plan artifacts and the implement phase
+ * must require the slug handed to it by the planner.
+ */
+export function validateStrictProfile(flow: FlowYaml): string[] {
+  const errs: string[] = [];
+  if (flow.name !== "ship-feature") return errs;
+  const hasPlanProducer = flow.phases.some((p) => p.outputs?.artifacts?.length);
+  if (!hasPlanProducer) errs.push("ship-feature: no phase produces plan artifacts");
+  const implementer = flow.phases.find((p) => /implement/i.test(p.id));
+  if (implementer && !implementer.inputs?.require?.includes("slug"))
+    errs.push('ship-feature: implement phase must require "slug"');
+  return errs;
 }
 
 export type FlowSection = "agents" | "phases" | "loops" | "groups";

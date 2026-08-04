@@ -1,6 +1,39 @@
 import { join } from "node:path";
+import { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { access } from "node:fs/promises";
 import { globalDir, projectDir } from "@pi-stef/paths";
+
+// ESM-safe package root. This file lives at packages/flow/src/paths.ts, so ONE
+// ".." reaches packages/flow — matching the existing seed.ts / messages.ts
+// `fileURLToPath(import.meta.url)` pattern. Never use __dirname (this package
+// is ESM-only).
+const PKG_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Absolute path to the installed flow package root (packages/flow). */
+export function packageRoot(): string {
+  return PKG_ROOT;
+}
+
+/** Absolute path to the bundled templates directory (packages/flow/templates). */
+export function templatesDir(): string {
+  return join(PKG_ROOT, "templates");
+}
+
+/** Absolute path to the plan-file skeletons (packages/flow/templates/plan). */
+export function planTemplatesDir(): string {
+  return join(templatesDir(), "plan");
+}
+
+/**
+ * Resolve a template reference to an absolute path. `@flow/...` refs resolve
+ * against the bundled templates dir; everything else (repo-relative or
+ * absolute) is returned as-is so the caller can stat it.
+ */
+export function resolveTemplate(ref: string): string {
+  if (ref.startsWith("@flow/")) return join(templatesDir(), ref.slice("@flow/".length));
+  return ref;
+}
 
 /** `~/.pi/sf/flow/workflows/` — global default workflows, available in every project. */
 export function globalWorkflowsDir(home: string): string {

@@ -1,6 +1,16 @@
 import { describe, it, expect } from "vitest";
 import { Value } from "@sinclair/typebox/value";
-import { FlowYamlSchema, AgentDef, PhaseDef, LoopDef, GroupDef } from "../src/yaml/schema.js";
+import {
+  FlowYamlSchema,
+  AgentDef,
+  PhaseDef,
+  LoopDef,
+  GroupDef,
+  ArtifactSpec,
+  SlugSpec,
+  PhaseInputs,
+  PhaseOutputs,
+} from "../src/yaml/schema.js";
 
 const valid = {
   name: "auth-audit",
@@ -68,5 +78,57 @@ describe("flow yaml schema", () => {
       expect(def.properties).toBeDefined();
       expect(typeof def.properties).toBe("object");
     }
+  });
+});
+
+describe("PhaseDef contracts", () => {
+  it("accepts a phase with inputs/outputs/worktree", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt",
+      agents: { planner: {} },
+      phases: [{
+        id: "plan", agent: "planner",
+        inputs: { require: ["design_doc"], inject: ["Design: {{design_doc}}"] },
+        outputs: {
+          slug: { from: "input", prefix: "date" },
+          dir: "ai_plan/{{slug}}",
+          artifacts: [{ file: "milestone-plan.md", template: "@flow/plan/milestone-plan.md" }],
+          assert: ["nonempty"],
+          publish: { slug: "{{slug}}", plan_dir: "{{dir}}" },
+        },
+        worktree: "none",
+      }],
+    };
+    expect([...Value.Errors(FlowYamlSchema, flow)]).toHaveLength(0);
+  });
+
+  it("rejects unknown worktree value", () => {
+    const flow = { name: "demo", description: "d", input: "prompt", agents: { p: {} },
+      phases: [{ id: "p", agent: "p", worktree: "maybe" }] };
+    expect([...Value.Errors(FlowYamlSchema, flow)].length).toBeGreaterThan(0);
+  });
+
+  it("exports the contract sub-schemas with .properties", () => {
+    for (const def of [ArtifactSpec, SlugSpec, PhaseInputs, PhaseOutputs]) {
+      expect(def).toBeDefined();
+      expect(def.properties).toBeDefined();
+      expect(typeof def.properties).toBe("object");
+    }
+  });
+
+  it("rejects a publish value that is not a string", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { p: {} },
+      phases: [{ id: "p", agent: "p", outputs: { publish: { slug: 123 } } }],
+    } as any;
+    expect([...Value.Errors(FlowYamlSchema, flow)].length).toBeGreaterThan(0);
+  });
+
+  it("accepts an artifact without a template (write-empty)", () => {
+    const flow = {
+      name: "demo", description: "d", input: "prompt", agents: { p: {} },
+      phases: [{ id: "p", agent: "p", outputs: { dir: "ai_plan/{{slug}}", artifacts: [{ file: "x.md" }] } }],
+    };
+    expect([...Value.Errors(FlowYamlSchema, flow)]).toHaveLength(0);
   });
 });
