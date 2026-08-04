@@ -78,7 +78,7 @@ The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting t
 > **Note:** The planner's fix step is what makes convergence possible — without it the reviewer sees the same artifact each round and the loop can never close.
 
 ### Phase 7: Generate Plan Files
-Write `ai_plan/YYYY-MM-DD-<slug>/` with: `original-plan.md`, `final-transcript.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md`.
+Write `ai_plan/YYYY-MM-DD-<slug>/` with: `original-plan.md`, `final-transcript.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md`. `<slug>` is a short lowercase kebab summary of the plan — `<YYYY-MM-DD>-<max 4 words>` (e.g. `2026-08-04-auth-token-rotation`); numbers allowed, drop stopwords.
 
 ### Phase 8: Telegram Notification
 If `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` are set, send a one-line completion summary:

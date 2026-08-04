@@ -275,6 +275,35 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
   });
 
   // S-22: emitGroupLoop helper tests
+  describe("plan-phase slug reuses args.slug (Site 2 — AI slug)", () => {
+    const slugFlow = {
+      name: "ship-x",
+      description: "d",
+      input: "prompt" as const,
+      agents: {},
+      phases: [
+        {
+          id: "plan",
+          agent: "planner",
+          prompt: "Plan it.",
+          out: "plan_doc",
+          outputs: {
+            slug: { from: "input" as const, prefix: "date" as const },
+            dir: "ai_plan/{{slug}}",
+            artifacts: [{ file: "plan.md" }],
+            publish: { slug: "{{slug}}", plan_dir: "{{dir}}", plan_doc: "plan_doc" },
+          },
+        },
+      ],
+    };
+
+    it("binds slug = args.slug (no derive-slug from args.input)", () => {
+      const s = generateScript(slugFlow as any);
+      expect(s).toContain("const slug = args.slug");
+      expect(s).not.toContain("derive-slug");
+      expect(s).not.toContain("source: args.input");
+    });
+  });
   describe("emitGroupLoop (group loops)", () => {
     const groupFlow: FlowYaml = {
       name: "g", description: "d", input: "prompt",
@@ -485,7 +514,8 @@ describe("generateScript contract envelope (M3)", () => {
     const s = generateScript(flow as any);
     expect(s).toContain('"load-required"');          // loadRequired emitted
     expect(s).toContain("const design_doc = _req");  // loaded value DESTRUCTURED into a JS const
-    expect(s).toContain('"derive-slug"');
+    expect(s).toContain("const slug = args.slug");   // Site 2: reuse the run slug (no derive-slug)
+    expect(s).not.toContain("derive-slug");
     expect(s).toContain('"materialize"');
     expect(s).toContain('"assert"');
     expect(s).toContain('"complete"');          // one atomic publish+mark+persist call per phase

@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deriveSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "../src/contract/ops.js";
+import { deriveSlug, materializeArtifacts, assertArtifacts, writeRunPrompt, sanitizeRunSlug, slugWasTruncated, resolveRunSlug } from "../src/contract/ops.js";
 import { WorkflowState, loadState, statePath, prepareRunState } from "../src/workflow/state.js";
 
 describe("deriveSlug", () => {
@@ -34,6 +34,72 @@ describe("deriveSlug", () => {
     const s = deriveSlug("a".repeat(120), { prefix: "none" });
     expect(s.length).toBeLessThanOrEqual(60);
     expect(s.length).toBeGreaterThan(0);
+  });
+});
+
+describe("sanitizeRunSlug", () => {
+  const now = new Date("2026-08-04T00:00:00Z");
+
+  it("preserves a supplied date prefix, kebabs the rest, caps to 4 tokens", () => {
+    expect(sanitizeRunSlug("2026-08-04-Cursor Sunset FIX!", { now })).toBe("2026-08-04-cursor-sunset-fix");
+  });
+
+  it("keeps the orchestrator's exact date (does NOT replace with today)", () => {
+    expect(sanitizeRunSlug("2025-01-15-foo", { now })).toBe("2025-01-15-foo");
+  });
+
+  it("prepends today when no date prefix is present", () => {
+    expect(sanitizeRunSlug("cursor-sunset-fix", { now })).toBe("2026-08-04-cursor-sunset-fix");
+  });
+
+  it("caps the description to <=4 tokens", () => {
+    expect(sanitizeRunSlug("a-b-c-d-e-f", { now })).toBe("2026-08-04-a-b-c-d");
+  });
+
+  it("keeps digits in tokens", () => {
+    expect(sanitizeRunSlug("auth2-token-rotation", { now })).toBe("2026-08-04-auth2-token-rotation");
+  });
+
+  it("falls back to the 'flow' token for empty/garbage", () => {
+    expect(sanitizeRunSlug("!!!", { now })).toBe("2026-08-04-flow");
+  });
+
+  it("prefix:'none' drops the date entirely (digits still kept)", () => {
+    expect(sanitizeRunSlug("auth2-token-rotation", { prefix: "none" })).toBe("auth2-token-rotation");
+  });
+});
+
+describe("slugWasTruncated", () => {
+  it("true when the description has more than 4 tokens", () => {
+    expect(slugWasTruncated("fix-the-login-timeout-bug-now")).toBe(true);
+    expect(slugWasTruncated("2026-08-04-a-b-c-d-e")).toBe(true);
+  });
+
+  it("false when the description has <=4 tokens", () => {
+    expect(slugWasTruncated("2026-08-04-cursor-sunset-fix")).toBe(false);
+    expect(slugWasTruncated("a-b-c-d")).toBe(false);
+  });
+});
+
+describe("resolveRunSlug", () => {
+  const now = new Date("2026-08-04T00:00:00Z");
+
+  it("uses a supplied slug (sanitized) and reports not-truncated", () => {
+    expect(resolveRunSlug("2026-08-04-My Plan!", "ignored-source", { now })).toEqual({
+      slug: "2026-08-04-my-plan",
+      truncated: false,
+    });
+  });
+
+  it("falls back to deriveSlug(source) when slug is omitted/blank", () => {
+    expect(resolveRunSlug(undefined, "Ship It", { now })).toEqual({ slug: "2026-08-04-ship-it", truncated: false });
+    expect(resolveRunSlug("   ", "Ship It", { now })).toEqual({ slug: "2026-08-04-ship-it", truncated: false });
+  });
+
+  it("flags truncation when a supplied slug exceeds 4 tokens", () => {
+    const r = resolveRunSlug("fix-the-login-timeout-bug-now", "x", { now });
+    expect(r.truncated).toBe(true);
+    expect(r.slug).toBe("2026-08-04-fix-the-login-timeout");
   });
 });
 

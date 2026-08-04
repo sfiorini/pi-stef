@@ -28,6 +28,68 @@ export function deriveSlug(source: string, opts: { prefix?: "date" | "none"; now
   return kebab;
 }
 
+/** Max number of description tokens (words) in an orchestrator-supplied slug. */
+const MAX_SLUG_TOKENS = 4;
+
+/**
+ * Kebab the DESCRIPTION part of a raw slug: strip a leading `YYYY-MM-DD-` date,
+ * lowercase, collapse non-alphanumerics to hyphens, trim edges; `"" -> "flow"`.
+ * No date, no token cap. Shared by sanitizeRunSlug + slugWasTruncated (DRY).
+ */
+function kebabDesc(raw: string): string {
+  const noDate = raw.replace(/^(\d{4}-\d{2}-\d{2})-/, "");
+  const k = noDate.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return k || "flow";
+}
+
+/**
+ * Sanitize an orchestrator-supplied run slug into the canonical
+ * `<YYYY-MM-DD>-<≤4 kebab tokens>` form. The tool OWNS the format:
+ *  - PRESERVES a supplied leading `YYYY-MM-DD-` date (the orchestrator's date
+ *    is trusted); only prepends today's date when no date prefix is present.
+ *  - kebabs the description (lowercase, digits kept), caps to MAX_SLUG_TOKENS.
+ *  - empty/garbage description collapses to the "flow" token.
+ * `now` is injectable for deterministic tests (used only when no date present).
+ */
+export function sanitizeRunSlug(
+  raw: string,
+  opts: { prefix?: "date" | "none"; now?: Date } = {},
+): string {
+  const dateRe = /^(\d{4}-\d{2}-\d{2})-/;
+  const m = raw.match(dateRe);
+  const desc = kebabDesc(raw)
+    .split("-")
+    .filter(Boolean)
+    .slice(0, MAX_SLUG_TOKENS)
+    .join("-");
+  if ((opts.prefix ?? "date") === "none") return desc;
+  const date = m ? m[1] : (opts.now ?? new Date()).toISOString().slice(0, 10);
+  return `${date}-${desc}`;
+}
+
+/** True iff the description part of `raw` has more than MAX_SLUG_TOKENS tokens
+ *  (i.e. sanitizeRunSlug would silently drop trailing tokens). Lets sf_flow_auto
+ *  surface details.slugTruncated for orchestrator feedback (non-blocking). */
+export function slugWasTruncated(raw: string): boolean {
+  return kebabDesc(raw).split("-").filter(Boolean).length > MAX_SLUG_TOKENS;
+}
+
+/** Decide the run slug from an optional orchestrator-supplied slug plus a
+ *  per-kind source string (slugSourceFor(classified)). When the orchestrator
+ *  supplies a non-blank slug, sanitize + use it (and report truncation);
+ *  otherwise fall back to the deterministic deriveSlug(source). Pure + tested;
+ *  sf_flow_auto just wires its params into this. */
+export function resolveRunSlug(
+  supplied: string | undefined | null,
+  source: string,
+  opts: { now?: Date } = {},
+): { slug: string; truncated: boolean } {
+  if (supplied && supplied.trim()) {
+    return { slug: sanitizeRunSlug(supplied, { now: opts.now }), truncated: slugWasTruncated(supplied) };
+  }
+  return { slug: deriveSlug(source, { prefix: "date", now: opts.now }), truncated: false };
+}
+
 function safeRead(p: string): string {
   try {
     return readFileSync(p, "utf8");

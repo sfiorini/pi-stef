@@ -128,9 +128,13 @@ function emitContractPrologue(ph: PhaseDef, flowName: string, body: string[]): v
     body.push(`await sf_flow_finalize({ worktree_path: _wtReq.details?.values?.worktreePath });`);
   }
   if (ph.outputs?.slug) {
-    body.push(
-      `const slug = (await sf_flow_contract({ mode: "derive-slug", source: args.input, prefix: ${JSON.stringify(ph.outputs.slug.prefix ?? "date")} })).details?.slug;`,
-    );
+    // Site 2: reuse the AI-supplied run slug (args.slug) instead of re-deriving a
+    // deterministic slug from args.input. ONE slug feeds the run folder, plan files,
+    // prompt.md, and the flow/<slug> branch. sf_flow_auto already sanitized it; the
+    // orchestrator binds args at runtime (messages.ts:196 + sf-flow-auto SKILL Phase 3).
+    // Today only the plan phase declares outputs.slug; the guard is general so any
+    // future phase that declares a slug also reuses the run slug (single-slug invariant).
+    body.push(`const slug = args.slug;`);
   }
   if (ph.outputs?.dir) {
     body.push(`const _dir = ${tmplToJs(ph.outputs.dir)};`);

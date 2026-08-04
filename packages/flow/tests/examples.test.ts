@@ -22,11 +22,12 @@ describe("bundled example workflows", () => {
     });
   }
 
-  it("ship-feature generates the contract steps (derive-slug/materialize/assert + prepare/finalize)", () => {
+  it("ship-feature generates the contract steps (slug/materialize/assert + prepare/finalize)", () => {
     const raw = readFileSync(join(pkgRoot, "workflows", "ship-feature.yaml"), "utf8");
     const flow = load(raw) as FlowYaml;
     const s = generateScript(flow);
-    expect(s).toContain('"derive-slug"');
+    expect(s).toContain("const slug = args.slug"); // plan phase reuses the run slug (Site 2)
+    expect(s).not.toContain("derive-slug");         // no longer derived from args.input
     expect(s).toContain('"materialize"');
     expect(s).toContain('"assert"');
     expect(s).toContain('"complete"');

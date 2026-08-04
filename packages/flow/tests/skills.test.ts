@@ -45,6 +45,16 @@ describe("flow skills", () => {
     expect(pkg.pi?.skills).toEqual([]);
   });
 
+  it("sf-flow-auto + sf-flow-plan instruct AI-generated max-4-word slugs (Site 1 + tier-1)", () => {
+    // Both pin the run/plan slug to <YYYY-MM-DD>-<max 4 words> (AI-generated),
+    // replacing the old deterministic 60-char kebab. Guards the doc ACs.
+    const auto = readFileSync(join(skillsDir, "sf-flow-auto", "SKILL.md"), "utf8");
+    const plan = readFileSync(join(skillsDir, "sf-flow-plan", "SKILL.md"), "utf8");
+    expect(auto).toContain("max 4 words");
+    expect(auto).toMatch(/pass it as the[^;]*slug[^;]*parameter/i);
+    expect(plan).toContain("max 4 words");
+  });
+
   it("enforces the exhaustive-plan standard across the plan skill + planner/reviewer agents (M4)", () => {
     // Real-shipped-file regression guard (per the Value.Cast lesson: test the
     // actual shipped files, not hand-written stubs). Both the plan tool AND a

@@ -16,7 +16,7 @@ import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
 import { classifyInput, slugSourceFor } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
-import { deriveSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "./contract/ops.js";
+import { deriveSlug, resolveRunSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "./contract/ops.js";
 import { WorkflowState, statePath, prepareRunState } from "./workflow/state.js";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
@@ -369,11 +369,16 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     name: "sf_flow_auto",
     label: "sf_flow_auto",
     description:
-      "Run a defined flow end-to-end with no human gates. Usage: sf_flow_auto <workflow-name> <prompt | md-file | PRD | jira STORY>. Loads the flow's generated script and executes all phases to a terminal state.",
+      "Run a defined flow end-to-end with no human gates. Usage: sf_flow_auto <workflow-name> <prompt | md-file | PRD | jira STORY> [slug]. Pass an optional `slug` = <YYYY-MM-DD>-<max 4 words> (a short lowercase kebab summary of the task that you generate from the input); if omitted, a deterministic slug is derived. Loads the flow's generated script and executes all phases to a terminal state.",
     parameters: Type.Object(
       {
         workflow: Type.String({ description: "Flow name (resolved project→global: .pi/sf/flow/workflows/<name>.yaml overrides ~/.pi/sf/flow/workflows/<name>.yaml)." }),
         input: Type.String({ description: "prompt | path-to-md | prd:<path> | jira STORY-123" }),
+        slug: Type.Optional(
+          Type.String({
+            description: "Optional run slug <YYYY-MM-DD>-<max 4 words> (short lowercase kebab summary you generate from the input). If omitted, a deterministic slug is derived. Drives ai_plan/<slug>/ + the flow/<slug> branch.",
+          }),
+        ),
       },
       { additionalProperties: false },
     ) as any,
@@ -404,6 +409,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       let phaseModels: ReturnType<typeof summarizePhaseModels> = [];
       let hasConditionalGates = false;
       let slug = "";
+      let slugTruncated = false;
       let stateFile: string | null = null;
       let promptPath: string | null = null;
       try {
@@ -421,7 +427,14 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         // .flow-state.json with the FULL non-grouped phase list (all pending) so
         // firstIncomplete()/resume reflect workflow order; resume keeps a matching
         // state (same workflow+input hashes).
-        slug = deriveSlug(slugSourceFor(classified), { prefix: "date" });
+        // Site 1: prefer an orchestrator-supplied AI slug (sanitized to
+        // <YYYY-MM-DD>-<≤4 kebab tokens> via resolveRunSlug); fall back to the
+        // deterministic deriveSlug(slugSourceFor(...)) when none is supplied.
+        // This single slug drives BOTH the ai_plan/<slug>/ folder and (via
+        // sf_flow_prepare) the flow/<slug> worktree branch.
+        const _runSlug = resolveRunSlug((params as any).slug, slugSourceFor(classified));
+        slug = _runSlug.slug;
+        slugTruncated = _runSlug.truncated;
         const stateDir = join(repoRoot, "ai_plan", slug);
         const sha = (s: string) => createHash("sha1").update(s, "utf8").digest("hex").slice(0, 16);
         const workflowHash = sha(`${flow.name}|${flow.phases.map((p) => p.id).join(",")}`);
@@ -480,7 +493,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
             }),
           },
         ],
-        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script, slug, stateFile, promptPath },
+        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script, slug, slugTruncated, stateFile, promptPath },
       };
     },
   });
