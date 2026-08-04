@@ -16,6 +16,9 @@ import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
 import { classifyInput } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
+import { deriveSlug, materializeArtifacts, assertArtifacts } from "./contract/ops.js";
+import { WorkflowState, statePath } from "./workflow/state.js";
+import { basename } from "node:path";
 import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
 import { join } from "node:path";
 import { load as parseYaml } from "js-yaml";
@@ -480,6 +483,196 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         content: [{ type: "text" as const, text: renderSeedReport({ agents, workflows }) }],
         details: { agents, workflows },
       };
+    },
+  });
+
+  // sf_flow_contract — phase-contract output enforcement (derive-slug | materialize | assert).
+  // Emitted by the tier-2 generator around each declared outputs: contract. Pure logic
+  // lives in contract/ops.ts so it is unit-testable without a pi runtime.
+  pi.registerTool({
+    name: "sf_flow_contract",
+    label: "sf_flow_contract",
+    description:
+      "Phase-contract output enforcement. Modes: derive-slug (kebab slug, optional date prefix), materialize (write resume-safe artifact skeletons), assert (block on missing/empty artifacts).",
+    parameters: Type.Object(
+      {
+        mode: Type.Union([
+          Type.Literal("derive-slug"),
+          Type.Literal("materialize"),
+          Type.Literal("assert"),
+        ]),
+        source: Type.Optional(Type.String()),
+        prefix: Type.Optional(Type.Union([Type.Literal("date"), Type.Literal("none")])),
+        dir: Type.Optional(Type.String()),
+        artifacts: Type.Optional(
+          Type.Array(
+            Type.Object({ file: Type.String(), template: Type.Optional(Type.String()) }, { additionalProperties: false }),
+          ),
+        ),
+        assert: Type.Optional(Type.Array(Type.String())),
+        files: Type.Optional(Type.Array(Type.String())),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params): Promise<{ content: { type: "text"; text: string }[]; details: any }> => {
+      const p = (params ?? {}) as {
+        mode: "derive-slug" | "materialize" | "assert";
+        source?: string;
+        prefix?: "date" | "none";
+        dir?: string;
+        artifacts?: { file: string; template?: string }[];
+        assert?: string[];
+        files?: string[];
+      };
+      if (p.mode === "derive-slug") {
+        const slug = deriveSlug(p.source ?? "", { prefix: p.prefix ?? "date" });
+        return { content: [{ type: "text" as const, text: JSON.stringify({ slug }) }], details: { slug } };
+      }
+      if (p.mode === "materialize") {
+        materializeArtifacts(p.dir ?? "", p.artifacts ?? []);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ dir: p.dir, ok: true }) }],
+          details: { dir: p.dir, ok: true },
+        };
+      }
+      const r = assertArtifacts(p.dir ?? "", p.assert ?? [], p.files);
+      return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: r };
+    },
+  });
+
+  // sf_flow_checkpoint — phase sequencing + resume state (.flow-state.json).
+  // Modes: complete (atomic publish+mark+persist), publish (write-through), write
+  // (mark+persist), load-required (read prior publishes; blocked when missing),
+  // load-all (read the terminal view: phaseIndex, blockedPhase, artifacts, worktree).
+  // A fresh WorkflowState is constructed over the resolved plan dir per call; the
+  // constructor merges existing on-disk state, so once initialized (sf_flow_auto
+  // pre-seeds the full phase list at run start) per-phase calls just update it.
+  pi.registerTool({
+    name: "sf_flow_checkpoint",
+    label: "sf_flow_checkpoint",
+    description:
+      "Phase sequencing + resume state. Modes: complete | publish | write | load-required | load-all. dir is the plan dir (ai_plan/<slug>). load-required returns blocked when a required prior publish is missing (self-defeating dataflow). load-all returns the terminal view for the structured result.",
+    parameters: Type.Object(
+      {
+        mode: Type.Union([
+          Type.Literal("complete"),
+          Type.Literal("publish"),
+          Type.Literal("write"),
+          Type.Literal("load-required"),
+          Type.Literal("load-all"),
+        ]),
+        dir: Type.String(),
+        phase: Type.Optional(Type.String()),
+        outputs: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+        artifacts: Type.Optional(Type.Array(Type.String())),
+        status: Type.Optional(Type.String()),
+        require: Type.Optional(Type.Array(Type.String())),
+        // optional seed (used when initializing / forwarding new phases):
+        workflowName: Type.Optional(Type.String()),
+        workflowHash: Type.Optional(Type.String()),
+        inputHash: Type.Optional(Type.String()),
+        slug: Type.Optional(Type.String()),
+        phaseIds: Type.Optional(Type.Array(Type.String())),
+      },
+      { additionalProperties: false },
+    ) as any,
+    execute: async (_id, params): Promise<{ content: { type: "text"; text: string }[]; details: any }> => {
+      const p = (params ?? {}) as {
+        mode: "complete" | "publish" | "write" | "load-required" | "load-all";
+        dir: string;
+        phase?: string;
+        outputs?: Record<string, unknown>;
+        artifacts?: string[];
+        status?: string;
+        require?: string[];
+        workflowName?: string;
+        workflowHash?: string;
+        inputHash?: string;
+        slug?: string;
+        phaseIds?: string[];
+      };
+      const dir = p.dir;
+      const seed = {
+        workflowName: p.workflowName ?? "flow",
+        workflowHash: p.workflowHash ?? "",
+        inputHash: p.inputHash ?? "",
+        slug: p.slug ?? basename(dir),
+        phaseIds: p.phaseIds ?? [],
+      };
+
+      if (p.mode === "load-required") {
+        const st = new WorkflowState(dir, seed);
+        const r = st.loadRequired(p.require ?? []);
+        return { content: [{ type: "text" as const, text: JSON.stringify(r) }], details: r };
+      }
+      if (p.mode === "load-all") {
+        const st = new WorkflowState(dir, seed);
+        const phaseIndex = st.firstIncomplete();
+        const blockedPhase = phaseIndex >= 0 ? st.data.phases[phaseIndex].id : null;
+        const artifacts = st.data.phases.flatMap((ph) => ph.artifacts);
+        const view = {
+          phaseIndex,
+          blockedPhase,
+          artifacts,
+          worktree: st.data.worktree ?? null,
+          stateFile: statePath(dir),
+          terminalResult: st.data.terminalResult ?? null,
+        };
+        return { content: [{ type: "text" as const, text: JSON.stringify(view) }], details: view };
+      }
+      // mutating modes construct + persist
+      const st = new WorkflowState(dir, seed);
+      if (p.mode === "complete") {
+        st.complete(p.phase ?? "", p.outputs ?? {}, p.artifacts ?? []);
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ phase: p.phase, ok: true }) }],
+          details: { phase: p.phase, ok: true },
+        };
+      }
+      if (p.mode === "publish") {
+        st.publish(p.phase ?? "", p.outputs ?? {}, p.artifacts ?? []);
+        st.write();
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify({ phase: p.phase, ok: true }) }],
+          details: { phase: p.phase, ok: true },
+        };
+      }
+      // write
+      st.mark(p.phase ?? "", (p.status as any) ?? "in-progress");
+      st.write();
+      return {
+        content: [{ type: "text" as const, text: JSON.stringify({ phase: p.phase, status: p.status }) }],
+        details: { phase: p.phase, status: p.status },
+      };
+    },
+  });
+
+  // sf_flow_prepare — create the flow worktree for an implement phase (flow/<slug>).
+  // Returns { worktreePath, branchName, baseSha }; the contract epilogue publishes
+  // these into .flow-state.json via complete() so the finalize phase (and resume)
+  // can recover the handle without an ephemeral JS const.
+  pi.registerTool({
+    name: "sf_flow_prepare",
+    label: "sf_flow_prepare",
+    description:
+      "Prepare a flow worktree (flow/<slug>) for an implement phase. Returns {worktreePath, branchName, baseSha}. Publish the result via sf_flow_checkpoint so the finalize phase can recover it.",
+    parameters: Type.Object({ slug: Type.String() }, { additionalProperties: false }) as any,
+    execute: async (_id, params, _signal, _onUpdate, ctx): Promise<{ content: { type: "text"; text: string }[]; details: any }> => {
+      const repoRoot = ctx?.cwd ?? process.cwd();
+      const defaults = await loadAndResolveDefaults(repoRoot);
+      try {
+        const w = await createWorktree({
+          slug: (params as any).slug,
+          branchPrefix: defaults.worktree.branch_prefix,
+        });
+        return { content: [{ type: "text" as const, text: JSON.stringify(w) }], details: w };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return {
+          content: [{ type: "text" as const, text: `Failed to prepare worktree: ${msg}` }],
+          details: { error: msg },
+        };
+      }
     },
   });
 
