@@ -70,11 +70,11 @@ describe("addCommand — companions", () => {
 
   it("installs pi.companions alongside the primary package", async () => {
     // Create a fake installed package dir
-    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/pair");
+    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/figma");
     fs.mkdirSync(pairDir, { recursive: true });
     fs.writeFileSync(
       path.join(pairDir, "package.json"),
-      JSON.stringify({ name: "@pi-stef/pair", pi: { companions: ["git:github.com/obra/superpowers"] } }),
+      JSON.stringify({ name: "@pi-stef/figma", pi: { companions: ["git:github.com/obra/superpowers"] } }),
     );
 
     // Mock resolveInstalledDir to return our fake dir for the npm source
@@ -82,7 +82,7 @@ describe("addCommand — companions", () => {
     resolveInstalledDirMock = vi
       .spyOn(installModule, "resolveInstalledDir")
       .mockImplementation((source: string) => {
-        if (source === "npm:@pi-stef/pair") return pairDir;
+        if (source === "npm:@pi-stef/figma") return pairDir;
         return undefined;
       });
 
@@ -93,27 +93,27 @@ describe("addCommand — companions", () => {
     writeCatalog(catalog, tmpDir);
 
     const { ctx } = makeCtx();
-    await addCommand({ positional: ["npm:@pi-stef/pair"], flags: { type: "pi-native" } }, ctx);
+    await addCommand({ positional: ["npm:@pi-stef/figma"], flags: { type: "pi-native" } }, ctx);
 
     // piInstall called for primary + companion
     const calls = installSpy.mock.calls.map((c: any[]) => c[0] as string);
-    expect(calls).toContain("npm:@pi-stef/pair");
+    expect(calls).toContain("npm:@pi-stef/figma");
     expect(calls).toContain("git:github.com/obra/superpowers");
   });
 
   it("skips a companion already in the catalog's sources", async () => {
-    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/pair");
+    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/figma");
     fs.mkdirSync(pairDir, { recursive: true });
     fs.writeFileSync(
       path.join(pairDir, "package.json"),
-      JSON.stringify({ name: "@pi-stef/pair", pi: { companions: ["git:github.com/obra/superpowers"] } }),
+      JSON.stringify({ name: "@pi-stef/figma", pi: { companions: ["git:github.com/obra/superpowers"] } }),
     );
 
     const installModule = await import("../src/catalog/install.js");
     resolveInstalledDirMock = vi
       .spyOn(installModule, "resolveInstalledDir")
       .mockImplementation((source: string) => {
-        if (source === "npm:@pi-stef/pair") return pairDir;
+        if (source === "npm:@pi-stef/figma") return pairDir;
         return undefined;
       });
 
@@ -125,10 +125,10 @@ describe("addCommand — companions", () => {
     writeCatalog(catalog, tmpDir);
 
     const { ctx } = makeCtx();
-    await addCommand({ positional: ["npm:@pi-stef/pair"], flags: { type: "pi-native" } }, ctx);
+    await addCommand({ positional: ["npm:@pi-stef/figma"], flags: { type: "pi-native" } }, ctx);
 
     const calls = installSpy.mock.calls.map((c: any[]) => c[0] as string);
-    expect(calls).toContain("npm:@pi-stef/pair");
+    expect(calls).toContain("npm:@pi-stef/figma");
     // companion already in catalog => not installed
     expect(calls.filter((s: string) => s === "git:github.com/obra/superpowers")).toHaveLength(0);
   });

@@ -11,7 +11,7 @@ describe("CatalogPackageSchema", () => {
   });
 
   it("defaults companions to undefined when absent", () => {
-    const entry = CatalogPackageSchema.parse({ source: "npm:@pi-stef/pair" });
+    const entry = CatalogPackageSchema.parse({ source: "npm:@pi-stef/figma" });
     expect(entry.companions).toBeUndefined();
   });
 

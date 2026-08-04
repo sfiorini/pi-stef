@@ -45,15 +45,15 @@ describe("removal tombstones", () => {
     const catalog = {
       meta: { pi_version: "0.0.0" },
       packages: {
-        pair: { source: "npm:@pi-stef/pair" },
+        figma: { source: "npm:@pi-stef/figma" },
         "superpowers-adapter": { source: "npm:@pi-stef/superpowers-adapter" },
-        team: { source: "npm:@pi-stef/team" },
+        atlassian: { source: "npm:@pi-stef/atlassian" },
       },
     };
     applyRemovalTombstones(catalog, tmpHome);
     expect(catalog.packages).toEqual({
-      pair: { source: "npm:@pi-stef/pair" },
-      team: { source: "npm:@pi-stef/team" },
+      figma: { source: "npm:@pi-stef/figma" },
+      atlassian: { source: "npm:@pi-stef/atlassian" },
     });
     // Tombstones are cleared after application — a "re-add remotely"
     // scenario on the next sync won't be silently dropped.
@@ -63,10 +63,10 @@ describe("removal tombstones", () => {
   it("applyRemovalTombstones is a no-op when no tombstones exist", () => {
     const catalog = {
       meta: { pi_version: "0.0.0" },
-      packages: { pair: { source: "npm:@pi-stef/pair" } },
+      packages: { figma: { source: "npm:@pi-stef/figma" } },
     };
     applyRemovalTombstones(catalog, tmpHome);
-    expect(Object.keys(catalog.packages)).toEqual(["pair"]);
+    expect(Object.keys(catalog.packages)).toEqual(["figma"]);
     expect(readTombstones(tmpHome)).toEqual([]);
   });
 });

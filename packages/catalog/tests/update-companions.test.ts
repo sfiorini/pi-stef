@@ -61,11 +61,11 @@ describe("updateCommand — companions", () => {
 
   it("installs companions alongside a successfully updated single package", async () => {
     // Create fake installed package dir with companion declared
-    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/pair");
+    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/figma");
     fs.mkdirSync(pairDir, { recursive: true });
     fs.writeFileSync(
       path.join(pairDir, "package.json"),
-      JSON.stringify({ name: "@pi-stef/pair", pi: { companions: ["git:github.com/obra/superpowers"] } }),
+      JSON.stringify({ name: "@pi-stef/figma", pi: { companions: ["git:github.com/obra/superpowers"] } }),
     );
 
     // Mock resolveInstalledDir to return the fake dir
@@ -73,7 +73,7 @@ describe("updateCommand — companions", () => {
     const ridMock = vi
       .spyOn(installModule, "resolveInstalledDir")
       .mockImplementation((source: string) => {
-        if (source === "npm:@pi-stef/pair") return pairDir;
+        if (source === "npm:@pi-stef/figma") return pairDir;
         return undefined;
       });
 
@@ -84,12 +84,12 @@ describe("updateCommand — companions", () => {
 
     const catalog: CatalogYaml = {
       meta: { pi_version: "1.0.0" },
-      packages: { pair: { source: "npm:@pi-stef/pair", type: "skill" } },
+      packages: { figma: { source: "npm:@pi-stef/figma", type: "skill" } },
     };
     writeCatalog(catalog, tmpDir);
 
     const { ctx } = makeCtx();
-    await updateCommand({ positional: ["pair"], flags: {} }, ctx);
+    await updateCommand({ positional: ["figma"], flags: {} }, ctx);
 
     // piInstall should have been called for the companion
     expect(installSpy).toHaveBeenCalledWith("git:github.com/obra/superpowers");
@@ -103,18 +103,18 @@ describe("updateCommand — companions", () => {
   });
 
   it("skips companion already in the catalog during update", async () => {
-    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/pair");
+    const pairDir = path.join(tmpDir, ".pi", "agent", "npm", "node_modules", "@pi-stef/figma");
     fs.mkdirSync(pairDir, { recursive: true });
     fs.writeFileSync(
       path.join(pairDir, "package.json"),
-      JSON.stringify({ name: "@pi-stef/pair", pi: { companions: ["git:github.com/obra/superpowers"] } }),
+      JSON.stringify({ name: "@pi-stef/figma", pi: { companions: ["git:github.com/obra/superpowers"] } }),
     );
 
     const installModule = await import("../src/catalog/install");
     const ridMock = vi
       .spyOn(installModule, "resolveInstalledDir")
       .mockImplementation((source: string) => {
-        if (source === "npm:@pi-stef/pair") return pairDir;
+        if (source === "npm:@pi-stef/figma") return pairDir;
         return undefined;
       });
 
@@ -127,14 +127,14 @@ describe("updateCommand — companions", () => {
     const catalog: CatalogYaml = {
       meta: { pi_version: "1.0.0" },
       packages: {
-        pair: { source: "npm:@pi-stef/pair", type: "skill" },
+        figma: { source: "npm:@pi-stef/figma", type: "skill" },
         superpowers: { source: "git:github.com/obra/superpowers", type: "skill" },
       },
     };
     writeCatalog(catalog, tmpDir);
 
     const { ctx } = makeCtx();
-    await updateCommand({ positional: ["pair"], flags: {} }, ctx);
+    await updateCommand({ positional: ["figma"], flags: {} }, ctx);
 
     // companion already in catalog => NOT installed
     const companionCalls = installSpy.mock.calls.filter((c: any[]) => c[0] === "git:github.com/obra/superpowers");
@@ -158,12 +158,12 @@ describe("updateCommand — companions", () => {
 
     const catalog: CatalogYaml = {
       meta: { pi_version: "1.0.0" },
-      packages: { pair: { source: "npm:@pi-stef/pair", type: "skill" } },
+      packages: { figma: { source: "npm:@pi-stef/figma", type: "skill" } },
     };
     writeCatalog(catalog, tmpDir);
 
     const { ctx } = makeCtx();
-    await updateCommand({ positional: ["pair"], flags: {} }, ctx);
+    await updateCommand({ positional: ["figma"], flags: {} }, ctx);
 
     // piInstall should NOT be called for companions since update failed
     const installCalls = installSpy.mock.calls.map((c: any[]) => c[0] as string);

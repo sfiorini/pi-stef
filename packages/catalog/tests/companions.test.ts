@@ -6,7 +6,7 @@ import { join } from "node:path";
 
 describe("readCompanionsFromManifest", () => {
   it("returns the pi.companions array when present", () => {
-    const manifest = { name: "@pi-stef/pair", pi: { companions: ["git:github.com/obra/superpowers"] } };
+    const manifest = { name: "@pi-stef/figma", pi: { companions: ["git:github.com/obra/superpowers"] } };
     expect(readCompanionsFromManifest(manifest)).toEqual(["git:github.com/obra/superpowers"]);
   });
 
