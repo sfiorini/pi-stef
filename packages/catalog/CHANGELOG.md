@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-08-04
+### Changed
+- chore(deps): remove @pi-stef/pair and @pi-stef/team from root deps, tsconfig, and 7 package.json files
+- test(catalog): swap @pi-stef/pair→figma and @pi-stef/team→atlassian in 6 fixture files
+- test(catalog): remove @pi-stef/team assertions from packages and add tests
+- refactor(catalog): remove @pi-stef/pair and @pi-stef/team from PI_STEF_PACKAGES
+
+
 ## [0.6.7] - 2026-07-17
 ### Changed
 - fix(catalog): `ct remove` / `ct reset` / `ct profile --delete` confirmation dialogs showed `undefined` — pi's `confirm` takes `(title, message)`, but the catalog called it with one arg. Fixed all 3 Ctx type signatures + 4 call sites; tests now require both args.
