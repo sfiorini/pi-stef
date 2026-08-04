@@ -6,7 +6,6 @@
     { "path": "packages/atlassian" },
     { "path": "packages/azure-foundry" },
     { "path": "packages/catalog" },
-    { "path": "packages/cursor" },
     { "path": "packages/figma" },
     { "path": "packages/flow" },
     { "path": "packages/pair" },

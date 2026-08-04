@@ -20,9 +20,6 @@ importers:
       '@pi-stef/catalog':
         specifier: workspace:^0.3.0
         version: link:packages/catalog
-      '@pi-stef/cursor':
-        specifier: workspace:^0.1.0
-        version: link:packages/cursor
       '@pi-stef/figma':
         specifier: workspace:^0.3.0
         version: link:packages/figma
