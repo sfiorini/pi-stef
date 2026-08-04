@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
@@ -52,5 +52,22 @@ describe("finalizeWorktree (flow)", () => {
     await expect(removeWorktree("/nonexistent/flow-worktree-path", repo)).rejects.toThrow(WorktreeError);
     // finalizeWorktree propagates the failure (does not swallow)
     await expect(finalizeWorktree("/nonexistent/flow-worktree-path", repo)).rejects.toThrow(WorktreeError);
+  });
+
+  it("finalize-survival: worktree dir removed, branch + ai_plan/<slug>/ preserved (M9)", async () => {
+    // Fresh repo + worktree for this test (the shared fixture was already finalized above)
+    const r = makeRepo();
+    // plan artifacts live in the MAIN checkout, not the worktree
+    const planDir = join(r.repo, "ai_plan", "survive-test");
+    mkdirSync(planDir, { recursive: true });
+    writeFileSync(join(planDir, "milestone-plan.md"), "survives finalize");
+
+    await finalizeWorktree(r.wtPath, r.repo);
+
+    expect(existsSync(r.wtPath)).toBe(false); // worktree dir removed
+    expect(existsSync(join(planDir, "milestone-plan.md"))).toBe(true); // ai_plan preserved
+    execSync("git rev-parse --verify flow/test", { cwd: r.repo, stdio: "pipe" }); // branch preserved
+
+    rmSync(r.repo, { recursive: true, force: true });
   });
 });

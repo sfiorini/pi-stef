@@ -150,8 +150,12 @@ function emitContractPrologue(ph: PhaseDef, flowName: string, body: string[]): v
  */
 function emitContractEpilogue(ph: PhaseDef, flowName: string, body: string[], producedOutConst: boolean): void {
   if (ph.outputs?.assert?.length && ph.outputs?.dir) {
+    // Pass the DECLARED artifact files so `nonempty` checks the specific declared
+    // artifacts (a deleted declared file is flagged missing, not silently dropped
+    // from the dir enumeration).
+    const assertFiles = JSON.stringify((ph.outputs?.artifacts ?? []).map((a) => a.file));
     body.push(
-      `const _assertRes = await sf_flow_contract({ mode: "assert", dir: _dir, assert: ${JSON.stringify(ph.outputs.assert)} });`,
+      `const _assertRes = await sf_flow_contract({ mode: "assert", dir: _dir, assert: ${JSON.stringify(ph.outputs.assert)}, files: ${assertFiles} });`,
     );
     body.push(
       `if (_assertRes.details?.status === "blocked") { log("⚠ BLOCKED at ${ph.id}: " + _assertRes.details?.detail); ${blockedReturn(flowName, ph.id)} }`,
