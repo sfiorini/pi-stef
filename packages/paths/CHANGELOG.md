@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-08-04
+### Changed
+- chore(deps): remove @pi-stef/pair and @pi-stef/team from root deps, tsconfig, and 7 package.json files
+
+
 ## [0.3.3] - 2026-06-17
 ### Changed
 - feat(all): add repository and homepage fields to all package.json files
