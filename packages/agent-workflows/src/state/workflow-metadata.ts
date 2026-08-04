@@ -9,12 +9,7 @@ import {
   WORKFLOW_METADATA_FILE,
 } from "../artifacts/paths";
 
-export type WorkflowToolName =
-  | "sf_team_plan"
-  | "sf_team_implement"
-  | "sf_team_task"
-  | "sf_team_auto"
-  | "sf_team_followup";
+export type WorkflowToolName = string;
 
 export type WorkflowStatus = "running" | "paused" | "completed" | "failed" | "aborted";
 
