@@ -33,7 +33,6 @@
     "@pi-stef/catalog": "^0.3.0",
     "@pi-stef/figma": "^0.3.0",
     "@pi-stef/paths": "^0.3.0",
-    "@pi-stef/team": "^0.3.0",
     "@pi-stef/web": "^0.3.0",
     "zod": "^3.25.62"
   },

@@ -8,8 +8,6 @@
     { "path": "packages/catalog" },
     { "path": "packages/figma" },
     { "path": "packages/flow" },
-    { "path": "packages/pair" },
-    { "path": "packages/team" },
     { "path": "packages/web" },
     { "path": "packages/finance-api" },
     { "path": "packages/finance" }
