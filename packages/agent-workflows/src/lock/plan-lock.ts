@@ -102,7 +102,7 @@ export async function acquireLock(
       const stale = await isLockStale(existing, opts.hostnameOverride);
       if (!stale) {
         throw new LockHeldError(
-          `sf-team plan-folder lock held by pid=${existing.pid} on ${existing.hostname} since ${existing.startedAt}`,
+          `plan-folder lock held by pid=${existing.pid} on ${existing.hostname} since ${existing.startedAt}`,
           existing,
         );
       }
@@ -124,7 +124,7 @@ export async function acquireLock(
 
   const held = (await readMetaIfPresent(metaPath)) ?? meta;
   throw new LockHeldError(
-    `sf-team plan-folder lock contended after ${maxAttempts} attempts (current: pid=${held.pid} on ${held.hostname})`,
+    `plan-folder lock contended after ${maxAttempts} attempts (current: pid=${held.pid} on ${held.hostname})`,
     held,
   );
 }
