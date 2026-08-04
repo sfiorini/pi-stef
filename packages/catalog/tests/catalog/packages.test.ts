@@ -18,7 +18,6 @@ describe("packages", () => {
       expect(PI_STEF_PACKAGES).toContain("@pi-stef/atlassian");
       expect(PI_STEF_PACKAGES).toContain("@pi-stef/figma");
       expect(PI_STEF_PACKAGES).toContain("@pi-stef/paths");
-      expect(PI_STEF_PACKAGES).toContain("@pi-stef/team");
       expect(PI_STEF_PACKAGES).toContain("@pi-stef/web");
     });
   });

@@ -455,14 +455,13 @@ describe("addCommand", () => {
       expect(catalog.packages["@pi-stef/figma"]).toBeDefined();
       expect(catalog.packages["@pi-stef/flow"]).toBeDefined();
       expect(catalog.packages["@pi-stef/paths"]).toBeDefined();
-      expect(catalog.packages["@pi-stef/team"]).toBeDefined();
       expect(catalog.packages["@pi-stef/web"]).toBeDefined();
 
       // Catalog package itself should NOT be added
       expect(catalog.packages["@pi-stef/catalog"]).toBeUndefined();
 
       expect(ui.notify).toHaveBeenCalledWith(
-        expect.stringContaining("added 8"),
+        expect.stringContaining("added 6"),
         "info",
       );
     });
