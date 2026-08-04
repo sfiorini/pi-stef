@@ -183,10 +183,16 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     }
   }
   lines.push(``);
-  lines.push(`Contract enforcement: the generated script calls three helper tools around each phase —`);
-  lines.push(`sf_flow_contract (derive-slug/materialize/assert), sf_flow_checkpoint (load-required/complete/`);
-  lines.push(`load-all), sf_flow_prepare (worktree). Follow the emitted steps exactly; a {status:"blocked"} return`);
-  lines.push(`is terminal — stop, report it, and surface resumeState.stateFile so the next run resumes there.`);
+  lines.push(`Models — dispatch each agent with the EXACT model in the Per-phase table above. Precedence:`);
+  lines.push(`YAML agents.<name>.model wins, then config, then inherit the orchestrator. Do NOT substitute or invent a model.`);
+  lines.push(``);
+  lines.push(`Contract enforcement: the generated script calls helper tools around each phase —`);
+  lines.push(`sf_flow_contract (derive-slug/materialize/assert), sf_flow_checkpoint (load-required/complete/load-all),`);
+  lines.push(`sf_flow_prepare (worktree prepare) + sf_flow_finalize (finalize), and sf_flow_gate (canonical-delta).`);
+  lines.push(`Follow the emitted steps exactly; a {status:"blocked"} return is terminal — stop, report it, and surface`);
+  lines.push(`resumeState.stateFile so the next run resumes there.`);
+  lines.push(`Inputs + outputs: the original input is captured at ai_plan/<slug>/prompt.md (read it there; never write`);
+  lines.push(`prompt files to the repo root). Every artifact goes under ai_plan/<slug>/.`);
   lines.push(`Runtime context: args = { input: <bind to the resolved workflow input>, flow: ${JSON.stringify(opts.workflowName)}, slug: ${opts.slug ? JSON.stringify(opts.slug) : "<derived>"} }.`);
   lines.push(``);
   lines.push(`Read and execute the skill file at ${skillDocPath("sf-flow-auto")} in full: run every phase`);

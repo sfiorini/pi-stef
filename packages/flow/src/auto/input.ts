@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 export type InputKind = "prompt" | "md-file" | "prd" | "jira";
 
 export interface ClassifiedInput {
@@ -24,4 +26,23 @@ export function classifyInput(raw: string): ClassifiedInput {
 export function resolveJiraRef(raw: string): string {
   const m = raw.match(/([A-Z][A-Z0-9_]+-\d+)/);
   return m ? m[1] : raw.replace(/^jira\s+/i, "");
+}
+
+/**
+ * Map a classified input to the SHORT source the run slug is derived from (the
+ * same slug feeds the ai_plan/<slug>/ folder and the flow/<slug> worktree
+ * branch). File inputs use the basename (path discarded), jira uses the key,
+ * prompt uses the text verbatim (deriveSlug kebabs + truncates).
+ */
+export function slugSourceFor(c: ClassifiedInput): string {
+  switch (c.kind) {
+    case "md-file":
+    case "prd":
+      return basename(c.value).replace(/\.(md|prd)$/i, "");
+    case "jira":
+      return c.value;
+    case "prompt":
+    default:
+      return c.value;
+  }
 }

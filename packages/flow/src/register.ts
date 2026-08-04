@@ -14,9 +14,9 @@ import type { FlowYaml } from "./yaml/schema.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
 import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
-import { classifyInput } from "./auto/input.js";
+import { classifyInput, slugSourceFor } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
-import { deriveSlug, materializeArtifacts, assertArtifacts } from "./contract/ops.js";
+import { deriveSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "./contract/ops.js";
 import { WorkflowState, statePath, prepareRunState } from "./workflow/state.js";
 import { createHash } from "node:crypto";
 import { basename } from "node:path";
@@ -405,6 +405,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       let hasConditionalGates = false;
       let slug = "";
       let stateFile: string | null = null;
+      let promptPath: string | null = null;
       try {
         const flow = await loadFlowYaml(resolved);
         const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
@@ -413,12 +414,14 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         phaseModels = summarizePhaseModels(flow, defaults);
         hasConditionalGates = flow.phases.some((p) => !!p.questions);
 
-        // Derive the run-level slug ONCE (args.slug) so the generated script's
-        // checkpoint dir `ai_plan/<slug>` resolves from phase 1, and pre-seed
-        // the initial .flow-state.json with the FULL non-grouped phase list (all
-        // pending) so firstIncomplete()/resume reflect workflow order. Resume: if
-        // a state exists whose workflow+input hashes match this run, keep it.
-        slug = deriveSlug(classified.value, { prefix: "date" });
+        // Derive the run-level slug ONCE (args.slug) from a SHORT per-kind source
+        // (basename for files, key for jira, text for prompt) — never the raw
+        // path. This single slug drives BOTH the ai_plan/<slug>/ folder and (via
+        // sf_flow_prepare) the flow/<slug> worktree branch. Pre-seed the initial
+        // .flow-state.json with the FULL non-grouped phase list (all pending) so
+        // firstIncomplete()/resume reflect workflow order; resume keeps a matching
+        // state (same workflow+input hashes).
+        slug = deriveSlug(slugSourceFor(classified), { prefix: "date" });
         const stateDir = join(repoRoot, "ai_plan", slug);
         const sha = (s: string) => createHash("sha1").update(s, "utf8").digest("hex").slice(0, 16);
         const workflowHash = sha(`${flow.name}|${flow.phases.map((p) => p.id).join(",")}`);
@@ -446,6 +449,9 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           slug,
           phaseIds,
         }).stateFile;
+        // Capture the original input INSIDE the slug folder (ai_plan/<slug>/prompt.md)
+        // so it never lands in the repo root. The orchestrator reads it from here.
+        promptPath = writeRunPrompt(stateDir, classified.value);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -474,7 +480,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
             }),
           },
         ],
-        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script, slug, stateFile },
+        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script, slug, stateFile, promptPath },
       };
     },
   });

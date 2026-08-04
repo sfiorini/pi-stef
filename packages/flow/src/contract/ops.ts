@@ -3,9 +3,23 @@ import { join } from "node:path";
 import { resolveTemplate } from "../paths.js"; // single source of truth (shared with validate.ts)
 import { parseTracker } from "../plan/tracker.js";
 
+/** Max length of the description part of a slug (the date prefix is separate). */
+const MAX_SLUG_DESC = 60;
+
+/** Cap a kebab string at MAX_SLUG_DESC on a word (hyphen) boundary; hard-cap a
+ *  single over-long token so the description is never empty. */
+function capKebab(k: string): string {
+  if (k.length <= MAX_SLUG_DESC) return k;
+  const slice = k.slice(0, MAX_SLUG_DESC);
+  const lastHyphen = slice.lastIndexOf("-");
+  const trimmed = lastHyphen > 0 ? slice.slice(0, lastHyphen) : slice;
+  return trimmed.replace(/-+$/g, "");
+}
+
 /** Derive a kebab slug from a source string, optionally date-prefixed. */
 export function deriveSlug(source: string, opts: { prefix?: "date" | "none"; now?: Date }): string {
-  const kebab = source.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "flow";
+  const raw = source.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "flow";
+  const kebab = capKebab(raw);
   if ((opts.prefix ?? "date") === "date") {
     const d = opts.now ?? new Date(); // orchestrator supplies; tests pass explicitly
     const iso = d.toISOString().slice(0, 10);
@@ -20,6 +34,19 @@ function safeRead(p: string): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * Persist the original run input to `<dir>/prompt.md` so it lives inside the
+ * slug folder (ai_plan/<slug>/) — never in the repo root. Called once by
+ * sf_flow_auto at run start. Idempotent: writes the same input each call.
+ * Returns the prompt path so the tool can surface it to the orchestrator.
+ */
+export function writeRunPrompt(dir: string, input: string): string {
+  mkdirSync(dir, { recursive: true });
+  const p = join(dir, "prompt.md");
+  writeFileSync(p, input, "utf8");
+  return p;
 }
 
 /**

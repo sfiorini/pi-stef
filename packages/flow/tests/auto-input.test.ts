@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { classifyInput, resolveJiraRef } from "../src/auto/input.js";
+import { classifyInput, resolveJiraRef, slugSourceFor } from "../src/auto/input.js";
 
 describe("auto input", () => {
   it("classifies a prompt", () => {
@@ -22,5 +22,28 @@ describe("auto input", () => {
   });
   it("falls back to prompt for a bare word", () => {
     expect(classifyInput("ship it")).toEqual({ kind: "prompt", value: "ship it" });
+  });
+});
+
+describe("slugSourceFor", () => {
+  it("md-file: strips the path, keeps the basename without extension", () => {
+    expect(slugSourceFor(classifyInput("/Users/stefano/Projects/pi-stef/cursor-sunset-prompt.md"))).toBe(
+      "cursor-sunset-prompt",
+    );
+  });
+  it("md-file: relative path → basename without extension", () => {
+    expect(slugSourceFor(classifyInput("./PRD.md"))).toBe("PRD");
+  });
+  it("md-file: uppercase extension stripped", () => {
+    expect(slugSourceFor(classifyInput("NOTES.MD"))).toBe("NOTES");
+  });
+  it("prd: basename without extension", () => {
+    expect(slugSourceFor(classifyInput("prd:docs/spec.prd"))).toBe("spec");
+  });
+  it("jira: the issue key (already short)", () => {
+    expect(slugSourceFor(classifyInput("jira PROJ-123"))).toBe("PROJ-123");
+  });
+  it("prompt: the verbatim text (deriveSlug kebabs + truncates)", () => {
+    expect(slugSourceFor(classifyInput("Add a login rate limiter"))).toBe("Add a login rate limiter");
   });
 });

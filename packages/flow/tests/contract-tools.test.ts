@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deriveSlug, materializeArtifacts, assertArtifacts } from "../src/contract/ops.js";
+import { deriveSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "../src/contract/ops.js";
 import { WorkflowState, loadState, statePath, prepareRunState } from "../src/workflow/state.js";
 
 describe("deriveSlug", () => {
@@ -19,6 +19,36 @@ describe("deriveSlug", () => {
   });
   it("collapses to a stable slug for empty/garbage input", () => {
     expect(deriveSlug("!!!", { prefix: "none" })).toBe("flow");
+  });
+
+  it("caps a long prompt at ~60 chars on a word boundary (no trailing hyphen)", () => {
+    const long =
+      "This is an extremely long prompt that definitely exceeds sixty characters and then keeps going with more words";
+    const s = deriveSlug(long, { prefix: "none" });
+    expect(s.length).toBeLessThanOrEqual(60);
+    expect(s).not.toMatch(/-$/);
+    expect(s.startsWith("this-is-an-extremely")).toBe(true);
+  });
+
+  it("hard-caps a single word longer than the limit (never empty)", () => {
+    const s = deriveSlug("a".repeat(120), { prefix: "none" });
+    expect(s.length).toBeLessThanOrEqual(60);
+    expect(s.length).toBeGreaterThan(0);
+  });
+});
+
+describe("writeRunPrompt", () => {
+  it("writes the original input to <dir>/prompt.md and returns the path", () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-"));
+    const p = writeRunPrompt(dir, "Add a login rate limiter");
+    expect(p).toBe(join(dir, "prompt.md"));
+    expect(readFileSync(p, "utf8")).toBe("Add a login rate limiter");
+  });
+
+  it("creates the dir if missing (run-start before any other artifact)", () => {
+    const dir = join(mkdtempSync(join(tmpdir(), "flow-")), "nested", "ai_plan", "slug");
+    const p = writeRunPrompt(dir, "x");
+    expect(readFileSync(p, "utf8")).toBe("x");
   });
 });
 
