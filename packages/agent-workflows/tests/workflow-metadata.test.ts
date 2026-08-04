@@ -30,8 +30,8 @@ describe("workflow metadata", () => {
       const metadata = createWorkflowMetadata({
         slug: "2026-05-06-example",
         folderPath: path.join(root, "ai_plan", "2026-05-06-example"),
-        ownerTool: "sf_team_plan",
-        currentTool: "sf_team_plan",
+        ownerTool: "test_plan",
+        currentTool: "test_plan",
         phase: "planner",
         now,
       });
@@ -44,8 +44,8 @@ describe("workflow metadata", () => {
       expect(reread).toMatchObject({
         schemaVersion: 1,
         slug: metadata.slug,
-        ownerTool: "sf_team_plan",
-        currentTool: "sf_team_plan",
+        ownerTool: "test_plan",
+        currentTool: "test_plan",
         status: "running",
         phase: "planner",
         createdAt: now.toISOString(),

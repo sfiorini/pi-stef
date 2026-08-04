@@ -23,8 +23,8 @@ describe("workflow.json persistence — planRootPath, gitMode, tddMode", () => {
       const metadata = createWorkflowMetadata({
         slug,
         folderPath: path.join(planRootPath, slug),
-        ownerTool: "sf_team_plan",
-        currentTool: "sf_team_plan",
+        ownerTool: "test_plan",
+        currentTool: "test_plan",
         phase: "planner",
         planRootPath,
         gitMode: "off",
@@ -53,8 +53,8 @@ describe("workflow.json persistence — planRootPath, gitMode, tddMode", () => {
       const metadata = createWorkflowMetadata({
         slug,
         folderPath: path.join(root, "ai_plan", slug),
-        ownerTool: "sf_team_task",
-        currentTool: "sf_team_task",
+        ownerTool: "test_task",
+        currentTool: "test_task",
         phase: "developer",
       });
 

@@ -16,10 +16,10 @@ describe("plan-folder lock", () => {
     const { root, dispose } = tmp();
     try {
       const slug = "2026-05-06-lock";
-      const meta = await acquireLock(root, slug, "sf_team_plan");
+      const meta = await acquireLock(root, slug, "test_plan");
 
-      expect(meta).toMatchObject({ pid: process.pid, slug, command: "sf_team_plan" });
-      await expect(acquireLock(root, slug, "sf_team_implement")).rejects.toBeInstanceOf(LockHeldError);
+      expect(meta).toMatchObject({ pid: process.pid, slug, command: "test_plan" });
+      await expect(acquireLock(root, slug, "test_implement")).rejects.toBeInstanceOf(LockHeldError);
       expect(await readLockMetadata(root, slug)).toMatchObject({ pid: process.pid, slug });
 
       await releaseLock(root, slug);
@@ -47,9 +47,9 @@ describe("plan-folder lock", () => {
         }),
       );
 
-      const meta = await acquireLock(root, slug, "sf_team_plan");
+      const meta = await acquireLock(root, slug, "test_plan");
       expect(meta.pid).toBe(process.pid);
-      expect(meta.command).toBe("sf_team_plan");
+      expect(meta.command).toBe("test_plan");
     } finally {
       dispose();
     }
@@ -78,7 +78,7 @@ describe("plan-folder lock", () => {
         startedAt: new Date().toISOString(),
         processStartedAt: "",
         hostname: hostname(),
-        command: "sf_team_plan",
+        command: "test_plan",
         slug: "live",
       }),
     ).toBe(false);

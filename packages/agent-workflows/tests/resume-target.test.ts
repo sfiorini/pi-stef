@@ -26,8 +26,8 @@ function createPlanFolder(root: string, slug: string): string {
     schemaVersion: 1,
     slug,
     folderPath: folder,
-    ownerTool: "sf_team_plan",
-    currentTool: "sf_team_plan",
+    ownerTool: "test_plan",
+    currentTool: "test_plan",
     createdAt: "2026-05-07T12:00:00.000Z",
     updatedAt: "2026-05-07T12:00:00.000Z",
     status: "running",
@@ -86,14 +86,14 @@ describe("resume ownership policy", () => {
       await writeWorkflowMetadata(root, createWorkflowMetadata({
         slug,
         folderPath: folder,
-        ownerTool: "sf_team_task",
-        currentTool: "sf_team_task",
+        ownerTool: "test_task",
+        currentTool: "test_task",
         phase: "test",
       }));
 
       const resolved = await resolvePlanTarget({ repoRoot: root, target: slug, candidatePlanRoots: [path.join(root, "ai_plan")] });
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_task" }))
-        .resolves.toMatchObject({ kind: "metadata", metadata: { ownerTool: "sf_team_task" } });
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "test_task" }))
+        .resolves.toMatchObject({ kind: "metadata", metadata: { ownerTool: "test_task" } });
     } finally {
       dispose();
     }
@@ -108,7 +108,7 @@ describe("resume ownership policy", () => {
       // Don't write workflow.json
 
       const resolved = { slug, folderPath: folder, target: slug, targetKind: "slug" as const };
-      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "sf_team_implement" }))
+      await expect(assertResumeOwnership({ repoRoot: root, target: resolved, invokedTool: "test_implement" }))
         .rejects.toThrow(/workflow metadata not found/);
     } finally {
       dispose();
