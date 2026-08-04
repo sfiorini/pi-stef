@@ -1,4 +1,4 @@
-# flow template — the 4 knobs: agents, phases, groups, loops
+# flow template — 4 knobs (agents, phases, loops, groups) + phase contracts (inputs/outputs/worktree)
 # Edit and save as .pi/workflows/<name>.yaml, then run: sf_flow_auto <name> <input>
 name: my-flow
 description: One-line description of what this flow does
@@ -20,15 +20,43 @@ agents:          # KNOB 1 — declare agents + tools, model, thinking, schema
   #   thinking: low
   #   isolated: true
 
-groups:          # KNOB 2 (optional) — named find→fix→re-verify loops
+groups:          # KNOB 4 (optional) — named find→fix→re-verify loops
   # review:                                         # group name = loop key
   #   phases: [review, fix]                         # first phase = gate (≥2, all agent phases)
 
-phases:          # KNOB 3 — each phase runs one of: agent / skill / raw / questions
+phases:          # KNOB 2 — each phase runs one of: agent / skill / raw / questions
   - id: do
     agent: worker
     prompt: "Describe the task for the worker."
     out: result
+  # ── Phase contract example (inputs/outputs/worktree) ──────────────────────────
+  # A contract makes the phase self-enforcing: required inputs are loaded (a missing
+  # one BLOCKS the phase), outputs are materialized + asserted, and the phase atomically
+  # publishes its declared values. The generator emits sf_flow_contract / sf_flow_checkpoint
+  # / sf_flow_prepare / sf_flow_finalize (worktree) / sf_flow_gate (canonical-delta) calls
+  # the orchestrator runs verbatim.
+  # - id: plan
+  #   agent: planner
+  #   out: plan_doc                                 # auto-publishes {plan_doc: plan_doc}
+  #   inputs:
+  #     require: [design_doc]                       # must be published by an earlier phase
+  #     inject: ["Design: {{design_doc}}"]          # {{name}} -> JS ref (resolved at codegen)
+  #   outputs:
+  #     slug: { from: input, prefix: date }         # derive the run slug
+  #     dir: "ai_plan/{{slug}}"
+  #     artifacts:                                  # @flow/... templates live in packages/flow/templates/
+  #       - { file: milestone-plan.md, template: "@flow/plan/milestone-plan.md" }
+  #     assert: [nonempty]                          # block on missing/empty (also: tracker_valid/tracker_updated)
+  #     publish: { slug: "{{slug}}", plan_dir: "{{dir}}", plan_doc: plan_doc }
+  # - id: implement
+  #   agent: developer
+  #   inputs: { require: [slug, plan_doc] }
+  #   outputs: { dir: "ai_plan/{{slug}}", assert: [tracker_updated] }
+  #   worktree: prepare                             # creates the flow/<slug> branch in a flow-<slug> dir; publishes {worktreePath,branchName,baseSha}
+  # - id: finalize
+  #   agent: notifier
+  #   worktree: finalize                            # recovers the handle (resume-safe) + removes the worktree
+  # ────────────────────────────────────────────────────────────────────────────
   # - id: notify                                   # final notification phase
   #   agent: notifier
   #   prompt: "Flow complete"                       # STATIC message (literal — not interpolated)
@@ -45,11 +73,12 @@ phases:          # KNOB 3 — each phase runs one of: agent / skill / raw / ques
   #   agent: developer
   #   prompt: "Fix the findings…"
 
-loops:           # KNOB 4 (optional) — loop key is a phase id OR group name
+loops:           # KNOB 3 (optional) — loop key is a phase id OR group name
   # review:                                        # group name → group loop (find→fix→re-verify)
   #   until: approved                               # gate agent verdict
   #   fail_on: [P0, P1, P2]
   #   max_rounds: 5
+  #   protocol: canonical-delta                     # carry [Fn] findings across rounds, AND-gate via verification (raw = default)
   # do:                                            # phase id → phase loop
   #   until_dry: true
   #   max_rounds: 3

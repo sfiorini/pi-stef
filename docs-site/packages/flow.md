@@ -200,9 +200,9 @@ Remove a flow worktree directory while **preserving** its branch. Call after `sf
 
 ---
 
-## Tier 2 — declarative YAML flows (the 4-knob model)
+## Tier 2 — declarative YAML flows (4 knobs + phase contracts)
 
-This is the heart of flow. Describe a workflow with four knobs and the generator compiles it into a pi-dynamic-workflows script.
+This is the heart of flow. Describe a workflow with four knobs (`agents` / `phases` / `loops` / `groups`) plus an additive **phase-contract** layer (`inputs` / `outputs` / `worktree`) and the generator compiles it into a pi-dynamic-workflows script. Contracts make a tier-2 flow **self-enforcing**: a phase that skips or fails its declared outputs starves the next phase's required inputs → a concrete `blocked` state, never a silent skip.
 
 ```yaml
 # .pi/sf/flow/workflows/auth-audit.yaml
@@ -253,8 +253,102 @@ An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw` / 
 | `fanout` | `string` | Iterate a list — a prior phase's `out` var or an `args.*` runtime input (agent phases only) |
 | `verify` | `string` | Cross-check a prior `out`; pass when `>= threshold` of items survive |
 | `threshold` | `number` | Verify pass ratio (default per flow) |
-| `in` | `string \| string[]` | Feed prior `out`(s) into this phase |
+| `in` | `string \| string[]` | Feed prior `out`(s) into this phase (shorthand for `inputs.require` + inject) |
 | `out` | `string` | Name this phase's output (referenced by later phases / `fanout` / `verify`) |
+| `inputs` | `object` | Contract inputs: `{ require: [name…], inject: ["… {{name}} …"] }` |
+| `outputs` | `object` | Contract outputs (see [Phase contracts](#phase-contracts--inputs--outputs--worktree)) |
+| `worktree` | `enum` | `none` · `prepare` · `finalize` — engine-owned worktree lifecycle |
+
+### Phase contracts — `inputs` / `outputs` / `worktree`
+
+A phase may declare a contract. The generator compiles it into named steps backed by helper
+tools that the orchestrator runs verbatim (no hidden runtime; follow the steps exactly):
+`sf_flow_contract` (derive-slug / materialize / assert), `sf_flow_checkpoint` (load-required /
+complete / load-all), and for the worktree lifecycle `sf_flow_prepare` (prepare) /
+`sf_flow_finalize` (finalize); canonical-delta loops additionally call `sf_flow_gate`.
+
+```yaml
+- id: plan
+  agent: planner
+  out: plan_doc
+  inputs: { require: [design_doc], inject: ["Design: {{design_doc}}"] }
+  outputs:
+    slug: { from: input, prefix: date }
+    dir: "ai_plan/{{slug}}"
+    artifacts:
+      - { file: milestone-plan.md, template: "@flow/plan/milestone-plan.md" }
+    assert: [nonempty]
+    publish: { slug: "{{slug}}", plan_dir: "{{dir}}", plan_doc: plan_doc }
+```
+
+- `inputs.require` — names an earlier phase must publish (or a built-in `input`/`flow`); a missing one **blocks** the phase. Each is destructured into a JS const the prompt references.
+- `inputs.inject` — lines appended to the prompt; `{{name}}` resolves to the in-scope const at codegen (not a runtime placeholder). `in:` is shorthand for `require` + an inject of the same name.
+- `outputs.slug` / `outputs.dir` — derive the run slug and the artifact dir (`ai_plan/{{slug}}`).
+- `outputs.artifacts` — `{ file, template? }`; `@flow/plan/…` templates live in `packages/flow/templates/`. Materialized **resume-safe** (non-empty files are never clobbered).
+- `outputs.assert` — `nonempty` (every target `.md` exists + non-empty), `tracker_valid`, `tracker_updated` (the milestone tracker). A failure blocks.
+- `outputs.publish` — values fed to later phases: `{{slug}}`, `{{dir}}`, a bare `out` name, or a literal. Validation guarantees every emitted ref is in-scope.
+- `worktree` — `prepare` creates `flow/<slug>` and publishes `{worktreePath, branchName, baseSha}`; `finalize` recovers the handle (resume-safe) and removes the worktree, preserving the branch.
+
+**Enforcement + resume.** Every phase ends with one atomic `sf_flow_checkpoint({mode:"complete"})`
+(publish + mark success + persist). The terminal result reads `load-all`: `{status, finalPhase,
+artifacts, worktree, resumeState}`. `sf_flow_auto` derives `args.slug` once and pre-seeds
+`ai_plan/<slug>/.flow-state.json`; resume re-enters at the first non-success phase (or group).
+
+#### Writing a tier-2 workflow with contracts — annotated `ship-feature`
+
+```yaml
+name: ship-feature
+description: Clarify, design, plan, implement, and audit a feature end-to-end
+input: prompt
+agents:
+  planner: { tools: [read, grep, find, ls, write], thinking: medium, isolated: true }
+  developer: { tools: [read, grep, find, ls, write, bash], thinking: medium }
+  auditor: { tools: [read, grep, find, ls], thinking: high, isolated: true,
+             schema: { verdict: "APPROVED|REVISE", findings: array } }
+groups:
+  audit-loop: { phases: [review-audit, fix-audit] }   # find→fix→re-verify
+phases:
+  - id: plan
+    agent: planner
+    out: plan_doc
+    inputs: { require: [design_doc], inject: ["Design: {{design_doc}}"] }
+    outputs:
+      slug: { from: input, prefix: date }
+      dir: "ai_plan/{{slug}}"
+      artifacts:
+        - { file: original-plan.md, template: "@flow/plan/original-plan.md" }
+        - { file: milestone-plan.md, template: "@flow/plan/milestone-plan.md" }
+        - { file: story-tracker.md, template: "@flow/plan/story-tracker.md" }
+        - { file: continuation-runbook.md, template: "@flow/plan/continuation-runbook.md" }
+      assert: [nonempty]
+      publish: { slug: "{{slug}}", plan_dir: "{{dir}}", plan_doc: plan_doc }
+  - id: implement
+    agent: developer
+    out: impl_result
+    inputs: { require: [slug, plan_doc], inject: ["Slug: {{slug}}", "Plan: {{plan_doc}}"] }
+    outputs: { dir: "ai_plan/{{slug}}", assert: [tracker_updated] }
+    worktree: prepare
+  - id: review-audit
+    agent: auditor
+    in: impl_result
+    prompt: "Audit the implementation. Return findings P0-P3 + verdict."
+  - id: fix-audit
+    agent: developer
+    in: impl_result
+    prompt: "Fix the audit findings (TDD)."
+loops:
+  audit-loop:
+    until: approved
+    fail_on: [P0, P1, P2]
+    max_rounds: 5
+    protocol: canonical-delta   # carry [Fn] findings across rounds, AND-gate via verification
+```
+
+The `plan` phase derives the slug, materializes four plan files, asserts them non-empty, and
+publishes `{slug, plan_dir, plan_doc}`. The `implement` phase requires `{slug, plan_doc}`,
+prepares a worktree, and asserts the tracker advanced (`tracker_updated`). The `audit-loop`
+runs `canonical-delta`: round 1 is a fresh review; round ≥2 verifies each prior `[Fn]` and
+AND-gates via `verificationApproved` (the gate agent's `findings` schema is required).
 
 ### Knob 3 — `loops`
 
@@ -266,6 +360,7 @@ A map of phase-id → loop. Two kinds:
 | `until` | gate | `until: approved` — run until the agent's `schema.verdict` is `APPROVED`. **Requires the agent to declare a verdict `schema`** |
 | `fail_on` | gate | Severities that block: `[P0, P1, P2]` (default) |
 | `max_rounds` | both | Bound on iterations (default per flow) |
+| `protocol` | gate | `raw` (default — fresh review each round) · `canonical-delta` (carry `[Fn]` findings across rounds, AND-gate via verification each round ≥2; group-only, requires the gate agent's `findings` schema + `until: approved`) |
 
 ### Knob — `groups` (optional)
 
@@ -303,8 +398,15 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 | 18 | Loops are **not** allowed on `questions` phases (the follow-up loop is built-in) |
 | 19 | `until_dry` **requires** the phase to set `fanout` |
 | 19a | `until: approved` on a phase loop **requires** the phase agent to declare a `schema.verdict` |
+| 20 | `inputs.require` names must resolve to a prior `out`/`publish` or a built-in (`input`/`flow`) — else unresolved |
+| 21 | `worktree: finalize` requires a preceding `worktree: prepare` phase |
+| 22 | artifact `template` refs must resolve (`@flow/…` or an existing path) |
+| 23 | `publish` names must be valid identifiers; `{{slug}}`/`{{dir}}` require `outputs.slug`/`outputs.dir`; a bare value must be the phase `out` or a `require`d input (else it would emit an undefined ref) |
+| 24 | `protocol: canonical-delta` requires a group loop, `until: approved`, and the gate agent's `findings` schema |
 
 > **Caveat (rule 19a):** the guard checks `schema.verdict` presence only. An agent that declares a verdict schema but has no finding-capable tools (e.g. read-only with no analysis prompt) will always `APPROVE` — this is not structurally detectable.
+
+> **Fail-closed gate (D4).** A gate result approves ONLY with a string `verdict === "APPROVED"` AND no blocking finding. `null`/`{}`/a `REVISE` with no findings/ an `APPROVED` with a blocking finding all reject — group and single-phase gates share one `_gateApproved` predicate.
 
 ### Defining a new flow
 
