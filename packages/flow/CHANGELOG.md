@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-08-04
+### Changed
+- test(flow): auto e2e + finalize-survival + assert-files fix (M9)
+- docs(flow): contract model + tier-guarantees + walkthrough (M8)
+- feat(flow): migrate workflows + agents to the contract model (M7)
+- feat(flow): canonical-delta audit protocol (M6)
+- feat(flow): milestone tracker + worktree cleanup reporting (M5)
+- feat(flow): resume + orchestrator skill + messages + D18 threshold (M4)
+- feat(flow): generator emission — contract steps, fail-closed gate, terminal (M3)
+- feat(flow): helper tools — contract/checkpoint/prepare (M2)
+- feat(flow): contract schema + validation (M1)
+
+
 ## [0.10.2] - 2026-08-03
 ### Changed
 - test(flow): sandboxed-HOME PATH-resolution test for notifier (M3)
