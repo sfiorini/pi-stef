@@ -216,6 +216,9 @@ function emitGroupLoop(
     `      log("⚠ NON-CONVERGENT: group " + ${JSON.stringify(groupId)} + " did not converge after " + _maxRounds + " rounds; findings: ");`,
   );
   lines.push(`      log(JSON.stringify(_findings));`);
+  lines.push(
+    `      await sf_flow_checkpoint({ mode: "write", dir: \`ai_plan/\${args.slug}\`, phase: ${JSON.stringify(groupId)}, status: "blocked" });`,
+  );
   lines.push(`      ${blockedReturn(flow.name, gatePhaseId)}`);
   lines.push(`    }`);
   lines.push(`    const _findingsJson = JSON.stringify(_findings);`);
@@ -231,6 +234,11 @@ function emitGroupLoop(
     );
   }
   lines.push(`  }`);
+  // Group converged (APPROVED): record the group as a checkpoint entity so resume
+  // (firstIncomplete) treats the whole group as success and does not skip past it.
+  lines.push(
+    `  await sf_flow_checkpoint({ mode: "complete", dir: \`ai_plan/\${args.slug}\`, phase: ${JSON.stringify(groupId)}, outputs: {}, artifacts: [] });`,
+  );
   lines.push(`}`);
   return lines;
 }

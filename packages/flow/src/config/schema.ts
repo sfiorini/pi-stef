@@ -56,6 +56,9 @@ export const ConfigSchema = Type.Object(
         { additionalProperties: false }
       )
     ),
+    /** D18: reset to a fresh comprehensive review when the changed-lines ratio
+     *  meets or exceeds this threshold (default 0.5). Deterministic — never MAY. */
+    freshReviewResetThreshold: Type.Optional(Type.Number({ default: 0.5 })),
   },
   { additionalProperties: false }
 );
@@ -80,6 +83,7 @@ export interface LoadedFlowConfig {
   scanner: { model?: string };
   audit: { threshold: number; max_rounds: number };
   worktree: { branch_prefix: string };
+  freshReviewResetThreshold: number;
 }
 
 export const DEFAULT_CONFIG: LoadedFlowConfig = {
@@ -95,6 +99,7 @@ export const DEFAULT_CONFIG: LoadedFlowConfig = {
   scanner: {},
   audit: { threshold: 0.94, max_rounds: 5 },
   worktree: { branch_prefix: "flow/" },
+  freshReviewResetThreshold: 0.5,
 };
 
 /** The ten resolved agent models (7 tier-1 roles + elicitor + notifier + scanner; deterministic front-end; null ⇒ inherit orchestrator). */

@@ -3,7 +3,7 @@ import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deriveSlug, materializeArtifacts, assertArtifacts } from "../src/contract/ops.js";
-import { WorkflowState, loadState, statePath } from "../src/workflow/state.js";
+import { WorkflowState, loadState, statePath, prepareRunState } from "../src/workflow/state.js";
 
 describe("deriveSlug", () => {
   it("kebabs input and prefixes a date", () => {
@@ -152,5 +152,46 @@ describe("WorkflowState", () => {
   it("loadState returns null when no checkpoint exists", () => {
     const dir = mkdtempSync(join(tmpdir(), "flow-"));
     expect(loadState(dir)).toBeNull();
+  });
+});
+
+describe("prepareRunState (sf_flow_auto pre-seed + resume)", () => {
+  const seed = (dir: string, phaseIds = ["plan", "implement"]) => ({
+    workflowName: "ship-feature",
+    workflowHash: "wh-" + dir.length,
+    inputHash: "ih-1",
+    slug: "s",
+    phaseIds,
+  });
+
+  it("seeds a fresh all-pending state when none exists", () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-"));
+    const r = prepareRunState(dir, seed(dir));
+    expect(r.resumed).toBe(false);
+    const st = loadState(dir)!;
+    expect(st.phases.map((p) => p.id)).toEqual(["plan", "implement"]);
+    expect(st.phases.every((p) => p.status === "pending")).toBe(true);
+  });
+
+  it("resumes (keeps progress) when workflow+input hashes match", () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-"));
+    const s = seed(dir);
+    prepareRunState(dir, s); // seed
+    new WorkflowState(dir, s).complete("plan", { slug: "kept" }, []); // make progress
+    const r = prepareRunState(dir, s); // same hashes -> resume
+    expect(r.resumed).toBe(true);
+    expect(loadState(dir)!.phases.find((p) => p.id === "plan")!.status).toBe("success"); // progress kept
+  });
+
+  it("overwrites fresh when the input hash differs (different run)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "flow-"));
+    const s1 = seed(dir);
+    prepareRunState(dir, s1);
+    new WorkflowState(dir, s1).complete("plan", {}, []); // progress
+    // different input -> different run -> fresh reseed wipes progress
+    const s2 = { ...seed(dir), inputHash: "ih-2" };
+    const r = prepareRunState(dir, s2);
+    expect(r.resumed).toBe(false);
+    expect(loadState(dir)!.phases.find((p) => p.id === "plan")!.status).toBe("pending");
   });
 });

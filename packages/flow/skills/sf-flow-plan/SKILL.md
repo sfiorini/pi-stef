@@ -73,7 +73,7 @@ The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting t
 
 **Cap:** Max **10 rounds** total (the round counter never resets). On exhaustion emit the best-effort plan and flag `⚠ NON-CONVERGENT: reviewer did not approve after 10 rounds; remaining findings listed in final-transcript.md` in the plan header, then proceed to Phase 7.
 
-**Fresh-review reset (escape hatch):** if the planner's fix set touches >50% of the stories, the orchestrator MAY reset to a comprehensive round-1 review (clear the canonical list). The round counter does NOT reset. Default: reset at >50%.
+**Fresh-review reset (deterministic — D18):** reset to a comprehensive round-1 review (clear the canonical list) when the planner's changed-stories ratio **meets or exceeds** `config.freshReviewResetThreshold` (default `0.5`; loaded via the layered config chain: `DEFAULT → global → project`). This is deterministic — never discretionary ("MAY" is removed): compute the ratio, compare to the threshold, and reset iff `ratio >= threshold`. Log each reset (the triggering round + the ratio) and keep the running round counter (it does NOT reset).
 
 > **Note:** The planner's fix step is what makes convergence possible — without it the reviewer sees the same artifact each round and the loop can never close.
 

@@ -72,6 +72,7 @@ function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfi
     scanner: { ...base.scanner, ...over.scanner },
     audit: { ...base.audit, ...over.audit },
     worktree: { ...base.worktree, ...over.worktree },
+    freshReviewResetThreshold: over.freshReviewResetThreshold ?? base.freshReviewResetThreshold,
   };
 }
 

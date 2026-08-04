@@ -168,27 +168,41 @@ describe("summarizePhaseModels", () => {
     });
   });
 
-  it("renders conditional gates line when hasConditionalGates is true", () => {
+  it("renders the conditional-gates policy when hasConditionalGates is true", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "q",
       inputSummary: "prompt: x",
       resolvedWorkflowPath: "/q.yaml",
       hasConditionalGates: true,
     });
-    expect(msg).toContain("Conditional gates");
-    expect(msg).toContain("questions phases pause for user input");
-    expect(msg).not.toContain("No human gates");
+    expect(msg).toContain("only questions: phases pause for user input");
+    expect(msg).toContain("blocked");
   });
 
-  it("renders original No human gates line when hasConditionalGates is omitted", () => {
+  it("renders the no-human-gates policy when hasConditionalGates is omitted", () => {
     const msg = buildAutoReadyMessage({
       workflowName: "q",
       inputSummary: "prompt: x",
       resolvedWorkflowPath: "/q.yaml",
     });
-    expect(msg).toContain("No human gates");
-    expect(msg).toContain("phases run to completion or a terminal state");
-    expect(msg).not.toContain("Conditional gates");
+    expect(msg).toContain("no human gates");
+    expect(msg).toContain("terminal state");
+  });
+
+  it("names the three contract helper tools, the resume/blocked pointer, and the args.slug binding (S-M4-2)", () => {
+    const msg = buildAutoReadyMessage({
+      workflowName: "ship-feature",
+      inputSummary: "prompt: x",
+      resolvedWorkflowPath: "/ship-feature.yaml",
+      slug: "2026-08-03-x",
+    });
+    expect(msg).toContain("sf_flow_contract");
+    expect(msg).toContain("sf_flow_checkpoint");
+    expect(msg).toContain("sf_flow_prepare");
+    expect(msg).toContain("blocked"); // a blocked return is terminal
+    expect(msg).toContain("resumeState");
+    expect(msg).toContain("args =");
+    expect(msg).toContain('slug: "2026-08-03-x"');
   });
 
   it("neither tier2-elicitor nor tier2-agent row contains the removed [config does NOT apply] caveat", () => {

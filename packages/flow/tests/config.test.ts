@@ -13,6 +13,25 @@ describe("flow config", () => {
     expect(cfg).toEqual(DEFAULT_CONFIG);
   });
 
+  it("freshReviewResetThreshold defaults to 0.5 (D18)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.freshReviewResetThreshold).toBe(0.5);
+  });
+
+  it("freshReviewResetThreshold honors a project override (D18)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+    writeFileSync(
+      join(root, ".pi", "sf", "flow", "config.json"),
+      JSON.stringify({ freshReviewResetThreshold: 0.8 }),
+    );
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.freshReviewResetThreshold).toBe(0.8);
+  });
+
   it("layered merge: project overrides global", async () => {
     const home = mkdtempSync(join(tmpdir(), "flow-home-"));
     const root = mkdtempSync(join(tmpdir(), "flow-root-"));

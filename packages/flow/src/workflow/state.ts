@@ -50,8 +50,19 @@ export interface WorkflowStateSeed {
 export class WorkflowState {
   readonly data: StateFile;
 
-  constructor(private dir: string, seed: WorkflowStateSeed) {
-    const existing = loadState(dir);
+  /**
+   * @param opts.fresh when true, ignore any existing on-disk state and seed the
+   *   full phase list as pending (used by `prepareRunState` to overwrite a stale
+   *   state from a different run). Default false — load+merge existing, so the
+   *   per-phase `complete()` calls (which pass default hashes) update the
+   *   pre-seeded state rather than replacing it.
+   */
+  constructor(
+    private dir: string,
+    seed: WorkflowStateSeed,
+    opts: { fresh?: boolean } = {},
+  ) {
+    const existing = opts.fresh ? null : loadState(dir);
     const { phaseIds, ...rest } = seed;
     this.data =
       existing ??
@@ -127,4 +138,21 @@ export class WorkflowState {
     writeFileSync(tmp, JSON.stringify(this.data, null, 2), "utf8");
     renameSync(tmp, statePath(this.dir)); // atomic
   }
+}
+
+/**
+ * Pre-seed a run's checkpoint: if a state exists whose workflow+input hashes
+ * match this run, resume (keep it); otherwise write a fresh all-pending state
+ * (overwriting any stale state from a different run). Called once by
+ * sf_flow_auto at run start so firstIncomplete()/resume reflect workflow order.
+ * Returns the state file path and whether this is a resume.
+ */
+export function prepareRunState(dir: string, seed: WorkflowStateSeed): { stateFile: string; resumed: boolean } {
+  const existing = loadState(dir);
+  const resumed =
+    !!existing && existing.workflowHash === seed.workflowHash && existing.inputHash === seed.inputHash;
+  if (!resumed) {
+    new WorkflowState(dir, seed, { fresh: true }).write();
+  }
+  return { stateFile: statePath(dir), resumed };
 }

@@ -110,3 +110,6 @@ at tier-2 — the full review runs from scratch each round.
 - Return findings P0–P3 + verdict (APPROVED / REVISE) each round.
 - Do NOT carry state between rounds — review the current artifact, not the diff
   since last round.
+
+## Tier-1 plan review (sf-flow-plan)
+When the orchestrator signals a **fresh-review reset** (the planner's changed-stories ratio met or exceeded `config.freshReviewResetThreshold`, default `0.5`), run a fresh comprehensive round-1-style review and ignore the prior canonical list for that round. Otherwise run verification/delta mode against the canonical `[Fn]` list as instructed. The reset decision is the orchestrator's (deterministic, never discretionary); the reviewer just honors whichever mode it is given.

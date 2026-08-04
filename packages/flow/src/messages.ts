@@ -135,6 +135,9 @@ export interface AutoReadyInput {
   phaseModels?: PhaseModelInfo[];
   /** Whether any phase uses `questions:` (conditional gates). */
   hasConditionalGates?: boolean;
+  /** Run-level slug sf_flow_auto derived once at start (args.slug); the generated
+   *  script's checkpoint dir is `ai_plan/<slug>`. Optional for legacy callers. */
+  slug?: string;
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
@@ -145,8 +148,8 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     `Input: ${opts.inputSummary}`,
     `Workflow file: ${opts.resolvedWorkflowPath}`,
     opts.hasConditionalGates
-      ? `Conditional gates — questions phases pause for user input but auto-fallback to defaults if unattended; all other phases run to completion or a terminal state.`
-      : `No human gates — phases run to completion or a terminal state.`,
+      ? `Gates: only questions: phases pause for user input (auto-fallback to sensible defaults if unattended). Every other phase runs to a terminal state with no human gate; a blocked phase is terminal — stop and report it with its resumeState.`
+      : `Gates: no human gates — every phase runs to a terminal state (success or blocked). A blocked phase is terminal — stop and report it with its resumeState.`,
   ];
   if (opts.script) {
     lines.push(``);
@@ -179,6 +182,12 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
       }
     }
   }
+  lines.push(``);
+  lines.push(`Contract enforcement: the generated script calls three helper tools around each phase —`);
+  lines.push(`sf_flow_contract (derive-slug/materialize/assert), sf_flow_checkpoint (load-required/complete/`);
+  lines.push(`load-all), sf_flow_prepare (worktree). Follow the emitted steps exactly; a {status:"blocked"} return`);
+  lines.push(`is terminal — stop, report it, and surface resumeState.stateFile so the next run resumes there.`);
+  lines.push(`Runtime context: args = { input: <bind to the resolved workflow input>, flow: ${JSON.stringify(opts.workflowName)}, slug: ${opts.slug ? JSON.stringify(opts.slug) : "<derived>"} }.`);
   lines.push(``);
   lines.push(`Read and execute the skill file at ${skillDocPath("sf-flow-auto")} in full: run every phase`);
   lines.push(`to a terminal state. Do not stop after reading the skill. Do not ask for confirmation.`);

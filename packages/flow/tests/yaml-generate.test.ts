@@ -320,6 +320,14 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       expect(s).toMatch(/status:\s*"blocked"/);
     });
 
+    it("checkpoints the group as an entity (success on approval, blocked on non-convergence)", () => {
+      const s = generateScript(groupFlow);
+      // on approval: complete the group entity
+      expect(s).toMatch(/mode:\s*"complete"[^]*phase:\s*"review"/);
+      // on non-convergence: write the group entity blocked, then return blocked
+      expect(s).toMatch(/mode:\s*"write"[^]*phase:\s*"review"[^]*status:\s*"blocked"/);
+    });
+
     it("emits _findingsJson + Canonical findings to address", () => {
       const s = generateScript(groupFlow);
       expect(s).toContain("_findingsJson");

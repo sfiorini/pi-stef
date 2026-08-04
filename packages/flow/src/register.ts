@@ -17,7 +17,8 @@ import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels
 import { classifyInput } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
 import { deriveSlug, materializeArtifacts, assertArtifacts } from "./contract/ops.js";
-import { WorkflowState, statePath } from "./workflow/state.js";
+import { WorkflowState, statePath, prepareRunState } from "./workflow/state.js";
+import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { seedAgents, seedWorkflows, renderSeedReport } from "./seed.js";
 import { join } from "node:path";
@@ -393,6 +394,8 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       let models: ResolvedModels | null = null;
       let phaseModels: ReturnType<typeof summarizePhaseModels> = [];
       let hasConditionalGates = false;
+      let slug = "";
+      let stateFile: string | null = null;
       try {
         const flow = await loadFlowYaml(resolved);
         const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
@@ -400,6 +403,40 @@ export function registerSfFlow(pi: ExtensionAPI): void {
         models = defaults;
         phaseModels = summarizePhaseModels(flow, defaults);
         hasConditionalGates = flow.phases.some((p) => !!p.questions);
+
+        // Derive the run-level slug ONCE (args.slug) so the generated script's
+        // checkpoint dir `ai_plan/<slug>` resolves from phase 1, and pre-seed
+        // the initial .flow-state.json with the FULL non-grouped phase list (all
+        // pending) so firstIncomplete()/resume reflect workflow order. Resume: if
+        // a state exists whose workflow+input hashes match this run, keep it.
+        slug = deriveSlug(classified.value, { prefix: "date" });
+        const stateDir = join(repoRoot, "ai_plan", slug);
+        const sha = (s: string) => createHash("sha1").update(s, "utf8").digest("hex").slice(0, 16);
+        const workflowHash = sha(`${flow.name}|${flow.phases.map((p) => p.id).join(",")}`);
+        const inputHash = sha(classified.value);
+        // Checkpoint entities in workflow order: non-grouped phases plus one
+        // entry per group (positioned at the group's first phase). The group loop
+        // records the group's outcome (success on approval, blocked on
+        // non-convergence), so firstIncomplete()/resume account for the group as
+        // a unit and never skip past a blocked group.
+        const groupStart = new Map<string, string>();
+        if (flow.groups) for (const [gid, g] of Object.entries(flow.groups)) groupStart.set(g.phases[0], gid);
+        const grouped = new Set<string>();
+        if (flow.groups) for (const g of Object.values(flow.groups)) for (const id of g.phases) grouped.add(id);
+        const phaseIds: string[] = [];
+        for (const p of flow.phases) {
+          if (groupStart.has(p.id)) phaseIds.push(groupStart.get(p.id)!);
+          else if (!grouped.has(p.id)) phaseIds.push(p.id);
+        }
+        // Pre-seed the run checkpoint: resume if a matching state exists, else
+        // write a fresh all-pending state (overwriting any stale one).
+        stateFile = prepareRunState(stateDir, {
+          workflowName: workflow,
+          workflowHash,
+          inputHash,
+          slug,
+          phaseIds,
+        }).stateFile;
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
@@ -424,10 +461,11 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               models,
               phaseModels,
               hasConditionalGates,
+              slug,
             }),
           },
         ],
-        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script },
+        details: { workflow, kind: classified.kind, value: classified.value, workflowPath: resolved, script, slug, stateFile },
       };
     },
   });
@@ -616,6 +654,8 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           artifacts,
           worktree: st.data.worktree ?? null,
           stateFile: statePath(dir),
+          workflowHash: st.data.workflowHash,
+          inputHash: st.data.inputHash,
           terminalResult: st.data.terminalResult ?? null,
         };
         return { content: [{ type: "text" as const, text: JSON.stringify(view) }], details: view };
