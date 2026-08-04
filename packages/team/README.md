@@ -487,21 +487,6 @@ Explicit faster/lower-cost example:
 }
 ```
 
-Cursor/OpenAI role mix example:
-
-```jsonc
-{
-  "agents": {
-    "researcher": { "model": "cursor/composer-2", "thinking": "high" },
-    "planner":    { "model": "cursor/gpt-5.3-codex-spark-preview", "thinking": "high" },
-    "reviewer":   { "model": "openai-codex/gpt-5.5", "thinking": "medium" },
-    "developer":  { "model": "cursor/claude-4.6-sonnet-medium-thinking", "thinking": "high" }
-  }
-}
-```
-
-Cursor examples require the `@pi-stef/cursor` extension. Run `pi --list-models cursor` before copying examples across machines if your provider table differs.
-
 Headless speed profile:
 
 ```jsonc
