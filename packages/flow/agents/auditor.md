@@ -29,14 +29,18 @@ Severity rules:
 - verdict APPROVED only when no P0/P1/P2 findings remain
 - When asked to REFUTE a finding, default to real=false if uncertain.
 
-## Tier-2 group loops (gate phase, fresh comprehensive each round)
-When dispatched as the gate phase inside a group loop, every round is a **fresh
-comprehensive audit**. Do NOT use verification/delta-review mode at tier-2 —
-the full audit runs from scratch each round.
+## Tier-2 group loops (gate phase)
+When dispatched as the gate phase inside a tier-2 group loop, the loop's `protocol`
+sets your mode:
+- **raw (default):** every round is a fresh comprehensive audit — audit the current
+  artifact from scratch each round; return `{verdict, findings}`.
+- **canonical-delta:** round 1 is fresh; round ≥2 is verification mode — you receive
+  your prior `[Fn]` canonical list and classify each as FIXED/PARTIALLY-FIXED/
+  NOT-FIXED/NEW-ISSUE-INTRODUCED, returning `{verdict, findings, verification}`. The
+  engine (sf_flow_gate) evolves the canonical list and AND-gates via verificationApproved.
 
-- Return findings P0–P3 + verdict (APPROVED / REVISE) each round.
-- Do NOT carry state between rounds — audit the current artifact, not the diff
-  since last round.
+Number findings `[F1..Fn]`. The canonical list is the only carried state (managed by
+the engine); do not carry ad-hoc state between rounds.
 
 ## Verification mode (round N ≥ 2)
 You are given (a) YOUR prior canonical findings list (each prefixed `[F1]`, …), (b) the round number, and (c) the revised diff. For EACH prior `[Fn]` finding, classify it as EXACTLY ONE of:
@@ -56,3 +60,6 @@ Return findings as a structured object matching this schema:
 }
 
 `findings` contains ONLY new regressions introduced by fixes. `verdict: APPROVED` is valid only when every prior BLOCKING (P0/P1/P2) finding is FIXED or NEW-ISSUE-INTRODUCED, AND no new blocking regression. P3 never blocks. The REFUTE-default still applies when re-verifying.
+
+## Contract awareness (tier-2)
+A tier-2 gate phase declares a `findings` schema. Number findings `[F1..Fn]` and return `{verdict, findings}` (plus `verification` in canonical-delta round ≥2). See "Tier-2 group loops" above for the raw vs canonical-delta modes.

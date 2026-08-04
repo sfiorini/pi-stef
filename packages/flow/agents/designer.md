@@ -77,3 +77,6 @@ The output must include all of:
 - **Edge cases / error handling**
 - **Testing approach**
 - **Out of scope** — explicit non-goals
+
+## Contract awareness (tier-2)
+A tier-2 phase may declare `inputs.inject` (values interpolated into your prompt from prior publishes) and `outputs.publish` (values your result feeds to later phases). Honor the injected context and return a structured result the next phase can consume.

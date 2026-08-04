@@ -31,3 +31,4 @@ loops:
     until: approved
     fail_on: [P0, P1, P2]
     max_rounds: 5
+    protocol: canonical-delta

@@ -21,4 +21,26 @@ describe("bundled example workflows", () => {
       expect(generateScript(flow)).toBe(generateScript(flow));
     });
   }
+
+  it("ship-feature generates the contract steps (derive-slug/materialize/assert + prepare/finalize)", () => {
+    const raw = readFileSync(join(pkgRoot, "workflows", "ship-feature.yaml"), "utf8");
+    const flow = load(raw) as FlowYaml;
+    const s = generateScript(flow);
+    expect(s).toContain('"derive-slug"');
+    expect(s).toContain('"materialize"');
+    expect(s).toContain('"assert"');
+    expect(s).toContain('"complete"');
+    expect(s).toContain("sf_flow_prepare("); // implement phase worktree:prepare
+    expect(s).toContain("sf_flow_finalize("); // notify phase worktree:finalize
+    expect(s).toContain('"tracker_updated"'); // implement asserts the tracker advanced
+    expect(s).toContain("let _canonical"); // audit-loop is canonical-delta
+  });
+
+  it("code-review generates the canonical-delta machinery", () => {
+    const raw = readFileSync(join(pkgRoot, "workflows", "code-review.yaml"), "utf8");
+    const flow = load(raw) as FlowYaml;
+    const s = generateScript(flow);
+    expect(s).toContain("sf_flow_gate(");
+    expect(s).toContain('"canonical-round"');
+  });
 });

@@ -14,3 +14,6 @@ Rules:
 - Decide inclusion from path/metadata only — use `grep` only for a targeted pattern check if the rule requires it; never `read` whole files into context.
 - No prose, headings, or commentary — just the list, one path per line. An empty result is a single empty line.
 - Do not modify anything.
+
+## Contract awareness (tier-2)
+A tier-2 phase may declare `inputs.inject` and `outputs.publish`. Return the clean list your phase declares as its `out` so a downstream fanout/verify phase can consume it.

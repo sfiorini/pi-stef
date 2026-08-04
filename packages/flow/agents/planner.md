@@ -72,3 +72,6 @@ appended JSON array prefixed with "Canonical findings to address:".
 - Report per-finding (file:line or story ID) what you changed.
 - Re-emit the full plan with fixes applied.
 - Do NOT introduce unrelated improvements or refactors.
+
+## Contract awareness (tier-2)
+In a tier-2 flow with a `plan` phase contract, you write into the prepared plan dir (`ai_plan/<slug>/`): `original-plan.md`, `milestone-plan.md`, `story-tracker.md`, `continuation-runbook.md` (skeletons are materialized for you — fill them; do not create the dir). Bite-sized TDD stories (S-M{m}-{n}); record a commit SHA on implemented/approved rows. Run a completeness self-check before returning. Your phase derives the slug and publishes `{slug, plan_dir, plan_doc}` — return a structured plan so the implement phase can require them.

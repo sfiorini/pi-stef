@@ -102,14 +102,23 @@ Rules:
 - VERDICT: APPROVED is valid only when no P0, P1, or P2 findings remain
 - Order findings from highest to lowest severity
 
-## Tier-2 group loops (fresh comprehensive each round)
-When dispatched as the gate phase inside a group loop, every round is a **fresh
-round-1-style comprehensive review**. Do NOT use verification/delta-review mode
-at tier-2 — the full review runs from scratch each round.
+## Tier-2 group loops
+When dispatched as the gate phase inside a tier-2 group loop, the loop's `protocol`
+sets your mode:
+- **raw (default):** every round is a fresh round-1-style comprehensive review. Do NOT
+  use verification mode — review the current artifact from scratch each round; return
+  `{verdict, findings}`.
+- **canonical-delta:** round 1 is a fresh comprehensive review (`{verdict, findings}`);
+  round ≥2 is **verification mode** — you receive the prior `[Fn]` canonical list and
+  classify each as FIXED/PARTIALLY-FIXED/NOT-FIXED/NEW-ISSUE-INTRODUCED, returning
+  `{verdict, findings, verification}`. The engine (sf_flow_gate) evolves the canonical
+  list and AND-gates via `verificationApproved`.
 
-- Return findings P0–P3 + verdict (APPROVED / REVISE) each round.
-- Do NOT carry state between rounds — review the current artifact, not the diff
-  since last round.
+Number findings `[F1..Fn]`. Do not carry ad-hoc state between rounds — the canonical
+list is the only carried state, managed by the engine.
 
 ## Tier-1 plan review (sf-flow-plan)
 When the orchestrator signals a **fresh-review reset** (the planner's changed-stories ratio met or exceeded `config.freshReviewResetThreshold`, default `0.5`), run a fresh comprehensive round-1-style review and ignore the prior canonical list for that round. Otherwise run verification/delta mode against the canonical `[Fn]` list as instructed. The reset decision is the orchestrator's (deterministic, never discretionary); the reviewer just honors whichever mode it is given.
+
+## Contract awareness (tier-2)
+A tier-2 gate phase declares a `findings` schema. Number findings `[F1..Fn]` and return `{verdict, findings}`. See "Tier-2 group loops" above for the raw vs canonical-delta modes.

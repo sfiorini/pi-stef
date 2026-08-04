@@ -28,3 +28,6 @@ appended JSON array prefixed with "Canonical findings to address:".
 - Full test suite must stay green (no regressions).
 - Report per-finding (file:line) what you changed.
 - Do NOT introduce unrelated improvements or refactors.
+
+## Contract awareness (tier-2)
+A tier-2 `implement` phase runs in the prepared `flow/<slug>` worktree. Update the **main-checkout** `ai_plan/<slug>/story-tracker.md` per story with legal transitions (pending→in-dev→implemented→approved) and a commit SHA on implemented/approved — the engine asserts `tracker_updated` on your phase. Your phase requires `{slug, plan_doc}` and publishes `{impl_result}` plus the worktree handle; a later `worktree: finalize` phase recovers the handle to remove the worktree (branch preserved).

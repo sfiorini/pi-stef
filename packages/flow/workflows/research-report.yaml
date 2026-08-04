@@ -17,6 +17,15 @@ phases:
     out: raw
   - id: synth
     agent: synth
-    in: raw
-    prompt: "Synthesize a cited report from these findings."
+    prompt: "Synthesize a cited report from these findings into research-report.md under the plan dir."
+    inputs:
+      require: [raw]
+      inject: ["Findings: {{raw}}", "Write the report to ai_plan/{{slug}}/research-report.md"]
+    outputs:
+      slug: { from: input, prefix: date }
+      dir: "ai_plan/{{slug}}"
+      artifacts:
+        - { file: research-report.md }
+      assert: [nonempty]
+      publish: { slug: "{{slug}}", report_dir: "{{dir}}" }
 loops: {}

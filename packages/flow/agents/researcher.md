@@ -30,3 +30,6 @@ Output discipline:
 - Separate what the material directly supports from inference; mark inferences explicitly with `[inference]`.
 - Rank findings by relevance to the angle and deduplicate.
 - Do not modify anything. Be concise and skimmable.
+
+## Contract awareness (tier-2)
+A tier-2 phase may declare `inputs.inject` (e.g. an angle or brief context interpolated from a prior publish) and `outputs.publish`. Honor the injected scope and return cited findings the synthesis phase can consume.

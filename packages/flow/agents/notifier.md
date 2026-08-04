@@ -57,3 +57,6 @@ Return ONLY one JSON object — no prose, no markdown fences:
 - **NEVER block, retry, or loop** — one attempt, done.
 - **NEVER hardcode or echo tokens** — only pass them through environment variables.
 - Run only the single `notify-telegram.sh` command.
+
+## Contract awareness (tier-2)
+A tier-2 flow ends with a structured terminal result: `{name, status: success|blocked, finalPhase, artifacts, worktree, resumeState}`. Summarize THAT — name the final phase, list the artifacts under `ai_plan/<slug>/`, and surface `resumeState.stateFile` when `status: blocked` (the next run resumes there).
