@@ -51,7 +51,7 @@ const DEFAULT_STAGES: VerificationStageSpec[] = ["typecheck", "test"];
 const ALL_STAGES: VerificationStageSpec[] = ["typecheck", "test", "lint"];
 const DEFAULT_MAX_ATTEMPTS = 2;
 
-export function defaultVerificationConfigForTool(toolName: string): ResolvedVerificationConfig {
+export function defaultVerificationConfigForTool(_toolName: string): ResolvedVerificationConfig {
   return {
     timing: "after",
     mode: "commands",

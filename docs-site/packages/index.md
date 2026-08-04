@@ -15,10 +15,8 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 | [azure-foundry](/packages/azure-foundry) | Azure Foundry and Azure OpenAI deployments as native Pi providers |
 | [catalog](/packages/catalog) | Declarative package manager with cross-machine sync |
 | [flow](/packages/flow) | Reusable multi-agent workflows, CodeRabbit-style audit |
-| [team](/packages/team) | **[DEPRECATED → flow]** Steerable team of role-agents for plan/review/implement |
 | [atlassian](/packages/atlassian) | Jira and Confluence integration |
 | [figma](/packages/figma) | Figma REST API tools and design context |
-| [pair](/packages/pair) | **[DEPRECATED → flow]** Simplified plan/review/implement with pi-subagents |
 | [web](/packages/web) | Web search, URL fetch, and browser automation |
 | [finance](/packages/finance) | Portfolio tracking, drift analysis, and investment suggestions |
 | [finance-api](/packages/finance-api) | Always-on local service for financial data ingestion and quant analysis |
@@ -28,4 +26,4 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 ## Internal Packages
 
 - **paths** — Shared path conventions used by other packages. Not typically installed directly.
-- **agent-workflows** — Internal workflow engine. Used by `team` and other packages. Not user-installed.
+- **agent-workflows** — Internal workflow engine. Used by other packages. Not user-installed.

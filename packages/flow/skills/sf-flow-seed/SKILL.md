@@ -23,5 +23,5 @@ Idempotent: a repeat run reports everything up-to-date (and refreshes any stale 
 - To review a changed default: `diff reviewer.md reviewer.md.new`, merge what you want, then delete the `.new`.
 
 ## Notes
-- Agent `reviewer.md` is shared with `@pi-stef/pair`; whichever was written first wins. If flow's version differs from pair's, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare. Flow no longer ships `explorer.md` (consolidated into `researcher.md`, non-isolated, web-capable); pair still ships its own `explorer.md`. To adopt flow's researcher, delete any old seeded `explorer.md` and re-seed.
+- Agent `reviewer.md` is shared with earlier workflow packages; whichever was written first wins. If flow's version differs, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare. Flow no longer ships `explorer.md` (consolidated into `researcher.md`, non-isolated, web-capable); earlier packages shipped their own `explorer.md`. To adopt flow's researcher, delete any old seeded `explorer.md` and re-seed.
 - This is GLOBAL seeding. A project can override a global default by placing `<repo>/.pi/sf/flow/workflows/<name>.yaml`.

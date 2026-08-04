@@ -24,7 +24,6 @@ export default defineConfig({
           { text: "Profiles & Sharing", link: "/profiles" },
           { text: "Agent Isolation & Auth", link: "/guides/agent-isolation-and-auth" },
           { text: "Migrating from superpowers-adapter", link: "/migrating-from-superpowers-adapter" },
-          { text: "Migrating from team & pair", link: "/migrating-from-team-and-pair" },
         ],
       },
       {
@@ -34,8 +33,6 @@ export default defineConfig({
           { text: "azure-foundry", link: "/packages/azure-foundry" },
           { text: "catalog", link: "/packages/catalog" },
           { text: "flow", link: "/packages/flow" },
-          { text: "pair (deprecated)", link: "/packages/pair" },
-          { text: "team (deprecated)", link: "/packages/team" },
           { text: "atlassian", link: "/packages/atlassian" },
           { text: "figma", link: "/packages/figma" },
           { text: "web", link: "/packages/web" },

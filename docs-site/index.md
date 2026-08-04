@@ -18,14 +18,6 @@ features:
     title: Catalog Manager
     details: Declarative package management with cross-machine sync via GitHub Gist. Add, remove, enable, and disable packages with a single YAML file.
     link: /packages/catalog
-  - icon: 👥
-    title: Team Orchestration (deprecated)
-    details: Steerable team of role-agents (researcher, planner, developer, reviewer) for plan, implement, and review workflows.
-    link: /packages/team
-  - icon: 🤝
-    title: Pair Workflow (deprecated)
-    details: Simplified plan/review/implement with pi-subagents for reviewer spawning. Lighter alternative to team.
-    link: /packages/pair
   - icon: 🌊
     title: Flow Workflows
     details: Reusable multi-agent workflows (agents/phases/loops YAML) and CodeRabbit-style code audit — supersedes the deprecated pair & team, built on pi-dynamic-workflows.
