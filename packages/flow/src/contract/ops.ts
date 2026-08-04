@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { resolveTemplate } from "../paths.js"; // single source of truth (shared with validate.ts)
+import { parseTracker } from "../plan/tracker.js";
 
 /** Derive a kebab slug from a source string, optionally date-prefixed. */
 export function deriveSlug(source: string, opts: { prefix?: "date" | "none"; now?: Date }): string {
@@ -43,14 +44,19 @@ export interface ArtifactAssertion {
   missing: string[];
   empty: string[];
   detail: string;
+  /** Tracker-specific violations (commit-SHA / progress) when a tracker assert runs. */
+  trackerErrors?: string[];
 }
 
 /**
- * Assert the artifacts in `dir` satisfy the declared checks. `nonempty` requires
- * every target file to exist and be non-empty. With no explicit `files` list,
- * every `.md` in the dir is checked. An empty target set with `nonempty` blocks
- * (nothing was produced), which is the self-defeating check that catches a
- * skipped/incomplete plan phase.
+ * Assert the artifacts in `dir` satisfy the declared checks:
+ * - `nonempty`: every target `.md` exists and is non-empty (empty target set blocks).
+ * - `tracker_valid`: `story-tracker.md` parses and every implemented/approved story
+ *   carries a commit SHA (legal tracker state).
+ * - `tracker_updated`: `tracker_valid` AND at least one story advanced past `pending`
+ *   (the tracker reflects work, not just the initial scaffold).
+ *
+ * With no explicit `files` list, every `.md` in the dir is checked for `nonempty`.
  */
 export function assertArtifacts(dir: string, assert: string[], files?: string[]): ArtifactAssertion {
   if (!existsSync(dir)) {
@@ -67,11 +73,42 @@ export function assertArtifacts(dir: string, assert: string[], files?: string[])
     if (!existsSync(p)) missing.push(f);
     else if (assert.includes("nonempty") && statSync(p).size === 0) empty.push(f);
   }
-  const ok = missing.length === 0 && empty.length === 0;
+
+  // Tracker assertions (spec §12): parse the main-checkout story-tracker.md.
+  const trackerErrors: string[] = [];
+  const wantsTracker = assert.some((a) => a === "tracker_valid" || a === "tracker_updated");
+  if (wantsTracker) {
+    const trackerPath = join(dir, "story-tracker.md");
+    if (!existsSync(trackerPath)) {
+      trackerErrors.push("story-tracker.md missing");
+    } else {
+      const t = parseTracker(readFileSync(trackerPath, "utf8"));
+      if (!t) {
+        trackerErrors.push("story-tracker.md has no story rows");
+      } else {
+        for (const s of t.stories) {
+          if ((s.state === "implemented" || s.state === "approved") && !s.commit) {
+            trackerErrors.push(`${s.id}: ${s.state} requires a commit SHA`);
+          }
+        }
+        if (assert.includes("tracker_updated") && !t.stories.some((s) => s.state !== "pending")) {
+          trackerErrors.push("tracker not advanced (no story past pending)");
+        }
+      }
+    }
+  }
+
+  const ok = missing.length === 0 && empty.length === 0 && trackerErrors.length === 0;
+  const issueParts = [
+    ...(missing.length ? [`missing=${missing.join(",")}`] : []),
+    ...(empty.length ? [`empty=${empty.join(",")}`] : []),
+    ...trackerErrors,
+  ];
   return {
     status: ok ? "success" : "blocked",
     missing,
     empty,
-    detail: ok ? "ok" : `missing=${missing.join(",")} empty=${empty.join(",")}`,
+    detail: ok ? "ok" : issueParts.join("; "),
+    ...(trackerErrors.length ? { trackerErrors } : {}),
   };
 }

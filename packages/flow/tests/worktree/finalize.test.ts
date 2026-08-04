@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execSync } from "node:child_process";
 import { finalizeWorktree } from "../../src/worktree/finalize.js";
+import { removeWorktree } from "../../src/worktree/cleanup.js";
+import { WorktreeError } from "../../src/worktree/validate.js";
 
 // Helper to create a throwaway git repo with a worktree on branch flow/test.
 function makeRepo(): { repo: string; wtPath: string } {
@@ -43,5 +45,12 @@ describe("finalizeWorktree (flow)", () => {
     expect(existsSync(wtPath)).toBe(false);
     // Branch still exists
     execSync("git rev-parse --verify flow/test", { cwd: repo, stdio: "pipe" });
+  });
+
+  it("reports a cleanup failure instead of swallowing it (D10)", async () => {
+    // A path that is not a registered worktree -> git fails -> removeWorktree throws
+    await expect(removeWorktree("/nonexistent/flow-worktree-path", repo)).rejects.toThrow(WorktreeError);
+    // finalizeWorktree propagates the failure (does not swallow)
+    await expect(finalizeWorktree("/nonexistent/flow-worktree-path", repo)).rejects.toThrow(WorktreeError);
   });
 });
