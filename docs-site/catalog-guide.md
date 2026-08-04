@@ -55,9 +55,6 @@ packages:
   azure-foundry:
     source: npm:@pi-stef/azure-foundry
     enabled: true
-  cursor:
-    source: npm:@pi-stef/cursor
-    enabled: true
   flow:
     source: npm:@pi-stef/flow
     enabled: true

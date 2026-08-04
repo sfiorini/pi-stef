@@ -56,9 +56,6 @@ packages:
   flow:
     source: "npm:@pi-stef/flow"
     type: skill
-  cursor:
-    source: "npm:@pi-stef/cursor"
-    type: skill
   atlassian:
     source: "npm:@pi-stef/atlassian"
     type: skill

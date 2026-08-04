@@ -42,10 +42,6 @@ features:
     title: Atlassian Integration
     details: Jira and Confluence Cloud tools for story context, issue tracking, and documentation access.
     link: /packages/atlassian
-  - icon: 🖥️
-    title: Cursor Provider
-    details: Use Cursor's AI models (Claude, GPT, Gemini, Grok) as native Pi providers with API key authentication and the @cursor/sdk
-    link: /packages/cursor
   - icon: ☁️
     title: Azure Foundry
     details: Connect Azure Foundry and Azure OpenAI deployments as native Pi providers with config-driven setup
