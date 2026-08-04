@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-08-04
+### Changed
+- docs: drop deprecated @pi-stef/pair and @pi-stef/team references from docs-site, READMEs, and SKILL.md
+
+
 ## [0.11.1] - 2026-08-04
 ### Changed
 - fix(flow): short slug, model directive, prompt-in-slug-folder (sf-flow-auto)
