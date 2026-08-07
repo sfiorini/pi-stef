@@ -21,3 +21,25 @@ Because the release tool owns all of the above, as an agent you must:
 - **Do write clear conventional-commit subject lines** — `feat(<scope>):`, `fix(<scope>):`, `docs:`, `chore:`, `refactor:` … — because each subject becomes a changelog bullet (only subjects are captured, not bodies). Signal breaking changes in the subject (e.g. `feat(<scope>)!:`).
 
 If a task seems to require a version bump or a changelog edit, **do not make it** — flag it and point the maintainer to `pnpm release`, which owns both. This is a hard rule: don't edit versions or changelogs even when asked to.
+
+## Atlassian templates — `docs/atlassian-templates/`
+
+Reusable, source-controlled templates for the Confluence spaces and Jira content this project publishes. Each template is a self-documenting `.md` (purpose → placeholders → ready-to-use body). Check here **before** hand-writing a new space home page or page layout from scratch.
+
+**Location:** [`docs/atlassian-templates/`](./docs/atlassian-templates) — start at its [`README.md`](./docs/atlassian-templates/README.md) for the index and conventions.
+
+**Templates available today:**
+
+| Template | File | Target / tool | Use it when… |
+| --- | --- | --- | --- |
+| Confluence space home page | [`confluence-space-homepage.md`](./docs/atlassian-templates/confluence-space-homepage.md) | `confluence_update_page` / `confluence_create_page` (storage format) | Creating a new project/product space or replacing an empty/stale home page. Gives a consistent hero, architecture, key-resources, quick-reference, and a live "recently updated" feed. |
+| Confluence PRD | [`confluence-prd.md`](./docs/atlassian-templates/confluence-prd.md) | `confluence_create_page` / `confluence_update_page` (storage format) | Starting a new product phase or major feature. Captures problem, goals/non-goals, requirements, design, roadmap, risks, success criteria, open questions, and references. File under a per-product "PRD & Research" parent with the source research as siblings. |
+
+**How to use a template:**
+
+1. Read the template `.md` and substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
+2. For Confluence templates, publish in **storage format** (`bodyRepresentation: "storage"`).
+3. Keep the canonical section order and the live macros (e.g. `recently-updated`) intact; adapt the *content*, not the structure.
+4. Verify after publishing (e.g. `confluence_page`) that the version incremented and the body replaced cleanly.
+
+**Adding a new template:** create the `.md` under `docs/atlassian-templates/`, add a row to that folder's `README.md` table **and** to the table above, so future sessions can discover it.
