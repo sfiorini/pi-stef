@@ -1,0 +1,96 @@
+# Template: Jira Epic
+
+A reusable description body for a Jira **Epic** — the large, multi-sprint body of work that
+groups Stories toward one outcome. It captures the goal and value, the scope and explicit
+non-goals, the Epic-level acceptance criteria (its Definition of Done), the rollout shape,
+and the dependencies and references behind it — in a structure consistent across every
+Epic in this project.
+
+## When to use
+
+- Starting a large body of work that will span multiple sprints (roughly a month to a
+  quarter).
+- Any initiative that must answer: *why*, *what's in/out*, *how we'll know it's done*,
+  *how it rolls out*, and *what it depends on*.
+
+Publish with `jira_create_issue` (new) or `jira_update_issue` (refresh). Pass the body as
+the `description` (plain text; converted to ADF automatically) and set `issueTypeName` to
+`Epic`. Other values go through `fields`. For rich formatting (real headings, bullet lists,
+bold), build an ADF object and pass it to `description` directly (see Notes).
+
+## Placeholders
+
+| Token | Required | Description |
+| --- | --- | --- |
+| `{{SUMMARY}}` | yes | The `summary` (issue header) — a short, scannable label ≤72 chars, e.g. `In-App Messaging v1`. **Not** a sentence; do **not** put sections here. |
+| `{{GOAL_VALUE}}` | yes | *Goal & value* — why this Epic exists and the outcome it drives. Lead with user/business value; make the success metric explicit. |
+| `{{SCOPE}}` | yes | *Scope* — what's in: the child stories/themes this Epic will deliver. |
+| `{{OUT_OF_SCOPE}}` | yes | *Out of scope* — explicit non-goals. Prevents scope creep; never publish empty (say `None.` if truly none). |
+| `{{EPIC_ACCEPTANCE_CRITERIA}}` | yes | *Epic-level acceptance criteria / Definition of Done* — 3–7 broad, outcome-oriented items. |
+| `{{MILESTONES}}` | yes | *Key milestones & planned child stories* — the rollout shape across sprints (reference child story keys when known). |
+| `{{REFERENCES}}` | yes | *Notes & references* — links to the PRD, research pages, design docs, and related Epics. |
+| `{{DEPENDENCIES}}` | no | *Dependencies* — upstream/downstream Epics, teams, vendor deps. Use issue links for cross-issue deps. Say `None.` if none. |
+
+## Template body (Jira description, plain text)
+
+```text
+GOAL & VALUE
+
+{{GOAL_VALUE}}
+
+SCOPE
+
+{{SCOPE}}
+
+OUT OF SCOPE
+
+{{OUT_OF_SCOPE}}
+
+EPIC-LEVEL ACCEPTANCE CRITERIA (EPIC DEFINITION OF DONE)
+
+{{EPIC_ACCEPTANCE_CRITERIA}}
+
+KEY MILESTONES & PLANNED CHILD STORIES
+
+{{MILESTONES}}
+
+DEPENDENCIES
+
+{{DEPENDENCIES}}
+
+NOTES & REFERENCES
+
+{{REFERENCES}}
+```
+
+## Notes for the filling-in agent
+
+- **Summary is a label, not a sentence.** ≤72 chars (boards truncate). `In-App Messaging
+  v1`, not `"We need to build in-app messaging so users can…"`. The narrative belongs in
+  *Goal & value*. A `[Feature]`/`[Initiative]` prefix is fine when you want to signal Epic
+  shape on the board.
+- **Publish mechanics.** `summary` → the `summary` param; the body above → the
+  `description` param (plain text; the tool converts to ADF); `issueTypeName: "Epic"`;
+  everything else via the `fields` map. Substitute **every** `{{TOKEN}}` — never publish a
+  raw placeholder.
+- **The ADF limit (repo-specific).** `jira_create_issue` converts plain text via
+  `plainTextToAdf()`, which only produces `paragraph` / `hardBreak` / `text` nodes — **no
+  real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines
+  (visual dividers) and `- ` / `**` markers render as literal text. A blank line starts a
+  new paragraph; a single newline is a line break within a paragraph. If a section genuinely
+  needs real lists/headings/bold, build an ADF object and pass it to `description` directly
+  (the tool passes ADF objects through unchanged).
+- **Out of scope must be honest.** It's the scope-creep guardrail; list the real non-goals.
+  If there are none, say `None.` explicitly — never publish it empty.
+- **Acceptance criteria are Epic-level.** Broad and outcome-oriented (3–7), distinct from
+  each child Story's specific ACs. "All child Stories are Done" plus the outcome metric
+  belong here.
+- **Recommended fields** (via `fields`): `priority.name` (`Highest`/`High`/`Medium`/`Low`/
+  `Lowest`); `fixVersions[].name` (the release/milestone); `assignee` or a custom DRI
+  user-picker (one accountable owner); the native Epic *Target start* / *Target end* fields
+  (they show on the Timeline/Roadmap); `labels[]` (lowercase kebab-case, ≤10–15 — see repo
+  conventions); `components[].name` (code areas: `core`/`api`/`cli`/`docs`/`infra`).
+- **Dependencies as links.** For cross-Epic deps, create issue links (`blocks` /
+  `relates to`) rather than relying on prose; keep the prose summary here.
+- **Verify after publishing** with `jira_get_issue` (or `jira_issue`): confirm the summary,
+  description, parent, and fields all landed.

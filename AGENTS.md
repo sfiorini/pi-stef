@@ -34,12 +34,18 @@ Reusable, source-controlled templates for the Confluence spaces and Jira content
 | --- | --- | --- | --- |
 | Confluence space home page | [`confluence-space-homepage.md`](./docs/atlassian-templates/confluence-space-homepage.md) | `confluence_update_page` / `confluence_create_page` (storage format) | Creating a new project/product space or replacing an empty/stale home page. Gives a consistent hero, architecture, key-resources, quick-reference, and a live "recently updated" feed. |
 | Confluence PRD | [`confluence-prd.md`](./docs/atlassian-templates/confluence-prd.md) | `confluence_create_page` / `confluence_update_page` (storage format) | Starting a new product phase or major feature. Captures problem, goals/non-goals, requirements, design, roadmap, risks, success criteria, open questions, and references. File under a per-product "PRD & Research" parent with the source research as siblings. |
+| Jira Epic | [`jira-epic.md`](./docs/atlassian-templates/jira-epic.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Starting a large, multi-sprint body of work that groups Stories toward one outcome. Captures goal/value, scope, out-of-scope, Epic-level acceptance criteria, milestones, dependencies, and references. |
+| Jira Feature | [`jira-feature.md`](./docs/atlassian-templates/jira-feature.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Shaping a mid-tier shippable increment (SAFe framing) with a benefit hypothesis, NFRs, and outcome-focused acceptance criteria. Used as an enriched Epic body (recommended) or a custom Feature type. |
+| Jira Story | [`jira-story.md`](./docs/atlassian-templates/jira-story.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Writing a sprint-sized unit of user value. Summary carries "As a / I want / so that"; body has context, testable acceptance criteria, and design/technical notes. |
 
 **How to use a template:**
 
 1. Read the template `.md` and substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
-2. For Confluence templates, publish in **storage format** (`bodyRepresentation: "storage"`).
+2. Publish in the right format: Confluence templates in **storage format**
+   (`bodyRepresentation: "storage"`); Jira templates as **plain text** passed to the
+   `description` (converted to ADF automatically), with fields via the `fields` map.
 3. Keep the canonical section order and the live macros (e.g. `recently-updated`) intact; adapt the *content*, not the structure.
-4. Verify after publishing (e.g. `confluence_page`) that the version incremented and the body replaced cleanly.
+4. Verify after publishing (`confluence_page` for Confluence pages, `jira_get_issue` for
+   Jira issues) that the content landed cleanly (version incremented / body replaced).
 
 **Adding a new template:** create the `.md` under `docs/atlassian-templates/`, add a row to that folder's `README.md` table **and** to the table above, so future sessions can discover it.
