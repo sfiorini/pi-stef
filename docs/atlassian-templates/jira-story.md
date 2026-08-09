@@ -26,7 +26,7 @@ formatting (real headings, bullet lists, bold), build an ADF object and pass it 
 | `{{ACCEPTANCE_CRITERIA}}` | yes | *Acceptance criteria* — testable checklist (Given/When/Then for behaviour). Each AC maps to a test. |
 | `{{DESIGN_NOTES}}` | no | *Design notes* — Figma links, component choices, UX constraints. Say `None.` if none. |
 | `{{TECHNICAL_NOTES}}` | no | *Technical notes* — schema/API/algorithm sketches. Say `None.` if none. |
-| `{{SUGGESTED_SUBTASKS}}` | no | *Suggested sub-tasks* — a starter breakdown (create as Sub-tasks or keep as a checklist). Optional. |
+| `{{SUGGESTED_SUBTASKS}}` | no | *Suggested sub-tasks* — a starter breakdown; **create each as a Sub-task issue** via [`jira-subtask.md`](./jira-subtask.md) (imperative summary, parent = this Story). Optional. |
 
 ## Template body (Jira description, plain text)
 
@@ -79,9 +79,20 @@ SUGGESTED SUB-TASKS
   to retry transient failures…`). **Tasks and Bugs** may skip the narrative and use an
   imperative summary (`Fix CSV import crashing on empty rows`).
 - **Recommended fields** (via `fields`): Story Points (native field, modified Fibonacci
-  1/2/3/5/8/13 — keep most estimates in 1–13); `fields.parent.key`; `priority.name`;
-  `fixVersions[].name`; `labels[]` (lowercase kebab-case, ≤10–15 — see repo conventions);
-  `components[].name` (code areas: `core`/`api`/`cli`/`docs`/`infra`).
+  1/2/3/5/8/13 — keep most estimates in 1–13); `fields.parent.key` → the parent Epic;
+  `priority.name` — `High` for Phase-1 stories, `Medium` for later; `fixVersions[].name` —
+  the phase/quarter marker (e.g. `Q1`); `labels[]` — `enhancement` + the phase tag `phase-N`;
+  `components[].name` — the **package name** (e.g. `qwen-proxy`, `finance-api` — never generic
+  `api`/`infra`/`docs`).
+- **Break the Story into Sub-tasks.** Fill `{{SUGGESTED_SUBTASKS}}` with imperative titles
+  and **create each as a Sub-task issue** via [`jira-subtask.md`](./jira-subtask.md)
+  (`issueTypeName: "Sub-task"`/`"Subtask"`, `fields.parent.key` = this Story, priority
+  `Medium`). Story Points stay on the Story; Sub-tasks are not estimated.
+- **Story ↔ Story `Blocks` links.** Express the dependency graph as issue links:
+  `jira_create_issue_link typeName: "Blocks"`, where **outwardIssueKey = dependent** and
+  **inwardIssueKey = prerequisite** (the prereq "blocks" the dependent — verified for the
+  @pi-stef tool; re-verify the direction with one link if you ever switch Jira clients). Keep
+  the graph transitively consistent with the Epic's milestone ordering.
 - **Definition of Ready.** A story is ready to pull when the summary + acceptance criteria
   are filled, it's estimated, dependencies are noted, and it fits a sprint.
 - **Verify after publishing** with `jira_get_issue` (or `jira_issue`): confirm the summary,

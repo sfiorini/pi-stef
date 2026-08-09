@@ -68,7 +68,9 @@ NOTES & REFERENCES
 - **Summary is a label, not a sentence.** ≤72 chars (boards truncate). `In-App Messaging
   v1`, not `"We need to build in-app messaging so users can…"`. The narrative belongs in
   *Goal & value*. A `[Feature]`/`[Initiative]` prefix is fine when you want to signal Epic
-  shape on the board.
+  shape on the board. In pi-stef product projects (`PISTFIN`, `PISTQWE`, …) the convention is
+  `<Product> — Phase N: <Title>` with an em-dash — e.g. `Qwen — Phase 1: MVP`,
+  `Finance — Phase 1: Live-Data Foundation & Tracking MVP`.
 - **Publish mechanics.** `summary` → the `summary` param; the body above → the
   `description` param (plain text; the tool converts to ADF); `issueTypeName: "Epic"`;
   everything else via the `fields` map. Substitute **every** `{{TOKEN}}` — never publish a
@@ -85,11 +87,25 @@ NOTES & REFERENCES
 - **Acceptance criteria are Epic-level.** Broad and outcome-oriented (3–7), distinct from
   each child Story's specific ACs. "All child Stories are Done" plus the outcome metric
   belong here.
-- **Recommended fields** (via `fields`): `priority.name` (`Highest`/`High`/`Medium`/`Low`/
-  `Lowest`); `fixVersions[].name` (the release/milestone); `assignee` or a custom DRI
-  user-picker (one accountable owner); the native Epic *Target start* / *Target end* fields
-  (they show on the Timeline/Roadmap); `labels[]` (lowercase kebab-case, ≤10–15 — see repo
-  conventions); `components[].name` (code areas: `core`/`api`/`cli`/`docs`/`infra`).
+- **Recommended fields** (via `fields`): `priority.name` — `High` for a Phase-1 Epic,
+  `Medium` for later phases; `fixVersions[].name` — the **phase/quarter release marker**
+  (e.g. `P1`, `Q1`; create it first via `jira_create_version` if it doesn't exist);
+  `assignee` — the owner (DRI) via `accountId`; the native Epic *Target start* / *Target end*
+  fields (they show on the Timeline/Roadmap); `labels[]` — `enhancement` + the phase tag
+  `phase-N` (e.g. `phase-1`), plus optional topic tags; `components[].name` — the **package
+  name** (pi-stef convention: one component per package, e.g. `qwen-proxy`, `finance-api`,
+  `paths` — never generic `api`/`infra`/`docs`).
+- **Hierarchy: Epic → Story → Sub-task.** pi-stef next-gen projects (PISTFIN-style) use a
+  three-tier hierarchy with **no separate Feature type** (see `jira-feature.md`). Decompose
+  this Epic into Stories (`jira-story.md`), and break each Story into Sub-tasks
+  (`jira-subtask.md`); enumerate the child Stories in the Epic's *Scope* and *Key milestones*.
+- **Links.** Capture cross-issue and cross-product relationships as links, not prose:
+  (a) **Epic ↔ Confluence PRD** — attach the source PRD page to the Epic (relationship
+  `implemented by`; via the Jira REST remotelink API — there is no MCP create-tool — or, as a
+  fallback, name the PRD title + page id in *Notes & references* and add a comment);
+  (b) **external remotelinks** — repos, upstream hosts, API docs attached at the Epic level
+  with explicit relationship labels; (c) **issue links** — `blocks` / `relates to` between
+  Stories/Epics via `jira_create_issue_link`.
 - **Dependencies as links.** For cross-Epic deps, create issue links (`blocks` /
   `relates to`) rather than relying on prose; keep the prose summary here.
 - **Verify after publishing** with `jira_get_issue` (or `jira_issue`): confirm the summary,
