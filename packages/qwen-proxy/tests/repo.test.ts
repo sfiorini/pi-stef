@@ -11,6 +11,7 @@ import {
   listLoginFailures,
   upsertRateLimit,
   getRateLimit,
+  type SafeAccountRow,
 } from "../src/store/repo";
 import type { Account } from "../src/config/types";
 
@@ -32,6 +33,13 @@ describe("reconcileAccounts", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0].email).toBe("a@test.com");
     expect(rows[1].email).toBe("b@test.com");
+    // F7: listAccounts must NOT expose password
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("password");
+      expect(row).toHaveProperty("id");
+      expect(row).toHaveProperty("email");
+      expect(row).toHaveProperty("ord");
+    }
     db.close();
   });
 
@@ -103,6 +111,33 @@ describe("reconcileAccounts", () => {
     const result = reconcileAccounts(db, []);
     expect(result.deleted).toBe(1);
     expect(listAccounts(db)).toHaveLength(0);
+    db.close();
+  });
+
+  it("listAccounts returns SafeAccountRow without password (F7)", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "secret", ord: 1 },
+      { id: 2, email: "b@test.com", password: "hidden", ord: 2 },
+    ]);
+
+    const rows = listAccounts(db);
+    expect(rows).toHaveLength(2);
+
+    // Must be SafeAccountRow: id, email, ord — no password
+    const row = rows[0] as SafeAccountRow;
+    expect(typeof row.id).toBe("number");
+    expect(typeof row.email).toBe("string");
+    expect(typeof row.ord).toBe("number");
+
+    // Password must NOT be present on the returned objects
+    expect(rows[0]).not.toHaveProperty("password");
+    expect(rows[1]).not.toHaveProperty("password");
+
+    // getAccount (internal) still returns password
+    const full = getAccount(db, 1)!;
+    expect(full.password).toBe("secret");
+
     db.close();
   });
 });

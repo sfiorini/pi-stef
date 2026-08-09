@@ -273,6 +273,52 @@ describe("createUpstreamClient", () => {
       expect(stopChunk).toBeDefined();
       expect(stopChunk!.finishReason).toBe("stop");
     });
+
+    it("reads finish_reason inside delta as fallback (F8)", async () => {
+      // Upstream variant: finish_reason inside choices[0].delta instead of at choice level
+      const sseChunks = [
+        'data: {"choices":[{"delta":{"content":"Hello"}}]}\n\n',
+        'data: {"choices":[{"delta":{"finish_reason":"stop"}}]}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      const fetcher = vi.fn().mockResolvedValue(sseResponse(sseChunks));
+      const client = createUpstreamClient(opts(fetcher));
+
+      const chunks: QwenChunk[] = [];
+      for await (const chunk of client.chatCompletionsStream("my-bearer", {
+        chatId: "chat-f8",
+        model: "qwen-max",
+        messages: [{ role: "user", content: "hi" }],
+      })) {
+        chunks.push(chunk);
+      }
+
+      const stopChunk = chunks.find((c) => c.finishReason === "stop");
+      expect(stopChunk).toBeDefined();
+      expect(stopChunk!.finishReason).toBe("stop");
+    });
+
+    it("maps featureConfig to feature_config in the POST body (F9)", async () => {
+      const sseChunks = ['data: [DONE]\n\n'];
+      const fetcher = vi.fn().mockResolvedValue(sseResponse(sseChunks));
+      const client = createUpstreamClient(opts(fetcher));
+
+      const featureCfg = { enable_thinking: true, max_thinking_tokens: 4096 };
+
+      for await (const _ of client.chatCompletionsStream("my-bearer", {
+        chatId: "chat-f9",
+        model: "qwen-max",
+        messages: [{ role: "user", content: "hi" }],
+        featureConfig: featureCfg,
+      })) {
+        // drain
+      }
+
+      const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      // featureConfig must be sent as feature_config (snake_case)
+      expect(body.feature_config).toEqual(featureCfg);
+    });
   });
 
   // ── imageGeneration ─────────────────────────────────────────────────────

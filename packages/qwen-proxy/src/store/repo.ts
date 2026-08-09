@@ -3,11 +3,16 @@ import type { Account } from "../config/types";
 
 // ── Row types ───────────────────────────────────────────────────────────────
 
-export interface AccountRow {
+/** Safe view for public API — NO password. */
+export interface SafeAccountRow {
   id: number;
   email: string;
-  password: string;
   ord: number;
+}
+
+/** Full row for INTERNAL credential use only. */
+export interface AccountRow extends SafeAccountRow {
+  password: string;
 }
 
 export interface TokenRow {
@@ -19,8 +24,10 @@ export interface TokenRow {
 
 // ── Accounts ────────────────────────────────────────────────────────────────
 
-export function listAccounts(db: Database.Database): AccountRow[] {
-  return db.prepare("SELECT * FROM accounts").all() as AccountRow[];
+export function listAccounts(db: Database.Database): SafeAccountRow[] {
+  return db
+    .prepare("SELECT id, email, ord FROM accounts ORDER BY ord, id")
+    .all() as SafeAccountRow[];
 }
 
 export function getAccount(
