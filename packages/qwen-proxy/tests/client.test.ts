@@ -159,11 +159,13 @@ describe("createUpstreamClient", () => {
         { id: "qwen-max", object: "model", owned_by: "qwen" },
         { id: "qwen-turbo", object: "model", owned_by: "qwen" },
       ];
-      const fetcher = vi.fn().mockResolvedValue(jsonResponse(models));
+      // Real upstream returns {object:"list", data:[...]} envelope
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse({ object: "list", data: models }));
       const client = createUpstreamClient(opts(fetcher));
 
       const result = await client.listModels("my-bearer");
 
+      // Must unwrap the envelope and return the array
       expect(result).toEqual(models);
       const [url, init] = fetcher.mock.calls[0] as [string, RequestInit];
       expect(url).toBe("https://api.example.com/api/models");
@@ -177,8 +179,9 @@ describe("createUpstreamClient", () => {
 
   describe("createChat", () => {
     it("POSTs {apiUrl}/api/v2/chats/new with bearer and returns {chatId}", async () => {
+      // Real upstream returns {data:{id:"<chat_id>"}} envelope
       const fetcher = vi.fn().mockResolvedValue(
-        jsonResponse({ chat_id: "chat-abc123" }),
+        jsonResponse({ data: { id: "chat-abc123" } }),
       );
       const client = createUpstreamClient(opts(fetcher));
 
@@ -187,6 +190,7 @@ describe("createUpstreamClient", () => {
         title: "Test Chat",
       });
 
+      // Must unwrap data.id into chatId
       expect(result).toEqual({ chatId: "chat-abc123" });
       const [url, init] = fetcher.mock.calls[0] as [string, RequestInit];
       expect(url).toBe("https://api.example.com/api/v2/chats/new");
@@ -224,6 +228,50 @@ describe("createUpstreamClient", () => {
       // Check that the fetcher was called with the right URL
       const [url] = fetcher.mock.calls[0] as [string, RequestInit];
       expect(url).toBe("https://api.example.com/api/v2/chat/completions?chat_id=chat-1");
+    });
+
+    it("includes chat_id in the POST body as well as the URL (F4)", async () => {
+      const sseChunks = ['data: [DONE]\n\n'];
+      const fetcher = vi.fn().mockResolvedValue(sseResponse(sseChunks));
+      const client = createUpstreamClient(opts(fetcher));
+
+      // Consume the stream
+      for await (const _ of client.chatCompletionsStream("my-bearer", {
+        chatId: "chat-xyz",
+        model: "qwen-max",
+        messages: [{ role: "user", content: "hi" }],
+      })) {
+        // drain
+      }
+
+      const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(init.body as string);
+      expect(body.chat_id).toBe("chat-xyz");
+    });
+
+    it("reads finish_reason at choice level (F5) — final chunk has choices[0].finish_reason", async () => {
+      // Upstream final chunk: finish_reason at choice level, not inside delta
+      const sseChunks = [
+        'data: {"choices":[{"delta":{"content":"Hi"}}]}\n\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        'data: [DONE]\n\n',
+      ];
+      const fetcher = vi.fn().mockResolvedValue(sseResponse(sseChunks));
+      const client = createUpstreamClient(opts(fetcher));
+
+      const chunks: QwenChunk[] = [];
+      for await (const chunk of client.chatCompletionsStream("my-bearer", {
+        chatId: "chat-f5",
+        model: "qwen-max",
+        messages: [{ role: "user", content: "hi" }],
+      })) {
+        chunks.push(chunk);
+      }
+
+      // The second chunk (before [DONE]) should have finishReason: "stop"
+      const stopChunk = chunks.find((c) => c.finishReason === "stop");
+      expect(stopChunk).toBeDefined();
+      expect(stopChunk!.finishReason).toBe("stop");
     });
   });
 

@@ -200,7 +200,8 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    return (await res.json()) as Model[];
+    const json = (await res.json()) as { object: string; data: Model[] };
+    return json.data;
   }
 
   // ── createChat ─────────────────────────────────────────────────────────
@@ -223,7 +224,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           title: body.title ?? "",
           models: [body.model],
           chat_mode: "local",
-          chat_type: body.chatType ?? "local",
+          chat_type: body.chatType ?? "t2t",
           timestamp: Date.now(),
         }),
       },
@@ -235,8 +236,8 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    const data = (await res.json()) as { chat_id: string };
-    return { chatId: data.chat_id };
+    const json = (await res.json()) as { data: { id: string } };
+    return { chatId: json.data.id };
   }
 
   // ── chatCompletionsStream ──────────────────────────────────────────────
@@ -261,6 +262,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          chat_id: body.chatId,
           stream: true,
           model: body.model,
           messages: body.messages,
@@ -290,13 +292,19 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
         const chunk: QwenChunk = {};
 
         // Extract from choices[0].delta (typical streaming shape)
-        const delta = parsed.choices?.[0]?.delta;
+        const choice = parsed.choices?.[0];
+        const delta = choice?.delta;
         if (delta) {
           if (delta.phase) chunk.phase = delta.phase;
           if (delta.content) chunk.content = delta.content;
           if (delta.name) chunk.name = delta.name;
           if (delta.extra) chunk.extra = delta.extra;
-          if (delta.finish_reason) chunk.finishReason = delta.finish_reason;
+        }
+        // finish_reason: check choice level first, delta fallback
+        if (choice?.finish_reason != null) {
+          chunk.finishReason = choice.finish_reason;
+        } else if (delta?.finish_reason) {
+          chunk.finishReason = delta.finish_reason;
         }
 
         // Top-level usage
