@@ -7,3 +7,4 @@ export { openDb } from "./store/db";
 export { reconcileAccounts, listAccounts } from "./store/repo";
 export { CookieJar, AuthScheduler, createInternalLogin } from "./upstream/auth";
 export { generateCookies } from "./upstream/ssxmod";
+export { createUpstreamClient } from "./upstream/client";

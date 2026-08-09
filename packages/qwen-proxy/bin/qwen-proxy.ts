@@ -7,7 +7,7 @@ import {
   reconcileAccounts,
   CookieJar,
   AuthScheduler,
-  createInternalLogin,
+  createUpstreamClient,
 } from "../src/index";
 
 const log = createLogger();
@@ -32,11 +32,18 @@ async function main() {
     cookies.start();
 
     // Auth scheduler (per-account JWT refresh + on-demand 401)
+    const client = createUpstreamClient({
+      authUrl: config.authUrl,
+      apiUrl: config.apiUrl,
+      cookies: () => cookies.get(),
+      timeoutMs: config.loginTimeoutMs,
+    });
+
     const scheduler = new AuthScheduler({
       db,
       config,
       cookies,
-      login: createInternalLogin(config),
+      login: client.login,
       log,
     });
     await scheduler.start();
