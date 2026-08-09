@@ -5,6 +5,6 @@ export { loadQwenProxyConfig } from "./config/load";
 export { createLogger } from "./server/logger";
 export { openDb } from "./store/db";
 export { reconcileAccounts, listAccounts, type SafeAccountRow } from "./store/repo";
-export { CookieJar, AuthScheduler, createInternalLogin } from "./upstream/auth";
+export { CookieJar, AuthScheduler } from "./upstream/auth";
 export { generateCookies } from "./upstream/ssxmod";
 export { createUpstreamClient } from "./upstream/client";

@@ -75,6 +75,9 @@ export const MIGRATIONS: Migration[] = [
   },
 
   // v9 — PRAGMA re-assert (connection-scoped; openDb also sets it on every connection)
+  // NOTE: This migration is symbolic/redundant — SQLite ignores `PRAGMA foreign_keys`
+  // inside a transaction, and `openDb` sets it outside any txn. Kept for schema_versions
+  // bookkeeping so a maintainer doesn't remove the openDb PRAGMA.
   {
     version: 9,
     statement: `PRAGMA foreign_keys = ON`,

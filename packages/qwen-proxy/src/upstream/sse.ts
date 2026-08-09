@@ -31,10 +31,18 @@ export async function* parseSseStream(
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      // Normalize CRLF to LF so splitting on "\n\n" works universally
-      buffer = buffer.replace(/\r\n/g, "\n");
+      // Normalize CRLF in new chunk only (avoid O(n²) full-buffer replace)
+      let chunk = decoder.decode(value, { stream: true });
+      chunk = chunk.replace(/\r\n/g, "\n");
+      // If buffer ends with a lone \r that was the start of a \r\n split across
+      // chunks, and chunk now starts with \n, drop the trailing \r.
+      if (buffer.endsWith("\r") && chunk.startsWith("\n")) {
+        buffer = buffer.slice(0, -1);
+      } else if (buffer.endsWith("\r")) {
+        // Lone \r not part of \r\n — drop it (not meaningful for SSE)
+        buffer = buffer.slice(0, -1);
+      }
+      buffer += chunk;
 
       // Process complete records (delimited by \n\n)
       const parts = buffer.split("\n\n");

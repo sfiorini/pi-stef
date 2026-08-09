@@ -100,6 +100,23 @@ describe("CookieJar", () => {
     expect(typeof pair.ssxmod_itna2).toBe("string");
     jar.stop();
   });
+
+  it("(A1) start() twice does not leak a second interval (idempotent)", () => {
+    const jar = new CookieJar(60_000);
+    const pair1 = jar.get();
+    jar.start();
+    const pair2 = jar.get();
+    // cookies should have been refreshed by start()
+    expect(pair2).not.toBe(pair1);
+
+    jar.start(); // second call should be a no-op — no new interval
+    jar.stop(); // single stop should fully clean up
+
+    // Verify stop actually stopped: advance time and confirm get() doesn't change
+    const pairAfterStop = jar.get();
+    vi.advanceTimersByTime(120_000);
+    expect(jar.get()).toBe(pairAfterStop); // no refresh happened after stop
+  });
 });
 
 describe("AuthScheduler", () => {

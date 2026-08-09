@@ -14,6 +14,13 @@ export function openDb(dbPath: string): Database.Database {
     }
   }
   const db = new Database(dbPath);
+  if (dbPath !== ":memory:") {
+    try {
+      chmodSync(dbPath, 0o600);
+    } catch {
+      // best-effort
+    }
+  }
   db.exec("PRAGMA foreign_keys = ON");
   applyMigrations(db);
   return db;

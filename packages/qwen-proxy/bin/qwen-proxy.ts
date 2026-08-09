@@ -29,7 +29,7 @@ async function main() {
 
     // Cookie jar (15-min ssxmod refresh)
     const cookies = new CookieJar(config.refreshIntervalMs);
-    cookies.start();
+    // NOTE: cookies.start() is called inside AuthScheduler.start()
 
     // Auth scheduler (per-account JWT refresh + on-demand 401)
     const client = createUpstreamClient({

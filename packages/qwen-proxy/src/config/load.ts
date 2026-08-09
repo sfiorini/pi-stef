@@ -51,7 +51,7 @@ function resolveAccountsFromNumberedEnv(
     const ord = fields.ORD ? Number(fields.ORD) : fields.ID ? Number(fields.ID) : Number(n);
     accounts.push({ id, email: fields.EMAIL, password: fields.PASSWORD, ord });
   }
-  return accounts;
+  return validateAccounts(accounts, "SF_QWEN_ACCOUNT_N env vars");
 }
 
 async function resolveAccounts(

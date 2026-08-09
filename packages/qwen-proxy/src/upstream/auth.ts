@@ -65,6 +65,7 @@ export class CookieJar {
   }
 
   start(): void {
+    if (this.interval !== null) return; // idempotent: don't leak a second interval
     // Refresh immediately
     this.pair = generateCookies();
     this.interval = setInterval(() => {
@@ -117,8 +118,12 @@ export class AuthScheduler {
       .prepare("SELECT id, email, password FROM accounts")
       .all() as { id: number; email: string; password: string }[];
 
-    // Shuffle accounts for staggered startup
-    const shuffled = [...accounts].sort(() => Math.random() - 0.5);
+    // Shuffle accounts for staggered startup (Fisher-Yates)
+    const shuffled = [...accounts];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
 
     const loginPromises: Promise<void>[] = [];
     for (const acct of shuffled) {
@@ -206,20 +211,7 @@ export class AuthScheduler {
 
   private async handleRefresh(accountId: number): Promise<void> {
     try {
-      const acct = this.db
-        .prepare("SELECT id, email, password FROM accounts WHERE id = ?")
-        .get(accountId) as
-        | { id: number; email: string; password: string }
-        | undefined;
-
-      if (!acct) {
-        this.log.warn("account disappeared during refresh", { accountId });
-        return;
-      }
-
-      const result = await this.login(acct.email, acct.password);
-      upsertToken(this.db, accountId, result.bearer, result.expiresAt);
-      this.scheduleAccount(accountId, result.expiresAt);
+      await this.loginWithMutex(accountId);
     } catch (err) {
       this.log.error("refresh login failed", {
         accountId,
@@ -229,14 +221,20 @@ export class AuthScheduler {
   }
 
   async refreshOnDemand(accountId: number): Promise<LoginResult> {
-    // Per-account async mutex: if a refresh is already in flight for this
-    // account, wait for it instead of starting a second login.
+    return this.loginWithMutex(accountId);
+  }
+
+  /**
+   * Shared mutex for both timer-triggered and on-demand refreshes.
+   * If a login is already in flight for this account, waits for it.
+   */
+  private async loginWithMutex(accountId: number): Promise<LoginResult> {
     const existing = this.mutexes.get(accountId);
     if (existing) {
       return existing;
     }
 
-    const promise = this.doRefreshOnDemand(accountId);
+    const promise = this.doRefresh(accountId);
     this.mutexes.set(accountId, promise);
 
     try {
@@ -246,9 +244,7 @@ export class AuthScheduler {
     }
   }
 
-  private async doRefreshOnDemand(
-    accountId: number,
-  ): Promise<LoginResult> {
+  private async doRefresh(accountId: number): Promise<LoginResult> {
     const acct = this.db
       .prepare("SELECT id, email, password FROM accounts WHERE id = ?")
       .get(accountId) as
@@ -259,10 +255,19 @@ export class AuthScheduler {
       throw new Error(`Account ${accountId} not found`);
     }
 
-    const result = await this.login(acct.email, acct.password);
-    upsertToken(this.db, accountId, result.bearer, result.expiresAt);
-    this.scheduleAccount(accountId, result.expiresAt);
-    return result;
+    try {
+      const result = await this.login(acct.email, acct.password);
+      upsertToken(this.db, accountId, result.bearer, result.expiresAt);
+      this.scheduleAccount(accountId, result.expiresAt);
+      return result;
+    } catch (err) {
+      recordLoginFailure(
+        this.db,
+        accountId,
+        err instanceof Error ? err.message : String(err),
+      );
+      throw err;
+    }
   }
 
   stop(): void {

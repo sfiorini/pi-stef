@@ -171,5 +171,24 @@ describe("config", () => {
         }),
       ).rejects.toThrow();
     });
+
+    it("(A2) numbered-env rejects non-numeric ID (SF_QWEN_ACCOUNT_1_ID=abc)", async () => {
+      await expect(
+        loadQwenProxyConfig({
+          SF_QWEN_ACCOUNT_1_EMAIL: "a@test.com",
+          SF_QWEN_ACCOUNT_1_PASSWORD: "p",
+          SF_QWEN_ACCOUNT_1_ID: "abc",
+        }),
+      ).rejects.toThrow(/invalid|id/i);
+    });
+
+    it("(A2) numbered-env rejects invalid email", async () => {
+      await expect(
+        loadQwenProxyConfig({
+          SF_QWEN_ACCOUNT_1_EMAIL: "not-an-email",
+          SF_QWEN_ACCOUNT_1_PASSWORD: "p",
+        }),
+      ).rejects.toThrow(/email/i);
+    });
   });
 });
