@@ -1,4 +1,6 @@
-import type { QwenProxyConfig } from "./types";
+import { readFile } from "node:fs/promises";
+import { z } from "zod";
+import type { QwenProxyConfig, Account } from "./types";
 
 function parseIntEnv(
   raw: string | undefined,
@@ -7,6 +9,90 @@ function parseIntEnv(
   if (raw === undefined || raw === "") return fallback;
   const n = Number(raw);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+const accountSchema = z.object({
+  id: z.number().int(),
+  email: z.string().email(),
+  password: z.string().min(1),
+  ord: z.number().int(),
+});
+
+function validateAccounts(raw: unknown, source: string): Account[] {
+  if (!Array.isArray(raw)) {
+    throw new Error(`${source} must be a JSON array`);
+  }
+  const result = accountSchema.array().safeParse(raw);
+  if (!result.success) {
+    throw new Error(
+      `${source} contains invalid account: ${result.error.issues.map((i) => i.message).join("; ")}`,
+    );
+  }
+  return result.data;
+}
+
+function resolveAccountsFromNumberedEnv(
+  env: Record<string, string | undefined>,
+): Account[] {
+  const groups = new Map<string, Record<string, string | undefined>>();
+  for (const key of Object.keys(env)) {
+    const m = key.match(/^SF_QWEN_ACCOUNT_(\d+)_(EMAIL|PASSWORD|ID|ORD)$/);
+    if (m) {
+      const n = m[1];
+      if (!groups.has(n)) groups.set(n, {});
+      groups.get(n)![m[2]] = env[key];
+    }
+  }
+
+  const accounts: Account[] = [];
+  for (const [n, fields] of groups) {
+    if (!fields.EMAIL || !fields.PASSWORD) continue;
+    const id = fields.ID ? Number(fields.ID) : Number(n);
+    const ord = fields.ORD ? Number(fields.ORD) : fields.ID ? Number(fields.ID) : Number(n);
+    accounts.push({ id, email: fields.EMAIL, password: fields.PASSWORD, ord });
+  }
+  return accounts;
+}
+
+async function resolveAccounts(
+  env: Record<string, string | undefined>,
+): Promise<Account[]> {
+  // Mode 1: SF_QWEN_ACCOUNTS JSON
+  if (env.SF_QWEN_ACCOUNTS && env.SF_QWEN_ACCOUNTS.trim() !== "") {
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(env.SF_QWEN_ACCOUNTS);
+    } catch (e) {
+      throw new Error(
+        `SF_QWEN_ACCOUNTS is not valid JSON: ${(e as Error).message}`,
+      );
+    }
+    return validateAccounts(parsed, "SF_QWEN_ACCOUNTS");
+  }
+
+  // Mode 2: SF_QWEN_ACCOUNTS_FILE
+  if (env.SF_QWEN_ACCOUNTS_FILE && env.SF_QWEN_ACCOUNTS_FILE.trim() !== "") {
+    let text: string;
+    try {
+      text = await readFile(env.SF_QWEN_ACCOUNTS_FILE, "utf8");
+    } catch (e) {
+      throw new Error(
+        `Failed to read SF_QWEN_ACCOUNTS_FILE (${env.SF_QWEN_ACCOUNTS_FILE}): ${(e as Error).message}`,
+      );
+    }
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      throw new Error(
+        `SF_QWEN_ACCOUNTS_FILE contains invalid JSON: ${(e as Error).message}`,
+      );
+    }
+    return validateAccounts(parsed, "SF_QWEN_ACCOUNTS_FILE");
+  }
+
+  // Mode 3: numbered env vars
+  return resolveAccountsFromNumberedEnv(env);
 }
 
 export async function loadQwenProxyConfig(
@@ -24,6 +110,6 @@ export async function loadQwenProxyConfig(
     loginTimeoutMs: parseIntEnv(env.SF_QWEN_LOGIN_TIMEOUT_MS, 10_000),
     staggerMs: parseIntEnv(env.SF_QWEN_STAGGER_MS, 5_000),
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",
-    accounts: [],
+    accounts: await resolveAccounts(env),
   };
 }

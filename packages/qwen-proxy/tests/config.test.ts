@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { loadQwenProxyConfig } from "../src/config/load";
+import { mkdtempSync, writeFileSync, unlinkSync, rmdirSync } from "node:fs";
+import path from "node:path";
+import os from "node:os";
 
 describe("config", () => {
   describe("defaults", () => {
@@ -73,6 +76,100 @@ describe("config", () => {
       expect(config.loginTimeoutMs).toBe(5000);
       expect(config.staggerMs).toBe(2000);
       expect(config.logLevel).toBe("debug");
+    });
+  });
+
+  describe("account supply", () => {
+    it("parses accounts from SF_QWEN_ACCOUNTS JSON", async () => {
+      const accounts = [
+        { id: 1, email: "a@test.com", password: "p1", ord: 1 },
+        { id: 2, email: "b@test.com", password: "p2", ord: 2 },
+      ];
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_ACCOUNTS: JSON.stringify(accounts),
+      });
+      expect(config.accounts).toEqual(accounts);
+    });
+
+    it("parses accounts from SF_QWEN_ACCOUNTS_FILE", async () => {
+      const tmpDir = mkdtempSync(path.join(os.tmpdir(), "qwen-cfg-"));
+      const filePath = path.join(tmpDir, "accounts.json");
+      const accounts = [{ id: 10, email: "file@test.com", password: "fp", ord: 10 }];
+      writeFileSync(filePath, JSON.stringify(accounts), "utf8");
+      try {
+        const config = await loadQwenProxyConfig({
+          SF_QWEN_ACCOUNTS_FILE: filePath,
+        });
+        expect(config.accounts).toEqual(accounts);
+      } finally {
+        unlinkSync(filePath);
+        rmdirSync(tmpDir);
+      }
+    });
+
+    it("parses accounts from numbered SF_QWEN_ACCOUNT_N env vars", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_ACCOUNT_1_EMAIL: "num@test.com",
+        SF_QWEN_ACCOUNT_1_PASSWORD: "np",
+        SF_QWEN_ACCOUNT_1_ID: "42",
+        SF_QWEN_ACCOUNT_1_ORD: "7",
+      });
+      expect(config.accounts).toEqual([
+        { id: 42, email: "num@test.com", password: "np", ord: 7 },
+      ]);
+    });
+
+    it("resolution: ACCOUNTS beats ACCOUNTS_FILE beats numbered", async () => {
+      const tmpDir = mkdtempSync(path.join(os.tmpdir(), "qwen-cfg-"));
+      const filePath = path.join(tmpDir, "accounts.json");
+      writeFileSync(
+        filePath,
+        JSON.stringify([{ id: 99, email: "file@test.com", password: "fp", ord: 99 }]),
+        "utf8",
+      );
+      try {
+        const accounts = [
+          { id: 1, email: "json@test.com", password: "jp", ord: 1 },
+        ];
+        const config = await loadQwenProxyConfig({
+          SF_QWEN_ACCOUNTS: JSON.stringify(accounts),
+          SF_QWEN_ACCOUNTS_FILE: filePath,
+          SF_QWEN_ACCOUNT_1_EMAIL: "num@test.com",
+          SF_QWEN_ACCOUNT_1_PASSWORD: "np",
+        });
+        expect(config.accounts).toEqual(accounts);
+      } finally {
+        unlinkSync(filePath);
+        rmdirSync(tmpDir);
+      }
+    });
+
+    it("zod rejects bad email", async () => {
+      const accounts = [{ id: 1, email: "not-an-email", password: "p", ord: 1 }];
+      await expect(
+        loadQwenProxyConfig({ SF_QWEN_ACCOUNTS: JSON.stringify(accounts) }),
+      ).rejects.toThrow(/email/i);
+    });
+
+    it("zod rejects missing password", async () => {
+      const accounts = [{ id: 1, email: "a@test.com", ord: 1 }];
+      await expect(
+        loadQwenProxyConfig({ SF_QWEN_ACCOUNTS: JSON.stringify(accounts) }),
+      ).rejects.toThrow();
+    });
+
+    it("throws on invalid SF_QWEN_ACCOUNTS JSON", async () => {
+      await expect(
+        loadQwenProxyConfig({ SF_QWEN_ACCOUNTS: "{bad json" }),
+      ).rejects.toThrow(/SF_QWEN_ACCOUNTS is not valid JSON/);
+    });
+
+    it("throws on missing SF_QWEN_ACCOUNTS_FILE", async () => {
+      await expect(
+        loadQwenProxyConfig({
+          SF_QWEN_ACCOUNTS_FILE: "/nonexistent/path/accounts.json",
+        }),
+      ).rejects.toThrow();
     });
   });
 });
