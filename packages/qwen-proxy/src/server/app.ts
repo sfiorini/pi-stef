@@ -25,6 +25,7 @@ import type { MediaVideoDeps } from "../media/videos";
 import { healthRoutes } from "./health";
 import { clientAuthGate } from "./auth";
 import { openaiRoutes, type OpenAIRouteDeps } from "../adapters/openai";
+import { anthropicRoutes, type AnthropicRouteDeps } from "../adapters/anthropic";
 
 export interface AppDeps {
   db: Database.Database;
@@ -71,8 +72,17 @@ export function createApp(deps: AppDeps): OpenAPIHono {
 
   app.route("/v1", openaiRoutes(openaiDeps));
 
-  // 4. Anthropic routes (M3 — uncomment when ready)
-  // app.route("/v1", anthropicRoutes(deps));
+  // 4. Anthropic-compatible routes
+  const anthropicDeps: AnthropicRouteDeps = {
+    pool: deps.pool,
+    scheduler: deps.scheduler,
+    config: { rateLimitCooldownMs: deps.config.rateLimitCooldownMs, modelAliasesRaw: deps.config.modelAliasesRaw ?? "" },
+    log: deps.log,
+    client: deps.client,
+    retry: deps.retry,
+    retryStream: deps.retryStream,
+  };
+  app.route("/v1", anthropicRoutes(anthropicDeps));
 
   return app;
 }

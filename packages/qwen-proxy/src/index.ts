@@ -3,6 +3,7 @@ export { startServer } from "./server/start";
 export { createApp, type AppDeps } from "./server/app";
 export { clientAuthGate, type ClientAuthGateDeps } from "./server/auth";
 export { openaiError, openaiErrorType, anthropicError, anthropicErrorType } from "./server/envelopes";
+export { anthropicRoutes, type AnthropicRouteDeps, streamAnthropicEvents, buildAnthropicMessage } from "./adapters/anthropic";
 export { loadQwenProxyConfig } from "./config/load";
 export { parseModelAliases, resolveModel } from "./config/model-aliases";
 export { createLogger } from "./server/logger";
