@@ -5,20 +5,24 @@
  * Resolves model aliases + capability suffixes (-thinking, -search).
  * Pool exhausted → 429 rate_limit_error.
  * Sentinel mid-stream → error event + [DONE] (D14).
+ * Function-calling tools rejected → 400.
+ * Details-strip on delta.content only (never reasoning_content).
  */
 
 import { randomUUID } from "node:crypto";
-import type { UpstreamClient, QwenChunk } from "../../upstream/client";
+import type { UpstreamClient, OpenAiChatChunk, OpenAiChatCompletion } from "../../upstream/client";
 import type { withPoolRetry as WithPoolRetryFn, withPoolRetryStream as WithPoolRetryStreamFn } from "../../pool/retry";
 import type { RetryDeps } from "../../pool/retry";
 import { PoolExhaustedError } from "../../pool/errors";
 import { parseModelAliases, resolveModel } from "../../config/model-aliases";
 import { createOpenApiSubApp } from "../../server/openapi-helpers";
 import { openaiError } from "./errors";
-import { firstChunk, mapChunk, TERMINATOR } from "./chunks";
+import { stripDetails } from "../../upstream/details-strip";
+import { DetailsStreamStripper } from "../../upstream/details-strip";
+import { firstChunk, mapOpenAiChunk, TERMINATOR } from "./chunks";
 
 export interface ChatRouteDeps extends RetryDeps {
-  client: Pick<UpstreamClient, "createChat" | "chatCompletionsStream">;
+  client: Pick<UpstreamClient, "chatCompletions">;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
   config: RetryDeps["config"] & { modelAliasesRaw: string };
@@ -52,6 +56,28 @@ function flattenContent(content: unknown): string {
       .join("");
   }
   return "";
+}
+
+/**
+ * Check if the SDK body contains function-calling tools (rejected).
+ * Only {type:"web_search"} and {type:"code"} are allowed.
+ */
+function hasFunctionCallingTools(b: Record<string, unknown>): boolean {
+  // tool_choice present → always rejected
+  if (b.tool_choice !== undefined) return true;
+
+  const tools = b.tools;
+  if (!Array.isArray(tools)) return false;
+
+  return tools.some((t: unknown) => {
+    const tool = t as Record<string, unknown>;
+    if (!tool || typeof tool !== "object") return false;
+    // Explicit function type or function/parameters properties → function calling
+    if (tool.type === "function") return true;
+    if (tool.function !== undefined) return true;
+    if (tool.parameters !== undefined) return true;
+    return false;
+  });
 }
 
 export function chatRoutes(deps: ChatRouteDeps) {
@@ -99,72 +125,68 @@ export function chatRoutes(deps: ChatRouteDeps) {
       });
     }
 
+    // R3-2: Reject function-calling tools
+    if (hasFunctionCallingTools(b)) {
+      return openaiError(c, 400, "Function calling is not supported. Use tools:[{type:'web_search'}] for web search.", {
+        code: "function_calling_not_supported",
+      });
+    }
+
     // Flatten messages to upstream format
     const flatMessages = messages.map((m) => ({
       role: m.role,
       content: flattenContent(m.content),
     }));
 
-    // Determine chat params
-    const chatType = resolved.search ? "search" : "t2t";
-    const featureConfig = resolved.thinking
-      ? { thinking_enabled: true }
-      : undefined;
+    // Build upstream body
+    const upstreamBody: Record<string, unknown> = {
+      model: resolved.upstreamId,
+      messages: flatMessages,
+      stream,
+    };
+
+    // -thinking suffix → enable_thinking:true (default off)
+    if (resolved.thinking) {
+      upstreamBody.enable_thinking = true;
+    }
+
+    // -search suffix → tools:[{type:"web_search"}]
+    if (resolved.search) {
+      upstreamBody.tools = [{ type: "web_search" }];
+    }
+
+    // Explicit enable_thinking passthrough (overrides suffix default)
+    if (typeof b.enable_thinking === "boolean") {
+      upstreamBody.enable_thinking = b.enable_thinking;
+    }
+
+    // Explicit thinking_budget passthrough
+    if (typeof b.thinking_budget === "number") {
+      upstreamBody.thinking_budget = b.thinking_budget;
+    }
+
+    // Explicit tools passthrough (already validated as non-function-calling)
+    if (Array.isArray(b.tools)) {
+      upstreamBody.tools = b.tools;
+    }
 
     // ── Non-stream ────────────────────────────────────────────────────────
 
     if (!stream) {
       try {
-        const chunks: QwenChunk[] = await deps.retry(deps, async (_accountId, bearer) => {
-          const result: QwenChunk[] = [];
-          // Create upstream chat inside retry (F1: failover on 429)
-          const chat = await deps.client.createChat(bearer, {
-            model: resolved.upstreamId,
-            chatType,
-          });
-          for await (const chunk of deps.client.chatCompletionsStream(bearer, {
-            chatId: chat.chatId,
-            model: resolved.upstreamId,
-            messages: flatMessages,
-            featureConfig,
-          })) {
-            result.push(chunk);
-          }
-          return result;
+        const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer) => {
+          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any);
         });
 
-        // Accumulate reasoning_content + content + usage
-        let reasoningContent = "";
-        let content = "";
-        let finishReason: string | null = null;
-        let usage: Record<string, unknown> | undefined;
+        // Extract content + reasoning from upstream
+        const msg = completion.choices?.[0]?.message;
+        const content = msg?.content ?? "";
+        const reasoningContent = msg?.reasoning_content;
+        const finishReason = completion.choices?.[0]?.finish_reason ?? "stop";
+        const usage = completion.usage;
 
-        for (const chunk of chunks) {
-          if (chunk.done) continue;
-
-          if (chunk.phase === "think" && chunk.content) {
-            reasoningContent += chunk.content;
-          } else if (chunk.phase === "answer" && chunk.content) {
-            content += chunk.content;
-          } else if (chunk.content) {
-            // No phase — treat as answer content
-            content += chunk.content;
-          }
-
-          if (chunk.finishReason) {
-            finishReason = chunk.finishReason;
-          }
-          if (chunk.usage) {
-            usage = chunk.usage;
-          }
-        }
-
-        if (!content && !reasoningContent) {
-          deps.log.warn("chat completion produced no content", {
-            chunkCount: chunks.length,
-            phases: chunks.map((c) => c.phase ?? null),
-          });
-        }
+        // Strip <details> from content
+        const strippedContent = stripDetails(content);
 
         const id = `chatcmpl-${randomUUID()}`;
         const created = Math.floor(Date.now() / 1000);
@@ -173,16 +195,16 @@ export function chatRoutes(deps: ChatRouteDeps) {
           id,
           object: "chat.completion" as const,
           created,
-          model,
+          model, // Original SDK model name (not upstreamId)
           choices: [
             {
               index: 0,
               message: {
                 role: "assistant" as const,
-                content: content || null,
-                reasoning_content: reasoningContent || null,
+                content: strippedContent || null,
+                ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
               },
-              finish_reason: finishReason ?? "stop",
+              finish_reason: finishReason,
             },
           ],
           ...(usage ? { usage } : {}),
@@ -198,8 +220,6 @@ export function chatRoutes(deps: ChatRouteDeps) {
     // ── Stream ────────────────────────────────────────────────────────────
 
     // A4: Check pool availability BEFORE constructing the 200 SSE Response.
-    // Otherwise PoolExhaustedError thrown inside the ReadableStream start
-    // callback results in a truncated 200 instead of a 429.
     try {
       deps.pool.getActiveAccount();
     } catch (err) {
@@ -215,18 +235,8 @@ export function chatRoutes(deps: ChatRouteDeps) {
     const streamIter = deps.retryStream(deps, async function* (
       _accountId: number,
       bearer: string,
-    ): AsyncIterable<QwenChunk> {
-      // Create upstream chat inside retry (F1: failover on 429)
-      const chat = await deps.client.createChat(bearer, {
-        model: resolved.upstreamId,
-        chatType,
-      });
-      yield* deps.client.chatCompletionsStream(bearer, {
-        chatId: chat.chatId,
-        model: resolved.upstreamId,
-        messages: flatMessages,
-        featureConfig,
-      });
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield* deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any);
     });
 
     const encoder = new TextEncoder();
@@ -241,44 +251,77 @@ export function chatRoutes(deps: ChatRouteDeps) {
           // First chunk: delta.role = "assistant"
           write(JSON.stringify(firstChunk(id, created, model)));
 
+          const stripper = new DetailsStreamStripper();
           let sentFinishReason = false;
 
           for await (const chunk of streamIter) {
-            // Check for sentinel (D14)
-            if (chunk.done && chunk.extra?.rateLimited) {
-              // Rate limit error mid-stream
-              write(
-                JSON.stringify({
-                  error: {
-                    message: "rate limit exceeded",
-                    type: "rate_limit_error",
-                    code: "rate_limit_exceeded",
-                  },
-                }),
-              );
-              // No finish_reason chunk — go straight to [DONE]
-              controller.enqueue(encoder.encode(TERMINATOR));
-              controller.close();
-              return;
-            }
-
-            if (chunk.done) {
-              // Clean end
+            // D14: Check for sentinel ("done" in chunk)
+            if ("done" in chunk) {
+              if (chunk.extra?.rateLimited) {
+                // Rate limit error mid-stream
+                write(
+                  JSON.stringify({
+                    error: {
+                      message: "rate limit exceeded",
+                      type: "rate_limit_error",
+                      code: "rate_limit_exceeded",
+                    },
+                  }),
+                );
+              }
               break;
             }
 
-            const mapped = mapChunk(chunk);
-            if (mapped) {
+            const choice = chunk.choices?.[0];
+            const delta = choice?.delta;
+
+            // Pass reasoning_content through unstripped
+            if (delta?.reasoning_content) {
+              const mapped = mapOpenAiChunk(chunk, id, created, model);
               write(JSON.stringify(mapped));
             }
 
-            // Track finish reason
-            if (chunk.finishReason && !sentFinishReason) {
+            // Strip <details> from delta.content
+            if (delta?.content !== undefined) {
+              const safe = stripper.push(delta.content);
+              if (safe) {
+                const mapped = mapOpenAiChunk(
+                  { choices: [{ ...choice, delta: { content: safe } }] },
+                  id,
+                  created,
+                  model,
+                );
+                write(JSON.stringify(mapped));
+              }
+            }
+
+            // Forward finish_reason
+            if (choice?.finish_reason) {
+              const mapped = mapOpenAiChunk(chunk, id, created, model);
+              write(JSON.stringify(mapped));
               sentFinishReason = true;
+            }
+
+            // Forward usage
+            if (chunk.usage && !choice?.finish_reason && !choice?.delta?.content && !choice?.delta?.reasoning_content) {
+              // Pure usage chunk (no content/finish/reasoning)
+              const mapped = mapOpenAiChunk(chunk, id, created, model);
+              write(JSON.stringify(mapped));
             }
           }
 
-          // Emit finish_reason:"stop" if not already sent
+          // Flush any remaining buffer from the stripper
+          const tail = stripper.finalize();
+          if (tail) {
+            write(JSON.stringify(mapOpenAiChunk(
+              { choices: [{ delta: { content: tail } }] },
+              id,
+              created,
+              model,
+            )));
+          }
+
+          // Emit synthetic finish_reason:"stop" if upstream didn't send one
           if (!sentFinishReason) {
             write(
               JSON.stringify({
