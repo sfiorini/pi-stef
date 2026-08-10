@@ -671,6 +671,97 @@ describe("POST /v1/chat/completions", () => {
     expect(dataLines[dataLines.length - 1]).toBe("data: [DONE]");
   });
 
+  // ── Co-carried content in reasoning/finish branches (audit F3) ─────────
+
+  it("reasoning_content chunk with co-carried content strips content (audit F3)", async () => {
+    async function* streamChunks() {
+      // Chunk that co-carries both reasoning_content and content
+      yield {
+        choices: [{ delta: { reasoning_content: "thinking...", content: "<details>leaked</details>answer" } }],
+      } as OpenAiChatChunk;
+      // Normal content chunk
+      yield { choices: [{ delta: { content: "real answer" } }] } as OpenAiChatChunk;
+      yield { choices: [{ finish_reason: "stop" }] } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    // The reasoning chunk should have reasoning_content but NO content
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: "));
+    const parsedChunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    const reasoningChunks = parsedChunks.filter((c) => c.choices?.[0]?.delta?.reasoning_content);
+    expect(reasoningChunks.length).toBeGreaterThanOrEqual(1);
+
+    // The reasoning chunk must NOT have a content field in its delta
+    for (const rc of reasoningChunks) {
+      expect(rc.choices[0].delta.content).toBeUndefined();
+    }
+
+    // Raw <details> content must NOT appear in any chunk
+    expect(text).not.toContain("<details>leaked</details>");
+  });
+
+  it("finish_reason chunk with co-carried <details> content strips content (audit F3)", async () => {
+    async function* streamChunks() {
+      // Only one chunk: co-carries finish_reason AND content with <details>
+      yield {
+        choices: [{ delta: { content: "<details>leaked</details>answer" }, finish_reason: "stop" }],
+      } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+
+    // Raw <details> content must NOT appear in any output
+    expect(text).not.toContain("<details>leaked</details>");
+
+    // The finish_reason chunk should have finish_reason but content stripped
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: "));
+    const parsedChunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    const finishChunks = parsedChunks.filter((c) => c.choices?.[0]?.finish_reason === "stop");
+    expect(finishChunks.length).toBeGreaterThanOrEqual(1);
+
+    // The finish_reason chunk must NOT carry the raw <details> content
+    // (F3 strips co-carried delta.content from finish branches)
+    for (const fc of finishChunks) {
+      const c = fc.choices[0].delta.content;
+      expect(c === undefined || (typeof c === "string" && !c.includes("<details>"))).toBe(true);
+    }
+  });
+
   // ── F1 failover ────────────────────────────────────────────────────────
 
   it("non-stream: chatCompletions RateLimitError triggers failover via retry", async () => {

@@ -278,9 +278,11 @@ export function chatRoutes(deps: ChatRouteDeps) {
             const choice = c.choices?.[0];
             const delta = choice?.delta;
 
-            // Pass reasoning_content through unstripped
+            // Pass reasoning_content through unstripped (but strip co-carried content to
+            // prevent unstripped <details> bypass — audit F3)
             if (delta?.reasoning_content) {
-              const mapped = mapOpenAiChunk(c, id, created, model);
+              const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
+              const mapped = mapOpenAiChunk(safeChunk, id, created, model);
               write(JSON.stringify(mapped));
             }
 
@@ -298,9 +300,11 @@ export function chatRoutes(deps: ChatRouteDeps) {
               }
             }
 
-            // Forward finish_reason
+            // Forward finish_reason (but strip co-carried content to prevent
+            // unstripped <details> bypass — audit F3)
             if (choice?.finish_reason) {
-              const mapped = mapOpenAiChunk(c, id, created, model);
+              const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
+              const mapped = mapOpenAiChunk(safeChunk, id, created, model);
               write(JSON.stringify(mapped));
               sentFinishReason = true;
             }
