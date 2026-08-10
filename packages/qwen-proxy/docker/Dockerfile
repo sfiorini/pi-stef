@@ -38,8 +38,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf 
 # Copy built app
 COPY --from=build /app /app
 
-# Non-root user (D16)
-RUN groupadd -r -g 1000 app && useradd -r -u 1000 -g app app
+# Non-root runtime (D16): node:22-slim already ships a `node` user at uid/gid 1000,
+# so reuse it — creating a new group/user would collide (GID 1000 already exists).
 RUN mkdir -p /data && chown 1000:1000 /data
 
 # Set environment
