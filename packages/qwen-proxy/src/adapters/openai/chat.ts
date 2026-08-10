@@ -159,6 +159,13 @@ export function chatRoutes(deps: ChatRouteDeps) {
           }
         }
 
+        if (!content && !reasoningContent) {
+          deps.log.warn("chat completion produced no content", {
+            chunkCount: chunks.length,
+            phases: chunks.map((c) => c.phase ?? null),
+          });
+        }
+
         const id = `chatcmpl-${randomUUID()}`;
         const created = Math.floor(Date.now() / 1000);
 

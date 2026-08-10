@@ -97,6 +97,10 @@ export interface UpstreamClient {
 const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
 
+// Streaming chat completions can run long (a thinking phase + the answer);
+// the default 10s request timeout cuts them off mid-think → empty content.
+const STREAM_TIMEOUT_MS = 180_000;
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function buildCookieHeader(pair: CookiePair, bearer: string): string {
@@ -329,7 +333,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           timestamp: Math.floor(Date.now() / 1000),
         }),
       },
-      timeoutMs,
+      STREAM_TIMEOUT_MS,
     );
 
     if (!res.ok) {
