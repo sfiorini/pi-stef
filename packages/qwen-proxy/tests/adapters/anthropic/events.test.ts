@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { QwenChunk } from "../../../src/upstream/client";
+import type { StreamChunk } from "../../../src/pool/retry";
 import { streamAnthropicEvents } from "../../../src/adapters/anthropic/events";
 
 function parseEvents(output: string): Array<{ event: string; data: unknown }> {
@@ -26,6 +26,35 @@ async function collectEvents(iter: AsyncIterable<string>): Promise<string> {
   return out;
 }
 
+/** Helper: make an OpenAiChatChunk with delta fields */
+function ck(delta?: { content?: string; reasoning_content?: string; role?: string }, finish_reason?: string | null, usage?: { prompt_tokens?: number; completion_tokens?: number }): StreamChunk {
+  return {
+    choices: [{ delta, finish_reason: finish_reason ?? undefined }],
+    ...(usage ? { usage } : {}),
+  } as StreamChunk;
+}
+
+/** Helper: make the done sentinel */
+function doneSentinel(extra?: { rateLimited?: boolean }): StreamChunk {
+  return { done: true, ...(extra ? { extra } : {}) } as StreamChunk;
+}
+
+/** Extract all text_delta texts joined + all thinking_delta texts joined from collected output */
+function extractContent(output: string): { text: string; thinking: string; events: Array<{ event: string; data: unknown }> } {
+  const events = parseEvents(output);
+  const textParts = events
+    .filter((e) => e.event === "content_block_delta")
+    .map((e) => e.data as any)
+    .filter((d) => d.delta?.type === "text_delta")
+    .map((d) => d.delta.text);
+  const thinkParts = events
+    .filter((e) => e.event === "content_block_delta")
+    .map((e) => e.data as any)
+    .filter((d) => d.delta?.type === "thinking_delta")
+    .map((d) => d.delta.thinking);
+  return { text: textParts.join(""), thinking: thinkParts.join(""), events };
+}
+
 describe("streamAnthropicEvents", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -35,14 +64,16 @@ describe("streamAnthropicEvents", () => {
     vi.useRealTimers();
   });
 
+  // ── 1: think→text emits signature_delta + stop + start with correct indices ──
+
   it("think→answer emits signature_delta + stop + start with correct indices", async () => {
-    const chunks: QwenChunk[] = [
-      { phase: "think", content: "Let me" },
-      { phase: "think", content: " think" },
-      { phase: "answer", content: "Hello" },
-      { phase: "answer", content: " world" },
-      { finishReason: "stop", usage: { prompt_tokens: 10, completion_tokens: 5 } },
-      { done: true },
+    // Use text > 9 chars so the stripper emits immediately (holdback = 9)
+    const chunks: StreamChunk[] = [
+      ck({ reasoning_content: "Let me" }),
+      ck({ reasoning_content: " think" }),
+      ck({ content: "Hello world! This is a long message." }),
+      ck(undefined, "stop", { prompt_tokens: 10, completion_tokens: 5 }),
+      doneSentinel(),
     ];
 
     async function* gen() {
@@ -118,52 +149,37 @@ describe("streamAnthropicEvents", () => {
       },
     });
 
-    // text deltas
-    expect(events[7]).toEqual({
-      event: "content_block_delta",
-      data: {
-        type: "content_block_delta",
-        index: 1,
-        delta: { type: "text_delta", text: "Hello" },
-      },
-    });
-    expect(events[8]).toEqual({
-      event: "content_block_delta",
-      data: {
-        type: "content_block_delta",
-        index: 1,
-        delta: { type: "text_delta", text: " world" },
-      },
-    });
+    // Content text + terminal events — stripper holds back 9 chars so text
+    // will appear across delta + finalize flush. Aggregate all text.
+    const { text: allText } = extractContent(output);
+    expect(allText).toBe("Hello world! This is a long message.");
 
     // content_block_stop index 1
-    expect(events[9]).toEqual({
+    const stopEvents = events.filter((e) => e.event === "content_block_stop");
+    expect(stopEvents).toHaveLength(2);
+    expect(stopEvents[1]).toEqual({
       event: "content_block_stop",
       data: { type: "content_block_stop", index: 1 },
     });
 
     // message_delta with stop_reason
-    expect(events[10]).toEqual({
-      event: "message_delta",
-      data: {
-        type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
-        usage: { output_tokens: 5 },
-      },
-    });
+    const msgDelta = events.find((e) => e.event === "message_delta");
+    expect(msgDelta).toBeDefined();
+    expect((msgDelta!.data as any).delta.stop_reason).toBe("end_turn");
+    expect((msgDelta!.data as any).usage.output_tokens).toBe(5);
 
     // message_stop
-    expect(events[11]).toEqual({
-      event: "message_stop",
-      data: { type: "message_stop" },
-    });
+    expect(events[events.length - 1].event).toBe("message_stop");
   });
 
+  // ── 2: text-only → text block at index 0 ──
+
   it("no-think → text block at index 0", async () => {
-    const chunks: QwenChunk[] = [
-      { phase: "answer", content: "Direct answer" },
-      { finishReason: "stop", usage: { prompt_tokens: 5, completion_tokens: 3 } },
-      { done: true },
+    // Use text > 9 chars so stripper emits
+    const chunks: StreamChunk[] = [
+      ck({ content: "Direct answer is here with enough text." }),
+      ck(undefined, "stop", { prompt_tokens: 5, completion_tokens: 3 }),
+      doneSentinel(),
     ];
 
     async function* gen() {
@@ -188,47 +204,178 @@ describe("streamAnthropicEvents", () => {
       },
     });
 
-    // text delta
-    expect(events[2]).toEqual({
-      event: "content_block_delta",
-      data: {
-        type: "content_block_delta",
-        index: 0,
-        delta: { type: "text_delta", text: "Direct answer" },
-      },
-    });
+    // Aggregate all text content (stripper buffers last 9 chars)
+    const { text: allText } = extractContent(output);
+    expect(allText).toBe("Direct answer is here with enough text.");
 
     // content_block_stop index 0
-    expect(events[3]).toEqual({
+    const stopEvents = events.filter((e) => e.event === "content_block_stop");
+    expect(stopEvents).toHaveLength(1);
+    expect(stopEvents[0]).toEqual({
       event: "content_block_stop",
       data: { type: "content_block_stop", index: 0 },
     });
 
     // message_delta
-    expect(events[4]).toEqual({
-      event: "message_delta",
+    const msgDelta = events.find((e) => e.event === "message_delta");
+    expect((msgDelta!.data as any).delta.stop_reason).toBe("end_turn");
+    expect((msgDelta!.data as any).usage.output_tokens).toBe(3);
+
+    // message_stop
+    expect(events[events.length - 1].event).toBe("message_stop");
+  });
+
+  // ── 3: think-only → terminal signature_delta + stop ──
+
+  it("think-only then done → terminal signature_delta + content_block_stop", async () => {
+    const chunks: StreamChunk[] = [
+      ck({ reasoning_content: "Thinking..." }),
+      ck(undefined, "stop", { prompt_tokens: 5, completion_tokens: 1 }),
+      doneSentinel(),
+    ];
+
+    async function* gen() {
+      for (const c of chunks) yield c;
+    }
+
+    const output = await collectEvents(
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 5 }),
+    );
+    const events = parseEvents(output);
+
+    // message_start → content_block_start(thinking) → thinking_delta → signature_delta → content_block_stop(0) → message_delta → message_stop
+    expect(events[0].event).toBe("message_start");
+    expect(events[1].event).toBe("content_block_start");
+    expect(events[2]).toEqual({
+      event: "content_block_delta",
       data: {
-        type: "message_delta",
-        delta: { stop_reason: "end_turn", stop_sequence: null },
-        usage: { output_tokens: 3 },
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "thinking_delta", thinking: "Thinking..." },
+      },
+    });
+    // terminal signature_delta
+    expect(events[3]).toEqual({
+      event: "content_block_delta",
+      data: {
+        type: "content_block_delta",
+        index: 0,
+        delta: { type: "signature_delta", signature: "" },
+      },
+    });
+    expect(events[4]).toEqual({
+      event: "content_block_stop",
+      data: { type: "content_block_stop", index: 0 },
+    });
+    expect(events[5].event).toBe("message_delta");
+    expect(events[6].event).toBe("message_stop");
+  });
+
+  // ── 4: <details> split across text deltas is stripped ──
+
+  it("<details> split across text deltas is stripped via DetailsStreamStripper", async () => {
+    // Simulate <details> tag split across multiple content chunks
+    // Use enough real text before <details> so the stripper can emit it
+    const chunks: StreamChunk[] = [
+      ck({ content: "Hello world! More text here." }),
+      ck({ content: "<det" }),
+      ck({ content: "ails>foo</details>" }),
+      ck(undefined, "stop", { prompt_tokens: 1, completion_tokens: 1 }),
+      doneSentinel(),
+    ];
+
+    async function* gen() {
+      for (const c of chunks) yield c;
+    }
+
+    const output = await collectEvents(
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 }),
+    );
+
+    const { text: allText } = extractContent(output);
+    expect(allText).toBe("Hello world! More text here.");
+    // The <details> junk must be stripped
+    expect(allText).not.toContain("<details>");
+  });
+
+  // ── 5: sentinel → terminal error event ──
+
+  it("sentinel with rateLimited → terminal error event + terminate", async () => {
+    // Need enough content so the stripper emits before the sentinel
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough content to pass the holdback" });
+      yield doneSentinel({ rateLimited: true });
+    }
+
+    const output = await collectEvents(
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 }),
+    );
+    const events = parseEvents(output);
+
+    // Should have message_start, content_block_start, text_delta, then error
+    expect(events[0].event).toBe("message_start");
+    expect(events[1].event).toBe("content_block_start");
+
+    // Some text delta(s) may or may not appear depending on holdback —
+    // but error must be present
+    const errorEvent = events.find((e) => e.event === "error");
+    expect(errorEvent).toBeDefined();
+    expect(errorEvent!.data).toEqual({
+      type: "error",
+      error: {
+        type: "rate_limit_error",
+        message: "rate limit exceeded",
       },
     });
 
-    // message_stop
-    expect(events[5]).toEqual({
-      event: "message_stop",
-      data: { type: "message_stop" },
-    });
+    // Should NOT have message_delta/message_stop after error
+    const terminalEvents = events.filter(
+      (e) => e.event === "message_delta" || e.event === "message_stop",
+    );
+    expect(terminalEvents).toHaveLength(0);
   });
+
+  // ── 6: bare done (no extra) → break cleanly with terminal events ──
+
+  it("bare done (no extra) → clean break with terminal events", async () => {
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough text for stripper to emit" });
+      yield doneSentinel();
+    }
+
+    const output = await collectEvents(
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 }),
+    );
+    const events = parseEvents(output);
+
+    // message_start → content_block_start → text_delta(s) → content_block_stop → message_delta → message_stop
+    expect(events[0].event).toBe("message_start");
+    expect(events[1].event).toBe("content_block_start");
+
+    // Text content present
+    const { text: allText } = extractContent(output);
+    expect(allText).toBe("enough text for stripper to emit");
+
+    // Terminal events
+    const stopEvents = events.filter((e) => e.event === "content_block_stop");
+    expect(stopEvents).toHaveLength(1);
+    expect(events.find((e) => e.event === "message_delta")).toBeDefined();
+    expect(events[events.length - 1].event).toBe("message_stop");
+
+    // No error event
+    expect(events.find((e) => e.event === "error")).toBeUndefined();
+  });
+
+  // ── 7: 30s ping ──
 
   it("30s idle → ping event", async () => {
     let resolve: () => void;
     const blocker = new Promise<void>((r) => (resolve = r));
 
-    async function* gen(): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "first" };
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "first" });
       await blocker;
-      yield { done: true };
+      yield doneSentinel();
     }
 
     const iter = streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 });
@@ -258,89 +405,30 @@ describe("streamAnthropicEvents", () => {
     expect(pingEvents[0].data).toEqual({ type: "ping" });
   });
 
-  it("sentinel → error event + terminate", async () => {
-    async function* gen(): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "partial" };
-      yield { done: true, extra: { rateLimited: true } };
+  // ── 8: usage.completion_tokens → output_tokens ──
+
+  it("usage.completion_tokens maps to output_tokens in message_delta", async () => {
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough content" });
+      yield ck(undefined, "stop", { prompt_tokens: 10, completion_tokens: 42 });
+      yield doneSentinel();
     }
 
     const output = await collectEvents(
-      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 }),
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 10 }),
     );
     const events = parseEvents(output);
-
-    // Should have message_start, content_block_start, text_delta, then error
-    expect(events[0].event).toBe("message_start");
-    expect(events[1].event).toBe("content_block_start");
-    expect(events[2].event).toBe("content_block_delta");
-
-    // Error event
-    const errorEvent = events.find((e) => e.event === "error");
-    expect(errorEvent).toBeDefined();
-    expect(errorEvent!.data).toEqual({
-      type: "error",
-      error: {
-        type: "rate_limit_error",
-        message: "rate limit exceeded",
-      },
-    });
-
-    // Should NOT have message_delta/message_stop after error
-    const terminalEvents = events.filter(
-      (e) => e.event === "message_delta" || e.event === "message_stop",
-    );
-    expect(terminalEvents).toHaveLength(0);
+    const msgDelta = events.find((e) => e.event === "message_delta");
+    expect((msgDelta!.data as any).usage.output_tokens).toBe(42);
   });
 
-  it("think-only then done → stops without text block", async () => {
-    const chunks: QwenChunk[] = [
-      { phase: "think", content: "Thinking..." },
-      { finishReason: "stop", usage: { prompt_tokens: 5, completion_tokens: 1 } },
-      { done: true },
-    ];
+  // ── 9: finish_reason mapping ──
 
-    async function* gen() {
-      for (const c of chunks) yield c;
-    }
-
-    const output = await collectEvents(
-      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 5 }),
-    );
-    const events = parseEvents(output);
-
-    // message_start → content_block_start(thinking) → thinking_delta → signature_delta → content_block_stop(0) → message_delta → message_stop
-    expect(events[0].event).toBe("message_start");
-    expect(events[1].event).toBe("content_block_start");
-    expect(events[2]).toEqual({
-      event: "content_block_delta",
-      data: {
-        type: "content_block_delta",
-        index: 0,
-        delta: { type: "thinking_delta", thinking: "Thinking..." },
-      },
-    });
-    // signature_delta
-    expect(events[3]).toEqual({
-      event: "content_block_delta",
-      data: {
-        type: "content_block_delta",
-        index: 0,
-        delta: { type: "signature_delta", signature: "" },
-      },
-    });
-    expect(events[4]).toEqual({
-      event: "content_block_stop",
-      data: { type: "content_block_stop", index: 0 },
-    });
-    expect(events[5].event).toBe("message_delta");
-    expect(events[6].event).toBe("message_stop");
-  });
-
-  it("stop_reason maps finishReason correctly", async () => {
-    async function* gen(): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "x" };
-      yield { finishReason: "length", usage: { prompt_tokens: 1, completion_tokens: 1 } };
-      yield { done: true };
+  it("finish_reason: length → max_tokens", async () => {
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough content" });
+      yield ck(undefined, "length", { prompt_tokens: 1, completion_tokens: 1 });
+      yield doneSentinel();
     }
 
     const output = await collectEvents(
@@ -351,11 +439,11 @@ describe("streamAnthropicEvents", () => {
     expect((msgDelta!.data as any).delta.stop_reason).toBe("max_tokens");
   });
 
-  it("stop_reason: stop_sequence maps correctly", async () => {
-    async function* gen(): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "x" };
-      yield { finishReason: "stop_sequence", usage: { prompt_tokens: 1, completion_tokens: 1 } };
-      yield { done: true };
+  it("finish_reason: stop_sequence → stop_sequence", async () => {
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough content" });
+      yield ck(undefined, "stop_sequence", { prompt_tokens: 1, completion_tokens: 1 });
+      yield doneSentinel();
     }
 
     const output = await collectEvents(
@@ -366,20 +454,17 @@ describe("streamAnthropicEvents", () => {
     expect((msgDelta!.data as any).delta.stop_reason).toBe("stop_sequence");
   });
 
-  // ── A2: ping must NOT drop the first post-stall chunk ───────────────────
+  // ── 10: A2: ping must NOT drop the first post-stall chunk ──
 
   it("A2: 30s ping does NOT drop the first post-stall content chunk", async () => {
-    // Upstream stalls for >30s, then yields a content chunk + done.
-    // The old code would orphan the pending iter.next() on ping timeout,
-    // causing the first post-stall chunk to be silently dropped.
     let resolve: () => void;
     const blocker = new Promise<void>((r) => (resolve = r));
 
-    async function* gen(): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "before-stall" };
-      await blocker; // stall for >30s
-      yield { phase: "answer", content: "after-stall" };
-      yield { done: true };
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "before-stall-text" });
+      await blocker;
+      yield ck({ content: "after-stall-text" });
+      yield doneSentinel();
     }
 
     const iter = streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 });
@@ -391,7 +476,7 @@ describe("streamAnthropicEvents", () => {
       }
     })();
 
-    // Let initial events (message_start, content_block_start, first delta) drain
+    // Let initial events drain
     await vi.advanceTimersByTimeAsync(0);
 
     // Advance 30s — fires a ping while upstream is stalled
@@ -408,15 +493,9 @@ describe("streamAnthropicEvents", () => {
     const pingEvents = events.filter((e) => e.event === "ping");
     expect(pingEvents.length).toBeGreaterThanOrEqual(1);
 
-    // CRITICAL: "after-stall" text must NOT be lost
-    const textDeltas = events
-      .filter((e) => e.event === "content_block_delta")
-      .map((e) => e.data as any)
-      .filter((d) => d.delta?.type === "text_delta")
-      .map((d) => d.delta.text);
-
-    const allText = textDeltas.join("");
-    expect(allText).toContain("before-stall");
-    expect(allText).toContain("after-stall");
+    // CRITICAL: text must NOT be lost — aggregate all text deltas + finalize flush
+    const { text: allText } = extractContent(allOutput);
+    expect(allText).toContain("before-stall-text");
+    expect(allText).toContain("after-stall-text");
   });
 });

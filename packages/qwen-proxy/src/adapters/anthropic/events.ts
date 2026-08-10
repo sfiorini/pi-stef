@@ -1,15 +1,19 @@
 /**
  * Anthropic streaming event emitter.
  *
- * Maps `AsyncIterable<QwenChunk>` → `AsyncIterable<string>` of SSE frames
+ * Maps `AsyncIterable<StreamChunk>` → `AsyncIterable<string>` of SSE frames
  * (`event: <t>\ndata: <json>\n\n`).
  *
- * D7 MVP: thinking-block signatures are empty strings (Qwen gives no verifiable signature).
+ * State machine re-keyed on `delta.content` / `delta.reasoning_content`
+ * (NOT phase). Details-strip on text deltas only (never reasoning_content).
+ *
+ * D7 MVP: thinking-block signatures are empty strings (only when thinking emitted).
  * D14: sentinel `{done:true, extra:{rateLimited:true}}` → terminal error event.
  */
 
 import { randomUUID } from "node:crypto";
-import type { QwenChunk } from "../../upstream/client";
+import type { StreamChunk } from "../../pool/retry";
+import { DetailsStreamStripper } from "../../upstream/details-strip";
 
 export interface StreamAnthropicEventsOpts {
   model: string;
@@ -40,20 +44,21 @@ function sse(event: string, data: unknown): string {
 }
 
 /**
- * Convert a QwenChunk stream into Anthropic SSE event frames.
+ * Convert a StreamChunk stream into Anthropic SSE event frames.
  */
 export async function* streamAnthropicEvents(
-  qwenStream: AsyncIterable<QwenChunk>,
+  stream: AsyncIterable<StreamChunk>,
   opts: StreamAnthropicEventsOpts,
 ): AsyncIterable<string> {
   const _setInterval = opts.setIntervalFn ?? setInterval;
   const _clearInterval = opts.clearIntervalFn ?? clearInterval;
 
   const msgId = `msg_${randomUUID()}`;
-  let currentPhase: "think" | "answer" | null = null;
+  let currentPhase: "think" | "text" | null = null;
   let currentIndex = 0;
   let outputTokens = 0;
   let finishReason: string | undefined;
+  const stripper = new DetailsStreamStripper();
 
   // ── message_start ──────────────────────────────────────────────────────
 
@@ -78,7 +83,6 @@ export async function* streamAnthropicEvents(
 
   const timer = _setInterval(() => {
     pingDue = true;
-    // Unblock any pending iter.next() so we can yield the ping
     if (pingResolve) {
       pingResolve();
       pingResolve = null;
@@ -86,11 +90,9 @@ export async function* streamAnthropicEvents(
   }, 30_000);
 
   try {
-    const iter = qwenStream[Symbol.asyncIterator]();
+    const iter = stream[Symbol.asyncIterator]();
     let iterDone = false;
-    // A2: track the pending iter.next() promise so we reuse it across ping
-    // timeouts instead of calling iter.next() twice concurrently.
-    let pendingNext: Promise<IteratorResult<QwenChunk>> | null = null;
+    let pendingNext: Promise<IteratorResult<StreamChunk>> | null = null;
 
     while (!iterDone) {
       // Yield any pending ping before reading next chunk
@@ -99,10 +101,8 @@ export async function* streamAnthropicEvents(
         yield sse("ping", { type: "ping" });
       }
 
-      // A2: only call iter.next() if we don't already have a pending one
       if (!pendingNext) pendingNext = iter.next();
 
-      // Race between the (pending) next chunk and a ping timer firing
       const result = await Promise.race([
         pendingNext.then((r) => ({ kind: "chunk" as const, value: r })),
         new Promise<{ kind: "ping" }>((resolve) => {
@@ -111,48 +111,51 @@ export async function* streamAnthropicEvents(
       ]);
 
       if (result.kind === "ping") {
-        // Ping timer fired; pendingNext is still pending — loop back to yield ping
-        // WITHOUT resetting pendingNext (re-race the SAME promise next iteration)
         continue;
       }
 
-      // Real chunk consumed — clear pendingNext so next iteration creates a fresh .next()
-      const { value: chunk, done } = result.value;
+      const { value: rawChunk, done } = result.value;
       pendingNext = null;
       if (done) {
         iterDone = true;
         break;
       }
 
-      // ── Sentinel (D14) ─────────────────────────────────────────────────
-
-      if (chunk.done && chunk.extra?.rateLimited) {
-        yield sse("error", {
-          type: "error",
-          error: {
-            type: "rate_limit_error",
-            message: "rate limit exceeded",
-          },
-        });
-        return;
-      }
-
-      if (chunk.done) {
+      // Narrow to the sentinel shape
+      if ("done" in rawChunk) {
+        const sentinel = rawChunk as { done: true; extra?: { rateLimited?: boolean } };
+        if (sentinel.extra?.rateLimited) {
+          // D14: terminal error event
+          yield sse("error", {
+            type: "error",
+            error: {
+              type: "rate_limit_error",
+              message: "rate limit exceeded",
+            },
+          });
+          return;
+        }
+        // Bare {done:true} — clean break
         iterDone = true;
         break;
       }
 
-      // ── finishReason / usage tracking ───────────────────────────────────
+      // ── Process OpenAiChatChunk ────────────────────────────────────────
 
-      if (chunk.finishReason) finishReason = chunk.finishReason;
-      if (chunk.usage?.completion_tokens) {
-        outputTokens = chunk.usage.completion_tokens;
+      const chunk = rawChunk;
+      const delta = chunk.choices?.[0]?.delta ?? {};
+      const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
+      const usage = chunk.usage;
+
+      // Track finishReason / usage
+      if (chunkFinishReason) finishReason = chunkFinishReason;
+      if (usage?.completion_tokens) {
+        outputTokens = usage.completion_tokens;
       }
 
-      // ── Phase transitions ──────────────────────────────────────────────
+      // ── First reasoning_content → start thinking block ─────────────────
 
-      if (chunk.phase === "think" && currentPhase !== "think") {
-        // First think chunk → emit content_block_start for thinking at currentIndex
+      if (delta.reasoning_content !== undefined && currentPhase !== "think") {
         if (currentPhase === null) {
           yield sse("content_block_start", {
             type: "content_block_start",
@@ -163,8 +166,10 @@ export async function* streamAnthropicEvents(
         currentPhase = "think";
       }
 
-      if (chunk.phase === "answer" && currentPhase === "think") {
-        // Think → answer transition: signature_delta (D7 empty) → stop → start text
+      // ── First content while think → transition to text ─────────────────
+
+      if (delta.content !== undefined && currentPhase === "think") {
+        // Close thinking block with signature_delta + stop
         yield sse("content_block_delta", {
           type: "content_block_delta",
           index: currentIndex,
@@ -175,65 +180,65 @@ export async function* streamAnthropicEvents(
           index: currentIndex,
         });
         currentIndex++;
-        // Start text block
+        // Open text block
         yield sse("content_block_start", {
           type: "content_block_start",
           index: currentIndex,
           content_block: { type: "text", text: "" },
         });
-        currentPhase = "answer";
+        currentPhase = "text";
       }
 
-      if (
-        chunk.phase === "answer" &&
-        currentPhase === null &&
-        !chunk.done
-      ) {
-        // No-think: first content is answer → text block at index 0
+      // ── First content while null → start text block at 0 ───────────────
+
+      if (delta.content !== undefined && currentPhase === null) {
         yield sse("content_block_start", {
           type: "content_block_start",
           index: currentIndex,
           content_block: { type: "text", text: "" },
         });
-        currentPhase = "answer";
+        currentPhase = "text";
       }
 
-      // ── Content deltas ─────────────────────────────────────────────────
+      // ── Thinking delta ─────────────────────────────────────────────────
 
-      if (chunk.phase === "think" && chunk.content) {
+      if (delta.reasoning_content !== undefined && currentPhase === "think") {
         yield sse("content_block_delta", {
           type: "content_block_delta",
           index: currentIndex,
-          delta: { type: "thinking_delta", thinking: chunk.content },
+          delta: { type: "thinking_delta", thinking: delta.reasoning_content },
         });
       }
 
-      if (
-        (chunk.phase === "answer" || (!chunk.phase && chunk.content)) &&
-        chunk.content
-      ) {
-        // If we haven't started a text block yet (no phase chunks seen)
-        if (currentPhase === null) {
-          yield sse("content_block_start", {
-            type: "content_block_start",
+      // ── Text delta (via DetailsStreamStripper) ─────────────────────────
+
+      if (delta.content !== undefined && currentPhase === "text") {
+        const out = stripper.push(delta.content);
+        if (out) {
+          yield sse("content_block_delta", {
+            type: "content_block_delta",
             index: currentIndex,
-            content_block: { type: "text", text: "" },
+            delta: { type: "text_delta", text: out },
           });
-          currentPhase = "answer";
         }
-        yield sse("content_block_delta", {
-          type: "content_block_delta",
-          index: currentIndex,
-          delta: { type: "text_delta", text: chunk.content },
-        });
       }
     }
 
     // ── Terminal events ───────────────────────────────────────────────────
 
+    // Flush any remaining buffer from the stripper
+    const tail = stripper.finalize();
+    if (tail && currentPhase === "text") {
+      yield sse("content_block_delta", {
+        type: "content_block_delta",
+        index: currentIndex,
+        delta: { type: "text_delta", text: tail },
+      });
+    }
+
     // Close the last content block if one was opened
     if (currentPhase === "think") {
-      // Still in thinking phase at stream end: emit signature + stop
+      // Still in thinking phase at stream end: emit terminal signature + stop (D7 opt-in)
       yield sse("content_block_delta", {
         type: "content_block_delta",
         index: currentIndex,
