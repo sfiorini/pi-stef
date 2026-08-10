@@ -211,6 +211,37 @@ describe("AccountPool", () => {
       expect(activeCount(db)).toBe(1);
       db.close();
     });
+
+    it("A1: clears activeId on exhaustion so reEnableExpired can recover", async () => {
+      const db = openDb(":memory:");
+      reconcileAccounts(db, [
+        { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      ]);
+      promote(db, 1);
+
+      let now = 1000;
+      const pool = new AccountPool({ db, log: noopLog, now: () => now });
+      pool.hydrate();
+
+      // Exhaust the only account
+      const result = await pool.markRateLimitedAndSwitch(1, 10_000);
+      expect(result.newActiveId).toBeNull();
+
+      // activeId must be null now — getActiveAccount must throw
+      expect(() => pool.getActiveAccount()).toThrow(PoolExhaustedError);
+
+      // Advance past cooldown
+      now = 15_000;
+      const reResult = pool.reEnableExpired(now);
+      expect(reResult.promoted).toBe(1);
+
+      // Pool should recover — getActiveAccount succeeds
+      upsertToken(db, 1, "bearer-after-recovery", 999999);
+      const acct = pool.getActiveAccount();
+      expect(acct.id).toBe(1);
+      expect(acct.bearer).toBe("bearer-after-recovery");
+      db.close();
+    });
   });
 
   // ── reEnableExpired ────────────────────────────────────────────────────

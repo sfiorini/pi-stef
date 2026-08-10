@@ -72,7 +72,9 @@ export class AccountPool {
         }) as SwitchResult,
     );
     const result = await run;
-    if (result.newActiveId !== null) this.activeId = result.newActiveId;
+    // A1: UNCONDITIONAL — clears activeId to null on pool exhaustion
+    // so reEnableExpired can detect no-active and promote a recovered account.
+    this.activeId = result.newActiveId;
     return result;
   }
 
