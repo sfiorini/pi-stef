@@ -37,14 +37,14 @@ export function firstChunk(id: string, created: number, model: string) {
  * Returns null for chunks with neither phase nor content (skip).
  */
 export function mapChunk(chunk: QwenChunk): Record<string, unknown> | null {
-  // Skip chunks with neither phase nor content
-  if (!chunk.phase && !chunk.content) return null;
+  // Skip chunks with neither phase, content, nor finishReason
+  if (!chunk.phase && !chunk.content && !chunk.finishReason) return null;
 
   const delta: Record<string, unknown> = {};
 
   if (chunk.phase === "think") {
     delta.reasoning_content = chunk.content ?? "";
-  } else {
+  } else if (chunk.content || chunk.phase === "answer") {
     // phase: "answer" or undefined (content-carrying)
     delta.content = chunk.content ?? "";
   }
