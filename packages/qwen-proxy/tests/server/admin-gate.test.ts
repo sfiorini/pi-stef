@@ -140,4 +140,25 @@ describe("adminGate", () => {
     expect(res.status).toBe(200);
     expect(res.headers.get("Set-Cookie")).toBeNull();
   });
+
+  it("URL-encodes admin_key cookie value and round-trips via cookie auth (audit F3)", async () => {
+    const specialKey = "abc;def ghi";
+    const app = makeApp(specialKey);
+    // First request: ?key= sets the cookie
+    const res1 = await app.request(`/admin/?key=${encodeURIComponent(specialKey)}`);
+    expect(res1.status).toBe(200);
+    const setCookie = res1.headers.get("Set-Cookie");
+    expect(setCookie).toBeTruthy();
+    // The cookie value must be percent-encoded
+    expect(setCookie).toContain("admin_key=abc%3Bdef%20ghi");
+    // Must not contain raw semicolon inside the value portion
+    expect(setCookie).not.toMatch(/admin_key=abc;def/);
+
+    // Second request: send the Set-Cookie value back as Cookie header
+    const cookieValue = setCookie!.split(";")[0]; // "admin_key=abc%3Bdef%20ghi"
+    const res2 = await app.request("/admin/", {
+      headers: { Cookie: cookieValue },
+    });
+    expect(res2.status).toBe(200);
+  });
 });

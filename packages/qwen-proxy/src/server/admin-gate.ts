@@ -35,7 +35,7 @@ export function adminGate(deps: AdminGateDeps): MiddlewareHandler {
       const ck = c.req.header("Cookie");
       if (ck) {
         const m = ck.match(/(?:^|;\s*)admin_key=([^;]+)/);
-        if (m) candidate = m[1];
+        if (m) candidate = decodeURIComponent(m[1]);
       }
     }
 
@@ -54,7 +54,7 @@ export function adminGate(deps: AdminGateDeps): MiddlewareHandler {
     if (queryKey)
       c.header(
         "Set-Cookie",
-        `admin_key=${queryKey}; HttpOnly; SameSite=Strict; Path=/admin`,
+        `admin_key=${encodeURIComponent(queryKey)}; HttpOnly; SameSite=Strict; Path=/admin`,
       );
 
     await next();
