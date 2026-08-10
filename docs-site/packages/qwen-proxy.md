@@ -1,6 +1,6 @@
 # qwen-proxy
 
-Multi-account proxy for the Qwen AI API with OpenAI + Anthropic compatibility.
+Multi-account proxy forwarding to the [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway with OpenAI + Anthropic compatibility.
 
 ## Quick start
 
@@ -28,16 +28,27 @@ curl http://127.0.0.1:7790/v1/health
 
 ## What it does
 
-qwen-proxy is an always-on reverse proxy that sits between your AI client (pi, OpenAI SDK, Anthropic SDK, or any HTTP client) and the upstream Qwen chat API. It provides:
+qwen-proxy is an always-on reverse proxy that sits between your AI client (pi, OpenAI SDK, Anthropic SDK, or any HTTP client) and the upstream Qwen model API. It provides:
 
 - **Multi-account pool** — round-robin across Qwen accounts with automatic failover
-- **Token refresh** — scheduled ssxmod cookie and JWT refresh per account
+- **JWT-only token refresh** — scheduled JWT refresh per account (chat.qwen.ai login); on-demand re-login on 401
 - **Rate-limit cooldown** — automatic disable on 429 with configurable cooldown, periodic re-enable sweep
 - **OpenAI-compatible API** — `/v1/chat/completions`, `/v1/models`, `/v1/images/*`, `/v1/videos/*`
 - **Anthropic-compatible API** — `/v1/messages` with `claude-*` model fallback to `qwen3-max`
 - **Admin dashboard** — read-only HTML dashboard at `/admin` (optional)
 
 ## Architecture
+
+### Request flow
+
+```
+SDK client ──Bearer SF_QWEN_API_KEY──▶ our proxy (7790)
+                                        │ login: POST chat.qwen.ai/api/v1/auths/signin → JWT
+                                        │ forward: Bearer JWT → qwen.aikit.club/v1/*
+                                        ▼ chat.qwen.ai (via the Worker's internal anti-bot handling)
+```
+
+The proxy logs into **chat.qwen.ai** to obtain a JWT, then forwards all API requests to **[qwen.aikit.club](https://qwen.aikit.club)** — a Cloudflare Worker that handles the Alibaba Baxia anti-bot internally. The proxy does **not** beat Baxia itself; it relies on the upstream gateway.
 
 ### Account pool
 
@@ -47,14 +58,13 @@ The proxy manages a pool of Qwen accounts. Each account has an `email`, `passwor
 - **Auto-disable** — if an account receives a 429 from upstream, it is disabled for `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` (default 24 hours)
 - **Re-enable sweep** — every `SF_QWEN_REENABLE_INTERVAL_MS` (default 1 minute) the proxy checks disabled accounts and re-enables those past their cooldown
 
-Database tables: `accounts`, `tokens`, `rate_limits`, `login_failures`, `video_jobs`.
+Database tables: `accounts`, `tokens`, `rate_limits`, `login_failures`, `video_jobs` (unused, retained for migration compatibility).
 
 ### Token refresh
 
-Each account maintains two tokens refreshed on separate schedules:
+Each account maintains a JWT refreshed on a scheduled interval:
 
-- **ssxmod cookie** — refreshed every `SF_QWEN_REFRESH_INTERVAL_MS` (default 15 min)
-- **JWT** — refreshed every `SF_QWEN_JWT_REFRESH_MS` (default 6 hours); re-login if within `SF_QWEN_REFRESH_THRESHOLD_MS` of expiry
+- **JWT** — refreshed every `SF_QWEN_JWT_REFRESH_MS` (default 6 hours); re-login if within `SF_QWEN_REFRESH_THRESHOLD_MS` of expiry or on-demand when a 401 is received from upstream
 
 ### Rate-limit cooldown
 
@@ -62,6 +72,19 @@ Each account maintains two tokens refreshed on separate schedules:
 
 ::: warning D13
 `setRateLimit` is a full upsert, not a merge. Any partial rate-limit state from a prior call is replaced.
+:::
+
+## Upstream gateway
+
+The proxy forwards API requests to **[qwen.aikit.club](https://qwen.aikit.club)**, an OpenAI-compatible gateway to chat.qwen.ai. The gateway is a community-maintained Cloudflare Worker.
+
+| Resource | URL |
+|----------|-----|
+| Gateway API docs | [qwen-api.readme.io](https://qwen-api.readme.io) |
+| Worker source | [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) |
+
+::: warning Third-party dependency
+qwen-proxy's upstream reliability is coupled to the [qwen.aikit.club](https://qwen.aikit.club) Cloudflare Worker. If you need uptime control, you can self-host [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) and point `SF_QWEN_API_URL` at your own deployment.
 :::
 
 ## Authentication
@@ -110,8 +133,10 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_AUTH_URL` | `https://chat.qwen.ai` | Upstream auth base URL |
-| `SF_QWEN_API_URL` | `https://chat.qwen.ai` | Upstream API base URL |
+| `SF_QWEN_AUTH_URL` | `https://chat.qwen.ai` | Login endpoint (JWT acquisition only) |
+| `SF_QWEN_API_URL` | `https://qwen.aikit.club` | Forward gateway for all API requests (`/v1/*`) |
+
+`SF_QWEN_AUTH_URL` is used exclusively for login (`/api/v1/auths/signin`). All other requests are forwarded to `SF_QWEN_API_URL`. To use a self-hosted gateway, set `SF_QWEN_API_URL` to your own [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) deployment.
 
 ### Account configuration
 
@@ -133,7 +158,6 @@ Accounts can be configured via one of three modes (see [Account modes](#account-
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_REFRESH_INTERVAL_MS` | `900000` (15 min) | ssxmod cookie refresh interval |
 | `SF_QWEN_JWT_REFRESH_MS` | `21600000` (6 h) | Scheduled JWT refresh interval |
 | `SF_QWEN_REFRESH_THRESHOLD_MS` | `21600000` (6 h) | Token refresh threshold (re-login if within this of expiry) |
 | `SF_QWEN_LOGIN_TIMEOUT_MS` | `10000` (10 s) | Login request timeout |
@@ -190,13 +214,40 @@ The proxy exposes an OpenAI-compatible API on `/v1/*`:
 | `POST` | `/v1/chat/completions` | Chat completions (streaming and non-streaming) |
 | `POST` | `/v1/images/generations` | Image generation |
 | `POST` | `/v1/images/edits` | Image editing |
-| `POST` | `/v1/videos/generations` | Video generation (async — returns 202 with job ID) |
-| `GET` | `/v1/videos/generations/:id` | Poll video generation status |
+| `POST` | `/v1/videos/generations` | Video generation (synchronous — blocks until URL returns) |
 | `POST` | `/v1/videos/edits` | Video editing (**404** — not yet supported) |
 
 **Authentication:** `Authorization: Bearer <key>` or `x-api-key: <key>`.
 
 **Streaming:** `/v1/chat/completions` supports `stream: true` with Server-Sent Events (SSE). The response is a stream of `data: {...}` lines terminated by `data: [DONE]`.
+
+### Video generation (synchronous)
+
+Video generation is **synchronous**: `POST /v1/videos/generations` blocks until the upstream returns a video URL (200 response). There is no job-polling endpoint.
+
+```
+POST /v1/videos/generations
+{ "prompt": "a cat playing piano", "size": "1280x720" }
+
+→ 200 { "created": 1234567890, "data": [{ "url": "https://..." }] }
+```
+
+::: warning Wall-time budget
+Synchronous video generation can take 300+ seconds. Ensure your reverse proxy and Cloudflare settings allow at least a 300-second wall-time budget (e.g. `proxy_read_timeout 300s` in nginx; CF Enterprise for longer limits).
+:::
+
+### Function calling
+
+OpenAI-style function calling (`tools:[{type:"function"}]` or `tool_choice`) is **not supported** and returns **400**. To use Qwen's built-in search, pass `tools:[{type:"web_search"}]` or append `-search` to the model name (e.g. `qwen3-max-search`).
+
+### Thinking mode
+
+`enable_thinking` is passed through to the upstream gateway (default **off**). To enable thinking:
+
+- Set `enable_thinking: true` in the request body, **or**
+- Append `-thinking` to the model name (e.g. `qwen3-max-thinking`)
+
+When thinking is enabled, the response includes `reasoning_content` in the chat completion (OpenAI) or `thinking` content blocks (Anthropic).
 
 ::: warning D14
 Mid-stream sentinel errors from upstream terminate the stream with an error event followed by `data: [DONE]`. Clients should handle partial responses gracefully.
@@ -214,8 +265,12 @@ The proxy exposes an Anthropic-compatible API:
 
 **Authentication:** Same gate as OpenAI endpoints (`Authorization: Bearer <key>` or `x-api-key: <key>`).
 
-::: warning D7
-Anthropic thinking-block signatures are **empty strings**. Qwen does not provide verifiable signatures for thinking blocks, so the proxy returns `signature: ""`. Anthropic SDK clients that validate signatures will fail.
+**Thinking:** Pass `thinking:{type:"enabled"}` in the request body to enable thinking mode (translated to `enable_thinking:true` upstream). When thinking is enabled, the response includes `thinking` content blocks.
+
+**Tools (function calling):** Anthropic-style tools are **not supported** and return **400**.
+
+::: warning D7 — Thinking-block signatures (opt-in)
+Anthropic thinking-block signatures are **empty strings** (`signature: ""`). Qwen does not provide verifiable signatures for thinking blocks. This only applies when thinking mode is enabled.
 :::
 
 ## Admin dashboard
@@ -232,8 +287,7 @@ The admin dashboard is an optional read-only HTML interface for monitoring the p
 - **Tokens** — bearer status, expiry, last refresh time per account
 - **Rate limits** — 429 timestamps, retry-after, re-enable times
 - **Login failures** — recent failures with reason and status code
-- **Video jobs** — per-account counts by status (queued/processing/succeeded/failed)
-- **Usage** — derived per-account metrics (login failures in 24h, last token refresh, video job counts)
+- **Usage** — derived per-account metrics (login failures in 24h, last token refresh)
 
 **Auto-refresh:** The dashboard reloads every 10 seconds (full page reload).
 
@@ -249,9 +303,9 @@ The cookie does not include the `Secure` flag (intentional — the proxy runs on
 
 ## Known limitations
 
-### D7 — Empty thinking-block signatures (Anthropic)
+### D7 — Empty thinking-block signatures (Anthropic, opt-in)
 
-Anthropic thinking blocks return `signature: ""`. Qwen does not provide verifiable signatures. SDKs that validate signatures will fail. This affects `/v1/messages` when the upstream model returns thinking content.
+Anthropic thinking blocks return `signature: ""`. Qwen does not provide verifiable signatures. SDKs that validate signatures will fail. This only applies when thinking mode is enabled via `thinking:{type:"enabled"}`.
 
 ### D12 — Reconcile disables all but first account on startup
 
@@ -268,3 +322,7 @@ When the upstream Qwen API sends a mid-stream sentinel error, the proxy terminat
 ### D15 — Admin dashboard 404 when unset
 
 The admin dashboard returns 404 (not 401) when `SF_QWEN_ADMIN_KEY` is unset. This is intentional — 401 would reveal the dashboard's existence. Set the key to enable.
+
+### D18 — qwen.aikit.club repoint
+
+The proxy forwards to the third-party [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway (not directly to chat.qwen.ai). Video generation is synchronous (POST blocks until URL; no job polling). OpenAI function-calling (`tools:[{type:"function"}]` / `tool_choice`) is rejected with 400 — use `-search` suffix or `tools:[{type:"web_search"}]`. The gateway handles anti-bot internally; the proxy authenticates with JWT only. `<details>` junk from upstream is stripped at the adapter boundary. Upstream reliability is coupled to the third-party CF Worker; self-host via `SF_QWEN_API_URL` for uptime control.
