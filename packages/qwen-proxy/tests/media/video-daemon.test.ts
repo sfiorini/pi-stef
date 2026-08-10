@@ -319,7 +319,7 @@ describe("VideoPollDaemon.tick()", () => {
 
   // ── F2: withPoolRetry failover on RateLimitError ──────────────────────
 
-  it("uses withPoolRetry: RateLimitError on first account triggers failover", async () => {
+  it("RateLimitError on the task-creator account leaves the job pending (no failover)", async () => {
     // Set up 2 accounts
     const db2 = openDb(":memory:");
     reconcileAccounts(db2, [
@@ -367,8 +367,93 @@ describe("VideoPollDaemon.tick()", () => {
     await daemon.tick();
 
     const job = getVideoJob(db2, "j-failover")!;
+    // A5: the poll used the job's account_id (1 = bearer-1) which threw RateLimitError;
+    // the daemon warns + leaves the job pending (NO account switch/failover for user-scoped task polls).
+    expect(job.status).toBe("queued");
+    expect(videoTaskStatusCallCount).toBe(1);
+    // pool active is unchanged (no failover)
+    expect(pool.getActiveAccount().id).toBe(1);
+  });
+
+  // ── A5: poll with task-creator account, not pool-active ──────────────
+
+  it("A5: polls with the job's account_id bearer, not the pool-active", async () => {
+    // Set up 2 accounts: account 1 is pool-active, account 2 owns the job
+    const db2 = openDb(":memory:");
+    reconcileAccounts(db2, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+    db2.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
+    upsertToken(db2, 1, "bearer-active", 999999);
+    upsertToken(db2, 2, "bearer-job-owner", 999999);
+
+    // Job was created by account 2, but pool-active is account 1
+    insertVideoJob(db2, {
+      jobId: "j-owner",
+      accountId: 2,
+      upstreamTaskId: "up-owner",
+      model: "wanx",
+      prompt: "test",
+    });
+
+    let calledWithBearer: string | null = null;
+    const client = {
+      videoTaskStatus: async (bearer: string) => {
+        calledWithBearer = bearer;
+        return { taskId: "up-owner", status: "succeeded", raw: { done: true } };
+      },
+    } as unknown as UpstreamClient;
+
+    const pool = new AccountPool({ db: db2, log: noopLog, now: () => 1000 });
+    pool.hydrate();
+
+    const deps: VideoPollDaemonDeps = {
+      db: db2,
+      pool,
+      client,
+      retry: withPoolRetry,
+      log: noopLog,
+      now: () => 100_000,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
+      config: { rateLimitCooldownMs: 60_000 },
+    } as unknown as VideoPollDaemonDeps;
+
+    const daemon = new VideoPollDaemon(deps);
+    await daemon.tick();
+
+    // Must use the JOB account's bearer, not the pool-active
+    expect(calledWithBearer).toBe("bearer-job-owner");
+    const job = getVideoJob(db2, "j-owner")!;
     expect(job.status).toBe("succeeded");
-    expect(videoTaskStatusCallCount).toBe(2); // failed on acct 1, succeeded on acct 2
+  });
+
+  it("A5: poll error warns + leaves pending (no withPoolRetry failover)", async () => {
+    insertVideoJob(db, {
+      jobId: "j-a5-err",
+      accountId: 1,
+      upstreamTaskId: "up-a5-err",
+      model: "wanx",
+      prompt: "test",
+    });
+
+    const warnLog = vi.fn();
+    const deps = makeDeps(db, {
+      client: {
+        videoTaskStatus: async () => {
+          throw new RateLimitError("Rate limited");
+        },
+      } as unknown as UpstreamClient,
+      log: { info: () => {}, warn: warnLog, error: () => {} },
+    });
+
+    const daemon = new VideoPollDaemon(deps);
+    await daemon.tick();
+
+    // Job should stay queued — error is logged, no failover
+    const job = getVideoJob(db, "j-a5-err")!;
+    expect(job.status).toBe("queued");
+    expect(warnLog).toHaveBeenCalled();
   });
 });
 

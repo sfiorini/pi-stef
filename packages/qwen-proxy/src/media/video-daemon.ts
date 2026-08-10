@@ -14,6 +14,7 @@ import type Database from "better-sqlite3";
 import type { UpstreamClient } from "../upstream/client";
 import type { Logger } from "../server/logger";
 import type { withPoolRetry as WithPoolRetryFn, RetryDeps } from "../pool/retry";
+import { getToken } from "../store/repo";
 import {
   listPendingVideoJobs,
   updateVideoJob,
@@ -82,13 +83,14 @@ export class VideoPollDaemon {
       }
 
       try {
-        // F2: Use withPoolRetry for failover on RateLimitError
-        const result = await this.deps.retry(this.deps, async (_id, bearer) => {
-          return this.client.videoTaskStatus(
-            bearer,
-            job.upstream_task_id!,
-          );
-        });
+        // A5: Poll using the job's stored account_id bearer (task-creator),
+        // NOT the pool-active account. Video tasks are user-scoped.
+        const jobToken = job.account_id != null ? getToken(this.db, job.account_id) : null;
+        const bearer = jobToken?.bearer ?? this.deps.pool.getActiveAccount().bearer;
+        const result = await this.client.videoTaskStatus(
+          bearer,
+          job.upstream_task_id!,
+        );
 
         if (/success|succeeded|completed/i.test(result.status)) {
           updateVideoJob(this.db, job.job_id, {
