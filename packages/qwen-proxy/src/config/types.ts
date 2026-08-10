@@ -16,6 +16,8 @@ export interface QwenProxyConfig {
   refreshThresholdMs: number; // SF_QWEN_REFRESH_THRESHOLD_MS default 21600000 (6 h)
   loginTimeoutMs: number;     // SF_QWEN_LOGIN_TIMEOUT_MS     default 10000
   staggerMs: number;          // SF_QWEN_STAGGER_MS           default 5000
+  rateLimitCooldownMs: number;// SF_QWEN_RATE_LIMIT_COOLDOWN_MS default 86400000 (24h)
+  reenableIntervalMs: number; // SF_QWEN_REENABLE_INTERVAL_MS default 60000   (1 min)
   logLevel: string;           // SF_QWEN_LOG_LEVEL            default "info"
   accounts: Account[];
 }

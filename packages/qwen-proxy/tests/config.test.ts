@@ -20,6 +20,8 @@ describe("config", () => {
       expect(config.staggerMs).toBe(5000);
       expect(config.logLevel).toBe("info");
       expect(config.accounts).toEqual([]);
+      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+      expect(config.reenableIntervalMs).toBe(60_000);
     });
 
     it("overrides port via SF_QWEN_PORT", async () => {
@@ -76,6 +78,44 @@ describe("config", () => {
       expect(config.loginTimeoutMs).toBe(5000);
       expect(config.staggerMs).toBe(2000);
       expect(config.logLevel).toBe("debug");
+    });
+
+    it("returns default rateLimitCooldownMs when unset", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+    });
+
+    it("returns default reenableIntervalMs when unset", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.reenableIntervalMs).toBe(60_000);
+    });
+
+    it("parses rateLimitCooldownMs from env", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_RATE_LIMIT_COOLDOWN_MS: "3600000",
+      });
+      expect(config.rateLimitCooldownMs).toBe(3_600_000);
+    });
+
+    it("parses reenableIntervalMs from env", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_REENABLE_INTERVAL_MS: "120000",
+      });
+      expect(config.reenableIntervalMs).toBe(120_000);
+    });
+
+    it("falls back to default on invalid rateLimitCooldownMs", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_RATE_LIMIT_COOLDOWN_MS: "abc",
+      });
+      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+    });
+
+    it("falls back to default on invalid reenableIntervalMs", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_REENABLE_INTERVAL_MS: "0",
+      });
+      expect(config.reenableIntervalMs).toBe(60_000);
     });
   });
 

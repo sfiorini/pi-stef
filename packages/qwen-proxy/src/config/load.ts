@@ -109,6 +109,8 @@ export async function loadQwenProxyConfig(
     refreshThresholdMs: parseIntEnv(env.SF_QWEN_REFRESH_THRESHOLD_MS, 21_600_000),
     loginTimeoutMs: parseIntEnv(env.SF_QWEN_LOGIN_TIMEOUT_MS, 10_000),
     staggerMs: parseIntEnv(env.SF_QWEN_STAGGER_MS, 5_000),
+    rateLimitCooldownMs: parseIntEnv(env.SF_QWEN_RATE_LIMIT_COOLDOWN_MS, 86_400_000),
+    reenableIntervalMs: parseIntEnv(env.SF_QWEN_REENABLE_INTERVAL_MS, 60_000),
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",
     accounts: await resolveAccounts(env),
   };
