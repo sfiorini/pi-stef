@@ -141,12 +141,26 @@ export function injectToolResults(
   return messages.map((msg) => {
     // assistant with tool_calls → rewrite content to <tool_calls> text
     if (msg.role === "assistant" && Array.isArray(msg.tool_calls) && msg.tool_calls.length > 0) {
-      const calls = msg.tool_calls.map((tc) => ({
-        name: tc.function?.name ?? "unknown",
-        arguments: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {},
-      }));
+      const calls = msg.tool_calls.map((tc) => {
+        let parsedArgs: unknown = {};
+        if (tc.function?.arguments) {
+          try {
+            parsedArgs = JSON.parse(tc.function.arguments);
+          } catch {
+            // F1: malformed JSON — use raw string as-is
+            parsedArgs = tc.function.arguments;
+          }
+        }
+        return {
+          name: tc.function?.name ?? "unknown",
+          arguments: parsedArgs,
+        };
+      });
       const textBlock = `<tool_calls>${JSON.stringify(calls)}</tool_calls>`;
-      return { role: "assistant", content: textBlock };
+      // F3: preserve existing assistant content when tool_calls coexist
+      const existing = flattenContent(msg.content);
+      const combined = existing ? existing + "\n" + textBlock : textBlock;
+      return { role: "assistant", content: combined };
     }
 
     // tool message → system with Tool prefix

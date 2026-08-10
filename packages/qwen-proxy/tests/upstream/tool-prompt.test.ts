@@ -222,6 +222,57 @@ describe("injectToolResults", () => {
     expect(result[1].role).toBe("system");
     expect(result[2].role).toBe("user");
   });
+
+  // F1: malformed JSON in tool_calls arguments should not throw
+  it("does not throw when tool_calls arguments is malformed JSON (F1)", () => {
+    const msgs = [
+      {
+        role: "assistant",
+        content: null,
+        tool_calls: [
+          {
+            id: "call_bad",
+            type: "function",
+            function: { name: "x", arguments: "{bad json" },
+          },
+        ],
+      },
+    ];
+    expect(() => injectToolResults(msgs)).not.toThrow();
+    const result = injectToolResults(msgs);
+    expect(result[0].role).toBe("assistant");
+    expect(result[0].content).toContain("<tool_calls>");
+    expect(result[0].content).toContain("{bad json");
+    expect(result[0].content).toContain("</tool_calls>");
+  });
+
+  // F3: assistant with both content AND tool_calls should preserve both
+  it("preserves assistant content when tool_calls are also present (F3)", () => {
+    const msgs = [
+      {
+        role: "assistant",
+        content: "Let me check the weather.",
+        tool_calls: [
+          {
+            id: "call_1",
+            type: "function",
+            function: { name: "get_weather", arguments: '{"location":"Tokyo"}' },
+          },
+        ],
+      },
+    ];
+    const result = injectToolResults(msgs);
+    expect(result[0].role).toBe("assistant");
+    // Original text must be preserved
+    expect(result[0].content).toContain("Let me check the weather.");
+    // Tool calls block must also be present
+    expect(result[0].content).toContain("<tool_calls>");
+    expect(result[0].content).toContain("get_weather");
+    // Original content comes before tool_calls
+    const textIdx = (result[0].content as string).indexOf("Let me check the weather.");
+    const tcIdx = (result[0].content as string).indexOf("<tool_calls>");
+    expect(textIdx).toBeLessThan(tcIdx);
+  });
 });
 
 describe("prependToFirstSystemMessage", () => {
