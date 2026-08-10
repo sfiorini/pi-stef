@@ -93,7 +93,8 @@ export interface UpstreamClient {
       stream: boolean;
       enable_thinking?: boolean;
       thinking_budget?: number;
-      tools?: { type: string }[];
+      tools?: unknown[];
+      tool_choice?: unknown;
     },
   ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk>;
   imageGeneration(
