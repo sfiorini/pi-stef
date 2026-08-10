@@ -12,8 +12,7 @@ describe("config", () => {
       expect(config.port).toBe(7790);
       expect(config.dbPath).toBe("./data/qwen-proxy.db");
       expect(config.authUrl).toBe("https://chat.qwen.ai");
-      expect(config.apiUrl).toBe("https://chat.qwen.ai");
-      expect(config.refreshIntervalMs).toBe(900000);
+      expect(config.apiUrl).toBe("https://qwen.aikit.club");
       expect(config.jwtRefreshMs).toBe(21600000);
       expect(config.refreshThresholdMs).toBe(21600000);
       expect(config.loginTimeoutMs).toBe(10000);
@@ -66,14 +65,12 @@ describe("config", () => {
 
     it("overrides numeric fields via env", async () => {
       const config = await loadQwenProxyConfig({
-        SF_QWEN_REFRESH_INTERVAL_MS: "60000",
         SF_QWEN_JWT_REFRESH_MS: "3600000",
         SF_QWEN_REFRESH_THRESHOLD_MS: "1800000",
         SF_QWEN_LOGIN_TIMEOUT_MS: "5000",
         SF_QWEN_STAGGER_MS: "2000",
         SF_QWEN_LOG_LEVEL: "debug",
       });
-      expect(config.refreshIntervalMs).toBe(60000);
       expect(config.jwtRefreshMs).toBe(3600000);
       expect(config.refreshThresholdMs).toBe(1800000);
       expect(config.loginTimeoutMs).toBe(5000);

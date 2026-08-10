@@ -28,7 +28,6 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
     dbPath: ":memory:",
     authUrl: "https://chat.qwen.ai",
     apiUrl: "https://chat.qwen.ai",
-    refreshIntervalMs: 900_000,
     jwtRefreshMs: 21_600_000,
     refreshThresholdMs: 21_600_000,
     loginTimeoutMs: 10_000,
@@ -157,7 +156,7 @@ describe("AuthScheduler", () => {
     return {
       db,
       config: cfg,
-      cookies: new CookieJar(cfg.refreshIntervalMs),
+      cookies: new CookieJar(60_000),
       login,
       log,
       now: () => Date.now(),
@@ -194,10 +193,9 @@ describe("AuthScheduler", () => {
     const nowSec = nowMs / 1000;
 
     // Use small time values to keep fake-timer advances manageable.
-    // jwtRefreshMs=10s, refreshThresholdMs=5s, refreshIntervalMs=999s (never fires)
+    // jwtRefreshMs=10s, refreshThresholdMs=5s (cookie jar always 60s)
     const jwtRefreshMs = 10_000;
     const refreshThresholdMs = 5_000;
-    const bigRefresh = 999_999_999; // cookie jar won't fire
 
     // ── Case A: token expires soon → delay clamps to jwtRefreshMs ──
     // expiresAt = now + 3s → expiresAt - threshold - now = 3s - 5s = -2s
@@ -214,7 +212,6 @@ describe("AuthScheduler", () => {
       accounts: [{ id: 10, email: "a@test.com", password: "pw", ord: 10 }],
       jwtRefreshMs,
       refreshThresholdMs,
-      refreshIntervalMs: bigRefresh,
     });
     const schedulerA = new AuthScheduler(depsA);
     const startA = schedulerA.start();
@@ -251,7 +248,6 @@ describe("AuthScheduler", () => {
       accounts: [{ id: 11, email: "b@test.com", password: "pw", ord: 11 }],
       jwtRefreshMs,
       refreshThresholdMs,
-      refreshIntervalMs: bigRefresh,
     });
     const schedulerB = new AuthScheduler(depsB);
     const startB = schedulerB.start();
@@ -298,7 +294,6 @@ describe("AuthScheduler", () => {
       accounts: [{ id: 20, email: "c@test.com", password: "pw", ord: 20 }],
       jwtRefreshMs,
       refreshThresholdMs,
-      refreshIntervalMs: 999_999_999, // cookie jar never fires
     });
     const scheduler = new AuthScheduler(deps);
     const start = scheduler.start();

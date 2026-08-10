@@ -278,7 +278,6 @@ function makeStubDeps(adminKey?: string): AppDeps {
       dbPath: ":memory:",
       authUrl: "",
       apiUrl: "",
-      refreshIntervalMs: 900000,
       jwtRefreshMs: 21600000,
       refreshThresholdMs: 21600000,
       loginTimeoutMs: 10000,
