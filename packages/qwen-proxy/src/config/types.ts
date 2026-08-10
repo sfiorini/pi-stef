@@ -22,4 +22,5 @@ export interface QwenProxyConfig {
   modelAliasesRaw: string;   // SF_QWEN_MODEL_ALIASES     default ""  (JSON object)
   logLevel: string;           // SF_QWEN_LOG_LEVEL            default "info"
   accounts: Account[];
+  adminKey?: string;          // SF_QWEN_ADMIN_KEY      default undefined (dashboard disabled)
 }

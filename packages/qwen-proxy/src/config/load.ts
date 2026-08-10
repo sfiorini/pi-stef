@@ -115,5 +115,6 @@ export async function loadQwenProxyConfig(
     modelAliasesRaw: env.SF_QWEN_MODEL_ALIASES || "",
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",
     accounts: await resolveAccounts(env),
+    adminKey: env.SF_QWEN_ADMIN_KEY || undefined,
   };
 }

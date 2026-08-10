@@ -144,6 +144,25 @@ describe("config", () => {
       });
       expect(config.apiKeyEnv).toEqual([]);
     });
+
+    it("defaults adminKey to undefined", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.adminKey).toBeUndefined();
+    });
+
+    it("overrides adminKey via SF_QWEN_ADMIN_KEY", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_ADMIN_KEY: "my-secret-admin-key",
+      });
+      expect(config.adminKey).toBe("my-secret-admin-key");
+    });
+
+    it("treats empty SF_QWEN_ADMIN_KEY as unset", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_ADMIN_KEY: "",
+      });
+      expect(config.adminKey).toBeUndefined();
+    });
   });
 
   describe("account supply", () => {
