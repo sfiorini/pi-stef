@@ -11,10 +11,9 @@
  */
 
 import type Database from "better-sqlite3";
-import type { AccountPool } from "../pool/state";
 import type { UpstreamClient } from "../upstream/client";
 import type { Logger } from "../server/logger";
-import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
+import type { withPoolRetry as WithPoolRetryFn, RetryDeps } from "../pool/retry";
 import {
   listPendingVideoJobs,
   updateVideoJob,
@@ -25,20 +24,20 @@ const STALE_MS = 24 * 60 * 60 * 1000; // 24 hours
 const MAX_ATTEMPTS = 60;
 const DEFAULT_INTERVAL_MS = 20_000;
 
-export interface VideoPollDaemonDeps {
+// Extends RetryDeps so `this.deps` is assignable to RetryDeps for the withPoolRetry
+// call (pool/scheduler/config/log are required, matching chat.ts / videos.ts).
+export interface VideoPollDaemonDeps extends RetryDeps {
   db: Database.Database;
-  pool: AccountPool;
   client: UpstreamClient;
   retry: typeof WithPoolRetryFn;
-  log: Logger;
   intervalMs?: number;
   now?: () => number;
 }
 
 export class VideoPollDaemon {
   private db: Database.Database;
-  private pool: AccountPool;
   private client: UpstreamClient;
+  private deps: VideoPollDaemonDeps;
   private log: Logger;
   private intervalMs: number;
   private now: () => number;
@@ -46,8 +45,8 @@ export class VideoPollDaemon {
 
   constructor(deps: VideoPollDaemonDeps) {
     this.db = deps.db;
-    this.pool = deps.pool;
     this.client = deps.client;
+    this.deps = deps;
     this.log = deps.log;
     this.intervalMs = deps.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.now = deps.now ?? (() => Date.now());
@@ -83,11 +82,13 @@ export class VideoPollDaemon {
       }
 
       try {
-        const acct = this.pool.getActiveAccount();
-        const result = await this.client.videoTaskStatus(
-          acct.bearer,
-          job.upstream_task_id,
-        );
+        // F2: Use withPoolRetry for failover on RateLimitError
+        const result = await this.deps.retry(this.deps, async (_id, bearer) => {
+          return this.client.videoTaskStatus(
+            bearer,
+            job.upstream_task_id!,
+          );
+        });
 
         if (/success|succeeded|completed/i.test(result.status)) {
           updateVideoJob(this.db, job.job_id, {

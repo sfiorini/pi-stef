@@ -7,6 +7,7 @@ import { withPoolRetry } from "../../src/pool/retry";
 import { insertVideoJob, getVideoJob, updateVideoJob } from "../../src/media/video-jobs";
 import { VideoPollDaemon } from "../../src/media/video-daemon";
 import type { VideoPollDaemonDeps } from "../../src/media/video-daemon";
+import { RateLimitError } from "../../src/upstream/errors";
 import type { UpstreamClient } from "../../src/upstream/client";
 import type { Account } from "../../src/config/types";
 import type { Logger } from "../../src/server/logger";
@@ -54,6 +55,8 @@ function makeDeps(
       ...overrides?.client,
     },
     retry: withPoolRetry,
+    scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
+    config: { rateLimitCooldownMs: 60_000 },
     log: noopLog,
     now: () => 100_000,
     ...overrides,
@@ -312,6 +315,60 @@ describe("VideoPollDaemon.tick()", () => {
     const job = getVideoJob(db, "j8")!;
     expect(job.status).toBe("failed");
     expect(videoTaskStatusCalled).toBe(false);
+  });
+
+  // ── F2: withPoolRetry failover on RateLimitError ──────────────────────
+
+  it("uses withPoolRetry: RateLimitError on first account triggers failover", async () => {
+    // Set up 2 accounts
+    const db2 = openDb(":memory:");
+    reconcileAccounts(db2, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+    db2.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
+    upsertToken(db2, 1, "bearer-1", 999999);
+    upsertToken(db2, 2, "bearer-2", 999999);
+
+    insertVideoJob(db2, {
+      jobId: "j-failover",
+      accountId: 1,
+      upstreamTaskId: "up-failover",
+      model: "wanx",
+      prompt: "test",
+    });
+
+    let videoTaskStatusCallCount = 0;
+    const client = {
+      videoTaskStatus: async (bearer: string) => {
+        videoTaskStatusCallCount++;
+        if (bearer === "bearer-1") {
+          throw new RateLimitError("Rate limited");
+        }
+        return { taskId: "up-failover", status: "succeeded", raw: { done: true } };
+      },
+    } as unknown as UpstreamClient;
+
+    const pool = new AccountPool({ db: db2, log: noopLog, now: () => 1000 });
+    pool.hydrate();
+
+    const deps: VideoPollDaemonDeps = {
+      db: db2,
+      pool,
+      client,
+      retry: withPoolRetry,
+      log: noopLog,
+      now: () => 100_000,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
+      config: { rateLimitCooldownMs: 60_000 },
+    } as unknown as VideoPollDaemonDeps;
+
+    const daemon = new VideoPollDaemon(deps);
+    await daemon.tick();
+
+    const job = getVideoJob(db2, "j-failover")!;
+    expect(job.status).toBe("succeeded");
+    expect(videoTaskStatusCallCount).toBe(2); // failed on acct 1, succeeded on acct 2
   });
 });
 

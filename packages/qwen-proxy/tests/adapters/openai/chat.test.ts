@@ -7,6 +7,7 @@ import { AccountPool } from "../../../src/pool/state";
 import { withPoolRetry, withPoolRetryStream } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
 import { chatRoutes } from "../../../src/adapters/openai/chat";
+import { RateLimitError } from "../../../src/upstream/errors";
 import type { UpstreamClient, QwenChunk } from "../../../src/upstream/client";
 import type { Account } from "../../../src/config/types";
 import type { Logger } from "../../../src/server/logger";
@@ -364,9 +365,9 @@ describe("POST /v1/chat/completions", () => {
     });
   });
 
-  // ── Unknown model → 400 ─────────────────────────────────────────────────
+  // ── Unknown model → 400 (F3) ──────────────────────────────────────────
 
-  it("returns 400 model_not_found for unknown model", async () => {
+  it("returns 400 model_not_found for unknown model (not qwen/wan/alias)", async () => {
     const deps = makeDeps(db);
     const app = createTestApp(deps);
 
@@ -382,19 +383,90 @@ describe("POST /v1/chat/completions", () => {
       }),
     });
 
-    // The model resolves to itself via passthrough, so it's "known"
-    // But per spec: unknown (unresolved) model → 400
-    // Actually, resolveModel always passthrough unmapped models
-    // The spec says "Unknown (unresolved) model" — this means models not
-    // found upstream. But for MVP, any model string passes through.
-    // So actually this model IS accepted (it's a passthrough).
-    // We need to check: what makes a model "unknown"?
-    // Per the design, it seems like any model string is accepted.
-    // The spec says "Unknown (unresolved) model → 400 model_not_found"
-    // but resolveModel always returns a valid upstreamId.
-    // For now, let's skip this test case and handle it differently.
-    // Actually, re-reading: "unknown model" might mean empty string or
-    // something that can't be resolved. Let's just test a valid passthrough.
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.type).toBe("invalid_request_error");
+    expect(body.error.code).toBe("model_not_found");
+    expect(body.error.param).toBe("model");
+  });
+
+  it("returns 400 for gpt-4o when not aliased", async () => {
+    const deps = makeDeps(db);
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.code).toBe("model_not_found");
+  });
+
+  it("accepts qwen3-max (known Qwen model)", async () => {
+    const deps = makeDeps(db);
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts wan2.1-t2i (known Wan model)", async () => {
+    const deps = makeDeps(db);
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "wan2.1-t2i",
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts gpt-4o when aliased to qwen model", async () => {
+    const deps = makeDeps(db, {
+      config: { modelAliasesRaw: JSON.stringify({ "gpt-4o": "qwen3-max" }) },
+    });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
     expect(res.status).toBe(200);
   });
 
@@ -511,5 +583,103 @@ describe("POST /v1/chat/completions", () => {
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error.type).toBe("rate_limit_error");
+  });
+
+  // ── F1: createChat inside retry (failover on 429) ─────────────────────
+
+  it("non-stream: createChat RateLimitError triggers failover via retry", async () => {
+    // Set up 2 accounts
+    db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+    db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
+    upsertToken(db, 1, "bearer-1", 999999);
+    upsertToken(db, 2, "bearer-2", 999999);
+
+    let createChatCallCount = 0;
+    const client = {
+      createChat: async (bearer: string) => {
+        createChatCallCount++;
+        if (bearer === "bearer-1") {
+          throw new RateLimitError("Rate limited");
+        }
+        return { chatId: "chat-on-acct-2" };
+      },
+      chatCompletionsStream: async function* () {
+        yield { phase: "answer", content: "Hello from account 2" };
+        yield { done: true };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: false,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.choices[0].message.content).toBe("Hello from account 2");
+    expect(createChatCallCount).toBe(2); // failed on acct 1, succeeded on acct 2
+  });
+
+  it("stream: createChat RateLimitError triggers failover via retryStream", async () => {
+    // Set up 2 accounts
+    db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+    db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
+    upsertToken(db, 1, "bearer-1", 999999);
+    upsertToken(db, 2, "bearer-2", 999999);
+
+    let createChatCallCount = 0;
+    const client = {
+      createChat: async (bearer: string) => {
+        createChatCallCount++;
+        if (bearer === "bearer-1") {
+          throw new RateLimitError("Rate limited");
+        }
+        return { chatId: "chat-stream-acct-2" };
+      },
+      chatCompletionsStream: async function* () {
+        yield { phase: "answer", content: "Streamed from account 2" };
+        yield { done: true };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: true,
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    expect(text).toContain("Streamed from account 2");
+    expect(createChatCallCount).toBe(2); // failed on acct 1, succeeded on acct 2
   });
 });

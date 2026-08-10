@@ -85,6 +85,8 @@ async function main() {
       pool,
       client,
       retry: withPoolRetry,
+      scheduler,
+      config,
       log,
       intervalMs: 20_000,
     });

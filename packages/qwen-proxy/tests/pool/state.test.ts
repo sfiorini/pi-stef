@@ -281,6 +281,46 @@ describe("AccountPool", () => {
       db.close();
     });
 
+    it("F5: promotes one and clears others when multiple expired + no active", () => {
+      const db = openDb(":memory:");
+      reconcileAccounts(db, ACCOUNTS);
+      // All disabled, accounts 2 and 3 both expired
+      db.prepare(
+        "UPDATE accounts SET state='disabled', re_enable_at=50 WHERE id=2",
+      ).run();
+      db.prepare(
+        "UPDATE accounts SET state='disabled', re_enable_at=60 WHERE id=3",
+      ).run();
+      db.prepare(
+        "UPDATE accounts SET state='disabled', re_enable_at=99999 WHERE id=1",
+      ).run();
+
+      const pool = new AccountPool({ db, log: noopLog, now: () => 10 });
+      pool.hydrate(); // activeId = null (all in cooldown)
+
+      const result = pool.reEnableExpired(100);
+      // Account 2 promoted (first eligible), account 3 cleared (cooldown removed)
+      expect(result.cleared).toBe(2);
+      expect(result.promoted).toBe(1);
+
+      // Account 2 should be active
+      const r2 = db
+        .prepare("SELECT state, re_enable_at FROM accounts WHERE id=2")
+        .get() as { state: string; re_enable_at: number | null };
+      expect(r2.state).toBe("active");
+      expect(r2.re_enable_at).toBeNull();
+
+      // Account 3 should be disabled but cooldown cleared (back-of-queue)
+      const r3 = db
+        .prepare("SELECT state, re_enable_at FROM accounts WHERE id=3")
+        .get() as { state: string; re_enable_at: number | null };
+      expect(r3.state).toBe("disabled");
+      expect(r3.re_enable_at).toBeNull();
+
+      expect(activeCount(db)).toBe(1);
+      db.close();
+    });
+
     it("no re-enable of in-cooldown accounts", () => {
       const db = openDb(":memory:");
       reconcileAccounts(db, ACCOUNTS);

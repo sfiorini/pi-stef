@@ -95,10 +95,10 @@ export class AccountPool {
 
     let cleared = 0;
     let promoted = 0;
-    const hasActive = this.activeId !== null;
 
     for (const row of expired) {
-      if (hasActive) {
+      // F5: Check activeId inside loop so promoted accounts are seen immediately
+      if (this.activeId !== null) {
         // Clear cooldown → back-of-queue (stays disabled, now eligible)
         this.deps.db
           .prepare(

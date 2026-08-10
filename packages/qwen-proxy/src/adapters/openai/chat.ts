@@ -25,6 +25,18 @@ export interface ChatRouteDeps extends RetryDeps {
 }
 
 /**
+ * Check if a model base ID is a known Qwen/Wan model or is in the alias map.
+ * Used to reject unknown model names with a clean 400.
+ */
+function isKnownOpenAiModel(base: string, aliases: Map<string, string>): boolean {
+  // 1. Explicit alias
+  if (aliases.has(base)) return true;
+  // 2. Known Qwen/Wan model patterns
+  if (/^qwen/i.test(base) || /^wan/i.test(base)) return true;
+  return false;
+}
+
+/**
  * Flatten a message content field to a plain string.
  * content can be string OR [{type:"text",text}].
  */
@@ -79,6 +91,14 @@ export function chatRoutes(deps: ChatRouteDeps) {
     const aliases = parseModelAliases(deps.config.modelAliasesRaw);
     const resolved = resolveModel(model, aliases);
 
+    // F3: Validate model is known (alias or qwen/wan pattern)
+    if (!isKnownOpenAiModel(resolved.upstreamId, aliases)) {
+      return openaiError(c, 400, `Model '${model}' not found`, {
+        code: "model_not_found",
+        param: "model",
+      });
+    }
+
     // Flatten messages to upstream format
     const flatMessages = messages.map((m) => ({
       role: m.role,
@@ -91,29 +111,19 @@ export function chatRoutes(deps: ChatRouteDeps) {
       ? { thinking_enabled: true }
       : undefined;
 
-    // Create upstream chat
-    let chatId: string;
-    try {
-      const chat = await deps.client.createChat(deps.pool.getActiveAccount().bearer, {
-        model: resolved.upstreamId,
-        chatType,
-      });
-      chatId = chat.chatId;
-    } catch (err) {
-      if (err instanceof PoolExhaustedError) {
-        return poolExhaustedResponse(c, err);
-      }
-      throw err;
-    }
-
     // ── Non-stream ────────────────────────────────────────────────────────
 
     if (!stream) {
       try {
         const chunks: QwenChunk[] = await deps.retry(deps, async (_accountId, bearer) => {
           const result: QwenChunk[] = [];
+          // Create upstream chat inside retry (F1: failover on 429)
+          const chat = await deps.client.createChat(bearer, {
+            model: resolved.upstreamId,
+            chatType,
+          });
           for await (const chunk of deps.client.chatCompletionsStream(bearer, {
-            chatId,
+            chatId: chat.chatId,
             model: resolved.upstreamId,
             messages: flatMessages,
             featureConfig,
@@ -187,8 +197,13 @@ export function chatRoutes(deps: ChatRouteDeps) {
       _accountId: number,
       bearer: string,
     ): AsyncIterable<QwenChunk> {
+      // Create upstream chat inside retry (F1: failover on 429)
+      const chat = await deps.client.createChat(bearer, {
+        model: resolved.upstreamId,
+        chatType,
+      });
       yield* deps.client.chatCompletionsStream(bearer, {
-        chatId,
+        chatId: chat.chatId,
         model: resolved.upstreamId,
         messages: flatMessages,
         featureConfig,
