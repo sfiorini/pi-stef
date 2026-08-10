@@ -5,7 +5,7 @@ services:
     # To build from local source instead, comment out `image:` above and run:
     #   docker compose up --build
     # build:
-    #   context: ../..
+    #   context: ../../..
     #   dockerfile: packages/qwen-proxy/docker/Dockerfile
     ports:
       # Same machine (default): client and server on one host. Most secure.
