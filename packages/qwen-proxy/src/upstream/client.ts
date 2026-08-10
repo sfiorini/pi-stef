@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 import type { CookiePair } from "./ssxmod";
 import { decodeExpiryMs } from "./auth";
-import { classifyResponse, NetworkError } from "./errors";
+import { classifyResponse, NetworkError, UnknownError } from "./errors";
 import { parseSseStream } from "./sse";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -236,8 +236,16 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    const json = (await res.json()) as { data: { id: string } };
-    return { chatId: json.data.id };
+    const json = (await res.json()) as { data?: { id?: string } };
+    const chatId = json.data?.id;
+    if (!chatId) {
+      // Upstream returned 200 but an unexpected body — surface it instead of a
+      // cryptic TypeError so the failure is diagnosable (mapped to 500 + logged).
+      throw new UnknownError(
+        `upstream /api/v2/chats/new returned ${res.status} with unexpected body (missing data.id): ${JSON.stringify(json).slice(0, 200)}`,
+      );
+    }
+    return { chatId };
   }
 
   // ── chatCompletionsStream ──────────────────────────────────────────────

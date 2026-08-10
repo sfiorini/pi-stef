@@ -59,6 +59,16 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   app.onError((err, c) => {
     const isAnthropic = c.req.path.startsWith("/v1/messages");
 
+    // Surface every unhandled request error. Without this the generic-500
+    // branch was completely silent, making request failures undiagnosable.
+    deps.log.error("request failed", {
+      path: c.req.path,
+      method: c.req.method,
+      kind: err?.constructor?.name,
+      error: err instanceof Error ? err.message : String(err),
+      ...(err instanceof Error && err.stack ? { stack: err.stack } : {}),
+    });
+
     if (err instanceof ClientError) {
       return isAnthropic
         ? anthropicError(c, 400, undefined, err.message)
