@@ -11,6 +11,11 @@ import {
 } from "../src/index";
 import { AccountPool } from "../src/pool/state";
 import { ReenableDaemon } from "../src/pool/reenable-daemon";
+import { withPoolRetry } from "../src/pool/retry";
+import { withPoolRetryStream } from "../src/pool/retry";
+import { VideoPollDaemon } from "../src/media/video-daemon";
+import { submitVideo, getVideoJob } from "../src/media/videos";
+import type { AppDeps } from "../src/server/app";
 
 const log = createLogger();
 
@@ -45,7 +50,7 @@ async function main() {
     const cookies = new CookieJar(config.refreshIntervalMs);
     // NOTE: cookies.start() is called inside AuthScheduler.start()
 
-    // Auth scheduler (per-account JWT refresh + on-demand 401)
+    // Upstream client
     const client = createUpstreamClient({
       authUrl: config.authUrl,
       apiUrl: config.apiUrl,
@@ -53,6 +58,7 @@ async function main() {
       timeoutMs: config.loginTimeoutMs,
     });
 
+    // Auth scheduler (per-account JWT refresh + on-demand 401)
     const scheduler = new AuthScheduler({
       db,
       config,
@@ -62,18 +68,60 @@ async function main() {
     });
     await scheduler.start();
 
+    // Build retry deps (shared by pool, media, routes)
+    const retryDeps = { pool, scheduler, config, log };
+
+    // Media deps (shared by images and video)
+    const mediaDeps = {
+      ...retryDeps,
+      db,
+      client,
+      retry: withPoolRetry,
+    };
+
+    // Video poll daemon (background status polling)
+    const videoDaemon = new VideoPollDaemon({
+      db,
+      pool,
+      client,
+      retry: withPoolRetry,
+      log,
+      intervalMs: 20_000,
+    });
+    videoDaemon.start();
+
+    // Build AppDeps for createApp/startServer
+    const deps: AppDeps = {
+      db,
+      pool,
+      client,
+      scheduler,
+      config,
+      retry: withPoolRetry,
+      retryStream: withPoolRetryStream,
+      media: {
+        ...mediaDeps,
+        submitVideo: (params) => submitVideo(mediaDeps, params),
+        getVideoJob: (dbRef, jobId) => getVideoJob(dbRef, jobId),
+      },
+      videoDaemon,
+      log,
+    };
+
     // Start HTTP server
     const handle = await startServer({
+      ...deps,
       host: config.host,
       port: config.port,
-      log,
     });
 
     log.info("qwen-proxy started", { port: handle.port });
 
-    // Graceful shutdown: reenableDaemon.stop BEFORE scheduler.stop BEFORE db.close
+    // Graceful shutdown order:
+    // videoDaemon → reenableDaemon → scheduler → cookies → server → db
     const shutdown = () => {
       log.info("shutting down");
+      videoDaemon.stop();
       reenableDaemon.stop();
       scheduler.stop();
       cookies.stop();

@@ -1,11 +1,9 @@
 import { serve } from "@hono/node-server";
-import { createApp } from "./app";
-import type { Logger } from "./logger";
+import { createApp, type AppDeps } from "./app";
 
-export interface StartServerDeps {
+export interface StartServerDeps extends AppDeps {
   host?: string;
   port?: number;
-  log?: Logger;
 }
 
 export interface ServerHandle {
@@ -17,7 +15,7 @@ export async function startServer(deps: StartServerDeps): Promise<ServerHandle> 
   const host = deps.host ?? "127.0.0.1";
   const port = deps.port ?? 7790;
 
-  const app = createApp();
+  const app = createApp(deps);
 
   return new Promise((resolve, reject) => {
     try {

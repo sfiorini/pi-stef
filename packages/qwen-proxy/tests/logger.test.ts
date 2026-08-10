@@ -61,6 +61,29 @@ describe("logger", () => {
     expect(output).toContain("visible");
   });
 
+  it("redacts 'key' and 'apiKey' fields (api_keys.key never logged)", () => {
+    const logger = createLogger();
+    const originalWrite = process.stderr.write;
+    let output = "";
+    process.stderr.write = (chunk: string | Uint8Array) => {
+      output += chunk.toString();
+      return true;
+    };
+
+    logger.info("api key test", {
+      key: "sk-secret-key-12345",
+      apiKey: "sk-api-key-67890",
+      label: "visible-label",
+    });
+
+    process.stderr.write = originalWrite;
+
+    expect(output).toContain("[REDACTED]");
+    expect(output).not.toContain("sk-secret-key-12345");
+    expect(output).not.toContain("sk-api-key-67890");
+    expect(output).toContain("visible-label");
+  });
+
   it("redacts arrays element-wise", () => {
     const logger = createLogger();
     const originalWrite = process.stderr.write;

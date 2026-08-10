@@ -11,6 +11,8 @@ const SENSITIVE_KEYS = new Set([
   "bearerToken",
   "ssxmod_itna",
   "ssxmod_itna2",
+  "key",
+  "apiKey",
 ]);
 
 function redact(obj: unknown): unknown {
