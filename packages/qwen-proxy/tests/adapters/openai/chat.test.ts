@@ -6,8 +6,9 @@ import { reconcileAccounts, upsertToken } from "../../../src/store/repo";
 import { AccountPool } from "../../../src/pool/state";
 import { withPoolRetry, withPoolRetryStream } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
+import { createApp } from "../../../src/server/app";
 import { chatRoutes } from "../../../src/adapters/openai/chat";
-import { RateLimitError } from "../../../src/upstream/errors";
+import { RateLimitError, ClientError } from "../../../src/upstream/errors";
 import type { UpstreamClient, QwenChunk } from "../../../src/upstream/client";
 import type { Account } from "../../../src/config/types";
 import type { Logger } from "../../../src/server/logger";
@@ -92,6 +93,59 @@ function createTestApp(deps: ChatDeps) {
     retryStream: deps.retryStream,
   }));
   return app;
+}
+
+/**
+ * Build the production createApp with minimal stubs for deps not under test.
+ * Used to verify app.onError (A3) works end-to-end.
+ */
+function createProductionApp(
+  db: Database.Database,
+  overrides: { client?: Partial<UpstreamClient>; config?: Partial<ChatDeps["config"]> } = {},
+) {
+  const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
+  pool.hydrate();
+  const client: UpstreamClient = {
+    login: async () => ({ bearer: "", expiresAt: null }),
+    listModels: async () => [],
+    createChat: async () => ({ chatId: "test-chat-id" }),
+    chatCompletionsStream: async function* () {
+      yield { phase: "answer", content: "Hello", usage: { prompt_tokens: 10, completion_tokens: 5 } };
+      yield { done: true };
+    },
+    imageGeneration: async () => ({ created: 0, urls: [] }),
+    imageEdit: async () => ({ created: 0, urls: [] }),
+    videoGeneration: async () => ({ taskId: "", status: "", raw: {} }),
+    videoTaskStatus: async () => ({ taskId: "", status: "", raw: {} }),
+    ...overrides.client,
+  };
+  return createApp({
+    db,
+    pool,
+    client,
+    scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
+    config: {
+      rateLimitCooldownMs: 60_000,
+      modelAliasesRaw: "",
+      apiKeyEnv: ["test-key"],
+      ...overrides.config,
+    } as any,
+    retry: withPoolRetry,
+    retryStream: withPoolRetryStream,
+    media: {
+      db,
+      pool,
+      client,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
+      config: { rateLimitCooldownMs: 60_000 },
+      log: noopLog,
+      retry: withPoolRetry,
+      submitVideo: async () => { throw new Error("stub"); },
+      getVideoJob: () => undefined,
+    },
+    videoDaemon: { start: () => {}, stop: () => {} } as any,
+    log: noopLog,
+  });
 }
 
 describe("POST /v1/chat/completions", () => {
@@ -681,5 +735,35 @@ describe("POST /v1/chat/completions", () => {
     const text = await res.text();
     expect(text).toContain("Streamed from account 2");
     expect(createChatCallCount).toBe(2); // failed on acct 1, succeeded on acct 2
+  });
+
+  // ── A3: app.onError maps upstream errors to OpenAI envelope ──────────
+
+  it("A3: upstream ClientError → 400 OpenAI envelope (not 500)", async () => {
+    const client = {
+      createChat: async () => {
+        throw new ClientError("Client error 400", { status: 400, body: "bad request" });
+      },
+      chatCompletionsStream: async function* () {},
+    } as unknown as UpstreamClient;
+
+    const app = createProductionApp(db, { client });
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error.type).toBe("invalid_request_error");
+    expect(body.error.message).toContain("Client error 400");
   });
 });

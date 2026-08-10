@@ -26,6 +26,16 @@ import { healthRoutes } from "./health";
 import { clientAuthGate } from "./auth";
 import { openaiRoutes, type OpenAIRouteDeps } from "../adapters/openai";
 import { anthropicRoutes, type AnthropicRouteDeps } from "../adapters/anthropic";
+import { openaiError } from "../adapters/openai/errors";
+import { anthropicError } from "../adapters/anthropic/errors";
+import {
+  ClientError,
+  AuthExpiredError,
+  RateLimitError,
+  ServerError,
+  NetworkError,
+  UnknownError,
+} from "../upstream/errors";
 
 export interface AppDeps {
   db: Database.Database;
@@ -42,6 +52,49 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): OpenAPIHono {
   const app = new OpenAPIHono();
+
+  // A3: Global error handler — map QwenUpstreamError subclasses to
+  // surface-appropriate envelope + status.
+  app.onError((err, c) => {
+    const isAnthropic = c.req.path.startsWith("/v1/messages");
+
+    if (err instanceof ClientError) {
+      return isAnthropic
+        ? anthropicError(c, 400, undefined, err.message)
+        : openaiError(c, 400, err.message);
+    }
+    if (err instanceof AuthExpiredError) {
+      return isAnthropic
+        ? anthropicError(c, 401, undefined, err.message)
+        : openaiError(c, 401, err.message);
+    }
+    if (err instanceof RateLimitError) {
+      return isAnthropic
+        ? anthropicError(c, 429, undefined, err.message)
+        : openaiError(c, 429, err.message);
+    }
+    if (err instanceof ServerError) {
+      return isAnthropic
+        ? anthropicError(c, 502, undefined, err.message)
+        : openaiError(c, 502, err.message);
+    }
+    if (err instanceof NetworkError) {
+      return isAnthropic
+        ? anthropicError(c, 503, undefined, err.message)
+        : openaiError(c, 503, err.message);
+    }
+    if (err instanceof UnknownError) {
+      return isAnthropic
+        ? anthropicError(c, 500, undefined, err.message)
+        : openaiError(c, 500, err.message);
+    }
+
+    // Non-QwenUpstreamError → generic 500
+    if (isAnthropic) {
+      return anthropicError(c, 500, "api_error", "Internal server error");
+    }
+    return openaiError(c, 500, "Internal server error");
+  });
 
   // 1. Health endpoint is public (no auth)
   app.route("/v1/health", healthRoutes());
