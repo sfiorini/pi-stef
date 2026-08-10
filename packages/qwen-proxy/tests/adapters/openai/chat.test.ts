@@ -1145,4 +1145,218 @@ describe("POST /v1/chat/completions", () => {
     // Should be the original model with suffix, not the upstreamId without
     expect(body.model).toBe("qwen3-max-thinking");
   });
+
+  // ── S-6: Stream tool-calling integration ─────────────────────────────────
+
+  it("stream: <tool_calls> tag → delta.tool_calls + finish_reason:tool_calls", async () => {
+    const toolCallsTag = '<tool_calls>[{"name":"get_weather","arguments":{"location":"Tokyo"}}]</tool_calls>';
+    async function* streamChunks() {
+      // Split the tag across multiple chunks to test the detector
+      yield { choices: [{ delta: { content: toolCallsTag } }] } as OpenAiChatChunk;
+      yield { choices: [{ finish_reason: "stop" }] } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: (_bearer: string, body: Record<string, unknown>) => {
+        if (body.stream) return streamChunks();
+        return Promise.resolve({} as OpenAiChatCompletion);
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "What's the weather?" }],
+        stream: true,
+        tools: [{ type: "function", function: { name: "get_weather", description: "Get weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: ") && l !== "data: [DONE]");
+    const chunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    // Should have delta.tool_calls with the parsed tool call
+    const toolCallChunks = chunks.filter((d) => d.choices?.[0]?.delta?.tool_calls);
+    expect(toolCallChunks.length).toBeGreaterThanOrEqual(1);
+    const toolCalls = toolCallChunks[0].choices[0].delta.tool_calls;
+    expect(toolCalls[0].function.name).toBe("get_weather");
+    expect(toolCalls[0].type).toBe("function");
+    expect(toolCalls[0].id).toMatch(/^call_/);
+
+    // finish_reason should be "tool_calls"
+    const finishChunks = chunks.filter((d) => d.choices?.[0]?.finish_reason);
+    expect(finishChunks.some((d) => d.choices[0].finish_reason === "tool_calls")).toBe(true);
+
+    // Raw <tool_calls> text must NOT appear in content deltas
+    const contentChunks = chunks.filter((d) => d.choices?.[0]?.delta?.content);
+    const allContent = contentChunks.map((d) => d.choices[0].delta.content).join("");
+    expect(allContent).not.toContain("<tool_calls>");
+  });
+
+  it("stream: no <tool_calls> → normal content + finish_reason:stop", async () => {
+    async function* streamChunks() {
+      yield { choices: [{ delta: { content: "Hello world" } }] } as OpenAiChatChunk;
+      yield { choices: [{ finish_reason: "stop" }] } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: true,
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: ") && l !== "data: [DONE]");
+    const chunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    // Content should be present
+    const contentChunks = chunks.filter((d) => d.choices?.[0]?.delta?.content);
+    const allContent = contentChunks.map((d) => d.choices[0].delta.content).join("");
+    expect(allContent).toContain("Hello world");
+
+    // No tool_calls
+    const toolCallChunks = chunks.filter((d) => d.choices?.[0]?.delta?.tool_calls);
+    expect(toolCallChunks.length).toBe(0);
+
+    // finish_reason should be "stop"
+    const finishChunks = chunks.filter((d) => d.choices?.[0]?.finish_reason);
+    expect(finishChunks.some((d) => d.choices[0].finish_reason === "stop")).toBe(true);
+  });
+
+  it("stream: mid-tag end → discard + stop (Q4=a)", async () => {
+    async function* streamChunks() {
+      // Start a <tool_calls> tag but stream ends before closing
+      yield { choices: [{ delta: { content: "<tool_calls>[{\"name\":\"x\"" } }] } as OpenAiChatChunk;
+      // Stream ends — no finish_reason from upstream
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: true,
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: ") && l !== "data: [DONE]");
+    const chunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    // No tool_calls emitted (mid-tag discarded)
+    const toolCallChunks = chunks.filter((d) => d.choices?.[0]?.delta?.tool_calls);
+    expect(toolCallChunks.length).toBe(0);
+
+    // finish_reason should be "stop" (synthetic, since no tool calls)
+    const finishChunks = chunks.filter((d) => d.choices?.[0]?.finish_reason);
+    expect(finishChunks.some((d) => d.choices[0].finish_reason === "stop")).toBe(true);
+  });
+
+  it("stream: content after </tool_calls> suppressed (Q5=a)", async () => {
+    const toolCallsTag = '<tool_calls>[{"name":"get_weather","arguments":{"location":"Tokyo"}}]</tool_calls>';
+    async function* streamChunks() {
+      yield { choices: [{ delta: { content: toolCallsTag + "trailing text" } }] } as OpenAiChatChunk;
+      yield { choices: [{ finish_reason: "stop" }] } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: true,
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: ") && l !== "data: [DONE]");
+    const chunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+
+    // "trailing text" must NOT appear in any content delta
+    const contentChunks = chunks.filter((d) => d.choices?.[0]?.delta?.content);
+    const allContent = contentChunks.map((d) => d.choices[0].delta.content).join("");
+    expect(allContent).not.toContain("trailing");
+
+    // Tool calls should still be emitted
+    const toolCallChunks = chunks.filter((d) => d.choices?.[0]?.delta?.tool_calls);
+    expect(toolCallChunks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("stream: deleteChats fire-and-forget after stream closes", async () => {
+    const deleteChats = vi.fn().mockResolvedValue(undefined);
+
+    async function* streamChunks() {
+      yield { choices: [{ delta: { content: "Hello" } }] } as OpenAiChatChunk;
+      yield { choices: [{ finish_reason: "stop" }] } as OpenAiChatChunk;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+      deleteChats,
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    // Consume the stream to completion
+    await res.text();
+    // Wait for fire-and-forget
+    await new Promise((r) => setTimeout(r, 50));
+    expect(deleteChats).toHaveBeenCalled();
+  });
 });

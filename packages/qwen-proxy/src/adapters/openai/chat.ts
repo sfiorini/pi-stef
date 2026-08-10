@@ -22,6 +22,7 @@ import { DetailsStreamStripper } from "../../upstream/details-strip";
 import { firstChunk, mapOpenAiChunk, TERMINATOR } from "./chunks";
 import { injectToolPrompt, injectToolResults, prependToFirstSystemMessage } from "../../upstream/tool-prompt";
 import { parseToolCalls } from "../../upstream/tool-parse";
+import { ToolStreamDetector } from "../../upstream/tool-stream";
 
 export interface ChatRouteDeps extends RetryDeps {
   client: Pick<UpstreamClient, "chatCompletions" | "deleteChats">;
@@ -271,10 +272,12 @@ export function chatRoutes(deps: ChatRouteDeps) {
     const id = `chatcmpl-${randomUUID()}`;
     const created = Math.floor(Date.now() / 1000);
 
+    let usedBearer: string | undefined;
     const streamIter = deps.retryStream(deps, async function* (
       _accountId: number,
       bearer: string,
     ): AsyncIterable<OpenAiChatChunk> {
+      usedBearer = bearer;
       yield* (deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any) as AsyncIterable<OpenAiChatChunk>);
     });
 
@@ -291,6 +294,8 @@ export function chatRoutes(deps: ChatRouteDeps) {
           write(JSON.stringify(firstChunk(id, created, model)));
 
           const stripper = new DetailsStreamStripper();
+          const toolDetector = toolsInjected ? new ToolStreamDetector() : null;
+          let streamGotToolCalls = false;
           let sentFinishReason = false;
 
           for await (const chunk of streamIter) {
@@ -326,30 +331,63 @@ export function chatRoutes(deps: ChatRouteDeps) {
             }
 
             // Forward tool_calls (function calling) — pass through, strip co-carried content
-            if (delta?.tool_calls) {
+            // S-6: gate on !toolsInjected (when injected, we own tool-call detection)
+            if (delta?.tool_calls && !toolsInjected) {
               const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
               const mapped = mapOpenAiChunk(safeChunk, id, created, model);
               write(JSON.stringify(mapped));
             }
 
-            // Strip <details> from delta.content
+            // S-6: Strip <details> from delta.content (with tool-call detection)
             if (delta?.content !== undefined) {
-              const safe = stripper.push(delta.content);
-              if (safe) {
-                const mapped = mapOpenAiChunk(
-                  { choices: [{ ...choice, delta: { content: safe } }] },
-                  id,
-                  created,
-                  model,
-                );
-                write(JSON.stringify(mapped));
+              if (toolsInjected && toolDetector) {
+                // Feed content through ToolStreamDetector
+                const result = toolDetector.push(delta.content);
+                if (result.content !== undefined && result.content) {
+                  const safe = stripper.push(result.content);
+                  if (safe) {
+                    const mapped = mapOpenAiChunk(
+                      { choices: [{ ...choice, delta: { content: safe } }] },
+                      id,
+                      created,
+                      model,
+                    );
+                    write(JSON.stringify(mapped));
+                  }
+                }
+                if (result.toolCallsReady) {
+                  const completedBlock = toolDetector.completedBlock;
+                  const parsed = parseToolCalls(completedBlock);
+                  if (parsed.toolCalls && parsed.toolCalls.length > 0) {
+                    write(JSON.stringify(mapOpenAiChunk(
+                      { choices: [{ delta: { tool_calls: parsed.toolCalls.map((tc, i) => ({ index: i, id: tc.id, type: tc.type, function: tc.function })) } }] },
+                      id,
+                      created,
+                      model,
+                    )));
+                    streamGotToolCalls = true;
+                  }
+                }
+              } else {
+                const safe = stripper.push(delta.content);
+                if (safe) {
+                  const mapped = mapOpenAiChunk(
+                    { choices: [{ ...choice, delta: { content: safe } }] },
+                    id,
+                    created,
+                    model,
+                  );
+                  write(JSON.stringify(mapped));
+                }
               }
             }
 
             // Forward finish_reason (but strip co-carried content to prevent
             // unstripped <details> bypass — audit F3)
+            // S-6: override to "tool_calls" when tools were injected and tool calls detected
             if (choice?.finish_reason) {
-              const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
+              const finishReason = toolsInjected && streamGotToolCalls ? "tool_calls" : choice.finish_reason;
+              const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined }, finish_reason: finishReason }] };
               const mapped = mapOpenAiChunk(safeChunk, id, created, model);
               write(JSON.stringify(mapped));
               sentFinishReason = true;
@@ -363,6 +401,23 @@ export function chatRoutes(deps: ChatRouteDeps) {
             }
           }
 
+          // S-6: Flush toolDetector first
+          if (toolDetector) {
+            const detResult = toolDetector.finalize();
+            if (detResult.content !== undefined && detResult.content) {
+              const tailContent = stripper.push(detResult.content);
+              if (tailContent) {
+                write(JSON.stringify(mapOpenAiChunk(
+                  { choices: [{ delta: { content: tailContent } }] },
+                  id,
+                  created,
+                  model,
+                )));
+              }
+            }
+            // BUFFERING→discard: content field absent (Q4) — nothing to emit
+          }
+
           // Flush any remaining buffer from the stripper
           const tail = stripper.finalize();
           if (tail) {
@@ -374,8 +429,10 @@ export function chatRoutes(deps: ChatRouteDeps) {
             )));
           }
 
-          // Emit synthetic finish_reason:"stop" if upstream didn't send one
+          // Emit synthetic finish_reason if upstream didn't send one
+          // S-6: "tool_calls" if tool calls detected, else "stop"
           if (!sentFinishReason) {
+            const syntheticReason = toolsInjected && streamGotToolCalls ? "tool_calls" : "stop";
             write(
               JSON.stringify({
                 object: "chat.completion.chunk",
@@ -384,7 +441,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
                     index: 0,
                     delta: {},
                     logprobs: null,
-                    finish_reason: "stop",
+                    finish_reason: syntheticReason,
                   },
                 ],
               }),
@@ -394,6 +451,9 @@ export function chatRoutes(deps: ChatRouteDeps) {
           // Terminator
           controller.enqueue(encoder.encode(TERMINATOR));
           controller.close();
+
+          // S-6: Fire-and-forget cleanup after stream closes
+          if (usedBearer) deps.client.deleteChats(usedBearer).catch(() => {});
         } catch (err) {
           controller.error(err);
         }
