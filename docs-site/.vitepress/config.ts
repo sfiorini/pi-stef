@@ -43,6 +43,8 @@ export default defineConfig({
           { text: "finance-api SnapTrade", link: "/packages/finance-api-snaptrade" },
           { text: "finance-api SimpleFIN", link: "/packages/finance-api-simplefin" },
           { text: "finance-api Coinbase", link: "/packages/finance-api-coinbase" },
+          { text: "qwen-proxy", link: "/packages/qwen-proxy" },
+          { text: "qwen-proxy Docker", link: "/packages/qwen-proxy-docker" },
           { text: "paths", link: "/packages/paths" },
         ],
       },
