@@ -190,6 +190,18 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
     // ── Stream ────────────────────────────────────────────────────────────
 
+    // A4: Check pool availability BEFORE constructing the 200 SSE Response.
+    // Otherwise PoolExhaustedError thrown inside the ReadableStream start
+    // callback results in a truncated 200 instead of a 429.
+    try {
+      deps.pool.getActiveAccount();
+    } catch (err) {
+      if (err instanceof PoolExhaustedError) {
+        return poolExhaustedResponse(c, err);
+      }
+      throw err;
+    }
+
     const id = `chatcmpl-${randomUUID()}`;
     const created = Math.floor(Date.now() / 1000);
 

@@ -766,4 +766,31 @@ describe("POST /v1/chat/completions", () => {
     expect(body.error.type).toBe("invalid_request_error");
     expect(body.error.message).toContain("Client error 400");
   });
+
+  // ── A4: pre-stream pool exhaustion → 429, not truncated 200 ───────────
+
+  it("A4: stream + pool exhausted → 429 (not 200)", async () => {
+    // Exhaust the pool
+    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
+
+    const app = createProductionApp(db);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        stream: true,
+      }),
+    });
+
+    // Must be 429, NOT 200 with truncated SSE
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error.type).toBe("rate_limit_error");
+  });
 });

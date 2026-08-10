@@ -239,6 +239,16 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
 
     // ── Stream ────────────────────────────────────────────────────────────
 
+    // A4: Check pool availability BEFORE constructing the 200 SSE Response.
+    try {
+      deps.pool.getActiveAccount();
+    } catch (err) {
+      if (err instanceof PoolExhaustedError) {
+        return poolExhaustedResponse(c, err);
+      }
+      throw err;
+    }
+
     const qwenStream = deps.retryStream(deps, async function* (
       _accountId: number,
       bearer: string,
