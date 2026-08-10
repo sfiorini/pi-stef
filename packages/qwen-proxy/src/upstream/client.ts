@@ -83,29 +83,6 @@ export interface OpenAiChatCompletion {
 export interface UpstreamClient {
   login(email: string, password: string): Promise<LoginResult>;
   listModels(bearer: string): Promise<Model[]>;
-  // Overloads: stream=false → Promise, stream=true → AsyncIterable
-  chatCompletions(
-    bearer: string,
-    body: {
-      model: string;
-      messages: { role: string; content: string }[];
-      stream: false;
-      enable_thinking?: boolean;
-      thinking_budget?: number;
-      tools?: { type: string }[];
-    },
-  ): Promise<OpenAiChatCompletion>;
-  chatCompletions(
-    bearer: string,
-    body: {
-      model: string;
-      messages: { role: string; content: string }[];
-      stream: true;
-      enable_thinking?: boolean;
-      thinking_budget?: number;
-      tools?: { type: string }[];
-    },
-  ): AsyncIterable<OpenAiChatChunk>;
   chatCompletions(
     bearer: string,
     body: {

@@ -175,7 +175,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
     if (!stream) {
       try {
         const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer) => {
-          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any);
+          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any) as Promise<OpenAiChatCompletion>;
         });
 
         // Extract content + reasoning from upstream
@@ -236,7 +236,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
       _accountId: number,
       bearer: string,
     ): AsyncIterable<OpenAiChatChunk> {
-      yield* deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any);
+      yield* (deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any) as AsyncIterable<OpenAiChatChunk>);
     });
 
     const encoder = new TextEncoder();

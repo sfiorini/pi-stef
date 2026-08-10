@@ -258,7 +258,7 @@ describe("createUpstreamClient", () => {
         model: "qwen3-max",
         messages: [{ role: "user", content: "hi" }],
         stream: true,
-      })) {
+      }) as AsyncIterable<OpenAiChatChunk>) {
         chunks.push(chunk);
       }
 
@@ -289,7 +289,7 @@ describe("createUpstreamClient", () => {
         model: "qwen3-max",
         messages: [{ role: "user", content: "hi" }],
         stream: true,
-      })) {
+      }) as AsyncIterable<OpenAiChatChunk>) {
         chunks.push(chunk);
       }
 
@@ -310,7 +310,7 @@ describe("createUpstreamClient", () => {
         model: "q",
         messages: [{ role: "user", content: "hi" }],
         stream: true,
-      })) {
+      }) as AsyncIterable<OpenAiChatChunk>) {
         chunks.push(chunk);
       }
 
@@ -561,7 +561,7 @@ describe("createUpstreamClient", () => {
         model: "q",
         messages: [{ role: "user", content: "hi" }],
         stream: true,
-      });
+      }) as AsyncIterable<OpenAiChatChunk>;
 
       await expect(iter[Symbol.asyncIterator]().next()).rejects.toBeInstanceOf(AuthExpiredError);
     });
@@ -576,7 +576,7 @@ describe("createUpstreamClient", () => {
         model: "q",
         messages: [{ role: "user", content: "hi" }],
         stream: true,
-      });
+      }) as AsyncIterable<OpenAiChatChunk>;
 
       await expect(iter[Symbol.asyncIterator]().next()).rejects.toBeInstanceOf(UnknownError);
     });

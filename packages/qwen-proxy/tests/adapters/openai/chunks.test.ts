@@ -1,6 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { firstChunk, mapOpenAiChunk, TERMINATOR } from "../../../src/adapters/openai/chunks";
 
+type ChunkResult = {
+  id: string;
+  object: string;
+  created: number;
+  model: string;
+  choices: { index: number; delta: Record<string, unknown>; logprobs: null; finish_reason: string | null }[];
+  usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+};
+
 describe("firstChunk", () => {
   it("returns the initial chunk with delta.role = assistant", () => {
     const chunk = firstChunk("chatcmpl-1", 1700000000, "qwen3-max");
@@ -28,7 +37,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result).toEqual({
       id: "chatcmpl-1",
       object: "chat.completion.chunk",
@@ -51,7 +60,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.choices[0].delta).toEqual({ reasoning_content: "Let me think..." });
   });
 
@@ -61,7 +70,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.choices[0].finish_reason).toBe("stop");
     expect(result.choices[0].delta).toEqual({});
   });
@@ -72,7 +81,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.usage).toEqual({ prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 });
   });
 
@@ -82,7 +91,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result).not.toHaveProperty("usage");
   });
 
@@ -92,7 +101,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.choices[0].index).toBe(0);
   });
 
@@ -102,7 +111,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.choices[0].index).toBe(2);
   });
 
@@ -112,7 +121,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     // With empty choices, choice is undefined → index defaults to 0, delta defaults to {}
     expect(result.choices[0].index).toBe(0);
     expect(result.choices[0].delta).toEqual({});
@@ -125,7 +134,7 @@ describe("mapOpenAiChunk", () => {
       "chatcmpl-1",
       1700000000,
       "qwen3-max",
-    );
+    ) as ChunkResult;
     expect(result.choices[0].logprobs).toBeNull();
   });
 });

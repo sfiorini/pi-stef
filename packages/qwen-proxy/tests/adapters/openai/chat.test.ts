@@ -59,7 +59,7 @@ function makeDeps(
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [],
-      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+      chatCompletions: (async (_bearer: string, body: Record<string, unknown>) => {
         if (body.stream) {
           return (async function* () {
             yield { choices: [{ delta: { content: "Hello" } }] };
@@ -72,7 +72,7 @@ function makeDeps(
           model: "qwen3-max",
           choices: [{ index: 0, message: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
         } as OpenAiChatCompletion;
-      },
+      }) as unknown as UpstreamClient["chatCompletions"],
       imageGeneration: async () => ({ created: 0, urls: [] }),
       imageEdit: async () => ({ created: 0, urls: [] }),
       videoGeneration: async () => ({ created: 0, urls: [] }),

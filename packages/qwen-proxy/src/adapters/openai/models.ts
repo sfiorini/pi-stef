@@ -27,7 +27,7 @@ export function modelsRoutes(deps: ModelsRouteDeps) {
     // Parse aliases
     const aliases = parseModelAliases(deps.configModels.modelAliasesRaw);
 
-    let upstreamModels: { id: string; object: "model"; owned_by: string }[];
+    let upstreamModels: { id: string; object: "model"; owned_by?: string }[];
 
     try {
       upstreamModels = await deps.retry(deps, async (_accountId, bearer) => {

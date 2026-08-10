@@ -46,7 +46,7 @@ function makeDeps(
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [],
-      chatCompletions: async () => ({ id: "", object: "chat.completion" as const, created: 0, model: "", choices: [], usage: null }),
+      chatCompletions: (async () => ({ id: "", object: "chat.completion" as const, created: 0, model: "", choices: [], usage: null })) as unknown as UpstreamClient["chatCompletions"],
       imageGeneration: async () => ({ created: 1000, urls: ["https://img/gen.png"] }),
       imageEdit: async () => ({ created: 2000, urls: ["https://img/edit.png"] }),
       videoGeneration: async () => ({ created: 0, urls: [] }),
