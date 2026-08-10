@@ -148,6 +148,18 @@ volumes:
 
 The compose file defaults to `127.0.0.1` only. See [Port binding](#port-binding-same-machine-vs-remote-server) above to expose the service to the LAN.
 
+## Architecture
+
+```
+SDK client → our proxy (7790) → qwen.aikit.club → chat.qwen.ai
+```
+
+The proxy logs into **chat.qwen.ai** to obtain a JWT, then forwards all API requests to **[qwen.aikit.club](https://qwen.aikit.club)** — a community Cloudflare Worker that handles the Alibaba Baxia anti-bot internally. See the [Upstream gateway](./qwen-proxy#upstream-gateway) section in the service docs for links and the self-host option.
+
+::: warning Third-party dependency
+qwen-proxy's upstream reliability is coupled to the [qwen.aikit.club](https://qwen.aikit.club) Cloudflare Worker. To control uptime, self-host [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) and set `SF_QWEN_API_URL` to your deployment.
+:::
+
 ## Configuration
 
 All configuration is via environment variables (prefix `SF_QWEN_`). Set them in the `environment:` section of `docker-compose.yml` or your shell:
@@ -159,6 +171,8 @@ All configuration is via environment variables (prefix `SF_QWEN_`). Set them in 
 | `SF_QWEN_DB` | `/data/qwen-proxy.db` | SQLite database path (D17 — single source of truth) |
 | `SF_QWEN_API_KEY` | **required** | Client API keys, comma-separated |
 | `SF_QWEN_ADMIN_KEY` | _(unset)_ | Admin dashboard key; unset → `/admin` returns 404 (D15) |
+| `SF_QWEN_API_URL` | `https://qwen.aikit.club` | Forward gateway for API requests (`/v1/*`) |
+| `SF_QWEN_AUTH_URL` | `https://chat.qwen.ai` | Login endpoint (JWT acquisition only) |
 
 ::: warning D17
 There is **no `SF_QWEN_DATA_DIR`**. The database path `SF_QWEN_DB=/data/qwen-proxy.db` is the single source of truth. The proxy derives the data directory from `dirname(dbPath)`.
@@ -183,6 +197,10 @@ One named volume persists data across container restarts:
 | `qwen-data` | `/data` | SQLite database (`qwen-proxy.db`) |
 
 qwen-proxy does **not** use a config/token volume — the API key is set directly via `SF_QWEN_API_KEY` (no auto-generated token).
+
+## Video generation (synchronous)
+
+Video generation is synchronous: `POST /v1/videos/generations` blocks until the upstream returns a URL (200 response). Ensure your reverse proxy and Cloudflare settings allow at least a **300-second** wall-time budget (e.g. `proxy_read_timeout 300s` in nginx).
 
 ## Healthcheck
 
