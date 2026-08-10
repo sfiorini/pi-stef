@@ -6,11 +6,13 @@
  * Pool exhausted → 429 rate_limit_error.
  * Sentinel mid-stream → error event (D14).
  *
- * D7 MVP: thinking-block signatures are empty strings (Qwen gives no verifiable signature).
+ * D7 MVP: thinking-block signatures are empty strings (only when thinking emitted).
+ * Tools (function calling) → 400 not supported.
+ * thinking:{type:"enabled"} → enable_thinking:true (no suffix parsing).
  */
 
 import { randomUUID } from "node:crypto";
-import type { UpstreamClient, QwenChunk } from "../../upstream/client";
+import type { UpstreamClient, OpenAiChatChunk, OpenAiChatCompletion } from "../../upstream/client";
 import type { withPoolRetry as WithPoolRetryFn, withPoolRetryStream as WithPoolRetryStreamFn } from "../../pool/retry";
 import type { RetryDeps } from "../../pool/retry";
 import { PoolExhaustedError } from "../../pool/errors";
@@ -18,9 +20,10 @@ import { parseModelAliases } from "../../config/model-aliases";
 import { createOpenApiSubApp } from "../../server/openapi-helpers";
 import { anthropicError } from "./errors";
 import { streamAnthropicEvents } from "./events";
+import { stripDetails } from "../../upstream/details-strip";
 
 export interface AnthropicRouteDeps extends RetryDeps {
-  client: Pick<UpstreamClient, "createChat" | "chatCompletionsStream">;
+  client: Pick<UpstreamClient, "chatCompletions">;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
   config: RetryDeps["config"] & { modelAliasesRaw: string };
@@ -75,54 +78,32 @@ function mapStopReason(reason: string | undefined): string {
 }
 
 /**
- * Build an Anthropic message response from accumulated QwenChunks (non-stream).
+ * Build an Anthropic message response from an OpenAiChatCompletion (non-stream).
  */
 export function buildAnthropicMessage(
   model: string,
-  chunks: QwenChunk[],
+  completion: OpenAiChatCompletion,
 ): Record<string, unknown> {
-  let thinkingContent = "";
-  let answerContent = "";
-  let usage: { input_tokens: number; output_tokens: number } | undefined;
-  let finishReason: string | undefined;
-  let hasThinking = false;
-
-  for (const chunk of chunks) {
-    if (chunk.done) continue;
-
-    if (chunk.phase === "think" && chunk.content) {
-      thinkingContent += chunk.content;
-      hasThinking = true;
-    } else if (chunk.phase === "answer" && chunk.content) {
-      answerContent += chunk.content;
-    } else if (chunk.content) {
-      // No phase — treat as answer content
-      answerContent += chunk.content;
-    }
-
-    if (chunk.finishReason) finishReason = chunk.finishReason;
-    if (chunk.usage) {
-      usage = {
-        input_tokens: chunk.usage.prompt_tokens ?? 0,
-        output_tokens: chunk.usage.completion_tokens ?? 0,
-      };
-    }
-  }
+  const msg = completion.choices?.[0]?.message;
+  const content = msg?.content ?? "";
+  const reasoningContent = msg?.reasoning_content;
+  const finishReason = completion.choices?.[0]?.finish_reason;
+  const usage = completion.usage;
 
   // Build content array — ALWAYS an array
-  const content: Array<Record<string, unknown>> = [];
+  const contentArr: Array<Record<string, unknown>> = [];
 
-  if (hasThinking) {
-    content.push({
+  if (reasoningContent) {
+    contentArr.push({
       type: "thinking",
-      thinking: thinkingContent,
-      signature: "", // D7 MVP: empty signature
+      thinking: reasoningContent,
+      signature: "", // D7 opt-in: empty signature only when thinking emitted
     });
   }
 
-  content.push({
+  contentArr.push({
     type: "text",
-    text: answerContent,
+    text: stripDetails(content),
   });
 
   return {
@@ -130,10 +111,13 @@ export function buildAnthropicMessage(
     type: "message",
     role: "assistant",
     model,
-    content,
+    content: contentArr,
     stop_reason: mapStopReason(finishReason),
     stop_sequence: null,
-    usage: usage ?? { input_tokens: 0, output_tokens: 0 },
+    usage: {
+      input_tokens: usage?.prompt_tokens ?? 0,
+      output_tokens: usage?.completion_tokens ?? 0,
+    },
   };
 }
 
@@ -182,6 +166,19 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
       return anthropicError(c, 400, "invalid_request_error", `Model '${modelInput}' not found`);
     }
 
+    // ── Tools rejection (R3-2=a) ─────────────────────────────────────────
+    if (Array.isArray(b.tools) && b.tools.length > 0) {
+      return anthropicError(
+        c,
+        400,
+        "invalid_request_error",
+        "tools (function calling) not supported",
+      );
+    }
+
+    // ── Thinking (R2-Q3=a) ───────────────────────────────────────────────
+    const enableThinking = (b.thinking as Record<string, unknown>)?.type === "enabled";
+
     // ── System message mapping ────────────────────────────────────────────
     const upstreamMessages: { role: string; content: string }[] = [];
 
@@ -208,27 +205,26 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
       });
     }
 
+    // ── Build upstream body ───────────────────────────────────────────────
+    const upstreamBody: Record<string, unknown> = {
+      model: resolvedModel,
+      messages: upstreamMessages,
+      stream,
+    };
+
+    if (enableThinking) {
+      upstreamBody.enable_thinking = true;
+    }
+
     // ── Non-stream ────────────────────────────────────────────────────────
 
     if (!stream) {
       try {
-        const chunks: QwenChunk[] = await deps.retry(deps, async (_accountId, bearer) => {
-          const result: QwenChunk[] = [];
-          // Create upstream chat
-          const chat = await deps.client.createChat(bearer, {
-            model: resolvedModel,
-          });
-          for await (const chunk of deps.client.chatCompletionsStream(bearer, {
-            chatId: chat.chatId,
-            model: resolvedModel,
-            messages: upstreamMessages,
-          })) {
-            result.push(chunk);
-          }
-          return result;
+        const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer) => {
+          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any) as Promise<OpenAiChatCompletion>;
         });
 
-        return c.json(buildAnthropicMessage(modelInput, chunks));
+        return c.json(buildAnthropicMessage(modelInput, completion));
       } catch (err) {
         if (err instanceof PoolExhaustedError) {
           return poolExhaustedResponse(c, err);
@@ -252,16 +248,8 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
     const qwenStream = deps.retryStream(deps, async function* (
       _accountId: number,
       bearer: string,
-    ): AsyncIterable<QwenChunk> {
-      // Create upstream chat
-      const chat = await deps.client.createChat(bearer, {
-        model: resolvedModel,
-      });
-      yield* deps.client.chatCompletionsStream(bearer, {
-        chatId: chat.chatId,
-        model: resolvedModel,
-        messages: upstreamMessages,
-      });
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield* (deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any) as AsyncIterable<OpenAiChatChunk>);
     });
 
     const anthropicEvents = streamAnthropicEvents(qwenStream, {
