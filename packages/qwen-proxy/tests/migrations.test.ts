@@ -14,11 +14,10 @@ describe("migrations", () => {
     const rows = db
       .prepare("SELECT version FROM schema_versions ORDER BY version")
       .all() as { version: number }[];
-    // v10/v12 gap is intentional (land in M2)
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 11]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 
-  it("creates the 5 expected tables", () => {
+  it("creates the 7 expected tables", () => {
     const db = new Database(":memory:");
     applyMigrations(db);
 
@@ -35,6 +34,8 @@ describe("migrations", () => {
     expect(tables).toContain("rate_limits");
     expect(tables).toContain("login_failures");
     expect(tables).toContain("schema_versions");
+    expect(tables).toContain("api_keys");
+    expect(tables).toContain("video_jobs");
   });
 
   it("creates the 4 expected indexes", () => {
@@ -53,6 +54,7 @@ describe("migrations", () => {
     expect(indexes).toContain("idx_tokens_updated");
     expect(indexes).toContain("idx_rate_limits_updated");
     expect(indexes).toContain("idx_accounts_active");
+    expect(indexes).toContain("idx_video_jobs_status");
   });
 
   it("v11 adds state and re_enable_at columns to accounts", () => {
@@ -86,7 +88,7 @@ describe("migrations", () => {
     const rows = db
       .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
       .get() as { cnt: number };
-    expect(rows.cnt).toBe(10);
+    expect(rows.cnt).toBe(12);
   });
 });
 
@@ -96,7 +98,7 @@ describe("openDb", () => {
     const rows = db
       .prepare("SELECT version FROM schema_versions ORDER BY version")
       .all() as { version: number }[];
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 11]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     db.close();
   });
 
@@ -115,14 +117,14 @@ describe("openDb", () => {
       const rows1 = db1
         .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
         .get() as { cnt: number };
-      expect(rows1.cnt).toBe(10);
+      expect(rows1.cnt).toBe(12);
       db1.close();
 
       const db2 = openDb(dbPath);
       const rows2 = db2
         .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
         .get() as { cnt: number };
-      expect(rows2.cnt).toBe(10);
+      expect(rows2.cnt).toBe(12);
       db2.close();
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });

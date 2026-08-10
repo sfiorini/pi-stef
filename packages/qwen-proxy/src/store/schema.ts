@@ -83,6 +83,11 @@ export const MIGRATIONS: Migration[] = [
     statement: `PRAGMA foreign_keys = ON`,
   },
 
+  // v10 — client API keys (S4 client-auth gate; Q1=c)
+  { version: 10, statement: `CREATE TABLE IF NOT EXISTS api_keys (
+       key TEXT PRIMARY KEY, label TEXT, created_at INTEGER NOT NULL,
+       last_used_at INTEGER, revoked_at INTEGER)` },
+
   // v11 — account pool failover columns + partial unique index (R1)
   {
     version: 11,
@@ -93,4 +98,12 @@ export const MIGRATIONS: Migration[] = [
           WHERE id NOT IN (SELECT id FROM accounts ORDER BY ord ASC, id ASC LIMIT 1);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_active ON accounts(id) WHERE state = 'active'`,
   },
+
+  // v12 — async video-job tracking (S6 media forwarder; Q3=a)
+  { version: 12, statement: `CREATE TABLE IF NOT EXISTS video_jobs (
+         job_id TEXT PRIMARY KEY, account_id INTEGER, upstream_task_id TEXT, model TEXT, prompt TEXT,
+         status TEXT NOT NULL DEFAULT 'queued', progress INTEGER NOT NULL DEFAULT 0, result TEXT,
+         attempts INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+         FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE SET NULL);
+      CREATE INDEX IF NOT EXISTS idx_video_jobs_status ON video_jobs(status, updated_at)` },
 ];
