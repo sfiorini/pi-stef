@@ -109,6 +109,7 @@ export interface UpstreamClient {
     bearer: string,
     body: { prompt: string; size?: string },
   ): Promise<ImageResult>;
+  deleteChats(bearer: string): Promise<void>;
 }
 
 // ── Default UA (Edge/Chrome on Windows) ─────────────────────────────────────
@@ -432,6 +433,22 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     };
   }
 
+  // ── deleteChats (S-4) ──────────────────────────────────────────────────
+
+  async function deleteChats(bearer: string): Promise<void> {
+    await timedFetch(
+      _fetch,
+      `${opts.apiUrl}/v1/chats/delete`,
+      {
+        method: "DELETE",
+        headers: commonHeaders(bearer, ua),
+      },
+      timeoutMs,
+    ).catch(() => {
+      // best-effort: swallow all errors
+    });
+  }
+
   // ── Return the client ──────────────────────────────────────────────────
 
   return {
@@ -441,5 +458,6 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     imageGeneration,
     imageEdit,
     videoGeneration,
+    deleteChats,
   };
 }

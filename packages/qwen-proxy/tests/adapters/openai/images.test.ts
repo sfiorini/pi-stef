@@ -50,6 +50,7 @@ function makeDeps(
       imageGeneration: async () => ({ created: 1000, urls: ["https://img/gen.png"] }),
       imageEdit: async () => ({ created: 2000, urls: ["https://img/edit.png"] }),
       videoGeneration: async () => ({ created: 0, urls: [] }),
+      deleteChats: async () => {},
       ...overrides?.client,
     },
     retry: withPoolRetry,

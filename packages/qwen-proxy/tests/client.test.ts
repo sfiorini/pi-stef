@@ -426,6 +426,36 @@ describe("createUpstreamClient", () => {
     });
   });
 
+  // ── deleteChats (S-4) ──────────────────────────────────────────────────
+
+  describe("deleteChats", () => {
+    it("DELETEs {apiUrl}/v1/chats/delete with Bearer auth", async () => {
+      const fetcher = vi.fn().mockResolvedValue(
+        { ok: true, status: 200, headers: new Headers(), text: () => Promise.resolve("") } as unknown as Response,
+      );
+      const client = createUpstreamClient(opts(fetcher));
+
+      await client.deleteChats("my-bearer");
+
+      expect(fetcher).toHaveBeenCalledOnce();
+      const [url, init] = fetcher.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe("https://api.example.com/v1/chats/delete");
+      expect(init.method).toBe("DELETE");
+      const h = init.headers as Record<string, string>;
+      expect(h["Authorization"]).toBe("Bearer my-bearer");
+    });
+
+    it("does not throw on non-ok response (best-effort)", async () => {
+      const fetcher = vi.fn().mockResolvedValue(
+        textResponse("internal error", 500),
+      );
+      const client = createUpstreamClient(opts(fetcher));
+
+      // Should not throw
+      await expect(client.deleteChats("tok")).resolves.toBeUndefined();
+    });
+  });
+
   // ── Headers (NO cookie/bx-*/Version/source/Sec-Fetch/sec-ch-ua) ────────
 
   describe("headers", () => {
