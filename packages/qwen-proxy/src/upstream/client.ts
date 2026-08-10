@@ -345,6 +345,21 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw new NetworkError("Response body is null (no stream)");
     }
 
+    // If the upstream returned a non-SSE body (e.g. a JSON block/error instead
+    // of an event stream), surface it instead of silently yielding nothing.
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) {
+      const text = await res.text();
+      console.warn("[qwen-proxy] upstream returned non-SSE body", {
+        status: res.status,
+        contentType,
+        body: text.slice(0, 800),
+      });
+      throw new UnknownError(
+        `upstream /api/v2/chat/completions returned non-SSE (${contentType}, status ${res.status}): ${text.slice(0, 300)}`,
+      );
+    }
+
     const rawSample: string[] = [];
     for await (const sseEvent of parseSseStream(res.body)) {
       if (rawSample.length < 5) rawSample.push(sseEvent.data.slice(0, 400));
