@@ -365,4 +365,58 @@ describe("streamAnthropicEvents", () => {
     const msgDelta = events.find((e) => e.event === "message_delta");
     expect((msgDelta!.data as any).delta.stop_reason).toBe("stop_sequence");
   });
+
+  // ── A2: ping must NOT drop the first post-stall chunk ───────────────────
+
+  it("A2: 30s ping does NOT drop the first post-stall content chunk", async () => {
+    // Upstream stalls for >30s, then yields a content chunk + done.
+    // The old code would orphan the pending iter.next() on ping timeout,
+    // causing the first post-stall chunk to be silently dropped.
+    let resolve: () => void;
+    const blocker = new Promise<void>((r) => (resolve = r));
+
+    async function* gen(): AsyncIterable<QwenChunk> {
+      yield { phase: "answer", content: "before-stall" };
+      await blocker; // stall for >30s
+      yield { phase: "answer", content: "after-stall" };
+      yield { done: true };
+    }
+
+    const iter = streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 });
+    const collected: string[] = [];
+
+    const consumePromise = (async () => {
+      for await (const chunk of iter) {
+        collected.push(chunk);
+      }
+    })();
+
+    // Let initial events (message_start, content_block_start, first delta) drain
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Advance 30s — fires a ping while upstream is stalled
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    // Unblock the upstream
+    resolve!();
+    await consumePromise;
+
+    const allOutput = collected.join("");
+    const events = parseEvents(allOutput);
+
+    // Ping must be present
+    const pingEvents = events.filter((e) => e.event === "ping");
+    expect(pingEvents.length).toBeGreaterThanOrEqual(1);
+
+    // CRITICAL: "after-stall" text must NOT be lost
+    const textDeltas = events
+      .filter((e) => e.event === "content_block_delta")
+      .map((e) => e.data as any)
+      .filter((d) => d.delta?.type === "text_delta")
+      .map((d) => d.delta.text);
+
+    const allText = textDeltas.join("");
+    expect(allText).toContain("before-stall");
+    expect(allText).toContain("after-stall");
+  });
 });

@@ -88,6 +88,9 @@ export async function* streamAnthropicEvents(
   try {
     const iter = qwenStream[Symbol.asyncIterator]();
     let iterDone = false;
+    // A2: track the pending iter.next() promise so we reuse it across ping
+    // timeouts instead of calling iter.next() twice concurrently.
+    let pendingNext: Promise<IteratorResult<QwenChunk>> | null = null;
 
     while (!iterDone) {
       // Yield any pending ping before reading next chunk
@@ -96,20 +99,26 @@ export async function* streamAnthropicEvents(
         yield sse("ping", { type: "ping" });
       }
 
-      // Race between the next chunk and a ping timer firing
+      // A2: only call iter.next() if we don't already have a pending one
+      if (!pendingNext) pendingNext = iter.next();
+
+      // Race between the (pending) next chunk and a ping timer firing
       const result = await Promise.race([
-        iter.next().then((r) => ({ kind: "chunk" as const, value: r })),
+        pendingNext.then((r) => ({ kind: "chunk" as const, value: r })),
         new Promise<{ kind: "ping" }>((resolve) => {
           pingResolve = () => resolve({ kind: "ping" });
         }),
       ]);
 
       if (result.kind === "ping") {
-        // Ping timer fired; loop back to yield it
+        // Ping timer fired; pendingNext is still pending — loop back to yield ping
+        // WITHOUT resetting pendingNext (re-race the SAME promise next iteration)
         continue;
       }
 
+      // Real chunk consumed — clear pendingNext so next iteration creates a fresh .next()
       const { value: chunk, done } = result.value;
+      pendingNext = null;
       if (done) {
         iterDone = true;
         break;
