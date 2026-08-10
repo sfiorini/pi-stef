@@ -1,11 +1,13 @@
 /**
- * Typed upstream Qwen client.
- * Factory `createUpstreamClient(opts)` returns 8 methods covering login,
- * models, chat, image, and video endpoints.
+ * Typed upstream Qwen client — thin OpenAI pass-through to qwen.aikit.club.
+ * Factory `createUpstreamClient(opts)` returns 6 methods covering login,
+ * models, chat completions, image, and video endpoints.
+ *
+ * All forward methods use the 4 clean headers (Authorization, Content-Type,
+ * User-Agent, Accept). No Cookie, bx-*, Version, source, Sec-Fetch-*, etc.
  */
 
-import { createHash, randomUUID } from "node:crypto";
-import type { CookiePair } from "./ssxmod";
+import { createHash } from "node:crypto";
 import { decodeExpiryMs } from "./auth";
 import { classifyResponse, NetworkError, UnknownError } from "./errors";
 import { parseSseStream } from "./sse";
@@ -15,9 +17,9 @@ import { parseSseStream } from "./sse";
 export interface UpstreamClientOpts {
   authUrl: string;
   apiUrl: string;
-  cookies: () => CookiePair;
   fetcher?: typeof fetch;
   timeoutMs?: number;
+  videoTimeoutMs?: number;
   userAgent?: string;
 }
 
@@ -29,11 +31,7 @@ export interface LoginResult {
 export interface Model {
   id: string;
   object: "model";
-  owned_by: string;
-}
-
-export interface ChatCreated {
-  chatId: string;
+  owned_by?: string;
 }
 
 export interface ImageResult {
@@ -41,42 +39,72 @@ export interface ImageResult {
   urls: string[];
 }
 
-export interface VideoTask {
-  taskId: string;
-  status: string;
-  raw: unknown;
-}
-
-export interface QwenChunk {
-  phase?: "think" | "answer";
-  content?: string;
-  name?: string;
-  extra?: Record<string, unknown>;
+/** Raw streaming chunk from the upstream OpenAI-compatible API. */
+export interface OpenAiChatChunk {
+  choices: {
+    index?: number;
+    delta?: {
+      role?: string;
+      content?: string;
+      reasoning_content?: string;
+    };
+    finish_reason?: string | null;
+  }[];
   usage?: {
     prompt_tokens?: number;
     completion_tokens?: number;
     total_tokens?: number;
   } | null;
-  finishReason?: string;
-  done?: boolean;
+}
+
+/** Raw non-stream completion from the upstream OpenAI-compatible API. */
+export interface OpenAiChatCompletion {
+  id: string;
+  object: "chat.completion";
+  created: number;
+  model: string;
+  system_fingerprint?: string;
+  choices: {
+    index: number;
+    message: {
+      role: string;
+      content: string;
+      reasoning_content?: string;
+    };
+    finish_reason?: string;
+  }[];
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    total_tokens?: number;
+  } | null;
 }
 
 export interface UpstreamClient {
   login(email: string, password: string): Promise<LoginResult>;
   listModels(bearer: string): Promise<Model[]>;
-  createChat(
-    bearer: string,
-    body: { model: string; title?: string; chatType?: string },
-  ): Promise<ChatCreated>;
-  chatCompletionsStream(
+  chatCompletions(
     bearer: string,
     body: {
-      chatId: string;
       model: string;
       messages: { role: string; content: string }[];
-      featureConfig?: Record<string, unknown>;
+      stream: false;
+      enable_thinking?: boolean;
+      thinking_budget?: number;
+      tools?: { type: string }[];
     },
-  ): AsyncIterable<QwenChunk>;
+  ): Promise<OpenAiChatCompletion>;
+  chatCompletions(
+    bearer: string,
+    body: {
+      model: string;
+      messages: { role: string; content: string }[];
+      stream: true;
+      enable_thinking?: boolean;
+      thinking_budget?: number;
+      tools?: { type: string }[];
+    },
+  ): AsyncIterable<OpenAiChatChunk>;
   imageGeneration(
     bearer: string,
     body: { prompt: string; size?: string },
@@ -87,9 +115,8 @@ export interface UpstreamClient {
   ): Promise<ImageResult>;
   videoGeneration(
     bearer: string,
-    body: { prompt: string; image?: string },
-  ): Promise<VideoTask>;
-  videoTaskStatus(bearer: string, taskId: string): Promise<VideoTask>;
+    body: { prompt: string; size?: string },
+  ): Promise<ImageResult>;
 }
 
 // ── Default UA (Edge/Chrome on Windows) ─────────────────────────────────────
@@ -103,39 +130,16 @@ const STREAM_TIMEOUT_MS = 180_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildCookieHeader(pair: CookiePair, bearer: string): string {
-  return `ssxmod_itna=${pair.ssxmod_itna}; ssxmod_itna2=${pair.ssxmod_itna2}; token=${bearer}`;
-}
-
+/** The 4 clean gateway headers. No Cookie, bx-*, Version, etc. */
 function commonHeaders(
   bearer: string,
-  cookieHeader: string,
   ua: string,
-  baseUrl: string,
 ): Record<string, string> {
-  // chat.qwen.ai's gateway serves the web-app HTML (not the JSON API) for
-  // requests that don't look like a same-origin browser call. Mirror the
-  // header set the working reference repo (Git-think/Qwen-Proxy) sends so the
-  // gateway routes us to the API: Accept: application/json, source: web, the
-  // Sec-Fetch-* / Origin / Referer same-origin signals, and the app-version
-  // headers (bx-v, Version). Accept-Encoding/Connection are left to undici.
   return {
     Authorization: `Bearer ${bearer}`,
-    Cookie: cookieHeader,
+    "Content-Type": "application/json",
     "User-Agent": ua,
     Accept: "application/json",
-    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
-    "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-    "Sec-Fetch-Site": "same-origin",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Dest": "empty",
-    source: "web",
-    Version: "0.2.83",
-    "bx-v": "2.5.37",
-    Timezone: "Mon Dec 08 2025 17:28:55 GMT+0800",
-    Origin: baseUrl,
-    Referer: `${baseUrl}/c/guest`,
-    "X-Request-Id": randomUUID(),
   };
 }
 
@@ -167,6 +171,7 @@ async function timedFetch(
 export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
   const _fetch = opts.fetcher ?? globalThis.fetch;
   const timeoutMs = opts.timeoutMs ?? 10_000;
+  const videoTimeoutMs = opts.videoTimeoutMs ?? 300_000;
   const ua = opts.userAgent ?? DEFAULT_UA;
 
   // ── login ──────────────────────────────────────────────────────────────
@@ -208,13 +213,12 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
   // ── listModels ─────────────────────────────────────────────────────────
 
   async function listModels(bearer: string): Promise<Model[]> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
-      `${opts.apiUrl}/api/models`,
+      `${opts.apiUrl}/v1/models`,
       {
         method: "GET",
-        headers: commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
+        headers: commonHeaders(bearer, ua),
       },
       timeoutMs,
     );
@@ -228,30 +232,46 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     return json.data;
   }
 
-  // ── createChat ─────────────────────────────────────────────────────────
+  // ── chatCompletions ────────────────────────────────────────────────────
 
-  async function createChat(
+  function chatCompletions(
     bearer: string,
-    body: { model: string; title?: string; chatType?: string },
-  ): Promise<ChatCreated> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
+    body: {
+      model: string;
+      messages: { role: string; content: string }[];
+      stream: boolean;
+      enable_thinking?: boolean;
+      thinking_budget?: number;
+      tools?: { type: string }[];
+    },
+  ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk> {
+    // Thin body — just the essential fields, no rich wrapping
+    const thinBody: Record<string, unknown> = {
+      model: body.model,
+      messages: body.messages,
+      stream: body.stream,
+    };
+    if (body.enable_thinking !== undefined) thinBody.enable_thinking = body.enable_thinking;
+    if (body.thinking_budget !== undefined) thinBody.thinking_budget = body.thinking_budget;
+    if (body.tools !== undefined) thinBody.tools = body.tools;
+
+    if (body.stream) {
+      return chatCompletionsStream(bearer, thinBody);
+    }
+    return chatCompletionsNonStream(bearer, thinBody);
+  }
+
+  async function chatCompletionsNonStream(
+    bearer: string,
+    thinBody: Record<string, unknown>,
+  ): Promise<OpenAiChatCompletion> {
     const res = await timedFetch(
       _fetch,
-      `${opts.apiUrl}/api/v2/chats/new`,
+      `${opts.apiUrl}/v1/chat/completions`,
       {
         method: "POST",
-        headers: {
-          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chatId: "",
-          models: [body.model],
-          project_id: "",
-          timestamp: Date.now(),
-          chat_type: body.chatType ?? "t2t",
-          chat_mode: "normal",
-        }),
+        headers: commonHeaders(bearer, ua),
+        body: JSON.stringify(thinBody),
       },
       timeoutMs,
     );
@@ -261,77 +281,20 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    const json = (await res.json()) as { data?: { id?: string } };
-    const chatId = json.data?.id;
-    if (!chatId) {
-      // Upstream returned 200 but an unexpected body — surface it instead of a
-      // cryptic TypeError so the failure is diagnosable (mapped to 500 + logged).
-      throw new UnknownError(
-        `upstream /api/v2/chats/new returned ${res.status} with unexpected body (missing data.id): ${JSON.stringify(json).slice(0, 200)}`,
-      );
-    }
-    return { chatId };
+    return (await res.json()) as OpenAiChatCompletion;
   }
-
-  // ── chatCompletionsStream ──────────────────────────────────────────────
 
   async function* chatCompletionsStream(
     bearer: string,
-    body: {
-      chatId: string;
-      model: string;
-      messages: { role: string; content: string }[];
-      featureConfig?: Record<string, unknown>;
-    },
-  ): AsyncIterable<QwenChunk> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
+    thinBody: Record<string, unknown>,
+  ): AsyncIterable<OpenAiChatChunk> {
     const res = await timedFetch(
       _fetch,
-      `${opts.apiUrl}/api/v2/chat/completions?chat_id=${encodeURIComponent(body.chatId)}`,
+      `${opts.apiUrl}/v1/chat/completions`,
       {
         method: "POST",
-        headers: {
-          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          stream: true,
-          version: "2.1",
-          incremental_output: true,
-          chatId: body.chatId,
-          parentId: "",
-          chat_id: body.chatId,
-          chat_mode: "normal",
-          model: body.model,
-          parent_id: null,
-          messages: body.messages.map((m) => ({
-            id: null,
-            fid: randomUUID(),
-            parentId: null,
-            childrenIds: [randomUUID()],
-            role: m.role,
-            content: m.content,
-            user_action: "chat",
-            files: [],
-            timestamp: Math.floor(Date.now() / 1000),
-            models: [body.model],
-            model: "",
-            chat_type: "t2t",
-            feature_config: {
-              thinking_enabled: true,
-              output_schema: "phase",
-              research_mode: "normal",
-              auto_thinking: false,
-              thinking_mode: "Thinking",
-              thinking_format: "summary",
-              auto_search: true,
-            },
-            extra: { meta: { subChatType: "t2t" } },
-            sub_chat_type: "t2t",
-            parent_id: null,
-          })),
-          timestamp: Math.floor(Date.now() / 1000),
-        }),
+        headers: commonHeaders(bearer, ua),
+        body: JSON.stringify(thinBody),
       },
       STREAM_TIMEOUT_MS,
     );
@@ -341,79 +304,32 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
+    // Non-SSE safety net: if the upstream returned a non-SSE body (e.g.
+    // JSON error), surface it instead of silently yielding nothing.
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.includes("text/event-stream")) {
+      const text = await res.text();
+      throw new UnknownError(
+        `upstream /v1/chat/completions returned non-SSE (${contentType}, status ${res.status}): ${text.slice(0, 300)}`,
+      );
+    }
+
     if (!res.body) {
       throw new NetworkError("Response body is null (no stream)");
     }
 
-    // If the upstream returned a non-SSE body (e.g. a JSON block/error instead
-    // of an event stream), surface it instead of silently yielding nothing.
-    const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/event-stream")) {
-      const text = await res.text();
-      console.warn("[qwen-proxy] upstream returned non-SSE body", {
-        status: res.status,
-        contentType,
-        body: text.slice(0, 800),
-      });
-      throw new UnknownError(
-        `upstream /api/v2/chat/completions returned non-SSE (${contentType}, status ${res.status}): ${text.slice(0, 300)}`,
-      );
-    }
-
-    const rawSample: string[] = [];
     for await (const sseEvent of parseSseStream(res.body)) {
-      if (rawSample.length < 5) rawSample.push(sseEvent.data.slice(0, 400));
       if (sseEvent.data === "[DONE]") {
-        yield { done: true };
         return;
       }
 
       try {
-        const parsed = JSON.parse(sseEvent.data);
-        const chunk: QwenChunk = {};
-
-        // Extract from choices[0].delta (typical streaming shape)
-        const choice = parsed.choices?.[0];
-        const delta = choice?.delta;
-        if (delta) {
-          if (delta.phase) chunk.phase = delta.phase;
-          if (delta.content) chunk.content = delta.content;
-          if (delta.name) chunk.name = delta.name;
-          if (delta.extra) chunk.extra = delta.extra;
-        }
-        // finish_reason: check choice level first, delta fallback
-        if (choice?.finish_reason != null) {
-          chunk.finishReason = choice.finish_reason;
-        } else if (delta?.finish_reason) {
-          chunk.finishReason = delta.finish_reason;
-        }
-
-        // Top-level usage
-        if (parsed.usage) {
-          chunk.usage = parsed.usage;
-        }
-
-        // Top-level extra/name (some upstream variants)
-        if (!chunk.extra && parsed.extra) chunk.extra = parsed.extra;
-        if (!chunk.name && parsed.name) chunk.name = parsed.name;
-
-        yield chunk;
+        const parsed = JSON.parse(sseEvent.data) as OpenAiChatChunk;
+        yield parsed;
       } catch {
         // Skip non-JSON data lines (shouldn't happen but don't crash)
       }
     }
-
-    // If we exit the loop without [DONE], log a short-stream diagnostic + yield done.
-    // A healthy stream has many events; <3 means the upstream soft-blocked or
-    // errored — surface the raw events so the cause is visible.
-    if (rawSample.length < 3) {
-      console.warn("[qwen-proxy] short upstream SSE stream", {
-        status: res.status,
-        contentType: res.headers.get("content-type"),
-        sample: rawSample,
-      });
-    }
-    yield { done: true };
   }
 
   // ── imageGeneration ────────────────────────────────────────────────────
@@ -422,16 +338,12 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { prompt: string; size?: string },
   ): Promise<ImageResult> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/images/generations`,
       {
         method: "POST",
-        headers: {
-          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-          "Content-Type": "application/json",
-        },
+        headers: commonHeaders(bearer, ua),
         body: JSON.stringify({
           prompt: body.prompt,
           ...(body.size ? { size: body.size } : {}),
@@ -461,16 +373,12 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { image: string; prompt: string },
   ): Promise<ImageResult> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/images/edits`,
       {
         method: "POST",
-        headers: {
-          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-          "Content-Type": "application/json",
-        },
+        headers: commonHeaders(bearer, ua),
         body: JSON.stringify({
           image: body.image,
           prompt: body.prompt,
@@ -494,30 +402,24 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     };
   }
 
-  // ── videoGeneration ────────────────────────────────────────────────────
+  // ── videoGeneration (SYNC) ─────────────────────────────────────────────
 
   async function videoGeneration(
     bearer: string,
-    body: { prompt: string; image?: string },
-  ): Promise<VideoTask> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
+    body: { prompt: string; size?: string },
+  ): Promise<ImageResult> {
+    const thinBody: Record<string, unknown> = { prompt: body.prompt };
+    if (body.size) thinBody.size = body.size;
+
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/videos/generations`,
       {
         method: "POST",
-        headers: {
-          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          chat_type: "t2v",
-          stream: false,
-          prompt: body.prompt,
-          ...(body.image ? { image: body.image } : {}),
-        }),
+        headers: commonHeaders(bearer, ua),
+        body: JSON.stringify(thinBody),
       },
-      timeoutMs,
+      videoTimeoutMs,
     );
 
     if (!res.ok) {
@@ -525,43 +427,13 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    const raw = await res.json();
-    const data = raw as { task_id?: string; task_status?: string };
-    return {
-      taskId: data.task_id ?? "",
-      status: data.task_status ?? "unknown",
-      raw,
+    const data = (await res.json()) as {
+      created: number;
+      data: { url: string }[];
     };
-  }
-
-  // ── videoTaskStatus ────────────────────────────────────────────────────
-
-  async function videoTaskStatus(
-    bearer: string,
-    taskId: string,
-  ): Promise<VideoTask> {
-    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
-    const res = await timedFetch(
-      _fetch,
-      `${opts.apiUrl}/api/v1/tasks/status/${encodeURIComponent(taskId)}`,
-      {
-        method: "GET",
-        headers: commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
-      },
-      timeoutMs,
-    );
-
-    if (!res.ok) {
-      const bodyText = await res.text().catch(() => "");
-      throw classifyResponse(res.status, bodyText, res.headers);
-    }
-
-    const raw = await res.json();
-    const data = raw as { task_id?: string; task_status?: string };
     return {
-      taskId: data.task_id ?? taskId,
-      status: data.task_status ?? "unknown",
-      raw,
+      created: data.created,
+      urls: data.data.map((d) => d.url),
     };
   }
 
@@ -570,11 +442,9 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
   return {
     login,
     listModels,
-    createChat,
-    chatCompletionsStream,
+    chatCompletions,
     imageGeneration,
     imageEdit,
     videoGeneration,
-    videoTaskStatus,
   };
 }
