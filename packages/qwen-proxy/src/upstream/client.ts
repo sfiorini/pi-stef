@@ -4,7 +4,7 @@
  * models, chat, image, and video endpoints.
  */
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { CookiePair } from "./ssxmod";
 import { decodeExpiryMs } from "./auth";
 import { classifyResponse, NetworkError, UnknownError } from "./errors";
@@ -99,8 +99,8 @@ const DEFAULT_UA =
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function buildCookieHeader(pair: CookiePair): string {
-  return `ssxmod_itna=${pair.ssxmod_itna}; ssxmod_itna2=${pair.ssxmod_itna2}`;
+function buildCookieHeader(pair: CookiePair, bearer: string): string {
+  return `ssxmod_itna=${pair.ssxmod_itna}; ssxmod_itna2=${pair.ssxmod_itna2}; token=${bearer}`;
 }
 
 function commonHeaders(
@@ -126,11 +126,12 @@ function commonHeaders(
     "Sec-Fetch-Mode": "cors",
     "Sec-Fetch-Dest": "empty",
     source: "web",
-    Version: "0.1.13",
-    "bx-v": "2.5.31",
+    Version: "0.2.83",
+    "bx-v": "2.5.37",
     Timezone: "Mon Dec 08 2025 17:28:55 GMT+0800",
     Origin: baseUrl,
     Referer: `${baseUrl}/c/guest`,
+    "X-Request-Id": randomUUID(),
   };
 }
 
@@ -203,7 +204,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
   // ── listModels ─────────────────────────────────────────────────────────
 
   async function listModels(bearer: string): Promise<Model[]> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/api/models`,
@@ -229,7 +230,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { model: string; title?: string; chatType?: string },
   ): Promise<ChatCreated> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/api/v2/chats/new`,
@@ -240,11 +241,12 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          title: body.title ?? "",
+          chatId: "",
           models: [body.model],
-          chat_mode: "local",
-          chat_type: body.chatType ?? "t2t",
+          project_id: "",
           timestamp: Date.now(),
+          chat_type: body.chatType ?? "t2t",
+          chat_mode: "normal",
         }),
       },
       timeoutMs,
@@ -278,7 +280,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       featureConfig?: Record<string, unknown>;
     },
   ): AsyncIterable<QwenChunk> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/api/v2/chat/completions?chat_id=${encodeURIComponent(body.chatId)}`,
@@ -289,11 +291,42 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          chat_id: body.chatId,
           stream: true,
+          version: "2.1",
+          incremental_output: true,
+          chatId: body.chatId,
+          parentId: "",
+          chat_id: body.chatId,
+          chat_mode: "normal",
           model: body.model,
-          messages: body.messages,
-          ...(body.featureConfig ? { feature_config: body.featureConfig } : {}),
+          parent_id: null,
+          messages: body.messages.map((m) => ({
+            id: null,
+            fid: randomUUID(),
+            parentId: null,
+            childrenIds: [randomUUID()],
+            role: m.role,
+            content: m.content,
+            user_action: "chat",
+            files: [],
+            timestamp: Math.floor(Date.now() / 1000),
+            models: [body.model],
+            model: "",
+            chat_type: "t2t",
+            feature_config: {
+              thinking_enabled: true,
+              output_schema: "phase",
+              research_mode: "normal",
+              auto_thinking: false,
+              thinking_mode: "Thinking",
+              thinking_format: "summary",
+              auto_search: true,
+            },
+            extra: { meta: { subChatType: "t2t" } },
+            sub_chat_type: "t2t",
+            parent_id: null,
+          })),
+          timestamp: Math.floor(Date.now() / 1000),
         }),
       },
       timeoutMs,
@@ -359,7 +392,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { prompt: string; size?: string },
   ): Promise<ImageResult> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/images/generations`,
@@ -398,7 +431,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { image: string; prompt: string },
   ): Promise<ImageResult> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/images/edits`,
@@ -437,7 +470,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     body: { prompt: string; image?: string },
   ): Promise<VideoTask> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/v1/videos/generations`,
@@ -477,7 +510,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     bearer: string,
     taskId: string,
   ): Promise<VideoTask> {
-    const cookieHeader = buildCookieHeader(opts.cookies());
+    const cookieHeader = buildCookieHeader(opts.cookies(), bearer);
     const res = await timedFetch(
       _fetch,
       `${opts.apiUrl}/api/v1/tasks/status/${encodeURIComponent(taskId)}`,

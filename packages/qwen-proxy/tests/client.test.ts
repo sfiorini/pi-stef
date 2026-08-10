@@ -298,26 +298,31 @@ describe("createUpstreamClient", () => {
       expect(stopChunk!.finishReason).toBe("stop");
     });
 
-    it("maps featureConfig to feature_config in the POST body (F9)", async () => {
+    it("embeds a feature_config in each message of the POST body (F9)", async () => {
       const sseChunks = ['data: [DONE]\n\n'];
       const fetcher = vi.fn().mockResolvedValue(sseResponse(sseChunks));
       const client = createUpstreamClient(opts(fetcher));
-
-      const featureCfg = { enable_thinking: true, max_thinking_tokens: 4096 };
 
       for await (const _ of client.chatCompletionsStream("my-bearer", {
         chatId: "chat-f9",
         model: "qwen-max",
         messages: [{ role: "user", content: "hi" }],
-        featureConfig: featureCfg,
       })) {
         // drain
       }
 
       const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
       const body = JSON.parse(init.body as string);
-      // featureConfig must be sent as feature_config (snake_case)
-      expect(body.feature_config).toEqual(featureCfg);
+      // feature_config is sent per-message (snake_case), matching chat.qwen.ai's schema
+      expect(body.messages[0].feature_config).toEqual({
+        thinking_enabled: true,
+        output_schema: "phase",
+        research_mode: "normal",
+        auto_thinking: false,
+        thinking_mode: "Thinking",
+        thinking_format: "summary",
+        auto_search: true,
+      });
     });
   });
 
@@ -421,7 +426,7 @@ describe("createUpstreamClient", () => {
       const [, init] = fetcher.mock.calls[0] as [string, RequestInit];
       const h = init.headers as Record<string, string>;
       expect(h["Authorization"]).toBe("Bearer tok");
-      expect(h["Cookie"]).toBe("ssxmod_itna=cookie1; ssxmod_itna2=cookie2");
+      expect(h["Cookie"]).toBe("ssxmod_itna=cookie1; ssxmod_itna2=cookie2; token=tok");
       expect(h["User-Agent"]).toBeDefined();
     });
 
