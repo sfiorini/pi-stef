@@ -180,6 +180,29 @@ The first push creates the package under the `sfiorini` namespace on GHCR. By de
 | Can't reach service from another machine | Port bound to `127.0.0.1` only — change to `"7790:7790"` in docker-compose.yml (see [Port binding](#port-binding-same-machine-vs-remote-server) above) |
 | Healthcheck never goes healthy | Check `docker compose logs qwen-proxy`; ensure the `/data` volume is writable by uid 1000 |
 
+## Validation (pre-release)
+
+Before publishing, run these manual checks from the repo root:
+
+```bash
+# 1. Build succeeds from repo root:
+docker build -f packages/qwen-proxy/docker/Dockerfile -t qwen-proxy:dev .
+
+# 2. Container starts and health endpoint responds:
+docker run --rm -d -e SF_QWEN_API_KEY=test -p 7790:7790 --name qwen-validate qwen-proxy:dev
+curl -fsS http://127.0.0.1:7790/v1/health   # → {"status":"ok"}
+
+# 3. Process runs as non-root uid 1000 (D16):
+docker exec qwen-validate id -u              # → 1000
+docker inspect qwen-proxy:dev --format '{{.Config.User}}'  # → 1000
+
+# 4. /data exists and is owned by uid 1000:
+docker exec qwen-validate ls -ld /data       # → ... 1000 1000 ... /data
+
+# 5. Clean up:
+docker stop qwen-validate
+```
+
 ## Native alternative
 
 To run without Docker, use `pnpm serve` directly:
