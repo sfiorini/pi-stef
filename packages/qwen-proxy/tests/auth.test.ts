@@ -35,6 +35,7 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
     staggerMs: 0, // no stagger in tests
     rateLimitCooldownMs: 86_400_000,
     reenableIntervalMs: 60_000,
+    apiKeyEnv: [],
     logLevel: "info",
     accounts: [
       { id: 1, email: "a@b.com", password: "pw1", ord: 1 },

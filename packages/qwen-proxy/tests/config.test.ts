@@ -22,6 +22,7 @@ describe("config", () => {
       expect(config.accounts).toEqual([]);
       expect(config.rateLimitCooldownMs).toBe(86_400_000);
       expect(config.reenableIntervalMs).toBe(60_000);
+      expect(config.apiKeyEnv).toEqual([]);
     });
 
     it("overrides port via SF_QWEN_PORT", async () => {
@@ -116,6 +117,32 @@ describe("config", () => {
         SF_QWEN_REENABLE_INTERVAL_MS: "0",
       });
       expect(config.reenableIntervalMs).toBe(60_000);
+    });
+
+    it("returns empty apiKeyEnv when SF_QWEN_API_KEY is unset", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.apiKeyEnv).toEqual([]);
+    });
+
+    it("parses comma-separated SF_QWEN_API_KEY into apiKeyEnv", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_API_KEY: "sk-a,sk-b,sk-c",
+      });
+      expect(config.apiKeyEnv).toEqual(["sk-a", "sk-b", "sk-c"]);
+    });
+
+    it("trims whitespace and drops empty entries from SF_QWEN_API_KEY", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_API_KEY: " sk-a , , sk-b , ",
+      });
+      expect(config.apiKeyEnv).toEqual(["sk-a", "sk-b"]);
+    });
+
+    it("returns empty apiKeyEnv on empty string SF_QWEN_API_KEY", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_API_KEY: "",
+      });
+      expect(config.apiKeyEnv).toEqual([]);
     });
   });
 

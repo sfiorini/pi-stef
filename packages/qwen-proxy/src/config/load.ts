@@ -111,6 +111,7 @@ export async function loadQwenProxyConfig(
     staggerMs: parseIntEnv(env.SF_QWEN_STAGGER_MS, 5_000),
     rateLimitCooldownMs: parseIntEnv(env.SF_QWEN_RATE_LIMIT_COOLDOWN_MS, 86_400_000),
     reenableIntervalMs: parseIntEnv(env.SF_QWEN_REENABLE_INTERVAL_MS, 60_000),
+    apiKeyEnv: (env.SF_QWEN_API_KEY || "").split(",").map(s => s.trim()).filter(Boolean),
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",
     accounts: await resolveAccounts(env),
   };

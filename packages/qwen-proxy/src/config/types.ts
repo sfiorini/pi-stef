@@ -18,6 +18,7 @@ export interface QwenProxyConfig {
   staggerMs: number;          // SF_QWEN_STAGGER_MS           default 5000
   rateLimitCooldownMs: number;// SF_QWEN_RATE_LIMIT_COOLDOWN_MS default 86400000 (24h)
   reenableIntervalMs: number; // SF_QWEN_REENABLE_INTERVAL_MS default 60000   (1 min)
+  apiKeyEnv: string[];       // SF_QWEN_API_KEY           default []  (comma-split)
   logLevel: string;           // SF_QWEN_LOG_LEVEL            default "info"
   accounts: Account[];
 }
