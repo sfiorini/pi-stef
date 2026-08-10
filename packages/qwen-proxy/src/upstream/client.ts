@@ -345,7 +345,9 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw new NetworkError("Response body is null (no stream)");
     }
 
+    const rawSample: string[] = [];
     for await (const sseEvent of parseSseStream(res.body)) {
+      if (rawSample.length < 5) rawSample.push(sseEvent.data.slice(0, 400));
       if (sseEvent.data === "[DONE]") {
         yield { done: true };
         return;
@@ -386,7 +388,16 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       }
     }
 
-    // If we exit the loop without [DONE], yield done anyway
+    // If we exit the loop without [DONE], log a short-stream diagnostic + yield done.
+    // A healthy stream has many events; <3 means the upstream soft-blocked or
+    // errored — surface the raw events so the cause is visible.
+    if (rawSample.length < 3) {
+      console.warn("[qwen-proxy] short upstream SSE stream", {
+        status: res.status,
+        contentType: res.headers.get("content-type"),
+        sample: rawSample,
+      });
+    }
     yield { done: true };
   }
 
