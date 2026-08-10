@@ -581,4 +581,84 @@ describe("createUpstreamClient", () => {
       await expect(iter[Symbol.asyncIterator]().next()).rejects.toBeInstanceOf(UnknownError);
     });
   });
+
+  // ── Timeout asymmetry (audit F1) ───────────────────────────────────────
+
+  describe("timeout (audit F1)", () => {
+    it("non-stream chatCompletions uses 180s timeout (not default 10s)", async () => {
+      const completion: OpenAiChatCompletion = {
+        id: "cmpl-1",
+        object: "chat.completion",
+        created: 0,
+        model: "q",
+        choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+      };
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(completion));
+      // Use a short default timeoutMs to prove it's ignored
+      const client = createUpstreamClient({ ...opts(fetcher), timeoutMs: 5000 });
+
+      // Spy on setTimeout to capture the timeout passed to the AbortController
+      const spy = vi.spyOn(globalThis, "setTimeout");
+      try {
+        await client.chatCompletions("tok", {
+          model: "q",
+          messages: [{ role: "user", content: "hi" }],
+          stream: false,
+        });
+        // The timedFetch setTimeout should use 180_000 (REQUEST_TIMEOUT_MS),
+        // not the 5000 timeoutMs we passed in.
+        const timeoutCalls = spy.mock.calls.filter(([, ms]) => ms === 180_000);
+        expect(timeoutCalls.length).toBeGreaterThanOrEqual(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("imageGeneration uses 180s timeout (not default 10s)", async () => {
+      const apiResult = { created: 0, data: [{ url: "u" }] };
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(apiResult));
+      const client = createUpstreamClient({ ...opts(fetcher), timeoutMs: 5000 });
+
+      const spy = vi.spyOn(globalThis, "setTimeout");
+      try {
+        await client.imageGeneration("tok", { prompt: "a cat" });
+        const timeoutCalls = spy.mock.calls.filter(([, ms]) => ms === 180_000);
+        expect(timeoutCalls.length).toBeGreaterThanOrEqual(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("imageEdit uses 180s timeout (not default 10s)", async () => {
+      const apiResult = { created: 0, data: [{ url: "u" }] };
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse(apiResult));
+      const client = createUpstreamClient({ ...opts(fetcher), timeoutMs: 5000 });
+
+      const spy = vi.spyOn(globalThis, "setTimeout");
+      try {
+        await client.imageEdit("tok", { image: "img", prompt: "edit" });
+        const timeoutCalls = spy.mock.calls.filter(([, ms]) => ms === 180_000);
+        expect(timeoutCalls.length).toBeGreaterThanOrEqual(1);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
+    it("login still uses default timeoutMs (10s)", async () => {
+      const fetcher = vi.fn().mockResolvedValue(jsonResponse({ token: MOCK_JWT }));
+      const client = createUpstreamClient({ ...opts(fetcher), timeoutMs: 5000 });
+
+      const spy = vi.spyOn(globalThis, "setTimeout");
+      try {
+        await client.login("a@b.com", "pw");
+        const timeoutCalls = spy.mock.calls.filter(([, ms]) => ms === 5000);
+        expect(timeoutCalls.length).toBeGreaterThanOrEqual(1);
+        // No 180_000 calls for login
+        const longCalls = spy.mock.calls.filter(([, ms]) => ms === 180_000);
+        expect(longCalls.length).toBe(0);
+      } finally {
+        spy.mockRestore();
+      }
+    });
+  });
 });

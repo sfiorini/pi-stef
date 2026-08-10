@@ -113,9 +113,10 @@ export interface UpstreamClient {
 const DEFAULT_UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
 
-// Streaming chat completions can run long (a thinking phase + the answer);
-// the default 10s request timeout cuts them off mid-think → empty content.
-const STREAM_TIMEOUT_MS = 180_000;
+// Generation endpoints (chat stream, chat non-stream, image) can run long
+// (a thinking phase + the answer, or slow image rendering); the default
+// login/listModels 10s timeout cuts them off → spurious NetworkError.
+const REQUEST_TIMEOUT_MS = 180_000;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -262,7 +263,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
         headers: commonHeaders(bearer, ua),
         body: JSON.stringify(thinBody),
       },
-      timeoutMs,
+      REQUEST_TIMEOUT_MS,
     );
 
     if (!res.ok) {
@@ -285,7 +286,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
         headers: commonHeaders(bearer, ua),
         body: JSON.stringify(thinBody),
       },
-      STREAM_TIMEOUT_MS,
+      REQUEST_TIMEOUT_MS,
     );
 
     if (!res.ok) {
@@ -338,7 +339,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           ...(body.size ? { size: body.size } : {}),
         }),
       },
-      timeoutMs,
+      REQUEST_TIMEOUT_MS,
     );
 
     if (!res.ok) {
@@ -373,7 +374,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
           prompt: body.prompt,
         }),
       },
-      timeoutMs,
+      REQUEST_TIMEOUT_MS,
     );
 
     if (!res.ok) {
