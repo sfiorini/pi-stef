@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { openDb } from "../../../src/store/db";
@@ -316,8 +316,17 @@ describe("POST /v1/chat/completions", () => {
 
   // ── Function-calling rejection ──────────────────────────────────────────
 
-  it("function-calling tools passthrough (qwen.aikit.club supports via prompt-engineering)", async () => {
-    const deps = makeDeps(db);
+  it("function tools stripped from upstream + prompt injected", async () => {
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
     const app = createTestApp(deps);
 
     const res = await app.request("/v1/chat/completions", {
@@ -325,16 +334,33 @@ describe("POST /v1/chat/completions", () => {
       headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "qwen3-max",
-        messages: [{ role: "user", content: "Hi" }],
-        tools: [{ type: "function", function: { name: "get_weather" } }],
+        messages: [{ role: "user", content: "What's the weather?" }],
+        tools: [{ type: "function", function: { name: "get_weather", description: "Get weather" } }],
       }),
     });
 
     expect(res.status).toBe(200);
+    // function tools should be STRIPPED from upstream body
+    expect(chatCompletionsCalledWith).not.toHaveProperty("tools");
+    expect(chatCompletionsCalledWith).not.toHaveProperty("tool_choice");
+    // messages[0] should be system with tool descriptions + <tool_calls>
+    const msgs = (chatCompletionsCalledWith as any).messages;
+    expect(msgs[0].role).toBe("system");
+    expect(msgs[0].content).toContain("get_weather");
+    expect(msgs[0].content).toContain("<tool_calls>");
   });
 
-  it("tool_choice passthrough (not rejected)", async () => {
-    const deps = makeDeps(db);
+  it("non-function tools (web_search) still passthrough", async () => {
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
     const app = createTestApp(deps);
 
     const res = await app.request("/v1/chat/completions", {
@@ -349,6 +375,8 @@ describe("POST /v1/chat/completions", () => {
     });
 
     expect(res.status).toBe(200);
+    // non-function tools should still passthrough
+    expect(chatCompletionsCalledWith).toHaveProperty("tools", [{ type: "web_search" }]);
   });
 
   it("tools:[{type:'web_search'}] passthrough (not rejected)", async () => {
@@ -380,7 +408,7 @@ describe("POST /v1/chat/completions", () => {
     );
   });
 
-  it("function-calling tools + tool_choice forwarded to upstream", async () => {
+  it("function-calling tools + tool_choice stripped, system prompt injected", async () => {
     let chatCompletionsCalledWith: Record<string, unknown> | undefined;
     const client = {
       chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
@@ -399,25 +427,30 @@ describe("POST /v1/chat/completions", () => {
       body: JSON.stringify({
         model: "qwen3-max",
         messages: [{ role: "user", content: "What's the weather?" }],
-        tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object" } } }],
+        tools: [{ type: "function", function: { name: "get_weather", description: "Get weather", parameters: { type: "object" } } }],
         tool_choice: "auto",
       }),
     });
 
     expect(res.status).toBe(200);
-    expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({
-        tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object" } } }],
-        tool_choice: "auto",
-      }),
-    );
+    // NO tools/tool_choice in upstream body
+    expect(chatCompletionsCalledWith).not.toHaveProperty("tools");
+    expect(chatCompletionsCalledWith).not.toHaveProperty("tool_choice");
+    // messages[0] system contains tool descriptions
+    const msgs = (chatCompletionsCalledWith as any).messages;
+    expect(msgs[0].role).toBe("system");
+    expect(msgs[0].content).toContain("get_weather");
+    expect(msgs[0].content).toContain("Get weather");
   });
 
-  it("non-stream response passes tool_calls through", async () => {
+  it("non-stream: parseToolCalls from response content → tool_calls + finish_reason", async () => {
     const client = {
       chatCompletions: async () => ({
         id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
-        choices: [{ index: 0, message: { role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"location":"Tokyo"}' } }] }, finish_reason: "tool_calls" }],
+        choices: [{ index: 0, message: {
+          role: "assistant",
+          content: '<tool_calls>[{"name":"get_weather","arguments":{"location":"Tokyo"}}]</tool_calls>',
+        }, finish_reason: "stop" }],
       }),
     } as unknown as UpstreamClient;
 
@@ -436,10 +469,110 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.choices[0].message.tool_calls).toEqual([
-      { id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"location":"Tokyo"}' } },
-    ]);
+    expect(body.choices[0].message.tool_calls).toBeDefined();
+    expect(body.choices[0].message.tool_calls[0].function.name).toBe("get_weather");
+    expect(body.choices[0].message.content).toBeNull();
     expect(body.choices[0].finish_reason).toBe("tool_calls");
+  });
+
+  it("tool_choice:'none' → no injection, tools forwarded as-is", async () => {
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hi" }],
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+        tool_choice: "none",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    // tool_choice:"none" → no injection, tools forwarded
+    expect(chatCompletionsCalledWith).toHaveProperty("tools");
+    expect(chatCompletionsCalledWith).toHaveProperty("tool_choice", "none");
+    // no system prompt injection (messages[0] should be user, not system)
+    const msgs = (chatCompletionsCalledWith as any).messages;
+    expect(msgs[0].role).toBe("user");
+  });
+
+  it("deleteChats fire-and-forget after non-stream response", async () => {
+    const deleteChats = vi.fn().mockResolvedValue(undefined);
+    const client = {
+      chatCompletions: async () => ({
+        id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+        choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+      }),
+      deleteChats,
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }] }),
+    });
+
+    expect(res.status).toBe(200);
+    // Wait a tick for fire-and-forget to execute
+    await new Promise((r) => setTimeout(r, 10));
+    expect(deleteChats).toHaveBeenCalled();
+  });
+
+  it("role:'tool' message rewritten + assistant tool_calls round-trip", async () => {
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "The weather is 25°C" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [
+          { role: "user", content: "What's the weather in Tokyo?" },
+          {
+            role: "assistant",
+            content: null,
+            tool_calls: [{ id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"location":"Tokyo"}' } }],
+          },
+          { role: "tool", tool_call_id: "call_1", content: '{"temp":25}' },
+        ],
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const msgs = (chatCompletionsCalledWith as any).messages;
+    // tool messages should be rewritten to system with Tool prefix
+    const toolMsg = msgs.find((m: any) => typeof m.content === "string" && m.content.includes("Tool \`get_weather\`") );
+    expect(toolMsg).toBeDefined();
+    expect(toolMsg.content).toContain("{\"temp\":25}");
+    // assistant tool_calls should be rewritten to <tool_calls> text
+    const assistantMsg = msgs.find((m: any) => m.role === "assistant");
+    expect(assistantMsg.content).toContain("<tool_calls>");
   });
 
   // ── Alias resolution ────────────────────────────────────────────────────

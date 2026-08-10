@@ -20,9 +20,11 @@ import { openaiError } from "./errors";
 import { stripDetails } from "../../upstream/details-strip";
 import { DetailsStreamStripper } from "../../upstream/details-strip";
 import { firstChunk, mapOpenAiChunk, TERMINATOR } from "./chunks";
+import { injectToolPrompt, injectToolResults, prependToFirstSystemMessage } from "../../upstream/tool-prompt";
+import { parseToolCalls } from "../../upstream/tool-parse";
 
 export interface ChatRouteDeps extends RetryDeps {
-  client: Pick<UpstreamClient, "chatCompletions">;
+  client: Pick<UpstreamClient, "chatCompletions" | "deleteChats">;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
   config: RetryDeps["config"] & { modelAliasesRaw: string };
@@ -137,12 +139,37 @@ export function chatRoutes(deps: ChatRouteDeps) {
       upstreamBody.thinking_budget = b.thinking_budget;
     }
 
-    // Tools passthrough — qwen.aikit.club supports OpenAI function-calling (tools/tool_choice)
-    // via prompt-engineering, plus native web_search/code tools
+    // Tools handling — S-5: detect function tools, inject prompt-engineering
+    let toolsInjected = false;
     if (Array.isArray(b.tools)) {
-      upstreamBody.tools = b.tools;
-    }
-    if (b.tool_choice !== undefined) {
+      const functionTools = (b.tools as Array<Record<string, unknown>>).filter(
+        (t) => t.type === "function" && t.function,
+      );
+      if (functionTools.length > 0 && b.tool_choice !== "none") {
+        // Function tools present → inject prompt-engineering, strip from upstream
+        toolsInjected = true;
+        const toolPrompt = injectToolPrompt(b.tools as unknown[], b.tool_choice);
+        const rewrittenMessages = injectToolResults(b.messages as any[]);
+        flatMessages.length = 0;
+        flatMessages.push(...rewrittenMessages);
+        prependToFirstSystemMessage(flatMessages, toolPrompt);
+        upstreamBody.messages = flatMessages;
+        // Strip function tools + tool_choice from upstream body
+        const nonFunctionTools = (b.tools as Array<Record<string, unknown>>).filter(
+          (t) => t.type !== "function",
+        );
+        if (nonFunctionTools.length > 0) {
+          upstreamBody.tools = nonFunctionTools;
+        }
+        // tool_choice stripped (only applies to function tools)
+      } else {
+        // No function tools or tool_choice:"none" → passthrough
+        upstreamBody.tools = b.tools;
+        if (b.tool_choice !== undefined) {
+          upstreamBody.tool_choice = b.tool_choice;
+        }
+      }
+    } else if (b.tool_choice !== undefined) {
       upstreamBody.tool_choice = b.tool_choice;
     }
 
@@ -150,7 +177,9 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
     if (!stream) {
       try {
+        let usedBearer: string | undefined;
         const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer) => {
+          usedBearer = bearer;
           return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any) as Promise<OpenAiChatCompletion>;
         });
 
@@ -158,17 +187,46 @@ export function chatRoutes(deps: ChatRouteDeps) {
         const msg = completion.choices?.[0]?.message;
         const content = msg?.content ?? "";
         const reasoningContent = msg?.reasoning_content;
-        const toolCalls = msg?.tool_calls;
-        const finishReason = completion.choices?.[0]?.finish_reason ?? "stop";
+        const upstreamToolCalls = msg?.tool_calls;
         const usage = completion.usage;
 
         // Strip <details> from content
         const strippedContent = stripDetails(content);
 
+        // S-5: If tools were injected, parse <tool_calls> from response content
+        if (toolsInjected && strippedContent) {
+          const parsed = parseToolCalls(strippedContent);
+          if (parsed.toolCalls && parsed.toolCalls.length > 0) {
+            const id = `chatcmpl-${randomUUID()}`;
+            const created = Math.floor(Date.now() / 1000);
+            const response = c.json({
+              id,
+              object: "chat.completion" as const,
+              created,
+              model,
+              choices: [{
+                index: 0,
+                message: {
+                  role: "assistant" as const,
+                  content: null,
+                  tool_calls: parsed.toolCalls,
+                },
+                finish_reason: "tool_calls",
+              }],
+              ...(usage ? { usage } : {}),
+            });
+            // Fire-and-forget cleanup
+            if (usedBearer) deps.client.deleteChats(usedBearer).catch(() => {});
+            return response;
+          }
+        }
+
+        const finishReason = completion.choices?.[0]?.finish_reason ?? "stop";
+
         const id = `chatcmpl-${randomUUID()}`;
         const created = Math.floor(Date.now() / 1000);
 
-        return c.json({
+        const response = c.json({
           id,
           object: "chat.completion" as const,
           created,
@@ -180,13 +238,16 @@ export function chatRoutes(deps: ChatRouteDeps) {
                 role: "assistant" as const,
                 content: strippedContent || null,
                 ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
-                ...(toolCalls ? { tool_calls: toolCalls } : {}),
+                ...(upstreamToolCalls ? { tool_calls: upstreamToolCalls } : {}),
               },
               finish_reason: finishReason,
             },
           ],
           ...(usage ? { usage } : {}),
         });
+        // Fire-and-forget cleanup
+        if (usedBearer) deps.client.deleteChats(usedBearer).catch(() => {});
+        return response;
       } catch (err) {
         if (err instanceof PoolExhaustedError) {
           return poolExhaustedResponse(c, err);
