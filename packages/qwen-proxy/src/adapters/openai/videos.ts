@@ -10,16 +10,14 @@
  * No GET /:id endpoint (removed in the qwen.aikit.club repoint).
  */
 
-import type { UpstreamClient } from "../../upstream/client";
-import type { withPoolRetry as WithPoolRetryFn } from "../../pool/retry";
+import type { ImageResult } from "../../upstream/client";
 import type { RetryDeps } from "../../pool/retry";
 import { PoolExhaustedError } from "../../pool/errors";
 import { createOpenApiSubApp } from "../../server/openapi-helpers";
 import { openaiError } from "./errors";
 
 export interface VideosRouteDeps extends RetryDeps {
-  client: Pick<UpstreamClient, "videoGeneration">;
-  retry: typeof WithPoolRetryFn;
+  video: { generateVideo: (params: { prompt: string; size?: string }) => Promise<ImageResult> };
 }
 
 export function videosRoutes(deps: VideosRouteDeps) {
@@ -48,12 +46,7 @@ export function videosRoutes(deps: VideosRouteDeps) {
     const size = typeof b.size === "string" ? b.size : undefined;
 
     try {
-      const result = await deps.retry(deps, async (_accountId, bearer) => {
-        return deps.client.videoGeneration(bearer, {
-          prompt,
-          ...(size ? { size } : {}),
-        });
-      });
+      const result = await deps.video.generateVideo({ prompt, ...(size ? { size } : {}) });
 
       return c.json({
         created: result.created,

@@ -16,18 +16,16 @@ export {
   listTokensForAdmin,
   listRateLimitsForAdmin,
   listRecentLoginFailures,
-  countVideoJobsByStatus,
   countLoginFailuresByAccount,
   getActiveAccountId,
   type AdminAccountRow,
   type AdminTokenRow,
   type AdminRateLimitRow,
   type AdminLoginFailureRow,
-  type AdminVideoJobCount,
 } from "./store/admin";
 export { constantTimeEquals } from "./store/api-keys";
-export { CookieJar, AuthScheduler } from "./upstream/auth";
-export { generateCookies } from "./upstream/ssxmod";
+export { AuthScheduler } from "./upstream/auth";
 export { createUpstreamClient } from "./upstream/client";
+export { stripDetails, DetailsStreamStripper } from "./upstream/details-strip";
 export * from "./pool";
 export * from "./media";

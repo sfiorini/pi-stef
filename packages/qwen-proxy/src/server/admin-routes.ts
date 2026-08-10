@@ -7,14 +7,12 @@ import {
   listTokensForAdmin,
   listRateLimitsForAdmin,
   listRecentLoginFailures,
-  countVideoJobsByStatus,
   countLoginFailuresByAccount,
   getActiveAccountId,
   type AdminAccountRow,
   type AdminTokenRow,
   type AdminRateLimitRow,
   type AdminLoginFailureRow,
-  type AdminVideoJobCount,
 } from "../store/admin";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,61 +152,25 @@ ${rows
 </table>`;
 }
 
-/** Render the video jobs section. */
-export function renderVideoJobsSection(rows: AdminVideoJobCount[]): string {
-  // Compute totals
-  const totals = new Map<string, number>();
-  for (const r of rows) {
-    totals.set(r.status, (totals.get(r.status) ?? 0) + r.count);
-  }
-
-  const totalRow = totals.size > 0
-    ? `<tr class="text-muted"><td colspan="3"><strong>Total</strong>: ${[...totals.entries()].map(([s, c]) => `${escapeHtml(s)}: ${c}`).join(", ")}</td></tr>`
-    : "";
-
-  return `<h2>Video Jobs</h2>
-<table>
-<thead><tr><th>Account</th><th>Status</th><th>Count</th></tr></thead>
-<tbody>
-${rows.map((r) => `<tr><td>${r.account_id ?? "—"}</td><td>${escapeHtml(r.status)}</td><td>${r.count}</td></tr>`).join("\n")}
-${totalRow}
-</tbody>
-</table>`;
-}
-
 /** Render the derived usage section (pure composition, no queries). */
 export function renderUsageSection(
   accounts: AdminAccountRow[],
   failureCounts: { account_id: number; count: number }[],
   tokens: AdminTokenRow[],
-  videoCounts: AdminVideoJobCount[],
 ): string {
   const failMap = new Map(failureCounts.map((f) => [f.account_id, f.count]));
   const tokenMap = new Map(tokens.map((t) => [t.account_id, t]));
-  // Aggregate video counts per account
-  const videoMap = new Map<number, Map<string, number>>();
-  for (const v of videoCounts) {
-    const aid = v.account_id;
-    if (aid === null) continue;
-    if (!videoMap.has(aid)) videoMap.set(aid, new Map());
-    const m = videoMap.get(aid)!;
-    m.set(v.status, (m.get(v.status) ?? 0) + v.count);
-  }
 
   return `<h2>Usage</h2>
 <table>
-<thead><tr><th>Account</th><th>Email</th><th>Failures (24h)</th><th>Last Token Refresh</th><th>Video Jobs</th></tr></thead>
+<thead><tr><th>Account</th><th>Email</th><th>Failures (24h)</th><th>Last Token Refresh</th></tr></thead>
 <tbody>
 ${accounts
   .map((a) => {
     const fails = failMap.get(a.id) ?? 0;
     const tok = tokenMap.get(a.id);
     const lastRefresh = tok ? fmtRecency(tok.updated_at) : "—";
-    const vids = videoMap.get(a.id);
-    const vidStr = vids
-      ? [...vids.entries()].map(([s, c]) => `${escapeHtml(s)}: ${c}`).join(", ")
-      : "—";
-    return `<tr><td>${a.id}</td><td>${escapeHtml(a.email)}</td><td>${fails}</td><td>${lastRefresh}</td><td>${vidStr}</td></tr>`;
+    return `<tr><td>${a.id}</td><td>${escapeHtml(a.email)}</td><td>${fails}</td><td>${lastRefresh}</td></tr>`;
   })
   .join("\n")}
 </tbody>
@@ -225,7 +187,6 @@ export function renderDashboard(deps: { db: Database.Database }): string {
   const tokens = listTokensForAdmin(db);
   const rateLimits = listRateLimitsForAdmin(db);
   const loginFailures = listRecentLoginFailures(db);
-  const videoJobCounts = countVideoJobsByStatus(db);
   const now = Date.now();
   const failureCounts = countLoginFailuresByAccount(db, now - 86_400_000);
 
@@ -245,8 +206,7 @@ ${renderAccountsSection(accounts)}
 ${renderTokensSection(tokens)}
 ${renderRateLimitsSection(rateLimits)}
 ${renderLoginFailuresSection(loginFailures)}
-${renderVideoJobsSection(videoJobCounts)}
-${renderUsageSection(accounts, failureCounts, tokens, videoJobCounts)}`;
+${renderUsageSection(accounts, failureCounts, tokens)}`;
 
   return renderShell("qwen-proxy admin", body);
 }

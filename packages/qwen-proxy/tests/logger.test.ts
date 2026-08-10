@@ -6,7 +6,7 @@ describe("logger", () => {
     // Restore stderr if we modified it
   });
 
-  it("redacts sensitive keys (password, bearer, ssxmod_itna)", () => {
+  it("redacts sensitive keys (password, bearer)", () => {
     const logger = createLogger();
     const originalWrite = process.stderr.write;
     let output = "";
@@ -18,8 +18,6 @@ describe("logger", () => {
     logger.info("test message", {
       password: "secret123",
       bearer: "bearer-token-abc",
-      ssxmod_itna: "cookie-value-xyz",
-      ssxmod_itna2: "cookie2-value",
       bearerToken: "bearer-token-123",
       name: "test-name",
     });
@@ -30,8 +28,6 @@ describe("logger", () => {
     expect(output).toContain("[REDACTED]");
     expect(output).not.toContain("secret123");
     expect(output).not.toContain("bearer-token-abc");
-    expect(output).not.toContain("cookie-value-xyz");
-    expect(output).not.toContain("cookie2-value");
     expect(output).not.toContain("bearer-token-123");
 
     // Non-sensitive keys should pass through

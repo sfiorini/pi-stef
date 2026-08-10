@@ -1,6 +1,6 @@
 /**
- * Auth module: CookieJar (ssxmod refresh) + AuthScheduler (per-account JWT
- * refresh + on-demand 401) + createInternalLogin (S2 built-in login).
+ * Auth module: AuthScheduler (per-account JWT refresh + on-demand 401) +
+ * createInternalLogin (S2 built-in login).
  */
 
 import { createHash } from "node:crypto";
@@ -8,7 +8,6 @@ import * as jose from "jose";
 import type Database from "better-sqlite3";
 import type { QwenProxyConfig } from "../config/types";
 import type { Logger } from "../server/logger";
-import { generateCookies, type CookiePair } from "./ssxmod";
 import { upsertToken, recordLoginFailure } from "../store/repo";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -23,7 +22,6 @@ export type LoginFn = (email: string, password: string) => Promise<LoginResult>;
 export interface AuthSchedulerDeps {
   db: Database.Database;
   config: QwenProxyConfig;
-  cookies: CookieJar;
   login: LoginFn;
   log: Logger;
   now?: () => number;
@@ -48,39 +46,6 @@ export function decodeExpiryMs(bearer: string): number | null {
   }
 }
 
-// ── CookieJar ───────────────────────────────────────────────────────────────
-
-export class CookieJar {
-  private intervalMs: number;
-  private pair: CookiePair;
-  private interval: ReturnType<typeof setInterval> | null = null;
-
-  constructor(intervalMs: number) {
-    this.intervalMs = intervalMs;
-    this.pair = generateCookies();
-  }
-
-  get(): CookiePair {
-    return this.pair;
-  }
-
-  start(): void {
-    if (this.interval !== null) return; // idempotent: don't leak a second interval
-    // Refresh immediately
-    this.pair = generateCookies();
-    this.interval = setInterval(() => {
-      this.pair = generateCookies();
-    }, this.intervalMs);
-  }
-
-  stop(): void {
-    if (this.interval !== null) {
-      clearInterval(this.interval);
-      this.interval = null;
-    }
-  }
-}
-
 // ── AuthScheduler ───────────────────────────────────────────────────────────
 
 interface AccountTimer {
@@ -91,7 +56,6 @@ interface AccountTimer {
 export class AuthScheduler {
   private db: Database.Database;
   private config: QwenProxyConfig;
-  private cookies: CookieJar;
   private login: LoginFn;
   private log: Logger;
   private now: () => number;
@@ -103,16 +67,12 @@ export class AuthScheduler {
   constructor(deps: AuthSchedulerDeps) {
     this.db = deps.db;
     this.config = deps.config;
-    this.cookies = deps.cookies;
     this.login = deps.login;
     this.log = deps.log;
     this.now = deps.now ?? (() => Date.now());
   }
 
   async start(): Promise<void> {
-    // Start cookie refresh interval
-    this.cookies.start();
-
     // Collect all accounts
     const accounts = this.db
       .prepare("SELECT id, email, password FROM accounts")
@@ -285,7 +245,6 @@ export class AuthScheduler {
       }
     }
     this.timers.clear();
-    this.cookies.stop();
   }
 
   private clearAccountTimer(accountId: number): void {

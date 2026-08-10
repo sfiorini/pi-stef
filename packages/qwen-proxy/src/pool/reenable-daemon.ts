@@ -9,7 +9,7 @@ export interface ReenableDaemonDeps {
 
 /**
  * Periodic sweep that re-enables expired cooldown accounts.
- * Mirrors CookieJar idempotent start()/stop() pattern.
+ * Idempotent start()/stop() pattern.
  */
 export class ReenableDaemon {
   private pool: AccountPool;

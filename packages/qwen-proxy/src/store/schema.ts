@@ -100,6 +100,8 @@ export const MIGRATIONS: Migration[] = [
   },
 
   // v12 — async video-job tracking (S6 media forwarder; Q3=a)
+  // NOTE: video_jobs unused after the qwen.aikit.club repoint (D18 — video now synchronous).
+  // Left in place to avoid destructive migration; no code reads/writes it.
   { version: 12, statement: `CREATE TABLE IF NOT EXISTS video_jobs (
          job_id TEXT PRIMARY KEY, account_id INTEGER, upstream_task_id TEXT, model TEXT, prompt TEXT,
          status TEXT NOT NULL DEFAULT 'queued', progress INTEGER NOT NULL DEFAULT 0, result TEXT,

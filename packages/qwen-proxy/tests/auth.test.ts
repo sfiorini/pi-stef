@@ -4,7 +4,6 @@ import { applyMigrations } from "../src/store/migrations";
 import { getToken } from "../src/store/repo";
 import {
   decodeExpiryMs,
-  CookieJar,
   AuthScheduler,
   createInternalLogin,
 } from "../src/upstream/auth";
@@ -27,7 +26,7 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
     port: 7790,
     dbPath: ":memory:",
     authUrl: "https://chat.qwen.ai",
-    apiUrl: "https://chat.qwen.ai",
+    apiUrl: "https://qwen.aikit.club",
     jwtRefreshMs: 21_600_000,
     refreshThresholdMs: 21_600_000,
     loginTimeoutMs: 10_000,
@@ -86,43 +85,6 @@ describe("decodeExpiryMs", () => {
   });
 });
 
-describe("CookieJar", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  it("(6) start() generates cookies immediately; get() returns a fresh pair", () => {
-    const jar = new CookieJar(60_000);
-    jar.start();
-    const pair = jar.get();
-    expect(pair.ssxmod_itna).toBeTruthy();
-    expect(pair.ssxmod_itna2).toBeTruthy();
-    expect(typeof pair.ssxmod_itna).toBe("string");
-    expect(typeof pair.ssxmod_itna2).toBe("string");
-    jar.stop();
-  });
-
-  it("(A1) start() twice does not leak a second interval (idempotent)", () => {
-    const jar = new CookieJar(60_000);
-    const pair1 = jar.get();
-    jar.start();
-    const pair2 = jar.get();
-    // cookies should have been refreshed by start()
-    expect(pair2).not.toBe(pair1);
-
-    jar.start(); // second call should be a no-op — no new interval
-    jar.stop(); // single stop should fully clean up
-
-    // Verify stop actually stopped: advance time and confirm get() doesn't change
-    const pairAfterStop = jar.get();
-    vi.advanceTimersByTime(120_000);
-    expect(jar.get()).toBe(pairAfterStop); // no refresh happened after stop
-  });
-});
-
 describe("AuthScheduler", () => {
   let db: Database.Database;
   let log: ReturnType<typeof makeLogger>;
@@ -156,7 +118,6 @@ describe("AuthScheduler", () => {
     return {
       db,
       config: cfg,
-      cookies: new CookieJar(60_000),
       login,
       log,
       now: () => Date.now(),
@@ -193,7 +154,7 @@ describe("AuthScheduler", () => {
     const nowSec = nowMs / 1000;
 
     // Use small time values to keep fake-timer advances manageable.
-    // jwtRefreshMs=10s, refreshThresholdMs=5s (cookie jar always 60s)
+    // jwtRefreshMs=10s, refreshThresholdMs=5s
     const jwtRefreshMs = 10_000;
     const refreshThresholdMs = 5_000;
 

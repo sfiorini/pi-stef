@@ -14,14 +14,12 @@
 import { OpenAPIHono } from "@hono/zod-openapi";
 import type Database from "better-sqlite3";
 import type { AccountPool } from "../pool/state";
-import type { UpstreamClient } from "../upstream/client";
+import type { UpstreamClient, ImageResult } from "../upstream/client";
 import type { AuthScheduler } from "../upstream/auth";
 import type { QwenProxyConfig } from "../config/types";
 import type { Logger } from "./logger";
 import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
 import type { withPoolRetryStream as WithPoolRetryStreamFn } from "../pool/retry";
-import type { VideoPollDaemon } from "../media/video-daemon";
-import type { MediaVideoDeps } from "../media/videos";
 import { healthRoutes } from "./health";
 import { clientAuthGate } from "./auth";
 import { openaiRoutes, type OpenAIRouteDeps } from "../adapters/openai";
@@ -46,8 +44,12 @@ export interface AppDeps {
   config: QwenProxyConfig;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
-  media: MediaVideoDeps & { submitVideo: (params: { prompt: string; image?: string; model?: string }) => Promise<{ jobId: string }>; getVideoJob: (db: Database.Database, jobId: string) => import("../media/video-jobs").VideoJobRow | undefined };
-  videoDaemon: VideoPollDaemon;
+  // media: bin-passthrough field for image routes (MediaImageDeps subset).
+  // Not consumed directly by createApp; exists so bin can pass runtime deps.
+  media: { client: UpstreamClient; retry: typeof WithPoolRetryFn; pool: AccountPool; scheduler: Pick<AuthScheduler, "refreshOnDemand">; config: QwenProxyConfig; log: Logger };
+  // video: bin-passthrough field for the synchronous video endpoint.
+  // Not consumed directly by createApp; exists so bin can pass the wired generateVideo closure.
+  video: { generateVideo: (params: { prompt: string; size?: string }) => Promise<ImageResult> };
   log: Logger;
 }
 
@@ -130,8 +132,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     client: deps.client,
     retry: deps.retry,
     retryStream: deps.retryStream,
-    submitVideo: (params) => deps.media.submitVideo(params),
-    getVideoJob: (jobId) => deps.media.getVideoJob(deps.db, jobId),
+    video: deps.video,
   };
 
   app.route("/v1", openaiRoutes(openaiDeps));

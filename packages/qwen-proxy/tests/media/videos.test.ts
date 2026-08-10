@@ -4,7 +4,7 @@ import { openDb } from "../../src/store/db";
 import { reconcileAccounts, upsertToken } from "../../src/store/repo";
 import { AccountPool } from "../../src/pool/state";
 import { withPoolRetry } from "../../src/pool/retry";
-import { submitVideo, getVideoJob } from "../../src/media/videos";
+import { generateVideo } from "../../src/media/videos";
 import type { MediaVideoDeps } from "../../src/media/videos";
 import type { UpstreamClient } from "../../src/upstream/client";
 import type { Account } from "../../src/config/types";
@@ -35,7 +35,6 @@ function makeDeps(
   const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
   pool.hydrate();
   return {
-    db,
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
     config: { rateLimitCooldownMs: 60_000 },
@@ -43,19 +42,12 @@ function makeDeps(
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [],
-      createChat: async () => ({ chatId: "" }),
-      chatCompletionsStream: async function* () {},
+      chatCompletions: async () => ({ id: "", object: "chat.completion" as const, created: 0, model: "", choices: [], usage: null }),
       imageGeneration: async () => ({ created: 0, urls: [] }),
       imageEdit: async () => ({ created: 0, urls: [] }),
       videoGeneration: async () => ({
-        taskId: "upstream-task-123",
-        status: "submitted",
-        raw: {},
-      }),
-      videoTaskStatus: async () => ({
-        taskId: "upstream-task-123",
-        status: "processing",
-        raw: {},
+        created: 1700000000,
+        urls: ["https://example.com/video.mp4"],
       }),
       ...clientOverrides,
     },
@@ -63,88 +55,53 @@ function makeDeps(
   };
 }
 
-describe("submitVideo", () => {
+describe("generateVideo", () => {
   let db: Database.Database;
 
   beforeEach(() => {
     db = setupDb();
   });
 
-  it("submits video and returns a uuid jobId", async () => {
+  it("returns {created, urls} from upstream videoGeneration", async () => {
     const deps = makeDeps(db);
-    const result = await submitVideo(deps, { prompt: "a dancing cat" });
-
-    expect(result.jobId).toBeDefined();
-    expect(result.jobId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
+    const result = await generateVideo(deps, { prompt: "a dancing cat" });
+    expect(result.created).toBe(1700000000);
+    expect(result.urls).toEqual(["https://example.com/video.mp4"]);
   });
 
-  it("inserts a row with upstream task id", async () => {
-    const deps = makeDeps(db);
-    const result = await submitVideo(deps, { prompt: "test prompt" });
-
-    const job = getVideoJob(db, result.jobId);
-    expect(job).toBeDefined();
-    expect(job!.upstream_task_id).toBe("upstream-task-123");
-    expect(job!.account_id).toBe(1);
-    expect(job!.prompt).toBe("test prompt");
-    expect(job!.status).toBe("queued");
-  });
-
-  it("stores model when provided", async () => {
-    const deps = makeDeps(db);
-    const result = await submitVideo(deps, { prompt: "test", model: "wan2.1" });
-
-    const job = getVideoJob(db, result.jobId);
-    expect(job!.model).toBe("wan2.1");
-  });
-
-  it("stores null model when not provided", async () => {
-    const deps = makeDeps(db);
-    const result = await submitVideo(deps, { prompt: "test" });
-
-    const job = getVideoJob(db, result.jobId);
-    expect(job!.model).toBeNull();
-  });
-
-  it("upstream task id is stored, proxy job id is returned (distinct)", async () => {
+  it("passes prompt and size to videoGeneration", async () => {
+    let calledWith: unknown;
     const deps = makeDeps(db, {
-      videoGeneration: async () => ({
-        taskId: "real-upstream-id-999",
-        status: "submitted",
-        raw: { task_id: "real-upstream-id-999" },
-      }),
+      videoGeneration: async (_bearer, body) => {
+        calledWith = body;
+        return { created: 1, urls: ["https://example.com/v.mp4"] };
+      },
     });
-    const result = await submitVideo(deps, { prompt: "test" });
-
-    // The returned id is a uuid, NOT the upstream task id
-    expect(result.jobId).not.toBe("real-upstream-id-999");
-    expect(result.jobId).toMatch(/^[0-9a-f-]{36}$/);
-
-    const job = getVideoJob(db, result.jobId);
-    expect(job!.upstream_task_id).toBe("real-upstream-id-999");
-  });
-});
-
-describe("getVideoJob", () => {
-  let db: Database.Database;
-
-  beforeEach(() => {
-    db = setupDb();
+    await generateVideo(deps, { prompt: "a dog", size: "16:9" });
+    expect(calledWith).toEqual({ prompt: "a dog", size: "16:9" });
   });
 
-  it("returns the video job after submit", async () => {
-    const deps = makeDeps(db);
-    const result = await submitVideo(deps, { prompt: "test" });
-
-    const job = getVideoJob(db, result.jobId);
-    expect(job).toBeDefined();
-    expect(job!.job_id).toBe(result.jobId);
-    expect(job!.status).toBe("queued");
+  it("omits size when not provided", async () => {
+    let calledWith: unknown;
+    const deps = makeDeps(db, {
+      videoGeneration: async (_bearer, body) => {
+        calledWith = body;
+        return { created: 1, urls: ["https://example.com/v.mp4"] };
+      },
+    });
+    await generateVideo(deps, { prompt: "a cat" });
+    expect(calledWith).toEqual({ prompt: "a cat" });
   });
 
-  it("returns undefined for unknown jobId", () => {
-    expect(getVideoJob(db, "nonexistent")).toBeUndefined();
+  it("propagates errors from upstream (pool exhaustion)", async () => {
+    const { PoolExhaustedError } = await import("../../src/pool/errors");
+    const deps = makeDeps(db, {
+      videoGeneration: async () => {
+        throw new PoolExhaustedError(Date.now() + 60_000);
+      },
+    });
+    await expect(generateVideo(deps, { prompt: "test" })).rejects.toThrow(
+      PoolExhaustedError,
+    );
   });
 });

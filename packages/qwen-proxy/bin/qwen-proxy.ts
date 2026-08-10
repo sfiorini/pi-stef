@@ -5,7 +5,6 @@ import {
   createLogger,
   openDb,
   reconcileAccounts,
-  CookieJar,
   AuthScheduler,
   createUpstreamClient,
 } from "../src/index";
@@ -13,8 +12,7 @@ import { AccountPool } from "../src/pool/state";
 import { ReenableDaemon } from "../src/pool/reenable-daemon";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
-import { VideoPollDaemon } from "../src/media/video-daemon";
-import { submitVideo, getVideoJob } from "../src/media/videos";
+import { generateVideo } from "../src/media/videos";
 import type { AppDeps } from "../src/server/app";
 
 const log = createLogger();
@@ -46,15 +44,10 @@ async function main() {
     });
     reenableDaemon.start();
 
-    // Cookie jar (15-min ssxmod refresh)
-    const cookies = new CookieJar(config.refreshIntervalMs);
-    // NOTE: cookies.start() is called inside AuthScheduler.start()
-
     // Upstream client
     const client = createUpstreamClient({
       authUrl: config.authUrl,
       apiUrl: config.apiUrl,
-      cookies: () => cookies.get(),
       timeoutMs: config.loginTimeoutMs,
     });
 
@@ -62,7 +55,6 @@ async function main() {
     const scheduler = new AuthScheduler({
       db,
       config,
-      cookies,
       login: client.login,
       log,
     });
@@ -79,19 +71,6 @@ async function main() {
       retry: withPoolRetry,
     };
 
-    // Video poll daemon (background status polling)
-    const videoDaemon = new VideoPollDaemon({
-      db,
-      pool,
-      client,
-      retry: withPoolRetry,
-      scheduler,
-      config,
-      log,
-      intervalMs: 20_000,
-    });
-    videoDaemon.start();
-
     // Build AppDeps for createApp/startServer
     const deps: AppDeps = {
       db,
@@ -103,10 +82,10 @@ async function main() {
       retryStream: withPoolRetryStream,
       media: {
         ...mediaDeps,
-        submitVideo: (params) => submitVideo(mediaDeps, params),
-        getVideoJob: (dbRef, jobId) => getVideoJob(dbRef, jobId),
       },
-      videoDaemon,
+      video: {
+        generateVideo: (params) => generateVideo(mediaDeps, params),
+      },
       log,
     };
 
@@ -120,13 +99,11 @@ async function main() {
     log.info("qwen-proxy started", { port: handle.port });
 
     // Graceful shutdown order:
-    // videoDaemon → reenableDaemon → scheduler → cookies → server → db
+    // reenableDaemon → scheduler → server → db
     const shutdown = () => {
       log.info("shutting down");
-      videoDaemon.stop();
       reenableDaemon.stop();
       scheduler.stop();
-      cookies.stop();
       handle.close();
       db.close();
       process.exit(0);

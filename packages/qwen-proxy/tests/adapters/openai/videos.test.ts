@@ -7,7 +7,6 @@ import { AccountPool } from "../../../src/pool/state";
 import { withPoolRetry } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
 import { videosRoutes } from "../../../src/adapters/openai/videos";
-import type { UpstreamClient } from "../../../src/upstream/client";
 import type { Account } from "../../../src/config/types";
 import type { Logger } from "../../../src/server/logger";
 
@@ -34,7 +33,7 @@ function setupDb(): Database.Database {
 function makeDeps(
   db: Database.Database,
   overrides?: {
-    client?: Partial<UpstreamClient>;
+    generateVideo?: (params: { prompt: string; size?: string }) => Promise<{ created: number; urls: string[] }>;
   },
 ) {
   const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
@@ -51,22 +50,13 @@ function makeDeps(
     },
     config: { rateLimitCooldownMs: 60_000, modelAliasesRaw: "" },
     log: noopLog,
-    client: {
-      login: async () => ({ bearer: "", expiresAt: null }),
-      listModels: async () => [],
-      chatCompletions: async () => ({
-        id: "", object: "chat.completion" as const, created: 0, model: "",
-        choices: [], usage: null,
-      }),
-      imageGeneration: async () => ({ created: 0, urls: [] }),
-      imageEdit: async () => ({ created: 0, urls: [] }),
-      videoGeneration: async () => ({
+    retry: withPoolRetry,
+    video: {
+      generateVideo: overrides?.generateVideo ?? (async () => ({
         created: 1700000000,
         urls: ["https://example.com/video.mp4"],
-      }),
-      ...overrides?.client,
+      })),
     },
-    retry: withPoolRetry,
   };
 }
 
@@ -84,11 +74,10 @@ function createTestApp(deps: ReturnType<typeof makeDeps>) {
     "/v1",
     videosRoutes({
       pool: deps.pool,
-      client: deps.client,
       scheduler: deps.scheduler,
       config: deps.config,
       log: deps.log,
-      retry: deps.retry,
+      video: deps.video,
     }),
   );
   return app;
@@ -103,17 +92,15 @@ describe("POST /v1/videos/generations", () => {
 
   it("returns 200 with {created, data:[{url}]} on sync generation", async () => {
     let videoGenCalledWith: unknown;
-    const client = {
-      videoGeneration: async (_bearer: string, body: unknown) => {
-        videoGenCalledWith = body;
+    const deps = makeDeps(db, {
+      generateVideo: async (params) => {
+        videoGenCalledWith = params;
         return {
           created: 1700000000,
           urls: ["https://example.com/video.mp4"],
         };
       },
-    } as unknown as UpstreamClient;
-
-    const deps = makeDeps(db, { client });
+    });
     const app = createTestApp(deps);
 
     const res = await app.request("/v1/videos/generations", {
@@ -138,14 +125,12 @@ describe("POST /v1/videos/generations", () => {
 
   it("passes size to videoGeneration when provided", async () => {
     let videoGenCalledWith: unknown;
-    const client = {
-      videoGeneration: async (_bearer: string, body: unknown) => {
-        videoGenCalledWith = body;
+    const deps = makeDeps(db, {
+      generateVideo: async (params) => {
+        videoGenCalledWith = params;
         return { created: 1, urls: ["https://example.com/v.mp4"] };
       },
-    } as unknown as UpstreamClient;
-
-    const deps = makeDeps(db, { client });
+    });
     const app = createTestApp(deps);
 
     const res = await app.request("/v1/videos/generations", {
@@ -180,28 +165,13 @@ describe("POST /v1/videos/generations", () => {
   });
 
   it("returns 429 on PoolExhaustedError", async () => {
-    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
-
-    const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-    pool.hydrate();
-
-    const deps = makeDeps(db);
-    const app = new Hono();
-    app.use(
-      "/v1/*",
-      clientAuthGate({ db: deps.db, envKeys: ["test-key"], log: deps.log }),
-    );
-    app.route(
-      "/v1",
-      videosRoutes({
-        pool,
-        client: deps.client,
-        scheduler: deps.scheduler,
-        config: deps.config,
-        log: deps.log,
-        retry: deps.retry,
-      }),
-    );
+    const { PoolExhaustedError } = await import("../../../src/pool/errors");
+    const deps = makeDeps(db, {
+      generateVideo: async () => {
+        throw new PoolExhaustedError(Date.now() + 60_000);
+      },
+    });
+    const app = createTestApp(deps);
 
     const res = await app.request("/v1/videos/generations", {
       method: "POST",

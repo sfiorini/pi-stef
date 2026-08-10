@@ -33,12 +33,6 @@ export interface AdminLoginFailureRow {
   status_code: number | null;
 }
 
-export interface AdminVideoJobCount {
-  account_id: number | null;
-  status: string;
-  count: number;
-}
-
 // ── Read-only helpers ─────────────────────────────────────────────────────────
 
 /** List all accounts with pool state. */
@@ -80,17 +74,6 @@ export function listRecentLoginFailures(
       "SELECT id, account_id, attempted_at, reason, status_code FROM login_failures ORDER BY attempted_at DESC LIMIT ?",
     )
     .all(limit) as AdminLoginFailureRow[];
-}
-
-/** Count video jobs grouped by account_id and status. */
-export function countVideoJobsByStatus(
-  db: Database.Database,
-): AdminVideoJobCount[] {
-  return db
-    .prepare(
-      "SELECT account_id, status, COUNT(*) AS count FROM video_jobs GROUP BY account_id, status",
-    )
-    .all() as AdminVideoJobCount[];
 }
 
 /** Count login failures per account since a given timestamp. */

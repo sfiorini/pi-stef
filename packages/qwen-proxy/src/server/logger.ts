@@ -9,8 +9,6 @@ const SENSITIVE_KEYS = new Set([
   "setupToken",
   "bearer",
   "bearerToken",
-  "ssxmod_itna",
-  "ssxmod_itna2",
   "key",
   "apiKey",
 ]);

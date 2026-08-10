@@ -11,11 +11,9 @@ import {
   listTokensForAdmin,
   listRateLimitsForAdmin,
   listRecentLoginFailures,
-  countVideoJobsByStatus,
   countLoginFailuresByAccount,
   getActiveAccountId,
 } from "../../src/store/admin";
-import { insertVideoJob } from "../../src/media/video-jobs";
 import type { Account } from "../../src/config/types";
 import type Database from "better-sqlite3";
 
@@ -225,51 +223,6 @@ describe("admin store helpers", () => {
       expect(first).toEqual(second);
     });
   });
-
-  // ── countVideoJobsByStatus ──────────────────────────────────────────────
-
-  describe("countVideoJobsByStatus", () => {
-    it("returns empty array when no video jobs exist", () => {
-      expect(countVideoJobsByStatus(db)).toEqual([]);
-    });
-
-    it("groups counts by account_id and status", () => {
-      seedAccounts(db);
-      insertVideoJob(db, { jobId: "j1", accountId: 1, upstreamTaskId: "u1", prompt: "p1" });
-      insertVideoJob(db, { jobId: "j2", accountId: 1, upstreamTaskId: "u2", prompt: "p2" });
-      insertVideoJob(db, { jobId: "j3", accountId: 2, upstreamTaskId: "u3", prompt: "p3" });
-
-      // Both j1 and j2 are queued (default status), j3 is also queued
-      const rows = countVideoJobsByStatus(db);
-      // Should have 2 rows: account 1 queued (count 2), account 2 queued (count 1)
-      expect(rows).toHaveLength(2);
-      const r1 = rows.find((r) => r.account_id === 1 && r.status === "queued")!;
-      const r2 = rows.find((r) => r.account_id === 2 && r.status === "queued")!;
-      expect(r1.count).toBe(2);
-      expect(r2.count).toBe(1);
-    });
-
-    it("handles null account_id (cascade SET NULL)", () => {
-      seedAccounts(db);
-      insertVideoJob(db, { jobId: "j1", accountId: null, upstreamTaskId: "u1", prompt: "p1" });
-
-      const rows = countVideoJobsByStatus(db);
-      expect(rows).toHaveLength(1);
-      expect(rows[0].account_id).toBeNull();
-      expect(rows[0].status).toBe("queued");
-      expect(rows[0].count).toBe(1);
-    });
-
-    it("is read-only (idempotent)", () => {
-      seedAccounts(db);
-      insertVideoJob(db, { jobId: "j1", accountId: 1, upstreamTaskId: "u1", prompt: "p1" });
-      const first = countVideoJobsByStatus(db);
-      const second = countVideoJobsByStatus(db);
-      expect(first).toEqual(second);
-    });
-  });
-
-  // ── countLoginFailuresByAccount ─────────────────────────────────────────
 
   describe("countLoginFailuresByAccount", () => {
     it("returns empty array when no failures exist", () => {

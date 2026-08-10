@@ -245,7 +245,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     if (body.tools !== undefined) thinBody.tools = body.tools;
 
     if (body.stream) {
-      return chatCompletionsStream(bearer, thinBody);
+      return streamChatCompletion(bearer, thinBody);
     }
     return chatCompletionsNonStream(bearer, thinBody);
   }
@@ -273,7 +273,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     return (await res.json()) as OpenAiChatCompletion;
   }
 
-  async function* chatCompletionsStream(
+  async function* streamChatCompletion(
     bearer: string,
     thinBody: Record<string, unknown>,
   ): AsyncIterable<OpenAiChatChunk> {

@@ -8,7 +8,6 @@ import {
   renderTokensSection,
   renderRateLimitsSection,
   renderLoginFailuresSection,
-  renderVideoJobsSection,
   renderUsageSection,
 } from "../../src/server/admin-routes";
 import type {
@@ -16,7 +15,6 @@ import type {
   AdminTokenRow,
   AdminRateLimitRow,
   AdminLoginFailureRow,
-  AdminVideoJobCount,
 } from "../../src/store/admin";
 import { createApp } from "../../src/server/app";
 import { openDb } from "../../src/store/db";
@@ -180,45 +178,6 @@ describe("renderLoginFailuresSection", () => {
   });
 });
 
-// ── renderVideoJobsSection ───────────────────────────────────────────────────
-
-describe("renderVideoJobsSection", () => {
-  it("renders job counts by status", () => {
-    const rows: AdminVideoJobCount[] = [
-      { account_id: 1, status: "queued", count: 3 },
-      { account_id: 1, status: "succeeded", count: 5 },
-    ];
-    const html = renderVideoJobsSection(rows);
-    expect(html).toContain("Video Jobs");
-    expect(html).toContain("queued");
-    expect(html).toContain("succeeded");
-    expect(html).toContain("3");
-    expect(html).toContain("5");
-  });
-
-  it("totals row aligns with 3-column header when >1 status (audit F2)", () => {
-    const rows: AdminVideoJobCount[] = [
-      { account_id: 1, status: "queued", count: 2 },
-      { account_id: 1, status: "succeeded", count: 3 },
-      { account_id: 2, status: "failed", count: 1 },
-    ];
-    const html = renderVideoJobsSection(rows);
-    // The table has exactly 3 header columns: Account, Status, Count
-    // Parse the totals row and verify it doesn't exceed 3 column-equivalents
-    const totalsRowMatch = html.match(/<tr class="text-muted">(.*?)<\/tr>/s);
-    expect(totalsRowMatch).toBeTruthy();
-    const totalsRow = totalsRowMatch![1];
-    // Count total column-span: each <td> contributes its colspan (or 1 if absent)
-    const cells = totalsRow.match(/<td[^>]*>/g) ?? [];
-    let totalCols = 0;
-    for (const cell of cells) {
-      const colspanMatch = cell.match(/colspan="(\d+)"/);
-      totalCols += colspanMatch ? parseInt(colspanMatch[1]) : 1;
-    }
-    expect(totalCols).toBe(3); // must match header column count
-  });
-});
-
 // ── renderUsageSection ───────────────────────────────────────────────────────
 
 describe("renderUsageSection", () => {
@@ -230,31 +189,11 @@ describe("renderUsageSection", () => {
     const tokens: AdminTokenRow[] = [
       { account_id: 1, has_bearer: true, expires_at: null, updated_at: Date.now() - 300_000 },
     ];
-    const videoCounts: AdminVideoJobCount[] = [
-      { account_id: 1, status: "succeeded", count: 10 },
-    ];
-    const html = renderUsageSection(accounts, failureCounts, tokens, videoCounts);
+    const html = renderUsageSection(accounts, failureCounts, tokens);
     expect(html).toContain("Usage");
     expect(html).toContain("a@test.com");
     expect(html).toContain("3"); // failure count
     expect(html).toContain("5m ago"); // token refresh recency
-    expect(html).toContain("10"); // video count
-  });
-
-  it("escapes video status markup in usage section (audit F1 XSS)", () => {
-    const accounts: AdminAccountRow[] = [
-      { id: 1, email: "a@test.com", ord: 1, state: "active", re_enable_at: null },
-    ];
-    const failureCounts = [{ account_id: 1, count: 0 }];
-    const tokens: AdminTokenRow[] = [
-      { account_id: 1, has_bearer: true, expires_at: null, updated_at: 1000 },
-    ];
-    const videoCounts: AdminVideoJobCount[] = [
-      { account_id: 1, status: "<script>x</script>", count: 1 },
-    ];
-    const html = renderUsageSection(accounts, failureCounts, tokens, videoCounts);
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
   });
 });
 
@@ -293,17 +232,33 @@ function makeStubDeps(adminKey?: string): AppDeps {
     retry: (async () => {}) as any,
     retryStream: (async function* () {}) as any,
     media: {
-      db,
-      pool,
       client: {} as any,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60000 },
+      config: {
+        host: "127.0.0.1",
+        port: 0,
+        dbPath: ":memory:",
+        authUrl: "",
+        apiUrl: "",
+        jwtRefreshMs: 21600000,
+        refreshThresholdMs: 21600000,
+        loginTimeoutMs: 10000,
+        staggerMs: 5000,
+        rateLimitCooldownMs: 86400000,
+        reenableIntervalMs: 60000,
+        apiKeyEnv: [],
+        modelAliasesRaw: "",
+        logLevel: "info",
+        accounts: [],
+        adminKey: undefined,
+      } as any,
       log: noopLog,
       retry: (async () => {}) as any,
-      submitVideo: async () => ({ jobId: "" }),
-      getVideoJob: () => undefined,
+      pool,
     },
-    videoDaemon: { start: () => {}, stop: () => {} } as any,
+    video: {
+      generateVideo: async () => ({ created: 0, urls: [] }),
+    },
     log: noopLog,
   };
 }
@@ -329,7 +284,7 @@ describe("adminRoutes integration via createApp", () => {
     expect(body).not.toContain("a<b>@test.com");
     expect(body).toContain("Accounts");
     expect(body).toContain("Tokens");
-    expect(body).toContain("setInterval");
+    expect(body).not.toContain("Video Jobs");
   });
 
   it("GET /admin without auth returns 401", async () => {
@@ -337,27 +292,6 @@ describe("adminRoutes integration via createApp", () => {
     const app = createApp(deps);
     const res = await app.request("/admin");
     expect(res.status).toBe(401);
-  });
-
-  it("GET /admin escapes malicious video_job status in HTML (audit F1 XSS)", async () => {
-    const deps = makeStubDeps("test-admin-key");
-    reconcileAccounts(deps.db, [
-      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
-    ]);
-    deps.db.prepare("UPDATE accounts SET state = 'active' WHERE id = 1").run();
-    // Insert a video_job with malicious status
-    deps.db.prepare(
-      `INSERT INTO video_jobs (job_id, account_id, upstream_task_id, model, prompt, status, progress, result, attempts, created_at, updated_at)
-       VALUES ('xss-job', 1, 'up', 'model', 'prompt', '<script>xss</script>', 0, NULL, 0, ?, ?)`
-    ).run(Date.now(), Date.now());
-
-    const app = createApp(deps);
-    const res = await app.request("/admin?key=test-admin-key");
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    // Escaped in Usage section (video status)
-    expect(body).toContain("&lt;script&gt;xss&lt;/script&gt;");
-    expect(body).not.toContain("<script>xss</script>");
   });
 
   it("GET /admin with adminKey undefined returns 404 (D15)", async () => {
