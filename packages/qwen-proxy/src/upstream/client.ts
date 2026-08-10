@@ -95,7 +95,7 @@ export interface UpstreamClient {
 // ── Default UA (Edge/Chrome on Windows) ─────────────────────────────────────
 
 const DEFAULT_UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0";
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -107,11 +107,30 @@ function commonHeaders(
   bearer: string,
   cookieHeader: string,
   ua: string,
+  baseUrl: string,
 ): Record<string, string> {
+  // chat.qwen.ai's gateway serves the web-app HTML (not the JSON API) for
+  // requests that don't look like a same-origin browser call. Mirror the
+  // header set the working reference repo (Git-think/Qwen-Proxy) sends so the
+  // gateway routes us to the API: Accept: application/json, source: web, the
+  // Sec-Fetch-* / Origin / Referer same-origin signals, and the app-version
+  // headers (bx-v, Version). Accept-Encoding/Connection are left to undici.
   return {
     Authorization: `Bearer ${bearer}`,
     Cookie: cookieHeader,
     "User-Agent": ua,
+    Accept: "application/json",
+    "Accept-Language": "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7",
+    "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+    "Sec-Fetch-Site": "same-origin",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Dest": "empty",
+    source: "web",
+    Version: "0.1.13",
+    "bx-v": "2.5.31",
+    Timezone: "Mon Dec 08 2025 17:28:55 GMT+0800",
+    Origin: baseUrl,
+    Referer: `${baseUrl}/c/guest`,
   };
 }
 
@@ -190,7 +209,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       `${opts.apiUrl}/api/models`,
       {
         method: "GET",
-        headers: commonHeaders(bearer, cookieHeader, ua),
+        headers: commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
       },
       timeoutMs,
     );
@@ -217,7 +236,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       {
         method: "POST",
         headers: {
-          ...commonHeaders(bearer, cookieHeader, ua),
+          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -266,7 +285,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       {
         method: "POST",
         headers: {
-          ...commonHeaders(bearer, cookieHeader, ua),
+          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -347,7 +366,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       {
         method: "POST",
         headers: {
-          ...commonHeaders(bearer, cookieHeader, ua),
+          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -386,7 +405,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       {
         method: "POST",
         headers: {
-          ...commonHeaders(bearer, cookieHeader, ua),
+          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -425,7 +444,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       {
         method: "POST",
         headers: {
-          ...commonHeaders(bearer, cookieHeader, ua),
+          ...commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -464,7 +483,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       `${opts.apiUrl}/api/v1/tasks/status/${encodeURIComponent(taskId)}`,
       {
         method: "GET",
-        headers: commonHeaders(bearer, cookieHeader, ua),
+        headers: commonHeaders(bearer, cookieHeader, ua, opts.apiUrl),
       },
       timeoutMs,
     );
