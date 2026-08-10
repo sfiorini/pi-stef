@@ -195,6 +195,28 @@ describe("renderVideoJobsSection", () => {
     expect(html).toContain("3");
     expect(html).toContain("5");
   });
+
+  it("totals row aligns with 3-column header when >1 status (audit F2)", () => {
+    const rows: AdminVideoJobCount[] = [
+      { account_id: 1, status: "queued", count: 2 },
+      { account_id: 1, status: "succeeded", count: 3 },
+      { account_id: 2, status: "failed", count: 1 },
+    ];
+    const html = renderVideoJobsSection(rows);
+    // The table has exactly 3 header columns: Account, Status, Count
+    // Parse the totals row and verify it doesn't exceed 3 column-equivalents
+    const totalsRowMatch = html.match(/<tr class="text-muted">(.*?)<\/tr>/s);
+    expect(totalsRowMatch).toBeTruthy();
+    const totalsRow = totalsRowMatch![1];
+    // Count total column-span: each <td> contributes its colspan (or 1 if absent)
+    const cells = totalsRow.match(/<td[^>]*>/g) ?? [];
+    let totalCols = 0;
+    for (const cell of cells) {
+      const colspanMatch = cell.match(/colspan="(\d+)"/);
+      totalCols += colspanMatch ? parseInt(colspanMatch[1]) : 1;
+    }
+    expect(totalCols).toBe(3); // must match header column count
+  });
 });
 
 // ── renderUsageSection ───────────────────────────────────────────────────────

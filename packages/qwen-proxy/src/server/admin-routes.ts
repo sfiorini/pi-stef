@@ -163,7 +163,7 @@ export function renderVideoJobsSection(rows: AdminVideoJobCount[]): string {
   }
 
   const totalRow = totals.size > 0
-    ? `<tr class="text-muted"><td colspan="2"><strong>Total</strong></td>${[...totals.entries()].map(([s, c]) => `<td>${escapeHtml(s)}: ${c}</td>`).join("")}</tr>`
+    ? `<tr class="text-muted"><td colspan="3"><strong>Total</strong>: ${[...totals.entries()].map(([s, c]) => `${escapeHtml(s)}: ${c}`).join(", ")}</td></tr>`
     : "";
 
   return `<h2>Video Jobs</h2>
