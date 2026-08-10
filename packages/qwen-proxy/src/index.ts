@@ -8,3 +8,4 @@ export { reconcileAccounts, listAccounts, type SafeAccountRow } from "./store/re
 export { CookieJar, AuthScheduler } from "./upstream/auth";
 export { generateCookies } from "./upstream/ssxmod";
 export { createUpstreamClient } from "./upstream/client";
+export * from "./pool";

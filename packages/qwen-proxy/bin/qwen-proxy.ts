@@ -9,6 +9,8 @@ import {
   AuthScheduler,
   createUpstreamClient,
 } from "../src/index";
+import { AccountPool } from "../src/pool/state";
+import { ReenableDaemon } from "../src/pool/reenable-daemon";
 
 const log = createLogger();
 
@@ -26,6 +28,18 @@ async function main() {
     // Reconcile accounts with config
     const stats = reconcileAccounts(db, config.accounts);
     log.info("accounts reconciled", stats);
+
+    // Pool hydration (after reconcile, before routes)
+    const pool = new AccountPool({ db, log });
+    pool.hydrate();
+
+    // Reenable daemon (back-of-queue sweep)
+    const reenableDaemon = new ReenableDaemon({
+      pool,
+      intervalMs: config.reenableIntervalMs,
+      log,
+    });
+    reenableDaemon.start();
 
     // Cookie jar (15-min ssxmod refresh)
     const cookies = new CookieJar(config.refreshIntervalMs);
@@ -57,9 +71,10 @@ async function main() {
 
     log.info("qwen-proxy started", { port: handle.port });
 
-    // Graceful shutdown: stop scheduler BEFORE db.close
+    // Graceful shutdown: reenableDaemon.stop BEFORE scheduler.stop BEFORE db.close
     const shutdown = () => {
       log.info("shutting down");
+      reenableDaemon.stop();
       scheduler.stop();
       cookies.stop();
       handle.close();
