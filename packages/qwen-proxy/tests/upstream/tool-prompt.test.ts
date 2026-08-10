@@ -188,6 +188,22 @@ describe("injectToolResults", () => {
     });
   });
 
+  it("flattens array content [{type:text,text}] to string in pass-through", () => {
+    const msgs = [
+      { role: "user", content: [{ type: "text", text: "hello" }] },
+    ];
+    const result = injectToolResults(msgs);
+    expect(result[0].content).toBe("hello");
+  });
+
+  it("flattens array content in tool-result messages", () => {
+    const msgs = [
+      { role: "tool", name: "get_weather", content: [{ type: "text", text: '{"temp":25}' }] },
+    ];
+    const result = injectToolResults(msgs);
+    expect(result[0].content).toBe('Tool `get_weather` returned: {"temp":25}');
+  });
+
   it("handles multiple tool results interleaved with assistant", () => {
     const msgs = [
       {

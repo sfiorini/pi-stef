@@ -31,6 +31,27 @@ interface Message {
   name?: string;
 }
 
+// ── flattenContent ──────────────────────────────────────────────────────────
+
+/**
+ * Flatten a message content field to a plain string.
+ * content can be string OR [{type:"text",text}].
+ * Kept local to avoid circular dependency with chat.ts.
+ */
+function flattenContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((part: unknown) => {
+        const p = part as Record<string, unknown>;
+        return p && p.type === "text" && typeof p.text === "string";
+      })
+      .map((part: unknown) => (part as { text: string }).text)
+      .join("");
+  }
+  return "";
+}
+
 // ── injectToolPrompt ─────────────────────────────────────────────────────────
 
 /**
@@ -136,12 +157,12 @@ export function injectToolResults(
         "unknown";
       return {
         role: "system",
-        content: `Tool \`${name}\` returned: ${msg.content}`,
+        content: `Tool \`${name}\` returned: ${flattenContent(msg.content)}`,
       };
     }
 
     // Pass through everything else
-    return { role: msg.role, content: String(msg.content ?? "") };
+    return { role: msg.role, content: flattenContent(msg.content) };
   });
 }
 

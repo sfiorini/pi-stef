@@ -5,7 +5,7 @@
  * Resolves model aliases + capability suffixes (-thinking, -search).
  * Pool exhausted → 429 rate_limit_error.
  * Sentinel mid-stream → error event + [DONE] (D14).
- * Function-calling tools/tool_choice passed through to upstream.
+ * Function-calling tools prompt-engineered (stripped from upstream body, injected into system prompt).
  * Details-strip on delta.content only (never reasoning_content).
  */
 
@@ -195,8 +195,11 @@ export function chatRoutes(deps: ChatRouteDeps) {
         const strippedContent = stripDetails(content);
 
         // S-5: If tools were injected, parse <tool_calls> from response content
+        // F1: Always use parsed.content (tag-stripped) when toolsInjected
+        let responseContent: string | null = strippedContent || null;
         if (toolsInjected && strippedContent) {
           const parsed = parseToolCalls(strippedContent);
+          responseContent = parsed.content;
           if (parsed.toolCalls && parsed.toolCalls.length > 0) {
             const id = `chatcmpl-${randomUUID()}`;
             const created = Math.floor(Date.now() / 1000);
@@ -237,7 +240,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
               index: 0,
               message: {
                 role: "assistant" as const,
-                content: strippedContent || null,
+                content: responseContent,
                 ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
                 ...(upstreamToolCalls ? { tool_calls: upstreamToolCalls } : {}),
               },

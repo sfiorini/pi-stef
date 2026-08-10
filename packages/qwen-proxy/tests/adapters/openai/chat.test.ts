@@ -475,6 +475,40 @@ describe("POST /v1/chat/completions", () => {
     expect(body.choices[0].finish_reason).toBe("tool_calls");
   });
 
+  it("non-stream: malformed <tool_calls> → tag stripped, no tool_calls, finish_reason:stop", async () => {
+    const client = {
+      chatCompletions: async () => ({
+        id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+        choices: [{ index: 0, message: {
+          role: "assistant",
+          content: '<tool_calls>[garbage not json]</tool_calls>',
+        }, finish_reason: "stop" }],
+      }),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "What's the weather?" }],
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    // Content should NOT contain raw <tool_calls> tags — tag span stripped
+    const msgContent = body.choices[0].message.content;
+    expect(msgContent === null || (typeof msgContent === "string" && !msgContent.includes("<tool_calls>"))).toBe(true);
+    // No valid tool calls extracted
+    expect(body.choices[0].message.tool_calls).toBeUndefined();
+    expect(body.choices[0].finish_reason).toBe("stop");
+  });
+
   it("tool_choice:'none' → no injection, tools forwarded as-is", async () => {
     let chatCompletionsCalledWith: Record<string, unknown> | undefined;
     const client = {
