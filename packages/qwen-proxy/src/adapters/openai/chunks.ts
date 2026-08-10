@@ -1,12 +1,12 @@
 /**
  * OpenAI streaming chunk mappers.
  *
- * firstChunk: the initial SSE chunk with delta.role = "assistant"
- * mapChunk:   map a QwenChunk to an OpenAI delta chunk
- * TERMINATOR: the SSE "[DONE]" sentinel
+ * firstChunk:   the initial SSE chunk with delta.role = "assistant"
+ * mapOpenAiChunk: map a raw OpenAiChatChunk to a framed chat.completion.chunk
+ * TERMINATOR:   the SSE "[DONE]" sentinel
  */
 
-import type { QwenChunk } from "../../upstream/client";
+import type { OpenAiChatChunk } from "../../upstream/client";
 
 /** Initial chunk that sets delta.role = "assistant". */
 export function firstChunk(id: string, created: number, model: string) {
@@ -27,36 +27,31 @@ export function firstChunk(id: string, created: number, model: string) {
 }
 
 /**
- * Map a QwenChunk to an OpenAI streaming delta line.
+ * Map a raw OpenAiChatChunk to a framed chat.completion.chunk envelope.
  *
- * - phase:"think" → delta.reasoning_content
- * - phase:"answer" or phase-less with content → delta.content
- * - finishReason → finish_reason
- * - usage passthrough
- *
- * Returns null for chunks with neither phase nor content (skip).
+ * Extracts the first choice's delta and finish_reason, wrapping in the
+ * standard OpenAI streaming chunk structure. Usage is passed through
+ * when present.
  */
-export function mapChunk(chunk: QwenChunk): Record<string, unknown> | null {
-  // Skip chunks with neither phase, content, nor finishReason
-  if (!chunk.phase && !chunk.content && !chunk.finishReason) return null;
-
-  const delta: Record<string, unknown> = {};
-
-  if (chunk.phase === "think") {
-    delta.reasoning_content = chunk.content ?? "";
-  } else if (chunk.content || chunk.phase === "answer") {
-    // phase: "answer" or undefined (content-carrying)
-    delta.content = chunk.content ?? "";
-  }
+export function mapOpenAiChunk(
+  chunk: OpenAiChatChunk,
+  id: string,
+  created: number,
+  model: string,
+): Record<string, unknown> {
+  const choice = chunk.choices?.[0];
 
   const entry: Record<string, unknown> = {
+    id,
     object: "chat.completion.chunk",
+    created,
+    model,
     choices: [
       {
-        index: 0,
-        delta,
+        index: choice?.index ?? 0,
+        delta: choice?.delta ?? {},
         logprobs: null,
-        finish_reason: chunk.finishReason ?? null,
+        finish_reason: choice?.finish_reason ?? null,
       },
     ],
   };
