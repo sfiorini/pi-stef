@@ -255,8 +255,9 @@ export function chatRoutes(deps: ChatRouteDeps) {
           let sentFinishReason = false;
 
           for await (const chunk of streamIter) {
-            // D14: Check for sentinel ("done" in chunk)
-            if ("done" in chunk) {
+            // D14: Check for sentinel ("done" in chunk, but not a real OpenAiChatChunk which always has "choices")
+            const isSentinel = ("done" in chunk) && !("choices" in chunk);
+            if (isSentinel) {
               if (chunk.extra?.rateLimited) {
                 // Rate limit error mid-stream
                 write(
@@ -272,12 +273,14 @@ export function chatRoutes(deps: ChatRouteDeps) {
               break;
             }
 
-            const choice = chunk.choices?.[0];
+            // After sentinel guard, chunk is always a real OpenAiChatChunk
+            const c = chunk as OpenAiChatChunk;
+            const choice = c.choices?.[0];
             const delta = choice?.delta;
 
             // Pass reasoning_content through unstripped
             if (delta?.reasoning_content) {
-              const mapped = mapOpenAiChunk(chunk, id, created, model);
+              const mapped = mapOpenAiChunk(c, id, created, model);
               write(JSON.stringify(mapped));
             }
 
@@ -297,15 +300,15 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
             // Forward finish_reason
             if (choice?.finish_reason) {
-              const mapped = mapOpenAiChunk(chunk, id, created, model);
+              const mapped = mapOpenAiChunk(c, id, created, model);
               write(JSON.stringify(mapped));
               sentFinishReason = true;
             }
 
             // Forward usage
-            if (chunk.usage && !choice?.finish_reason && !choice?.delta?.content && !choice?.delta?.reasoning_content) {
+            if (c.usage && !choice?.finish_reason && !choice?.delta?.content && !choice?.delta?.reasoning_content) {
               // Pure usage chunk (no content/finish/reasoning)
-              const mapped = mapOpenAiChunk(chunk, id, created, model);
+              const mapped = mapOpenAiChunk(c, id, created, model);
               write(JSON.stringify(mapped));
             }
           }

@@ -366,6 +366,32 @@ describe("streamAnthropicEvents", () => {
     expect(events.find((e) => e.event === "error")).toBeUndefined();
   });
 
+  // ── 6b: done+choices chunk is NOT treated as sentinel (audit F2) ──
+
+  it("chunk with done+choices is NOT treated as sentinel (audit F2)", async () => {
+    async function* gen(): AsyncIterable<StreamChunk> {
+      yield ck({ content: "enough text for stripper to emit" });
+      // A hypothetical upstream chunk with both done and choices — not a sentinel
+      yield { done: true, choices: [{ delta: { content: " more" }, finish_reason: "stop" }] } as any;
+    }
+
+    const output = await collectEvents(
+      streamAnthropicEvents(gen(), { model: "qwen3-max", inputTokens: 1 }),
+    );
+    const events = parseEvents(output);
+
+    // Should NOT have an error event — this is a normal chunk
+    expect(events.find((e) => e.event === "error")).toBeUndefined();
+
+    // Should have terminal events (message_delta + message_stop)
+    expect(events.find((e) => e.event === "message_delta")).toBeDefined();
+    expect(events[events.length - 1].event).toBe("message_stop");
+
+    // Content should include the first chunk's text
+    const { text } = extractContent(output);
+    expect(text).toContain("enough text for stripper to emit");
+  });
+
   // ── 7: 30s ping ──
 
   it("30s idle → ping event", async () => {

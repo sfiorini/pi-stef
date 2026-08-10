@@ -157,7 +157,8 @@ export async function* withPoolRetryStream(
 
 /**
  * A chunk carries real content if it has delta.content or delta.reasoning_content.
- * Use `("done" in chunk)` to narrow to the sentinel before accessing `extra`.
+ * Use `("done" in chunk) && !("choices" in chunk)` to narrow to the sentinel
+ * before accessing `extra`. A real OpenAiChatChunk always has `choices`.
  */
 export function isContentChunk(chunk: OpenAiChatChunk): boolean {
   return Boolean(

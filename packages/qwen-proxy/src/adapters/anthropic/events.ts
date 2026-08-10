@@ -13,6 +13,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { StreamChunk } from "../../pool/retry";
+import type { OpenAiChatChunk } from "../../upstream/client";
 import { DetailsStreamStripper } from "../../upstream/details-strip";
 
 export interface StreamAnthropicEventsOpts {
@@ -121,8 +122,9 @@ export async function* streamAnthropicEvents(
         break;
       }
 
-      // Narrow to the sentinel shape
-      if ("done" in rawChunk) {
+      // Narrow to the sentinel shape ("done" in chunk, but not a real OpenAiChatChunk which always has "choices")
+      const isSentinel = ("done" in rawChunk) && !("choices" in rawChunk);
+      if (isSentinel) {
         const sentinel = rawChunk as { done: true; extra?: { rateLimited?: boolean } };
         if (sentinel.extra?.rateLimited) {
           // D14: terminal error event
@@ -142,7 +144,7 @@ export async function* streamAnthropicEvents(
 
       // ── Process OpenAiChatChunk ────────────────────────────────────────
 
-      const chunk = rawChunk;
+      const chunk = rawChunk as OpenAiChatChunk;
       const delta = chunk.choices?.[0]?.delta ?? {};
       const chunkFinishReason = chunk.choices?.[0]?.finish_reason;
       const usage = chunk.usage;

@@ -627,6 +627,50 @@ describe("POST /v1/chat/completions", () => {
     expect(dataLines[dataLines.length - 1]).toBe("data: [DONE]");
   });
 
+  it("chunk with done+choices is NOT treated as sentinel (audit F2)", async () => {
+    async function* streamChunks() {
+      yield { choices: [{ delta: { content: "hello" } }] } as OpenAiChatChunk;
+      // A hypothetical upstream chunk that has both "done" and "choices" fields
+      // should NOT trigger the sentinel path
+      yield { done: true, choices: [{ delta: { content: " world" }, finish_reason: "stop" }] } as any;
+    }
+
+    const client = {
+      chatCompletions: () => streamChunks(),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
+    });
+
+    expect(res.status).toBe(200);
+    const text = await res.text();
+    const dataLines = text.split("\n").filter((l) => l.startsWith("data: "));
+
+    // Should NOT contain an error event — this is a normal chunk, not a sentinel
+    const errorLine = dataLines.find((l) => {
+      try { return JSON.parse(l.slice(6)).error !== undefined; } catch { return false; }
+    });
+    expect(errorLine).toBeUndefined();
+
+    // Both content chunks should be present in the output (details stripper may
+    // buffer/merge them, so just check all content chars are there)
+    const contentChunks = dataLines
+      .filter((l) => { try { const d = JSON.parse(l.slice(6)); return d.choices?.[0]?.delta?.content; } catch { return false; } })
+      .map((l) => JSON.parse(l.slice(6)).choices[0].delta.content);
+    const allContent = contentChunks.join("");
+    expect(allContent).toContain("llo");
+    expect(allContent).toContain(" world");
+
+    // Last line is [DONE]
+    expect(dataLines[dataLines.length - 1]).toBe("data: [DONE]");
+  });
+
   // ── F1 failover ────────────────────────────────────────────────────────
 
   it("non-stream: chatCompletions RateLimitError triggers failover via retry", async () => {
