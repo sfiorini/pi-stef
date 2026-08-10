@@ -273,6 +273,50 @@ describe("AuthScheduler", () => {
     schedulerB.stop();
   });
 
+  it("(2b) long-lived JWT (>24.8d) caps refresh delay at the setTimeout 32-bit max", async () => {
+    // Regression: a token expiring in ~30 days yields a raw delay of ~2.57e9 ms,
+    // which overflows Node's 32-bit setTimeout (max ~24.8 days / 2^31-1 ms) and
+    // would spin at 1ms. The scheduler must cap the delay at MAX_TIMEOUT_MS.
+    const nowMs = 1_700_000_000_000;
+    vi.setSystemTime(nowMs);
+    const nowSec = nowMs / 1000;
+
+    const jwtRefreshMs = 21_600_000; // 6h
+    const refreshThresholdMs = 21_600_000; // 6h
+    const MAX_TIMEOUT_MS = 2_147_483_000; // mirrors the cap in auth.ts
+
+    // Token expires in 30 days → raw delay = 30d - 6h threshold = 2,570,400,000 ms (> cap)
+    const expSec = nowSec + 30 * 86_400;
+    const bearer = fakeJwt(expSec);
+    let loginCount = 0;
+    const login = vi.fn<(email: string, password: string) => Promise<LoginResult>>().mockImplementation(async () => {
+      loginCount++;
+      return { bearer, expiresAt: expSec * 1000 };
+    });
+
+    const deps = makeSchedulerDeps(login as unknown as LoginFn, {
+      accounts: [{ id: 20, email: "c@test.com", password: "pw", ord: 20 }],
+      jwtRefreshMs,
+      refreshThresholdMs,
+      refreshIntervalMs: 999_999_999, // cookie jar never fires
+    });
+    const scheduler = new AuthScheduler(deps);
+    const start = scheduler.start();
+    await vi.advanceTimersByTimeAsync(0);
+    await start;
+    loginCount = 0;
+
+    // One ms short of the cap → the capped timer has NOT fired yet
+    await vi.advanceTimersByTimeAsync(MAX_TIMEOUT_MS - 1);
+    expect(loginCount).toBe(0);
+
+    // Cross the cap → the refresh timer (capped, not the raw ~2.57e9) fires once
+    await vi.advanceTimersByTimeAsync(2);
+    expect(loginCount).toBe(1);
+
+    scheduler.stop();
+  });
+
   it("(3) non-JWT (expiresAt=null) uses fixed jwtRefreshMs + emits exactly ONE warn", async () => {
     const login = vi.fn<(email: string, password: string) => Promise<LoginResult>>().mockResolvedValue({
       bearer: "opaque-token-not-jwt",

@@ -180,10 +180,16 @@ export class AuthScheduler {
     this.clearAccountTimer(accountId);
 
     if (expiresAt != null) {
-      // JWT path: setTimeout at max(jwtRefreshMs, expiresAt - refreshThresholdMs)
-      const delay = Math.max(
-        this.config.jwtRefreshMs,
-        expiresAt - this.config.refreshThresholdMs - this.now(),
+      // JWT path: refresh `refreshThresholdMs` before expiry, but no sooner than
+      // every `jwtRefreshMs`. Cap at Node's 32-bit setTimeout max (~24.8 days) so
+      // a long-lived token (e.g. a 30-day JWT) doesn't overflow into a 1ms spin.
+      const MAX_TIMEOUT_MS = 2_147_483_000; // just under 2^31 - 1
+      const delay = Math.min(
+        Math.max(
+          this.config.jwtRefreshMs,
+          expiresAt - this.config.refreshThresholdMs - this.now(),
+        ),
+        MAX_TIMEOUT_MS,
       );
 
       const timerId = setTimeout(() => {
