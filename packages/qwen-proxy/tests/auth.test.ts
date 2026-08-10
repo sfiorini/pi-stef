@@ -41,6 +41,7 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
     accounts: [
       { id: 1, email: "a@b.com", password: "pw1", ord: 1 },
     ],
+    adminKey: undefined,
     ...overrides,
   };
 }

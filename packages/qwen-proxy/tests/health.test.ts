@@ -32,6 +32,7 @@ function makeStubDeps(): AppDeps {
       modelAliasesRaw: "",
       logLevel: "info",
       accounts: [],
+      adminKey: undefined,
     },
     retry: (async () => {}) as any,
     retryStream: (async function* () {}) as any,
