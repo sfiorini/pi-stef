@@ -234,7 +234,8 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       stream: boolean;
       enable_thinking?: boolean;
       thinking_budget?: number;
-      tools?: { type: string }[];
+      tools?: unknown[];
+      tool_choice?: unknown;
     },
   ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk> {
     // Thin body — just the essential fields, no rich wrapping
@@ -246,6 +247,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
     if (body.enable_thinking !== undefined) thinBody.enable_thinking = body.enable_thinking;
     if (body.thinking_budget !== undefined) thinBody.thinking_budget = body.thinking_budget;
     if (body.tools !== undefined) thinBody.tools = body.tools;
+    if (body.tool_choice !== undefined) thinBody.tool_choice = body.tool_choice;
 
     if (body.stream) {
       return streamChatCompletion(bearer, thinBody);

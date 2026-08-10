@@ -5,7 +5,7 @@
  * Resolves model aliases + capability suffixes (-thinking, -search).
  * Pool exhausted → 429 rate_limit_error.
  * Sentinel mid-stream → error event + [DONE] (D14).
- * Function-calling tools rejected → 400.
+ * Function-calling tools/tool_choice passed through to upstream.
  * Details-strip on delta.content only (never reasoning_content).
  */
 

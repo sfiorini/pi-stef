@@ -379,6 +379,68 @@ describe("POST /v1/chat/completions", () => {
     );
   });
 
+  it("function-calling tools + tool_choice forwarded to upstream", async () => {
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "What's the weather?" }],
+        tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object" } } }],
+        tool_choice: "auto",
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(chatCompletionsCalledWith).toEqual(
+      expect.objectContaining({
+        tools: [{ type: "function", function: { name: "get_weather", parameters: { type: "object" } } }],
+        tool_choice: "auto",
+      }),
+    );
+  });
+
+  it("non-stream response passes tool_calls through", async () => {
+    const client = {
+      chatCompletions: async () => ({
+        id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+        choices: [{ index: 0, message: { role: "assistant", content: null, tool_calls: [{ id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"location":"Tokyo"}' } }] }, finish_reason: "tool_calls" }],
+      }),
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "What's the weather?" }],
+        tools: [{ type: "function", function: { name: "get_weather" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.choices[0].message.tool_calls).toEqual([
+      { id: "call_1", type: "function", function: { name: "get_weather", arguments: '{"location":"Tokyo"}' } },
+    ]);
+    expect(body.choices[0].finish_reason).toBe("tool_calls");
+  });
+
   // ── Alias resolution ────────────────────────────────────────────────────
 
   it("resolves aliases from config", async () => {
