@@ -34,7 +34,7 @@ pi install npm:@pi-stef/catalog
 | [web](packages/web/README.md) | extension | Web search, URL fetch, and browser sessions | `pi install npm:@pi-stef/web` |
 | [finance](packages/finance/README.md) | extension | Portfolio tracking, drift analysis, and investment suggestions | `pi install npm:@pi-stef/finance` |
 | [finance-api](packages/finance-api/README.md) | service | Always-on local service for financial data ingestion and quant engine | Docker/native (see README) |
-| [qwen-proxy](packages/qwen-proxy/README.md) | service | Multi-account proxy for the Qwen AI API with OpenAI + Anthropic compatibility | Docker/native (see README) |
+| [qwen-proxy](packages/qwen-proxy/README.md) | service | Multi-account proxy forwarding to the qwen.aikit.club OpenAI gateway (chat.qwen.ai login) with OpenAI + Anthropic compatibility | Docker/native (see README) |
 
 ## Package Management
 
