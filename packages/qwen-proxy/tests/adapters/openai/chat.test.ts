@@ -315,7 +315,7 @@ describe("POST /v1/chat/completions", () => {
 
   // ── Function-calling rejection ──────────────────────────────────────────
 
-  it("tools:[{type:'function'}] → 400 function_calling_not_supported", async () => {
+  it("function-calling tools passthrough (qwen.aikit.club supports via prompt-engineering)", async () => {
     const deps = makeDeps(db);
     const app = createTestApp(deps);
 
@@ -329,12 +329,10 @@ describe("POST /v1/chat/completions", () => {
       }),
     });
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error.code).toBe("function_calling_not_supported");
+    expect(res.status).toBe(200);
   });
 
-  it("tool_choice present → 400 function_calling_not_supported", async () => {
+  it("tool_choice passthrough (not rejected)", async () => {
     const deps = makeDeps(db);
     const app = createTestApp(deps);
 
@@ -349,9 +347,7 @@ describe("POST /v1/chat/completions", () => {
       }),
     });
 
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error.code).toBe("function_calling_not_supported");
+    expect(res.status).toBe(200);
   });
 
   it("tools:[{type:'web_search'}] passthrough (not rejected)", async () => {

@@ -238,7 +238,7 @@ Synchronous video generation can take 300+ seconds. Ensure your reverse proxy an
 
 ### Function calling
 
-OpenAI-style function calling (`tools:[{type:"function"}]` or `tool_choice`) is **not supported** and returns **400**. To use Qwen's built-in search, pass `tools:[{type:"web_search"}]` or append `-search` to the model name (e.g. `qwen3-max-search`).
+OpenAI-style function calling (`tools`/`tool_choice`) is **supported** — qwen.aikit.club translates function definitions via prompt-engineering. `tools:[{type:"web_search"}]` and the `-search` model suffix also work for Qwen's built-in search.
 
 ### Thinking mode
 
@@ -325,4 +325,4 @@ The admin dashboard returns 404 (not 401) when `SF_QWEN_ADMIN_KEY` is unset. Thi
 
 ### D18 — qwen.aikit.club repoint
 
-The proxy forwards to the third-party [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway (not directly to chat.qwen.ai). Video generation is synchronous (POST blocks until URL; no job polling). OpenAI function-calling (`tools:[{type:"function"}]` / `tool_choice`) is rejected with 400 — use `-search` suffix or `tools:[{type:"web_search"}]`. The gateway handles anti-bot internally; the proxy authenticates with JWT only. `<details>` junk from upstream is stripped at the adapter boundary. Upstream reliability is coupled to the third-party CF Worker; self-host via `SF_QWEN_API_URL` for uptime control.
+The proxy forwards to the third-party [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway (not directly to chat.qwen.ai). Video generation is synchronous (POST blocks until URL; no job polling). OpenAI function-calling (`tools`/`tool_choice`) is supported (qwen.aikit.club translates via prompt-engineering). The gateway handles anti-bot internally; the proxy authenticates with JWT only. `<details>` junk from upstream is stripped at the adapter boundary. Upstream reliability is coupled to the third-party CF Worker; self-host via `SF_QWEN_API_URL` for uptime control.

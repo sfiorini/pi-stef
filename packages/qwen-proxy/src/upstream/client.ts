@@ -47,6 +47,7 @@ export interface OpenAiChatChunk {
       role?: string;
       content?: string;
       reasoning_content?: string;
+      tool_calls?: unknown[];
     };
     finish_reason?: string | null;
   }[];
@@ -70,6 +71,7 @@ export interface OpenAiChatCompletion {
       role: string;
       content: string;
       reasoning_content?: string;
+      tool_calls?: unknown[];
     };
     finish_reason?: string;
   }[];

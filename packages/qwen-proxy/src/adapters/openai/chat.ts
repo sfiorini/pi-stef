@@ -58,27 +58,6 @@ function flattenContent(content: unknown): string {
   return "";
 }
 
-/**
- * Check if the SDK body contains function-calling tools (rejected).
- * Only {type:"web_search"} and {type:"code"} are allowed.
- */
-function hasFunctionCallingTools(b: Record<string, unknown>): boolean {
-  // tool_choice present → always rejected
-  if (b.tool_choice !== undefined) return true;
-
-  const tools = b.tools;
-  if (!Array.isArray(tools)) return false;
-
-  return tools.some((t: unknown) => {
-    const tool = t as Record<string, unknown>;
-    if (!tool || typeof tool !== "object") return false;
-    // Explicit function type or function/parameters properties → function calling
-    if (tool.type === "function") return true;
-    if (tool.function !== undefined) return true;
-    if (tool.parameters !== undefined) return true;
-    return false;
-  });
-}
 
 export function chatRoutes(deps: ChatRouteDeps) {
   const r = createOpenApiSubApp();
@@ -125,13 +104,6 @@ export function chatRoutes(deps: ChatRouteDeps) {
       });
     }
 
-    // R3-2: Reject function-calling tools
-    if (hasFunctionCallingTools(b)) {
-      return openaiError(c, 400, "Function calling is not supported. Use tools:[{type:'web_search'}] for web search.", {
-        code: "function_calling_not_supported",
-      });
-    }
-
     // Flatten messages to upstream format
     const flatMessages = messages.map((m) => ({
       role: m.role,
@@ -165,9 +137,13 @@ export function chatRoutes(deps: ChatRouteDeps) {
       upstreamBody.thinking_budget = b.thinking_budget;
     }
 
-    // Explicit tools passthrough (already validated as non-function-calling)
+    // Tools passthrough — qwen.aikit.club supports OpenAI function-calling (tools/tool_choice)
+    // via prompt-engineering, plus native web_search/code tools
     if (Array.isArray(b.tools)) {
       upstreamBody.tools = b.tools;
+    }
+    if (b.tool_choice !== undefined) {
+      upstreamBody.tool_choice = b.tool_choice;
     }
 
     // ── Non-stream ────────────────────────────────────────────────────────
@@ -182,6 +158,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
         const msg = completion.choices?.[0]?.message;
         const content = msg?.content ?? "";
         const reasoningContent = msg?.reasoning_content;
+        const toolCalls = msg?.tool_calls;
         const finishReason = completion.choices?.[0]?.finish_reason ?? "stop";
         const usage = completion.usage;
 
@@ -203,6 +180,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
                 role: "assistant" as const,
                 content: strippedContent || null,
                 ...(reasoningContent ? { reasoning_content: reasoningContent } : {}),
+                ...(toolCalls ? { tool_calls: toolCalls } : {}),
               },
               finish_reason: finishReason,
             },
@@ -281,6 +259,13 @@ export function chatRoutes(deps: ChatRouteDeps) {
             // Pass reasoning_content through unstripped (but strip co-carried content to
             // prevent unstripped <details> bypass — audit F3)
             if (delta?.reasoning_content) {
+              const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
+              const mapped = mapOpenAiChunk(safeChunk, id, created, model);
+              write(JSON.stringify(mapped));
+            }
+
+            // Forward tool_calls (function calling) — pass through, strip co-carried content
+            if (delta?.tool_calls) {
               const safeChunk = { ...c, choices: [{ ...choice, delta: { ...delta, content: undefined } }] };
               const mapped = mapOpenAiChunk(safeChunk, id, created, model);
               write(JSON.stringify(mapped));
