@@ -26,6 +26,7 @@ import { healthRoutes } from "./health";
 import { clientAuthGate } from "./auth";
 import { openaiRoutes, type OpenAIRouteDeps } from "../adapters/openai";
 import { anthropicRoutes, type AnthropicRouteDeps } from "../adapters/anthropic";
+import { adminRoutes } from "./admin-routes";
 import { openaiError } from "../adapters/openai/errors";
 import { anthropicError } from "../adapters/anthropic/errors";
 import {
@@ -136,6 +137,9 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     retryStream: deps.retryStream,
   };
   app.route("/v1", anthropicRoutes(anthropicDeps));
+
+  // 5. Admin dashboard (NOT under /v1/* — bypasses clientAuthGate; gated by adminGate inside the sub-app)
+  app.route("/admin", adminRoutes({ db: deps.db, adminKey: deps.config.adminKey, log: deps.log }));
 
   return app;
 }

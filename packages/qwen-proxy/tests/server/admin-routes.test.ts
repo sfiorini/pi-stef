@@ -18,6 +18,11 @@ import type {
   AdminLoginFailureRow,
   AdminVideoJobCount,
 } from "../../src/store/admin";
+import { createApp } from "../../src/server/app";
+import { openDb } from "../../src/store/db";
+import { reconcileAccounts } from "../../src/store/repo";
+import { AccountPool } from "../../src/pool/state";
+import type { AppDeps } from "../../src/server/app";
 
 // ── escapeHtml ──────────────────────────────────────────────────────────────
 
@@ -212,5 +217,109 @@ describe("renderUsageSection", () => {
     expect(html).toContain("3"); // failure count
     expect(html).toContain("5m ago"); // token refresh recency
     expect(html).toContain("10"); // video count
+  });
+});
+
+// ── Integration tests via createApp ─────────────────────────────────────────
+
+const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
+
+function makeStubDeps(adminKey?: string): AppDeps {
+  const db = openDb(":memory:");
+  reconcileAccounts(db, []);
+  const pool = new AccountPool({ db, log: noopLog });
+  pool.hydrate();
+  return {
+    db,
+    pool,
+    client: {} as any,
+    scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+    config: {
+      host: "127.0.0.1",
+      port: 0,
+      dbPath: ":memory:",
+      authUrl: "",
+      apiUrl: "",
+      refreshIntervalMs: 900000,
+      jwtRefreshMs: 21600000,
+      refreshThresholdMs: 21600000,
+      loginTimeoutMs: 10000,
+      staggerMs: 5000,
+      rateLimitCooldownMs: 86400000,
+      reenableIntervalMs: 60000,
+      apiKeyEnv: [],
+      modelAliasesRaw: "",
+      logLevel: "info",
+      accounts: [],
+      adminKey,
+    },
+    retry: (async () => {}) as any,
+    retryStream: (async function* () {}) as any,
+    media: {
+      db,
+      pool,
+      client: {} as any,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60000 },
+      log: noopLog,
+      retry: (async () => {}) as any,
+      submitVideo: async () => ({ jobId: "" }),
+      getVideoJob: () => undefined,
+    },
+    videoDaemon: { start: () => {}, stop: () => {} } as any,
+    log: noopLog,
+  };
+}
+
+describe("adminRoutes integration via createApp", () => {
+  it("GET /admin?key=test-admin-key returns 200 with escaped HTML", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    // Seed an account with XSS email
+    reconcileAccounts(deps.db, [
+      { id: 1, email: "a<b>@test.com", password: "pw", ord: 1 },
+    ]);
+    // Set account active
+    deps.db.prepare("UPDATE accounts SET state = 'active' WHERE id = 1").run();
+
+    const app = createApp(deps);
+    const res = await app.request("/admin?key=test-admin-key");
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("Content-Type")).toContain("text/html");
+    const body = await res.text();
+    expect(body).toContain("<html");
+    expect(body).toContain("a&lt;b&gt;@test.com");
+    expect(body).not.toContain("a<b>@test.com");
+    expect(body).toContain("Accounts");
+    expect(body).toContain("Tokens");
+    expect(body).toContain("setInterval");
+  });
+
+  it("GET /admin without auth returns 401", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const app = createApp(deps);
+    const res = await app.request("/admin");
+    expect(res.status).toBe(401);
+  });
+
+  it("GET /admin with adminKey undefined returns 404 (D15)", async () => {
+    const deps = makeStubDeps(undefined);
+    const app = createApp(deps);
+    const res = await app.request("/admin");
+    expect(res.status).toBe(404);
+  });
+
+  it("/admin is absent from OpenAPI document", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const app = createApp(deps);
+    const doc = (app as any).getOpenAPI31Document({});
+    expect(Object.keys(doc.paths ?? {})).not.toContain("/admin");
+  });
+
+  it("GET /v1/health still returns 200 (no regression)", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const app = createApp(deps);
+    const res = await app.request("/v1/health");
+    expect(res.status).toBe(200);
   });
 });
