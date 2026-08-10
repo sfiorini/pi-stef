@@ -1,4 +1,4 @@
-import type { QwenChunk } from "../upstream/client";
+import type { OpenAiChatChunk } from "../upstream/client";
 import { RateLimitError, AuthExpiredError } from "../upstream/errors";
 import type { AuthScheduler } from "../upstream/auth";
 import type { AccountPool } from "./state";
@@ -8,8 +8,17 @@ export interface RetryDeps {
   pool: AccountPool;
   scheduler: Pick<AuthScheduler, "refreshOnDemand">;
   config: { rateLimitCooldownMs: number };
-  log: { info: (msg: string, ctx?: unknown) => void; warn: (msg: string, ctx?: unknown) => void; error: (msg: string, ctx?: unknown) => void };
+  log: {
+    info: (msg: string, ctx?: unknown) => void;
+    warn: (msg: string, ctx?: unknown) => void;
+    error: (msg: string, ctx?: unknown) => void;
+  };
 }
+
+/** The union of raw upstream chunks and the one synthetic sentinel chunk. */
+export type StreamChunk =
+  | OpenAiChatChunk
+  | { done: true; extra?: { rateLimited?: boolean } };
 
 /**
  * Non-stream retry: RateLimitError → switch account → retry; AuthExpiredError → refresh → retry same.
@@ -36,10 +45,8 @@ export async function withPoolRetry<T>(
           deps.config.rateLimitCooldownMs,
         );
         if (result.newActiveId !== null && !tried.has(result.newActiveId)) {
-          // Retry with new account
           continue;
         }
-        // Exhausted or all accounts tried
         throw new PoolExhaustedError(deps.pool.earliestReEnableAt());
       }
 
@@ -47,14 +54,11 @@ export async function withPoolRetry<T>(
         if (authRefreshedFor !== id) {
           authRefreshedFor = id;
           await deps.scheduler.refreshOnDemand(id);
-          // Retry on same account (don't add to tried — it's a refresh, not a switch)
           continue;
         }
-        // Already refreshed this account — surface the error
         throw err;
       }
 
-      // All other errors surface immediately
       throw err;
     }
   }
@@ -64,7 +68,7 @@ export async function withPoolRetry<T>(
  * Stream retry with PRE/POST first-content-token split.
  *
  * PRE-first-content-token:
- *   - Buffer control chunks (no phase:"answer" / no content).
+ *   - Buffer control chunks (no content / no reasoning_content).
  *   - RateLimitError → switch + re-invoke + discard buffer.
  *   - AuthExpiredError → refresh + retry same.
  *
@@ -76,8 +80,8 @@ export async function withPoolRetry<T>(
  */
 export async function* withPoolRetryStream(
   deps: RetryDeps,
-  op: (accountId: number, bearer: string) => AsyncIterable<QwenChunk>,
-): AsyncIterable<QwenChunk> {
+  op: (accountId: number, bearer: string) => AsyncIterable<OpenAiChatChunk>,
+): AsyncIterable<StreamChunk> {
   const tried = new Set<number>();
   let authRefreshedFor: number | null = null;
 
@@ -85,7 +89,7 @@ export async function* withPoolRetryStream(
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
 
-    const buffer: QwenChunk[] = [];
+    const buffer: StreamChunk[] = [];
     let seenContent = false;
 
     try {
@@ -119,7 +123,7 @@ export async function* withPoolRetryStream(
             deps.config.rateLimitCooldownMs,
           );
           if (result.newActiveId !== null && !tried.has(result.newActiveId)) {
-            continue; // retry with new account
+            continue;
           }
           throw new PoolExhaustedError(deps.pool.earliestReEnableAt());
         } else {
@@ -127,7 +131,9 @@ export async function* withPoolRetryStream(
           deps.pool
             .markRateLimitedAndSwitch(id, deps.config.rateLimitCooldownMs)
             .catch(() => {
-              deps.log.error("background switch failed after mid-stream rate limit");
+              deps.log.error(
+                "background switch failed after mid-stream rate limit",
+              );
             });
           yield { done: true, extra: { rateLimited: true } };
           return;
@@ -138,7 +144,7 @@ export async function* withPoolRetryStream(
         if (!seenContent && authRefreshedFor !== id) {
           authRefreshedFor = id;
           await deps.scheduler.refreshOnDemand(id);
-          continue; // retry same account
+          continue;
         }
         throw err;
       }
@@ -149,9 +155,13 @@ export async function* withPoolRetryStream(
   }
 }
 
-/** A chunk carries real content if it has phase:"answer" or a non-empty content string. */
-function isContentChunk(chunk: QwenChunk): boolean {
-  if (chunk.phase === "answer") return true;
-  if (chunk.content && chunk.content.length > 0) return true;
-  return false;
+/**
+ * A chunk carries real content if it has delta.content or delta.reasoning_content.
+ * Use `("done" in chunk)` to narrow to the sentinel before accessing `extra`.
+ */
+export function isContentChunk(chunk: OpenAiChatChunk): boolean {
+  return Boolean(
+    chunk.choices?.[0]?.delta?.content ||
+      chunk.choices?.[0]?.delta?.reasoning_content,
+  );
 }

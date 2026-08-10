@@ -6,7 +6,9 @@ import { AccountPool } from "../../src/pool/state";
 import {
   withPoolRetry,
   withPoolRetryStream,
+  isContentChunk,
   type RetryDeps,
+  type StreamChunk,
 } from "../../src/pool/retry";
 import { PoolExhaustedError } from "../../src/pool/errors";
 import {
@@ -14,9 +16,9 @@ import {
   AuthExpiredError,
   ClientError,
 } from "../../src/upstream/errors";
+import type { OpenAiChatChunk } from "../../src/upstream/client";
 import type { Account } from "../../src/config/types";
 import type { Logger } from "../../src/server/logger";
-import type { QwenChunk } from "../../src/upstream/client";
 
 const ACCOUNTS: Account[] = [
   { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
@@ -36,14 +38,12 @@ function promote(db: Database.Database, id: number) {
   ).run(id);
 }
 
-/** Build RetryDeps with a stub scheduler. */
 function makeDeps(
   db: Database.Database,
   overrides?: Partial<RetryDeps>,
 ): RetryDeps {
   const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
   pool.hydrate();
-  // Give every existing account a bearer
   const accts = db
     .prepare("SELECT id FROM accounts")
     .all() as { id: number }[];
@@ -64,6 +64,46 @@ function makeDeps(
   };
 }
 
+// ── OpenAiChatChunk test stubs ──────────────────────────────────────────────
+
+function contentChunk(content: string): OpenAiChatChunk {
+  return { choices: [{ delta: { content } }] };
+}
+
+function reasoningChunk(reasoning: string): OpenAiChatChunk {
+  return { choices: [{ delta: { reasoning_content: reasoning } }] };
+}
+
+function finishChunk(finishReason: string): OpenAiChatChunk {
+  return { choices: [{ delta: {}, finish_reason: finishReason }] };
+}
+
+// ── isContentChunk ──────────────────────────────────────────────────────────
+
+describe("isContentChunk", () => {
+  it("returns true for chunk with delta.content", () => {
+    expect(isContentChunk(contentChunk("hello"))).toBe(true);
+  });
+
+  it("returns true for chunk with delta.reasoning_content", () => {
+    expect(isContentChunk(reasoningChunk("thinking..."))).toBe(true);
+  });
+
+  it("returns false for chunk with no content or reasoning_content", () => {
+    expect(isContentChunk({ choices: [{ delta: {} }] })).toBe(false);
+  });
+
+  it("returns false for chunk with empty content string", () => {
+    expect(isContentChunk({ choices: [{ delta: { content: "" } }] })).toBe(false);
+  });
+
+  it("returns false for finish_reason-only chunk", () => {
+    expect(isContentChunk(finishChunk("stop"))).toBe(false);
+  });
+});
+
+// ── withPoolRetry (unchanged logic) ─────────────────────────────────────────
+
 describe("withPoolRetry", () => {
   it("returns result on first success", async () => {
     const db = openDb(":memory:");
@@ -71,9 +111,7 @@ describe("withPoolRetry", () => {
     promote(db, 1);
     const deps = makeDeps(db);
 
-    const result = await withPoolRetry(deps, async (_id, _bearer) => {
-      return "ok";
-    });
+    const result = await withPoolRetry(deps, async (_id, _bearer) => "ok");
     expect(result).toBe("ok");
     db.close();
   });
@@ -167,24 +205,25 @@ describe("withPoolRetry", () => {
       }),
     ).rejects.toThrow(PoolExhaustedError);
 
-    // Should have tried 3 accounts exactly once each
     expect(triedIds).toEqual([1, 2, 3]);
     db.close();
   });
 });
 
+// ── withPoolRetryStream (OpenAiChatChunk + StreamChunk) ─────────────────────
+
 describe("withPoolRetryStream", () => {
   async function collectChunks(
-    iter: AsyncIterable<QwenChunk>,
-  ): Promise<QwenChunk[]> {
-    const chunks: QwenChunk[] = [];
+    iter: AsyncIterable<StreamChunk>,
+  ): Promise<StreamChunk[]> {
+    const chunks: StreamChunk[] = [];
     for await (const chunk of iter) {
       chunks.push(chunk);
     }
     return chunks;
   }
 
-  it("yields all chunks on clean stream", async () => {
+  it("yields all OpenAiChatChunks on clean stream", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -193,22 +232,22 @@ describe("withPoolRetryStream", () => {
     async function* op(
       _id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
-      yield { phase: "answer", content: "hello" };
-      yield { phase: "answer", content: " world" };
-      yield { done: true };
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("hello");
+      yield contentChunk(" world");
+      yield finishChunk("stop");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
     expect(chunks).toEqual([
-      { phase: "answer", content: "hello" },
-      { phase: "answer", content: " world" },
-      { done: true },
+      contentChunk("hello"),
+      contentChunk(" world"),
+      finishChunk("stop"),
     ]);
     db.close();
   });
 
-  it("pre-first-token RateLimitError → switch + re-invoke, no output lost", async () => {
+  it("pre-first-content RateLimitError → switch + re-invoke, buffer discarded", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -218,29 +257,25 @@ describe("withPoolRetryStream", () => {
     async function* op(
       id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
+    ): AsyncIterable<OpenAiChatChunk> {
       callCount++;
       if (id === 1) {
-        // Yield a control chunk then throw (before any content token)
-        yield { extra: { thinking: true } };
+        // Control chunk (no content) then throw
+        yield finishChunk("stop");
         throw new RateLimitError("rate limited");
       }
-      // Second call on new account — produce real content
-      yield { phase: "answer", content: "recovered" };
-      yield { done: true };
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // Control chunks from the failed attempt should be discarded
-    expect(chunks).toEqual([
-      { phase: "answer", content: "recovered" },
-      { done: true },
-    ]);
+    // Control chunks from failed attempt discarded
+    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
     expect(callCount).toBe(2);
     db.close();
   });
 
-  it("post-first-token RateLimitError → sentinel + terminate", async () => {
+  it("post-first-content RateLimitError → D14 sentinel + terminate", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -249,23 +284,27 @@ describe("withPoolRetryStream", () => {
     async function* op(
       _id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
-      // First content token (enters post-first-content-token phase)
-      yield { phase: "answer", content: "partial" };
-      // Then rate limited
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("partial");
       throw new RateLimitError("rate limited");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // Should have: the content chunk, then the D14 sentinel
-    expect(chunks[0]).toEqual({ phase: "answer", content: "partial" });
-    expect(chunks[1]).toEqual({ done: true, extra: { rateLimited: true } });
-    // Should not have any more chunks after sentinel
+    expect(chunks[0]).toEqual(contentChunk("partial"));
+
+    // D14 sentinel: type-narrow with "done" in chunk (F5)
+    const sentinel = chunks[1];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel with done=true");
+    }
     expect(chunks).toHaveLength(2);
     db.close();
   });
 
-  it("pre-first-token AuthExpiredError → refresh + retry same account", async () => {
+  it("pre-first-content AuthExpiredError → refresh + retry same account", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -283,21 +322,21 @@ describe("withPoolRetryStream", () => {
     async function* op(
       _id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
+    ): AsyncIterable<OpenAiChatChunk> {
       callCount++;
       if (callCount === 1) throw new AuthExpiredError("expired");
-      yield { phase: "answer", content: "ok" };
-      yield { done: true };
+      yield contentChunk("ok");
+      yield finishChunk("stop");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
     expect(refreshCalled).toBe(true);
     expect(callCount).toBe(2);
-    expect(chunks[0]).toEqual({ phase: "answer", content: "ok" });
+    expect(chunks[0]).toEqual(contentChunk("ok"));
     db.close();
   });
 
-  it("cycle guard in stream: each account tried at most once", async () => {
+  it("cycle guard: each account tried at most once", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -307,12 +346,11 @@ describe("withPoolRetryStream", () => {
     async function* op(
       id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
+    ): AsyncIterable<OpenAiChatChunk> {
       triedIds.push(id);
       throw new RateLimitError("rate limited");
     }
 
-    // All accounts failed before content → PoolExhaustedError propagates
     await expect(
       collectChunks(withPoolRetryStream(deps, op)),
     ).rejects.toThrow(PoolExhaustedError);
@@ -320,7 +358,7 @@ describe("withPoolRetryStream", () => {
     db.close();
   });
 
-  it("flushes buffered control chunks on clean end (think before answer)", async () => {
+  it("flushes buffered control chunks on clean end", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
@@ -329,19 +367,46 @@ describe("withPoolRetryStream", () => {
     async function* op(
       _id: number,
       _bearer: string,
-    ): AsyncIterable<QwenChunk> {
-      // Control phase chunks (no content, no phase:answer)
-      yield { extra: { thinking: true } };
-      yield { phase: "think", content: "hmm" };
-      // Then answer content
-      yield { phase: "answer", content: "answer here" };
-      yield { done: true };
+    ): AsyncIterable<OpenAiChatChunk> {
+      // Control chunks (no content)
+      yield { choices: [{ delta: { role: "assistant" } }] };
+      yield finishChunk("stop");
+      // Then content
+      yield contentChunk("answer here");
+      yield finishChunk("stop");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // All chunks should be yielded (buffer flushed + answer content)
     expect(chunks).toHaveLength(4);
-    expect(chunks[2]).toEqual({ phase: "answer", content: "answer here" });
+    expect(chunks[2]).toEqual(contentChunk("answer here"));
+    db.close();
+  });
+
+  it("reasoning_content counts as content for pre/post split", async () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, ACCOUNTS);
+    promote(db, 1);
+    const deps = makeDeps(db);
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      // reasoning_content should trigger content detection
+      yield reasoningChunk("let me think...");
+      throw new RateLimitError("rate limited");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    // reasoning_content counts as content → post-first-content path → sentinel
+    expect(chunks[0]).toEqual(reasoningChunk("let me think..."));
+    const sentinel = chunks[1];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
     db.close();
   });
 });
