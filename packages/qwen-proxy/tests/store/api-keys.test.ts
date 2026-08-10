@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
 import { applyMigrations } from "../../src/store/migrations";
-import { isValidKey, touchLastUsed } from "../../src/store/api-keys";
+import { isValidKey, touchLastUsed, constantTimeEquals } from "../../src/store/api-keys";
 
 function makeDb(): Database.Database {
   const db = new Database(":memory:");
@@ -78,6 +78,24 @@ describe("api-keys", () => {
         db.prepare("SELECT COUNT(*) as cnt FROM api_keys").get() as { cnt: number }
       ).cnt;
       expect(count).toBe(0);
+    });
+  });
+
+  describe("constantTimeEquals", () => {
+    it("returns true for equal strings", () => {
+      expect(constantTimeEquals("secret", "secret")).toBe(true);
+    });
+
+    it("returns false for same-length different strings", () => {
+      expect(constantTimeEquals("secret", "SECRET")).toBe(false);
+    });
+
+    it("returns false for different-length strings", () => {
+      expect(constantTimeEquals("short", "much-longer-string")).toBe(false);
+    });
+
+    it("returns true for two empty strings", () => {
+      expect(constantTimeEquals("", "")).toBe(true);
     });
   });
 });

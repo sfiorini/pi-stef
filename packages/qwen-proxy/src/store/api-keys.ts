@@ -2,7 +2,7 @@ import { timingSafeEqual } from "node:crypto";
 import type Database from "better-sqlite3";
 
 /** Constant-time comparison of two strings. */
-function constantTimeEquals(a: string, b: string): boolean {
+export function constantTimeEquals(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
   if (bufA.length !== bufB.length) return false;
