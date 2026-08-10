@@ -20,19 +20,27 @@ curl http://127.0.0.1:7790/v1/health
 
 ## Port binding: same machine vs remote server
 
-The default compose file binds to `127.0.0.1:7790:7790` — **localhost only**. This is the right choice when the pi client and the qwen-proxy service run on the same host. The service is invisible to the LAN.
+The default compose file binds to `127.0.0.1:7790` — **localhost only**. This is the right choice when the pi client and the qwen-proxy service run on the same host. The service is invisible to the LAN.
 
-If the qwen-proxy service runs on a **different machine** (e.g. a home server) and the pi client connects to it over the network, change the port mapping so the service is reachable from the LAN:
+The host bind address and host port are configurable via two compose-substitution env vars (the container always listens on 7790 internally), so you never need to edit the compose file or fight override-merge semantics:
 
-```yaml
-ports:
-  # Same machine (default, most secure):
-  - "127.0.0.1:7790:7790"
-  # Remote server (LAN-accessible) — comment the line above, uncomment this:
-  # - "7790:7790"
+| Variable | Default | Use |
+|----------|---------|-----|
+| `SF_QWEN_HOST_PORT` | `7790` | Host port to publish (change it if 7790 is taken). |
+| `SF_QWEN_BIND` | `127.0.0.1` | Host bind address. Set `0.0.0.0` for all interfaces (LAN). |
+
+```bash
+# Same machine (default):
+docker compose up -d
+
+# 7790 is taken → publish on another host port:
+SF_QWEN_HOST_PORT=7791 docker compose up -d
+
+# Remote server (LAN-accessible) → bind all interfaces:
+SF_QWEN_BIND=0.0.0.0 docker compose up -d
 ```
 
-With `"7790:7790"` the service listens on all interfaces. The API key still protects every API endpoint, so this is safe on a trusted LAN. For untrusted networks, keep `127.0.0.1` and use an SSH tunnel instead:
+With `SF_QWEN_BIND=0.0.0.0` the service listens on all interfaces. The API key still protects every API endpoint, so this is safe on a trusted LAN. For untrusted networks, keep the default `127.0.0.1` and use an SSH tunnel instead:
 
 ```bash
 ssh -L 7790:127.0.0.1:7790 your-server
@@ -101,11 +109,10 @@ services:
   qwen-proxy:
     image: ghcr.io/sfiorini/pi-stef/qwen-proxy:latest
     # build:
-    #   context: ../..
+    #   context: ../../..
     #   dockerfile: packages/qwen-proxy/docker/Dockerfile
     ports:
-      - "127.0.0.1:7790:7790"
-      # - "7790:7790"
+      - "${SF_QWEN_BIND:-127.0.0.1}:${SF_QWEN_HOST_PORT:-7790}:7790"
     volumes:
       - qwen-data:/data
     environment:

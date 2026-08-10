@@ -8,11 +8,10 @@ services:
     #   context: ../../..
     #   dockerfile: packages/qwen-proxy/docker/Dockerfile
     ports:
-      # Same machine (default): client and server on one host. Most secure.
-      - "127.0.0.1:7790:7790"
-      # Remote server (LAN-accessible): client on a different machine.
-      # Comment the line above and uncomment this instead:
-      # - "7790:7790"
+      # Host bind + host port are configurable via env (the container listens on 7790).
+      # Defaults: bind 127.0.0.1 (localhost only), host port 7790. For LAN/remote
+      # access set SF_QWEN_BIND=0.0.0.0 (behind a TLS-terminating reverse proxy).
+      - "${SF_QWEN_BIND:-127.0.0.1}:${SF_QWEN_HOST_PORT:-7790}:7790"
     volumes:
       - qwen-data:/data
     environment:
