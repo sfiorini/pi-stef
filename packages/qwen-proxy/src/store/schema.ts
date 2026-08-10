@@ -82,4 +82,15 @@ export const MIGRATIONS: Migration[] = [
     version: 9,
     statement: `PRAGMA foreign_keys = ON`,
   },
+
+  // v11 — account pool failover columns + partial unique index (R1)
+  {
+    version: 11,
+    statement: `ALTER TABLE accounts ADD COLUMN state TEXT NOT NULL DEFAULT 'active';
+        ALTER TABLE accounts ADD COLUMN re_enable_at INTEGER;
+        ALTER TABLE rate_limits ADD COLUMN re_enable_at INTEGER;
+        UPDATE accounts SET state = 'disabled'
+          WHERE id NOT IN (SELECT id FROM accounts ORDER BY ord ASC, id ASC LIMIT 1);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_accounts_active ON accounts(id) WHERE state = 'active'`,
+  },
 ];

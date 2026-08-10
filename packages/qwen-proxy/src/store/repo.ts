@@ -59,8 +59,8 @@ export function reconcileAccounts(
   );
 
   const upsertStmt = db.prepare(
-    `INSERT INTO accounts (id, email, password, ord)
-     VALUES (@id, @email, @password, @ord)
+    `INSERT INTO accounts (id, email, password, ord, state)
+     VALUES (@id, @email, @password, @ord, 'disabled')
      ON CONFLICT(id) DO UPDATE SET
        email    = excluded.email,
        password = excluded.password,
@@ -167,25 +167,31 @@ export function listLoginFailures(
 
 // ── Rate limits ─────────────────────────────────────────────────────────────
 
-export function upsertRateLimit(
+/** D13: full upsert — replaces upsertRateLimit. */
+export function setRateLimit(
   db: Database.Database,
   accountId: number,
-  fields: Partial<{ last_429_at: number; retry_after_at: number }>,
+  fields: Partial<{ last_429_at: number; retry_after_at: number; re_enable_at: number }>,
 ): void {
   db.prepare(
-    `INSERT INTO rate_limits (account_id, last_429_at, retry_after_at, updated_at)
-     VALUES (@accountId, @last429At, @retryAfterAt, @updatedAt)
+    `INSERT INTO rate_limits (account_id, last_429_at, retry_after_at, re_enable_at, updated_at)
+     VALUES (@accountId, @last429At, @retryAfterAt, @reEnableAt, @updatedAt)
      ON CONFLICT(account_id) DO UPDATE SET
        last_429_at    = excluded.last_429_at,
        retry_after_at = excluded.retry_after_at,
+       re_enable_at   = excluded.re_enable_at,
        updated_at     = excluded.updated_at`,
   ).run({
     accountId,
     last429At: fields.last_429_at ?? null,
     retryAfterAt: fields.retry_after_at ?? null,
+    reEnableAt: fields.re_enable_at ?? null,
     updatedAt: Date.now(),
   });
 }
+
+/** @deprecated Use setRateLimit instead. */
+export const upsertRateLimit = setRateLimit;
 
 export function getRateLimit(
   db: Database.Database,
@@ -195,11 +201,12 @@ export function getRateLimit(
       account_id: number;
       last_429_at: number | null;
       retry_after_at: number | null;
+      re_enable_at: number | null;
     }
   | undefined {
   return db
     .prepare("SELECT * FROM rate_limits WHERE account_id = ?")
     .get(accountId) as
-    | { account_id: number; last_429_at: number | null; retry_after_at: number | null }
+    | { account_id: number; last_429_at: number | null; retry_after_at: number | null; re_enable_at: number | null }
     | undefined;
 }

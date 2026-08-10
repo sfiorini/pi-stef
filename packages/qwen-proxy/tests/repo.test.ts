@@ -9,6 +9,7 @@ import {
   listTokenRows,
   recordLoginFailure,
   listLoginFailures,
+  setRateLimit,
   upsertRateLimit,
   getRateLimit,
   type SafeAccountRow,
@@ -71,7 +72,7 @@ describe("reconcileAccounts", () => {
 
     // Pre-insert child rows for doomed account (id=2)
     upsertToken(db, 2, "bearer2", null);
-    upsertRateLimit(db, 2, { last_429_at: 1000, retry_after_at: 2000 });
+    setRateLimit(db, 2, { last_429_at: 1000, retry_after_at: 2000 });
     recordLoginFailure(db, 2, "bad creds", 401);
 
     // Also add child rows for kept account (id=1) — should survive
@@ -138,6 +139,78 @@ describe("reconcileAccounts", () => {
     const full = getAccount(db, 1)!;
     expect(full.password).toBe("secret");
 
+    db.close();
+  });
+
+  // ── D12: new accounts default to state='disabled' ──────────────────────
+
+  it("(D12) new accounts have state='disabled' after reconcile", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+
+    const rows = db
+      .prepare("SELECT id, state FROM accounts ORDER BY id")
+      .all() as { id: number; state: string }[];
+    expect(rows).toHaveLength(2);
+    expect(rows[0].state).toBe("disabled");
+    expect(rows[1].state).toBe("disabled");
+    db.close();
+  });
+
+  it("(D12) existing state='disabled' + re_enable_at survive a second reconcile", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+    ]);
+
+    // Simulate pool state: promote id=1, demote id=2 with cooldown
+    db.prepare(
+      "UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1",
+    ).run();
+    db.prepare(
+      "UPDATE accounts SET state='disabled', re_enable_at=9999 WHERE id=2",
+    ).run();
+
+    // Second reconcile — must preserve state and re_enable_at
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2-changed", ord: 2 },
+    ]);
+
+    const r1 = db
+      .prepare("SELECT state, re_enable_at FROM accounts WHERE id=1")
+      .get() as { state: string; re_enable_at: number | null };
+    expect(r1.state).toBe("active");
+    expect(r1.re_enable_at).toBeNull();
+
+    const r2 = db
+      .prepare("SELECT state, re_enable_at FROM accounts WHERE id=2")
+      .get() as { state: string; re_enable_at: number | null };
+    expect(r2.state).toBe("disabled");
+    expect(r2.re_enable_at).toBe(9999);
+    db.close();
+  });
+
+  it("(D12) partial-unique invariant: at most one active after reconcile", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
+      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
+      { id: 3, email: "c@test.com", password: "pw3", ord: 3 },
+    ]);
+
+    // All should be disabled (new accounts default disabled)
+    const cnt0 = db
+      .prepare("SELECT COUNT(*) as cnt FROM accounts WHERE state='active'")
+      .get() as { cnt: number };
+    expect(cnt0.cnt).toBe(0);
+
+    // v11 UPDATE keeps lowest-ord active for pre-existing data;
+    // here all are new, so 0 active is correct.
     db.close();
   });
 });
@@ -222,32 +295,71 @@ describe("recordLoginFailure + listLoginFailures", () => {
   });
 });
 
-describe("upsertRateLimit + getRateLimit", () => {
+describe("setRateLimit + getRateLimit", () => {
   it("round-trips rate limit fields", () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, [
       { id: 1, email: "a@test.com", password: "pw", ord: 1 },
     ]);
 
-    upsertRateLimit(db, 1, { last_429_at: 1000, retry_after_at: 2000 });
+    setRateLimit(db, 1, { last_429_at: 1000, retry_after_at: 2000 });
     const row = getRateLimit(db, 1)!;
     expect(row.last_429_at).toBe(1000);
     expect(row.retry_after_at).toBe(2000);
     db.close();
   });
 
-  it("overwrites on second upsert", () => {
+  it("overwrites on second setRateLimit (full upsert)", () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, [
       { id: 1, email: "a@test.com", password: "pw", ord: 1 },
     ]);
 
-    upsertRateLimit(db, 1, { last_429_at: 1000 });
-    upsertRateLimit(db, 1, { retry_after_at: 5000 });
+    setRateLimit(db, 1, { last_429_at: 1000 });
+    setRateLimit(db, 1, { retry_after_at: 5000 });
 
     const row = getRateLimit(db, 1)!;
     // second upsert only set retry_after_at; last_429_at should be null (overwritten)
     expect(row.retry_after_at).toBe(5000);
+    db.close();
+  });
+
+  it("(D13) setRateLimit round-trips re_enable_at", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
+    ]);
+
+    setRateLimit(db, 1, { re_enable_at: 999 });
+    const row = getRateLimit(db, 1)!;
+    expect(row.re_enable_at).toBe(999);
+    db.close();
+  });
+
+  it("(D13) setRateLimit overwrites re_enable_at on second call", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
+    ]);
+
+    setRateLimit(db, 1, { re_enable_at: 100 });
+    setRateLimit(db, 1, { re_enable_at: 200 });
+
+    const row = getRateLimit(db, 1)!;
+    expect(row.re_enable_at).toBe(200);
+    db.close();
+  });
+
+  it("(D13) upsertRateLimit is a deprecated alias for setRateLimit", () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
+    ]);
+
+    upsertRateLimit(db, 1, { last_429_at: 42, retry_after_at: 84 });
+    const row = getRateLimit(db, 1)!;
+    expect(row.last_429_at).toBe(42);
+    expect(row.retry_after_at).toBe(84);
     db.close();
   });
 });
