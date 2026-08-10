@@ -218,6 +218,22 @@ describe("renderUsageSection", () => {
     expect(html).toContain("5m ago"); // token refresh recency
     expect(html).toContain("10"); // video count
   });
+
+  it("escapes video status markup in usage section (audit F1 XSS)", () => {
+    const accounts: AdminAccountRow[] = [
+      { id: 1, email: "a@test.com", ord: 1, state: "active", re_enable_at: null },
+    ];
+    const failureCounts = [{ account_id: 1, count: 0 }];
+    const tokens: AdminTokenRow[] = [
+      { account_id: 1, has_bearer: true, expires_at: null, updated_at: 1000 },
+    ];
+    const videoCounts: AdminVideoJobCount[] = [
+      { account_id: 1, status: "<script>x</script>", count: 1 },
+    ];
+    const html = renderUsageSection(accounts, failureCounts, tokens, videoCounts);
+    expect(html).toContain("&lt;script&gt;");
+    expect(html).not.toContain("<script>");
+  });
 });
 
 // ── Integration tests via createApp ─────────────────────────────────────────
@@ -300,6 +316,27 @@ describe("adminRoutes integration via createApp", () => {
     const app = createApp(deps);
     const res = await app.request("/admin");
     expect(res.status).toBe(401);
+  });
+
+  it("GET /admin escapes malicious video_job status in HTML (audit F1 XSS)", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    reconcileAccounts(deps.db, [
+      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
+    ]);
+    deps.db.prepare("UPDATE accounts SET state = 'active' WHERE id = 1").run();
+    // Insert a video_job with malicious status
+    deps.db.prepare(
+      `INSERT INTO video_jobs (job_id, account_id, upstream_task_id, model, prompt, status, progress, result, attempts, created_at, updated_at)
+       VALUES ('xss-job', 1, 'up', 'model', 'prompt', '<script>xss</script>', 0, NULL, 0, ?, ?)`
+    ).run(Date.now(), Date.now());
+
+    const app = createApp(deps);
+    const res = await app.request("/admin?key=test-admin-key");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    // Escaped in Usage section (video status)
+    expect(body).toContain("&lt;script&gt;xss&lt;/script&gt;");
+    expect(body).not.toContain("<script>xss</script>");
   });
 
   it("GET /admin with adminKey undefined returns 404 (D15)", async () => {

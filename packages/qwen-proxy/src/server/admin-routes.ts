@@ -206,7 +206,7 @@ ${accounts
     const lastRefresh = tok ? fmtRecency(tok.updated_at) : "—";
     const vids = videoMap.get(a.id);
     const vidStr = vids
-      ? [...vids.entries()].map(([s, c]) => `${s}: ${c}`).join(", ")
+      ? [...vids.entries()].map(([s, c]) => `${escapeHtml(s)}: ${c}`).join(", ")
       : "—";
     return `<tr><td>${a.id}</td><td>${escapeHtml(a.email)}</td><td>${fails}</td><td>${lastRefresh}</td><td>${vidStr}</td></tr>`;
   })
