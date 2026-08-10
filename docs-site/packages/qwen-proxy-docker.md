@@ -64,7 +64,7 @@ The image is built from the repo source on every `@pi-stef/qwen-proxy@X.Y.Z` tag
 The container runs as **uid 1000** (non-root) for security (D16). The `/data` directory is pre-created and chowned to `1000:1000` in the Dockerfile so the SQLite database can be written on first boot.
 
 ::: warning D16
-Unlike `finance-api` (which runs as root), `qwen-proxy` runs as **non-root uid 1000**. The `/data` directory is chowned to `1000:1000` in the Dockerfile to ensure the SQLite database can be created on first boot.
+The container runs as **non-root uid 1000** (not root). The `/data` directory is chowned to `1000:1000` in the Dockerfile to ensure the SQLite database can be created on first boot.
 :::
 
 Verify non-root execution:
@@ -178,7 +178,7 @@ One named volume persists data across container restarts:
 |--------|-------|----------|
 | `qwen-data` | `/data` | SQLite database (`qwen-proxy.db`) |
 
-Unlike `finance-api`, qwen-proxy does **not** use a config/token volume — the API key is set directly via `SF_QWEN_API_KEY` (no auto-generated token).
+qwen-proxy does **not** use a config/token volume — the API key is set directly via `SF_QWEN_API_KEY` (no auto-generated token).
 
 ## Healthcheck
 
