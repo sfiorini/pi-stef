@@ -300,10 +300,10 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
       throw classifyResponse(res.status, bodyText, res.headers);
     }
 
-    // Non-SSE safety net: if the upstream returned a non-SSE body (e.g.
-    // JSON error), surface it instead of silently yielding nothing.
+    // Non-SSE safety net: qwen.aikit.club sometimes returns text/html for valid
+    // SSE streams. Accept text/event-stream, text/html, text/plain. Reject JSON (CAPTCHA/error).
     const contentType = res.headers.get("content-type") ?? "";
-    if (!contentType.includes("text/event-stream")) {
+    if (!contentType.includes("text/event-stream") && !contentType.includes("text/html") && !contentType.includes("text/plain")) {
       const text = await res.text();
       throw new UnknownError(
         `upstream /v1/chat/completions returned non-SSE (${contentType}, status ${res.status}): ${text.slice(0, 300)}`,
