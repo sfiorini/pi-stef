@@ -1,0 +1,11 @@
+data: {"choices":[{"delta":{"phase":"thinking_summary","extra":{"summary_thought":{"content":[{"text":"Let me think about this..."}]}}}}]}
+
+data: {"choices":[{"delta":{"phase":"thinking_summary","extra":{"summary_thought":{"content":[{"text":"The answer involves multiple steps"}]}}}}]}
+
+data: {"choices":[{"delta":{"content":"Hello "}}]}
+
+data: {"choices":[{"delta":{"content":"world"}}]}
+
+data: {"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}
+
+data: [DONE]
