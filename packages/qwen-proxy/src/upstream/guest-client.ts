@@ -1,12 +1,19 @@
 /**
  * Guest-mode upstream client for chat.qwen.ai.
- * Handles guest session creation, message normalization, and
- * will eventually (S-M2-3) provide chatCompletions/listModels/deleteChats.
+ * Handles guest session creation, message normalization,
+ * chatCompletions (stream + non-stream), listModels, and deleteChats.
  */
 
 import { randomUUID } from "node:crypto";
 import type { BaxiaTokenManager } from "./baxia-token";
-import type { ChatCompletionsBody } from "./types";
+import { RateLimitError } from "./errors";
+import { translateQwenSse, isDataInspectionFailed } from "./qwen-sse";
+import type {
+  OpenAiChatChunk,
+  OpenAiChatCompletion,
+  ChatCompletionsBody,
+  Model,
+} from "./types";
 import type { Logger } from "../server/logger";
 
 // ── Config ────────────────────────────────────────────────────────────────
@@ -35,6 +42,7 @@ export class GuestUpstreamClient {
   private userAgent: string;
   private log: Logger;
   private _sleep: (ms: number) => Promise<void>;
+  private modelsCache: Model[] | null = null;
 
   constructor(config: GuestUpstreamClientConfig) {
     this.baxia = config.baxia;
@@ -165,17 +173,202 @@ export class GuestUpstreamClient {
     };
   }
 
-  // ── Stubs (S-M2-3) ────────────────────────────────────────────────────
+  // ── chatCompletions ────────────────────────────────────────────────────
 
-  async chatCompletions(_bearer: string, _body: ChatCompletionsBody): Promise<any> {
-    throw new Error("not impl");
+  chatCompletions(
+    _bearer: string,
+    body: ChatCompletionsBody,
+  ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk> {
+    if (body.stream) {
+      return this.chatCompletionsStream(body);
+    }
+    return this.chatCompletionsNonStream(body);
   }
 
-  async listModels(_bearer: string): Promise<any> {
-    throw new Error("not impl");
+  private async *chatCompletionsStream(
+    body: ChatCompletionsBody,
+  ): AsyncGenerator<OpenAiChatChunk> {
+    const res = await this.doChatCompletionsRequest(body);
+    if (!res.body) {
+      throw new Error("Response body is null (no stream)");
+    }
+    yield* translateQwenSse(res.body);
   }
+
+  private async chatCompletionsNonStream(
+    body: ChatCompletionsBody,
+  ): Promise<OpenAiChatCompletion> {
+    const res = await this.doChatCompletionsRequest(body);
+    if (!res.body) {
+      throw new Error("Response body is null (no stream)");
+    }
+
+    // Buffer the entire stream
+    let content = "";
+    let reasoning = "";
+    let usage: any = undefined;
+
+    for await (const chunk of translateQwenSse(res.body)) {
+      const delta = chunk.choices?.[0]?.delta;
+      if (delta?.content) content += delta.content;
+      if (delta?.reasoning_content) reasoning += delta.reasoning_content;
+      if (chunk.usage) usage = chunk.usage;
+    }
+
+    return {
+      id: "chatcmpl-" + randomUUID(),
+      object: "chat.completion" as const,
+      created: Math.floor(Date.now() / 1000),
+      model: body.model,
+      choices: [
+        {
+          index: 0,
+          message: {
+            role: "assistant",
+            content,
+            ...(reasoning ? { reasoning_content: reasoning } : {}),
+          },
+          finish_reason: "stop",
+        },
+      ],
+      ...(usage ? { usage } : {}),
+    };
+  }
+
+  private async doChatCompletionsRequest(body: ChatCompletionsBody): Promise<Response> {
+    const enableThinking = body.enable_thinking === true;
+    const wantsSearch =
+      Array.isArray(body.tools) &&
+      body.tools.some((t: any) => t?.type === "web_search");
+    const chatType: "t2t" | "search" = wantsSearch ? "search" : "t2t";
+
+    const chatId = await this.createChatSession(body.model, chatType);
+    const tokens = await this.baxia.ensureToken();
+
+    const qwenMsg = this.normalizeMessages(
+      body.messages,
+      body.model,
+      chatType,
+      enableThinking,
+      wantsSearch,
+    );
+
+    const upstreamBody = {
+      stream: true,
+      version: "2.1",
+      incremental_output: true,
+      chat_id: chatId,
+      chat_mode: "guest",
+      model: body.model,
+      parent_id: null,
+      messages: [qwenMsg],
+      timestamp: Date.now(),
+    };
+
+    const headers: Record<string, string> = {
+      Accept: "text/event-stream",
+      "Content-Type": "application/json",
+      "bx-ua": tokens.bxUa,
+      "bx-umidtoken": tokens.bxUmidToken,
+      "bx-v": tokens.bxV,
+      Cookie: tokens.cookies,
+      source: "web",
+      version: "0.2.83",
+      "User-Agent": this.userAgent,
+      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+      "x-request-id": randomUUID(),
+    };
+
+    const res = await this._fetch(
+      `${this.chatUrl}/api/v2/chat/completions?chat_id=${chatId}`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(upstreamBody),
+      },
+    );
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      // Check for data_inspection_failed in error body
+      try {
+        const json = JSON.parse(text);
+        if (isDataInspectionFailed(json)) {
+          throw new RateLimitError("data_inspection_failed", { status: 429 });
+        }
+      } catch (e) {
+        if (e instanceof RateLimitError) throw e;
+      }
+      throw new Error(`chatCompletions upstream error ${res.status}: ${text.slice(0, 300)}`);
+    }
+
+    return res;
+  }
+
+  // ── listModels ─────────────────────────────────────────────────────────
+
+  async listModels(_bearer: string): Promise<Model[]> {
+    if (this.modelsCache) return this.modelsCache;
+
+    const res = await this._fetch(`${this.chatUrl}/api/models`, {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": this.userAgent,
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`listModels upstream error ${res.status}: ${text.slice(0, 200)}`);
+    }
+
+    const contentType = res.headers.get("content-type") ?? "";
+
+    if (contentType.includes("application/json")) {
+      const json = (await res.json()) as { models?: { id: string }[] };
+      const ids = (json.models ?? []).map((m) => m.id);
+      this.modelsCache = ids.map((id) => ({ id, object: "model" as const, owned_by: "qwen" }));
+      return this.modelsCache;
+    }
+
+    // HTML fallback — scrape prerendered data
+    const html = await res.text();
+    const ids = this.extractPrerenderedData(html);
+    this.modelsCache = ids.map((id) => ({ id, object: "model" as const, owned_by: "qwen" }));
+    return this.modelsCache;
+  }
+
+  private extractPrerenderedData(html: string): string[] {
+    // Try to find JSON with "models" array in the HTML
+    const match = html.match(/"models"\s*:\s*\[(.*?)\]/s);
+    if (match) {
+      try {
+        const jsonStr = `[${match[1]}]`;
+        const arr = JSON.parse(jsonStr) as { id?: string }[];
+        return arr.map((m) => m.id ?? "").filter(Boolean);
+      } catch {
+        // fall through
+      }
+    }
+
+    // Try __PRERENDERED_DATA__ pattern
+    const prerenderedMatch = html.match(/__PRERENDERED_DATA__\s*=\s*(\{.*?\})\s*[;<]/s);
+    if (prerenderedMatch) {
+      try {
+        const data = JSON.parse(prerenderedMatch[1]) as { models?: { id: string }[] };
+        return (data.models ?? []).map((m) => m.id).filter(Boolean);
+      } catch {
+        // fall through
+      }
+    }
+
+    return [];
+  }
+
+  // ── deleteChats ────────────────────────────────────────────────────────
 
   async deleteChats(_bearer: string): Promise<void> {
-    throw new Error("not impl");
+    return;
   }
 }
