@@ -20,6 +20,7 @@ Or manage them declaratively with the [catalog](/packages/catalog).
 | [web](/packages/web) | Web search, URL fetch, and browser automation |
 | [finance](/packages/finance) | Portfolio tracking, drift analysis, and investment suggestions |
 | [finance-api](/packages/finance-api) | Always-on local service for financial data ingestion and quant analysis |
+| [qwen-proxy](/packages/qwen-proxy) | Multi-account proxy for the Qwen AI API with OpenAI + Anthropic compatibility |
 | [paths](/packages/paths) | Shared path conventions (internal) |
 | agent-workflows | Workflow engine primitives (internal, not user-installed) |
 

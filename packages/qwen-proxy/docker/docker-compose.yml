@@ -1,0 +1,35 @@
+services:
+  qwen-proxy:
+    # Pull the published image from GHCR (default):
+    image: ghcr.io/sfiorini/pi-stef/qwen-proxy:latest
+    # To build from local source instead, comment out `image:` above and run:
+    #   docker compose up --build
+    # build:
+    #   context: ../../..
+    #   dockerfile: packages/qwen-proxy/docker/Dockerfile
+    ports:
+      # Host bind + host port are configurable via env (the container listens on 7790).
+      # Defaults: bind 127.0.0.1 (localhost only), host port 7790. For LAN/remote
+      # access set SF_QWEN_BIND=0.0.0.0 (behind a TLS-terminating reverse proxy).
+      - "${SF_QWEN_BIND:-127.0.0.1}:${SF_QWEN_HOST_PORT:-7790}:7790"
+    volumes:
+      - qwen-data:/data
+    environment:
+      - SF_QWEN_DB=/data/qwen-proxy.db
+      - SF_QWEN_HOST=0.0.0.0
+      - SF_QWEN_PORT=7790
+      # Required — operator sets directly (no auto-generated token):
+      - SF_QWEN_API_KEY=${SF_QWEN_API_KEY:?must be set}
+      # Optional — admin dashboard (unset → /admin returns 404):
+      # - SF_QWEN_ADMIN_KEY=${SF_QWEN_ADMIN_KEY}
+      # Accounts (one of the three modes — see docs):
+      # - SF_QWEN_ACCOUNTS=${SF_QWEN_ACCOUNTS}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7790/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  qwen-data:

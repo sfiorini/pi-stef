@@ -18,6 +18,7 @@ Jira issue types, etc.). Each template is a self-documenting Markdown file conta
 | Jira Epic | [`jira-epic.md`](./jira-epic.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | A large, multi-sprint body of work. Captures goal & value, scope, out-of-scope, Epic-level acceptance criteria, rollout milestones, dependencies, and references. |
 | Jira Feature | [`jira-feature.md`](./jira-feature.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | A mid-tier shippable increment (SAFe framing). Carries a benefit hypothesis, NFRs, outcome-focused acceptance criteria, milestones, and OKRs. Used as an enriched Epic body (recommended) or a custom Feature type. |
 | Jira Story | [`jira-story.md`](./jira-story.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | A sprint-sized unit of user value. Summary carries the "As a / I want / so that"; body has context, testable acceptance criteria, design/technical notes, and a suggested breakdown. |
+| Jira Sub-task | [`jira-subtask.md`](./jira-subtask.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | A ≤1-day implementation slice that breaks a Story into verifiable steps. Imperative summary ("Add …"), parent = the Story, `Medium` priority. |
 
 ## Conventions
 
@@ -32,6 +33,12 @@ Jira issue types, etc.). Each template is a self-documenting Markdown file conta
   text nodes — no real headings, lists, or bold — so Jira template bodies use ALL-CAPS
   section headers as visual dividers. For rich formatting, pass a pre-built ADF object as
   the `description`.
+- **PISTFIN Jira conventions.** pi-stef Jira projects (`PISTFIN`, `PISTQWE`, …) use a
+  three-tier **Epic → Story → Sub-task** hierarchy with **no separate Feature type**
+  (Feature bodies are enriched Epics — see `jira-feature.md`); `components[]` = the package
+  name; `labels[]` = `enhancement` + `phase-N`; `fixVersions[]` = the phase/quarter marker
+  (`P1`/`Q1`); priority `High` (phase 1) / `Medium` (later) / `Medium` (sub-tasks); Story
+  dependencies via `Blocks` issue links; each Epic links its Confluence PRD.
 - **Placeholders use `{{UPPER_SNAKE}}`.** Substitute every token before publishing; never
   publish a raw placeholder.
 - **Preserve the section order.** The section order in each template is the canonical

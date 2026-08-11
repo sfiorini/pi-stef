@@ -74,11 +74,14 @@ LEADING INDICATORS / OKRS
 - **Summary is a label, not a sentence.** ≤72 chars (boards truncate). A `[Feature]` prefix
   is optional but useful under Option C, where the Feature shares the Epic type with larger
   initiatives.
-- **Choose the container, then publish.** Under **Option C** (recommended) the Feature body
-  is an *enriched Epic* — set `issueTypeName: "Epic"`; the Epic's goal/scope/AC/milestones
-  are satisfied by *problem + hypothesis* / *scope* / *acceptance criteria* / *milestones &
-  enablers*. Under **Option A** (custom `Feature` type) set `issueTypeName: "Feature"` and
-  link the parent Epic via `fields.parent.key`. The body above is identical either way.
+- **Choose the container, then publish.** pi-stef next-gen projects (`PISTFIN`-style:
+  `PISTFIN`, `PISTQWE`, …) have **no separate Feature type** — **Option C is the default**:
+  publish the Feature body as an *enriched Epic* (`issueTypeName: "Epic"`); the Epic's
+  goal/scope/AC/milestones are satisfied by *problem + hypothesis* / *scope* / *acceptance
+  criteria* / *milestones & enablers*, and it decomposes into Stories → Sub-tasks (see
+  `jira-epic.md` / `jira-story.md` / `jira-subtask.md`). **Option A** (a custom `Feature`
+  type with `issueTypeName: "Feature"` + `fields.parent.key` to the parent Epic) is kept for
+  teams that later adopt one. The body above is identical either way.
 - **Publish mechanics.** `summary` → the `summary` param; the body above → the
   `description` param (plain text; the tool converts to ADF); everything else via the
   `fields` map. Substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
@@ -96,10 +99,15 @@ LEADING INDICATORS / OKRS
   a checklist is fine for simpler outcomes. Each AC should map to something verifiable.
 - **Benefit hypothesis is testable.** Phrase it so you can evaluate it after launch — it's
   the Feature's reason to exist, not boilerplate.
-- **Recommended fields** (via `fields`): `priority.name`; `fixVersions[].name`; `assignee`
-  or a custom DRI user-picker; `labels[]` (lowercase kebab-case, ≤10–15 — see repo
-  conventions); `components[].name` (code areas: `core`/`api`/`cli`/`docs`/`infra`). Under
+- **Recommended fields** (via `fields`): `priority.name` — `High` for a Phase-1 Epic,
+  `Medium` for later phases; `fixVersions[].name` — the **phase/quarter release marker**
+  (e.g. `P1`, `Q1`; create via `jira_create_version`); `assignee` — the owner via `accountId`;
+  `labels[]` — `enhancement` + the phase tag `phase-N`; `components[].name` — the **package
+  name** (e.g. `qwen-proxy`, `finance-api` — never generic `api`/`infra`/`docs`). Under
   Option A also set `fields.parent.key` to the parent Epic.
+- **Links.** Same as Epics: Epic ↔ Confluence PRD (relationship `implemented by`; Jira REST
+  remotelink, no MCP create-tool — fallback to description text + comment), external
+  remotelinks (repos/upstream/docs), and `blocks` / `relates to` issue links.
 - **External dependencies as links.** For cross-issue deps, create issue links (`blocks` /
   `relates to`) in addition to the prose summary here.
 - **Verify after publishing** with `jira_get_issue` (or `jira_issue`): confirm the summary,

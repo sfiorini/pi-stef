@@ -37,6 +37,7 @@ Reusable, source-controlled templates for the Confluence spaces and Jira content
 | Jira Epic | [`jira-epic.md`](./docs/atlassian-templates/jira-epic.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Starting a large, multi-sprint body of work that groups Stories toward one outcome. Captures goal/value, scope, out-of-scope, Epic-level acceptance criteria, milestones, dependencies, and references. |
 | Jira Feature | [`jira-feature.md`](./docs/atlassian-templates/jira-feature.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Shaping a mid-tier shippable increment (SAFe framing) with a benefit hypothesis, NFRs, and outcome-focused acceptance criteria. Used as an enriched Epic body (recommended) or a custom Feature type. |
 | Jira Story | [`jira-story.md`](./docs/atlassian-templates/jira-story.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Writing a sprint-sized unit of user value. Summary carries "As a / I want / so that"; body has context, testable acceptance criteria, and design/technical notes. |
+| Jira Sub-task | [`jira-subtask.md`](./docs/atlassian-templates/jira-subtask.md) | `jira_create_issue` / `jira_update_issue` (plain-text description → ADF) | Breaking a Story into ≤1-day implementation slices. Imperative summary ("Add …"), parent = the Story, `Medium` priority. |
 
 **How to use a template:**
 
@@ -48,4 +49,23 @@ Reusable, source-controlled templates for the Confluence spaces and Jira content
 4. Verify after publishing (`confluence_page` for Confluence pages, `jira_get_issue` for
    Jira issues) that the content landed cleanly (version incremented / body replaced).
 
-**Adding a new template:** create the `.md` under `docs/atlassian-templates/`, add a row to that folder's `README.md` table **and** to the table above, so future sessions can discover it.
+**Adding a new template:** create the `.md` under `docs/atlassian-templates/`, add a row to that folder's `README.md` table **and** to the table above, so future sessions can discover it. When a new Jira template changes the field conventions (components, labels, fix-versions, priority, hierarchy), reflect that change here in *Jira backlog conventions* and in the `PISTFIN` reference project.
+
+## Jira backlog conventions
+
+When standing up a Jira backlog for a package, **mirror `PISTFIN`** (`@pi-stef/finance-api`) — it is the canonical example project. New package backlogs (e.g. `PISTQWE` for `@pi-stef/qwen-proxy`) replicate its structure exactly.
+
+- **Hierarchy:** `Epic → Story → Sub-task`. Next-gen (team-managed) projects use **no separate `Feature` type**; publish the `jira-feature.md` template as an enriched Epic (Option C) when a benefit-hypothesis shape is wanted.
+- **Fields (every issue):**
+  - `components[]` = the **package name** (`qwen-proxy`, `finance-api`, `paths`) — never generic `api`/`infra`/`docs`.
+  - `labels[]` = `enhancement` + the phase tag `phase-N` (e.g. `phase-1`), plus optional topic tags.
+  - `fixVersions[]` = the phase/quarter release marker (`P1`, `Q1`, …); create it first via `jira_create_version` if missing.
+  - `priority` = `High` for Phase-1 issues, `Medium` for later phases; **Sub-tasks default `Medium`** regardless of parent.
+  - `assignee` = the package owner (DRI) via `accountId`.
+  - Sub-tasks: imperative summary (`Add …`, `Implement …`, `Wire …`), parent = Story, **1-line description**. Use [`jira-subtask.md`](./docs/atlassian-templates/jira-subtask.md).
+- **Links:**
+  - **Story ↔ Story `Blocks`** for the dependency graph — `jira_create_issue_link typeName: "Blocks"`, `outwardIssueKey` = dependent, `inwardIssueKey` = prerequisite (the prereq blocks the dependent — verified for the @pi-stef tool; re-verify if you switch Jira clients).
+  - **Epic ↔ Confluence PRD** (relationship `implemented by`) — via the Jira REST remotelink API (there is no MCP create-tool); fallback = embed the PRD title + page id in the Epic description + a comment.
+  - **External remotelinks** (GitHub repo, upstream host, API docs, reference repos) attached at the Epic level with explicit relationship labels.
+- **Publishing order:** `Q1`/version → Epic (capture key) → Stories (parent = Epic) → Sub-tasks (parent = Story) → Blocks links → Confluence/external links → verify with `jira_get_issue`.
+- See [`docs/atlassian-templates/`](./docs/atlassian-templates) (incl. `jira-subtask.md`) and the `PISTFIN` project for a worked example.
