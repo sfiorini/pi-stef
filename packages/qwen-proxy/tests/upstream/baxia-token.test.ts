@@ -345,4 +345,205 @@ describe("BaxiaTokenManager", () => {
       expect(childKill).toHaveBeenCalledWith("SIGKILL");
     });
   });
+
+  // ── Orchestration tests (S-M1-4) ────────────────────────────────────────
+
+  describe("ensureToken orchestration", () => {
+    function makeOrchestrationSetup(overrides: Partial<BaxiaTokenManagerConfig> = {}) {
+      const replyMap = makeDefaultReplyMap();
+      const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+      const fetcherFn = vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return {
+            ok: true,
+            json: async () => [
+              { type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" },
+            ],
+          };
+        }
+        return { ok: false, json: async () => ({}) };
+      });
+      const sleepFn = vi.fn(async () => {});
+      let currentTime = 1000;
+      const nowFn = vi.fn(() => currentTime);
+
+      const config = makeConfig({
+        spawn: spawnFn as any,
+        WebSocketCtor: function (url: string) {
+          return new FakeWebSocket(url, replyMap) as any;
+        } as any,
+        fetcher: fetcherFn as any,
+        sleep: sleepFn,
+        now: nowFn,
+        ...overrides,
+      });
+
+      return { spawnFn, fetcherFn, config, advance: (ms: number) => { currentTime += ms; } };
+    }
+
+    it("cache hit: 2 ensureToken within TTL → spawn called once", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeOrchestrationSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      // First call — cold, should spawn Chrome
+      const t1 = await mgr.ensureToken();
+      expect(t1.bxUmidToken).toMatch(/^T2gA/);
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      // Advance time but stay within TTL (1,500,000 ms)
+      advance(60_000);
+
+      // Second call — cache hit, no spawn
+      const t2 = await mgr.ensureToken();
+      expect(t2.bxUmidToken).toBe(t1.bxUmidToken);
+      expect(spawnFn).toHaveBeenCalledTimes(1); // still 1
+    });
+
+    it("cache miss after TTL → re-spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeOrchestrationSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      // Advance past TTL
+      advance(1_500_001);
+
+      await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(2); // re-spawned
+    });
+
+    it("single-flight: 2 concurrent cold ensureToken → 1 spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config } = makeOrchestrationSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      // Two concurrent calls — both cold
+      const [t1, t2] = await Promise.all([mgr.ensureToken(), mgr.ensureToken()]);
+      expect(t1.bxUmidToken).toBe(t2.bxUmidToken);
+      expect(spawnFn).toHaveBeenCalledTimes(1); // single-flight: only 1 spawn
+    });
+
+    it("forceRefresh:true ignores cache → spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeOrchestrationSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      // Advance a tiny bit (still within TTL)
+      advance(1000);
+
+      // forceRefresh should ignore cache
+      await mgr.ensureToken({ forceRefresh: true });
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+    });
+
+    it("startRefreshLoop sets interval = cacheTtlMs - 120_000 and calls .unref()", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const unrefFn = vi.fn();
+      const intervalId = { unref: unrefFn } as any;
+      const setIntervalSpy = vi.spyOn(global, "setInterval").mockReturnValue(intervalId);
+
+      try {
+        const { config } = makeOrchestrationSetup();
+        const mgr = new BaxiaTokenManager(config);
+
+        mgr.startRefreshLoop();
+
+        // interval = Math.max(60_000, 1_500_000 - 120_000) = 1_380_000
+        expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 1_380_000);
+        expect(unrefFn).toHaveBeenCalled();
+
+        // Idempotent — second call doesn't set another interval
+        mgr.startRefreshLoop();
+        expect(setIntervalSpy).toHaveBeenCalledTimes(1);
+
+        mgr.stop();
+      } finally {
+        setIntervalSpy.mockRestore();
+      }
+    });
+
+    it("stop clears the timer", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const clearIntervalSpy = vi.spyOn(global, "clearInterval");
+      const unrefFn = vi.fn();
+      const intervalId = { unref: unrefFn } as any;
+      const setIntervalSpy = vi.spyOn(global, "setInterval").mockReturnValue(intervalId);
+
+      try {
+        const { config } = makeOrchestrationSetup();
+        const mgr = new BaxiaTokenManager(config);
+
+        mgr.startRefreshLoop();
+        mgr.stop();
+
+        expect(clearIntervalSpy).toHaveBeenCalledWith(intervalId);
+
+        // Stop is idempotent — second call is a no-op
+        mgr.stop();
+        expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+      } finally {
+        clearIntervalSpy.mockRestore();
+        setIntervalSpy.mockRestore();
+      }
+    });
+
+    it("status reports cached/cachedAt/ageMs/ttlMs/consecutiveFailures", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { config, advance } = makeOrchestrationSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      // Before any token: cached=false
+      const s0 = mgr.status();
+      expect(s0.cached).toBe(false);
+      expect(s0.cachedAt).toBeNull();
+      expect(s0.ageMs).toBeNull();
+      expect(s0.ttlMs).toBe(1_500_000);
+      expect(s0.consecutiveFailures).toBe(0);
+      expect(s0.lastSpawnDurationMs).toBeNull();
+
+      // After fetching: cached=true
+      await mgr.ensureToken();
+      advance(5000); // age = 5s
+      const s1 = mgr.status();
+      expect(s1.cached).toBe(true);
+      expect(s1.cachedAt).toBe(1000); // initial now
+      expect(s1.ageMs).toBe(5000);
+      expect(s1.consecutiveFailures).toBe(0);
+      expect(s1.lastSpawnDurationMs).toBeGreaterThanOrEqual(0);
+    });
+
+    it("failure with fallback:false → ensureToken throws + consecutiveFailures increments", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const replyMap = makeDefaultReplyMap();
+      const fetcherFn = vi.fn(async () => {
+        throw new Error("network down");
+      });
+
+      const config = makeConfig({
+        spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+        WebSocketCtor: function (url: string) {
+          return new FakeWebSocket(url, replyMap) as any;
+        } as any,
+        fetcher: fetcherFn as any,
+        sleep: () => Promise.resolve(),
+        now: () => 1000,
+        fallback: false,
+      });
+
+      const mgr = new BaxiaTokenManager(config);
+
+      await expect(mgr.ensureToken()).rejects.toThrow();
+      expect(mgr.status().consecutiveFailures).toBe(1);
+
+      // Second failure increments
+      await expect(mgr.ensureToken()).rejects.toThrow();
+      expect(mgr.status().consecutiveFailures).toBe(2);
+    });
+  });
 });

@@ -81,6 +81,15 @@ export class BaxiaTokenManager {
   private _WebSocketCtor: typeof WebSocket;
   private _fetcher: typeof fetch;
   private _sleep: (ms: number) => Promise<void>;
+
+  // Orchestration state
+  private cached: BaxiaTokens | null = null;
+  private cachedAt = 0;
+  private pending: Promise<BaxiaTokens> | null = null;
+  private refreshTimer: ReturnType<typeof setInterval> | null = null;
+  private consecutiveFailures = 0;
+  private lastSpawnDurationMs: number | null = null;
+
   constructor(config: BaxiaTokenManagerConfig) {
     this.config = config;
     this._spawn =
@@ -318,26 +327,83 @@ export class BaxiaTokenManager {
     }
   }
 
-  // ── Orchestration stubs (S-M1-4) ────────────────────────────────────────
+  // ── Orchestration (S-M1-4) ───────────────────────────────────────────
 
   async ensureToken(
-    _opts?: { forceRefresh?: boolean },
+    opts?: { forceRefresh?: boolean },
   ): Promise<BaxiaTokens> {
-    // S-M1-3: direct call to getBaxiaTokens
-    // S-M1-4 will add cache + single-flight + forceRefresh
-    return this.getBaxiaTokens();
+    const now = this.config.now?.() ?? Date.now();
+
+    // Cache hit
+    if (
+      !opts?.forceRefresh &&
+      this.cached &&
+      now - this.cachedAt < this.config.cacheTtlMs
+    ) {
+      return this.cached;
+    }
+
+    // Single-flight: if a refresh is already in-flight, piggyback on it
+    if (this.pending) return this.pending;
+
+    // Start a new refresh (assigned synchronously before any await)
+    this.pending = this.doRefresh(now);
+    try {
+      return await this.pending;
+    } finally {
+      this.pending = null;
+    }
+  }
+
+  private async doRefresh(now: number): Promise<BaxiaTokens> {
+    const start = now;
+    try {
+      const tokens = await this.getBaxiaTokens();
+      this.cached = tokens;
+      this.cachedAt = now;
+      this.consecutiveFailures = 0;
+      this.lastSpawnDurationMs =
+        (this.config.now?.() ?? Date.now()) - start;
+      return tokens;
+    } catch (e) {
+      this.consecutiveFailures++;
+      if (this.config.fallback) {
+        // Return stale cache if available, otherwise rethrow
+        if (this.cached) return this.cached;
+      }
+      throw e;
+    }
   }
 
   startRefreshLoop(): void {
-    throw new Error("not impl");
+    if (this.refreshTimer) return; // idempotent
+    const interval = Math.max(60_000, this.config.cacheTtlMs - 120_000);
+    this.refreshTimer = setInterval(() => {
+      this.ensureToken({ forceRefresh: true }).catch(() => {});
+    }, interval);
+    this.refreshTimer.unref();
   }
 
   stop(): void {
-    throw new Error("not impl");
+    if (this.refreshTimer) {
+      clearInterval(this.refreshTimer);
+      this.refreshTimer = null;
+    }
   }
 
   status(): BaxiaStatus {
-    throw new Error("not impl");
+    const now = this.config.now?.() ?? Date.now();
+    return {
+      cached: this.cached !== null,
+      cachedAt: this.cached ? this.cachedAt : null,
+      ageMs: this.cached ? now - this.cachedAt : null,
+      ttlMs: this.config.cacheTtlMs,
+      nextRefreshInMs: this.refreshTimer
+        ? Math.max(60_000, this.config.cacheTtlMs - 120_000)
+        : null,
+      lastSpawnDurationMs: this.lastSpawnDurationMs,
+      consecutiveFailures: this.consecutiveFailures,
+    };
   }
 }
 
