@@ -109,6 +109,8 @@ export async function loadQwenProxyConfig(
     loginTimeoutMs: parseIntEnv(env.SF_QWEN_LOGIN_TIMEOUT_MS, 10_000),
     staggerMs: parseIntEnv(env.SF_QWEN_STAGGER_MS, 5_000),
     rateLimitCooldownMs: parseIntEnv(env.SF_QWEN_RATE_LIMIT_COOLDOWN_MS, 86_400_000),
+    emptyCooldownMs: parseIntEnv(env.SF_QWEN_EMPTY_COOLDOWN_MS, 600_000),
+    minRequestGapMs: parseIntEnv(env.SF_QWEN_MIN_REQUEST_GAP_MS, 4_000),
     reenableIntervalMs: parseIntEnv(env.SF_QWEN_REENABLE_INTERVAL_MS, 60_000),
     apiKeyEnv: (env.SF_QWEN_API_KEY || "").split(",").map(s => s.trim()).filter(Boolean),
     modelAliasesRaw: env.SF_QWEN_MODEL_ALIASES || "",

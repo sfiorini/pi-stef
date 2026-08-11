@@ -33,7 +33,7 @@ interface TestDeps {
   db: Database.Database;
   pool: AccountPool;
   scheduler: { refreshOnDemand: () => Promise<{ bearer: string; expiresAt: number }> };
-  config: { rateLimitCooldownMs: number };
+  config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
   log: Logger;
   client: UpstreamClient;
   retry: typeof withPoolRetry;
@@ -53,7 +53,7 @@ function makeDeps(
     db,
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000 },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
     log: noopLog,
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),

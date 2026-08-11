@@ -16,6 +16,8 @@ export interface QwenProxyConfig {
   loginTimeoutMs: number;     // SF_QWEN_LOGIN_TIMEOUT_MS     default 10000
   staggerMs: number;          // SF_QWEN_STAGGER_MS           default 5000
   rateLimitCooldownMs: number;// SF_QWEN_RATE_LIMIT_COOLDOWN_MS default 86400000 (24h)
+  emptyCooldownMs: number;    // SF_QWEN_EMPTY_COOLDOWN_MS    default 600000  (10min — empty-completion/CAPTCHA-flag cooldown)
+  minRequestGapMs: number;    // SF_QWEN_MIN_REQUEST_GAP_MS   default 4000   (look-human throttle, 0 disables)
   reenableIntervalMs: number; // SF_QWEN_REENABLE_INTERVAL_MS default 60000   (1 min)
   apiKeyEnv: string[];       // SF_QWEN_API_KEY           default []  (comma-split)
   modelAliasesRaw: string;   // SF_QWEN_MODEL_ALIASES     default ""  (JSON object)

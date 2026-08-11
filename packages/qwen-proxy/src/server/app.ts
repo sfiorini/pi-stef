@@ -20,6 +20,7 @@ import type { QwenProxyConfig } from "../config/types";
 import type { Logger } from "./logger";
 import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
 import type { withPoolRetryStream as WithPoolRetryStreamFn } from "../pool/retry";
+import type { RequestThrottle } from "../pool/throttle";
 import { healthRoutes } from "./health";
 import { clientAuthGate } from "./auth";
 import { openaiRoutes, type OpenAIRouteDeps } from "../adapters/openai";
@@ -44,6 +45,7 @@ export interface AppDeps {
   config: QwenProxyConfig;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
+  throttle: RequestThrottle;
   // media: bin-passthrough field for image routes (MediaImageDeps subset).
   // Not consumed directly by createApp; exists so bin can pass runtime deps.
   media: { client: UpstreamClient; retry: typeof WithPoolRetryFn; pool: AccountPool; scheduler: Pick<AuthScheduler, "refreshOnDemand">; config: QwenProxyConfig; log: Logger };
@@ -132,6 +134,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     client: deps.client,
     retry: deps.retry,
     retryStream: deps.retryStream,
+    throttle: deps.throttle,
     video: deps.video,
   };
 
@@ -141,11 +144,12 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   const anthropicDeps: AnthropicRouteDeps = {
     pool: deps.pool,
     scheduler: deps.scheduler,
-    config: { rateLimitCooldownMs: deps.config.rateLimitCooldownMs, modelAliasesRaw: deps.config.modelAliasesRaw ?? "" },
+    config: { rateLimitCooldownMs: deps.config.rateLimitCooldownMs, emptyCooldownMs: deps.config.emptyCooldownMs, modelAliasesRaw: deps.config.modelAliasesRaw ?? "" },
     log: deps.log,
     client: deps.client,
     retry: deps.retry,
     retryStream: deps.retryStream,
+    throttle: deps.throttle,
   };
   app.route("/v1", anthropicRoutes(anthropicDeps));
 

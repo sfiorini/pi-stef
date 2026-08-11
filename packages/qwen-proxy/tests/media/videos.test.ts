@@ -37,7 +37,7 @@ function makeDeps(
   return {
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000 },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
     log: noopLog,
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),

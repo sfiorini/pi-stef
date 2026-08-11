@@ -32,7 +32,8 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
     loginTimeoutMs: 10_000,
     staggerMs: 0, // no stagger in tests
     rateLimitCooldownMs: 86_400_000,
-    reenableIntervalMs: 60_000,
+    emptyCooldownMs: 600_000,
+    minRequestGapMs: 0,    reenableIntervalMs: 60_000,
     apiKeyEnv: [],
     modelAliasesRaw: "",
     logLevel: "info",

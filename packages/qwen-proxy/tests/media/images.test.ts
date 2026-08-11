@@ -49,7 +49,7 @@ function makeDeps(overrides?: Partial<MediaImageDeps>): MediaImageDeps {
       reEnableExpired: () => ({ cleared: 0, promoted: 0 }),
     } as unknown as RetryDeps["pool"],
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000 },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
     log: { info: () => {}, warn: () => {}, error: () => {} },
     client: {} as unknown as UpstreamClient,
     retry: withPoolRetry,

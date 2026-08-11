@@ -48,7 +48,7 @@ function makeDeps(
         expiresAt: 999999,
       }),
     },
-    config: { rateLimitCooldownMs: 60_000, modelAliasesRaw: "" },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "" },
     log: noopLog,
     retry: withPoolRetry,
     video: {

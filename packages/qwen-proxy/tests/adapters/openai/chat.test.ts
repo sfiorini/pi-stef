@@ -34,7 +34,7 @@ interface ChatDeps {
   db: Database.Database;
   pool: InstanceType<typeof AccountPool>;
   scheduler: { refreshOnDemand: () => Promise<{ bearer: string; expiresAt: number }> };
-  config: { rateLimitCooldownMs: number; modelAliasesRaw: string };
+  config: { rateLimitCooldownMs: number; emptyCooldownMs: number; modelAliasesRaw: string };
   log: Logger;
   client: UpstreamClient;
   retry: typeof withPoolRetry;
@@ -54,7 +54,7 @@ function makeDeps(
     db,
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000, modelAliasesRaw: "", ...overrides?.config },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "", ...overrides?.config },
     log: noopLog,
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),

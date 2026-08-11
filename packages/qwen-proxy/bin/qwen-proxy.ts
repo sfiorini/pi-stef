@@ -12,6 +12,7 @@ import { AccountPool } from "../src/pool/state";
 import { ReenableDaemon } from "../src/pool/reenable-daemon";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
+import { RequestThrottle } from "../src/pool/throttle";
 import { generateVideo } from "../src/media/videos";
 import type { AppDeps } from "../src/server/app";
 
@@ -60,8 +61,12 @@ async function main() {
     });
     await scheduler.start();
 
+    // Per-account request throttle (look-human): paces dispatches to reduce
+    // Baxia CAPTCHA flagging. minGapMs=0 disables.
+    const throttle = new RequestThrottle({ minGapMs: config.minRequestGapMs });
+
     // Build retry deps (shared by pool, media, routes)
-    const retryDeps = { pool, scheduler, config, log };
+    const retryDeps = { pool, scheduler, config, log, throttle };
 
     // Media deps (shared by images and video)
     const mediaDeps = {
@@ -80,6 +85,7 @@ async function main() {
       config,
       retry: withPoolRetry,
       retryStream: withPoolRetryStream,
+      throttle,
       media: {
         ...mediaDeps,
       },

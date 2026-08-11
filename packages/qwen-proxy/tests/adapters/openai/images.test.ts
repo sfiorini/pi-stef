@@ -41,7 +41,7 @@ function makeDeps(
     db,
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000, modelAliasesRaw: "" },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "" },
     log: noopLog,
     client: {
       login: async () => ({ bearer: "", expiresAt: null }),

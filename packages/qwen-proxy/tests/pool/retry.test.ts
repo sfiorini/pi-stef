@@ -11,6 +11,7 @@ import {
   type StreamChunk,
 } from "../../src/pool/retry";
 import { PoolExhaustedError } from "../../src/pool/errors";
+import type { RequestThrottle as RequestThrottleType } from "../../src/pool/throttle";
 import {
   RateLimitError,
   AuthExpiredError,
@@ -58,7 +59,7 @@ function makeDeps(
         expiresAt: 999999,
       }),
     },
-    config: { rateLimitCooldownMs: 60_000 },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
     log: noopLog,
     ...overrides,
   };
@@ -382,52 +383,80 @@ describe("withPoolRetryStream", () => {
     db.close();
   });
 
-  it("empty completion → retry same account → success", async () => {
+  it("empty completion → failover to next account → success", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
     promote(db, 1);
     const deps = makeDeps(db);
-    let callCount = 0;
+    const triedIds: number[] = [];
 
     async function* op(
-      _id: number,
+      id: number,
       _bearer: string,
     ): AsyncIterable<OpenAiChatChunk> {
-      callCount++;
-      if (callCount === 1) {
-        // Empty completion (qwen.aikit.club transient failure)
+      triedIds.push(id);
+      if (id === 1) {
+        // Empty completion — qwen.aikit.club masking a Baxia CAPTCHA flag
         yield finishChunk("stop");
         return;
       }
-      yield contentChunk("recovered");
+      yield contentChunk("recovered on account " + id);
       yield finishChunk("stop");
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
-    expect(callCount).toBe(2);
+    expect(chunks).toEqual([
+      contentChunk("recovered on account 2"),
+      finishChunk("stop"),
+    ]);
+    expect(triedIds).toEqual([1, 2]);
     db.close();
   });
 
-  it("empty completion across all retries → throws", async () => {
+  it("empty completion on sole account → RateLimitError (no failover target)", async () => {
     const db = openDb(":memory:");
-    reconcileAccounts(db, ACCOUNTS);
+    reconcileAccounts(db, [
+      { id: 1, email: "a@test.com", password: "pw", ord: 1 },
+    ]);
     promote(db, 1);
     const deps = makeDeps(db);
-    let callCount = 0;
 
     async function* op(
       _id: number,
       _bearer: string,
     ): AsyncIterable<OpenAiChatChunk> {
-      callCount++;
       yield finishChunk("stop");
     }
 
     await expect(
       collectChunks(withPoolRetryStream(deps, op)),
-    ).rejects.toThrow(/empty completion/);
-    expect(callCount).toBe(3); // initial + 2 retries
+    ).rejects.toThrow(RateLimitError);
+    db.close();
+  });
+
+  it("invokes the throttle before dispatching to an account", async () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, ACCOUNTS);
+    promote(db, 1);
+    const throttled: number[] = [];
+    const deps = makeDeps(db, {
+      throttle: {
+        waitFor: async (id: number) => {
+          throttled.push(id);
+        },
+      } as unknown as RequestThrottleType,
+    });
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("hi");
+      yield finishChunk("stop");
+    }
+
+    await collectChunks(withPoolRetryStream(deps, op));
+    expect(throttled).toEqual([1]);
     db.close();
   });
 

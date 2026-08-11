@@ -20,6 +20,7 @@ import { createApp } from "../../src/server/app";
 import { openDb } from "../../src/store/db";
 import { reconcileAccounts } from "../../src/store/repo";
 import { AccountPool } from "../../src/pool/state";
+import { RequestThrottle } from "../../src/pool/throttle";
 import type { AppDeps } from "../../src/server/app";
 
 // ── escapeHtml ──────────────────────────────────────────────────────────────
@@ -222,7 +223,8 @@ function makeStubDeps(adminKey?: string): AppDeps {
       loginTimeoutMs: 10000,
       staggerMs: 5000,
       rateLimitCooldownMs: 86400000,
-      reenableIntervalMs: 60000,
+      emptyCooldownMs: 600_000,
+      minRequestGapMs: 0,      reenableIntervalMs: 60000,
       apiKeyEnv: [],
       modelAliasesRaw: "",
       logLevel: "info",
@@ -231,6 +233,7 @@ function makeStubDeps(adminKey?: string): AppDeps {
     },
     retry: (async () => {}) as any,
     retryStream: (async function* () {}) as any,
+    throttle: new RequestThrottle({ minGapMs: 0 }),
     media: {
       client: {} as any,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
@@ -245,7 +248,8 @@ function makeStubDeps(adminKey?: string): AppDeps {
         loginTimeoutMs: 10000,
         staggerMs: 5000,
         rateLimitCooldownMs: 86400000,
-        reenableIntervalMs: 60000,
+        emptyCooldownMs: 600_000,
+        minRequestGapMs: 0,        reenableIntervalMs: 60000,
         apiKeyEnv: [],
         modelAliasesRaw: "",
         logLevel: "info",

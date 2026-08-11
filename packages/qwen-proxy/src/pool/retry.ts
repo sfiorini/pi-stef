@@ -1,13 +1,16 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError, UnknownError } from "../upstream/errors";
+import { RateLimitError, AuthExpiredError } from "../upstream/errors";
 import type { AuthScheduler } from "../upstream/auth";
 import type { AccountPool } from "./state";
 import { PoolExhaustedError } from "./errors";
+import type { RequestThrottle } from "./throttle";
 
 export interface RetryDeps {
   pool: AccountPool;
   scheduler: Pick<AuthScheduler, "refreshOnDemand">;
-  config: { rateLimitCooldownMs: number };
+  config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
+  /** Per-account request pacer ("look human"). Optional — absent in tests. */
+  throttle?: RequestThrottle;
   log: {
     info: (msg: string, ctx?: unknown) => void;
     warn: (msg: string, ctx?: unknown) => void;
@@ -19,9 +22,6 @@ export interface RetryDeps {
 export type StreamChunk =
   | OpenAiChatChunk
   | { done: true; extra?: { rateLimited?: boolean } };
-
-/** Max same-account retries for an empty upstream completion (transient qwen.aikit.club failure). */
-const MAX_EMPTY_RETRIES = 2;
 
 /**
  * Non-stream retry: RateLimitError → switch account → retry; AuthExpiredError → refresh → retry same.
@@ -37,6 +37,7 @@ export async function withPoolRetry<T>(
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
+    await deps.throttle?.waitFor(id);
 
     try {
       return await op(id, bearer);
@@ -88,14 +89,15 @@ export async function* withPoolRetryStream(
   const tried = new Set<number>();
   let authRefreshedFor: number | null = null;
 
-  let emptyRetries = 0;
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
+    await deps.throttle?.waitFor(id);
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
     let seenPayload = false;
+    let emptyCompletion = false;
 
     try {
       const iter = op(id, bearer);
@@ -116,25 +118,19 @@ export async function* withPoolRetryStream(
         }
       }
 
-      // Empty completion — qwen.aikit.club intermittently returns a stream with
-      // no content/reasoning/tool_calls (delta:{} + finish_reason:stop). Detect
-      // it and retry the same account (transient failure) before surfacing.
+      // Empty completion — qwen.aikit.club masks Baxia CAPTCHA flags as empty
+      // 200s (delta:{} + finish_reason:stop, usage:{}). Retrying is pointless
+      // (the account is blocked until the CAPTCHA clears) and hammering it is
+      // suspicious. Flag it; the handler below the catch applies a SHORT
+      // cooldown + failover (not the 24h real-rate-limit cooldown) so accounts
+      // cycle back as they recover.
       if (!seenPayload) {
-        emptyRetries++;
-        if (emptyRetries <= MAX_EMPTY_RETRIES) {
-          deps.log.warn("upstream returned empty completion, retrying", {
-            attempt: emptyRetries,
-            accountId: id,
-          });
-          continue;
-        }
-        throw new UnknownError(
-          "upstream returned an empty completion (no content) after retries — likely a transient qwen.aikit.club failure",
-        );
+        emptyCompletion = true;
+      } else {
+        // Clean end — flush remaining buffer
+        yield* buffer;
+        return;
       }
-      // Clean end — flush remaining buffer
-      yield* buffer;
-      return;
     } catch (err) {
       if (err instanceof RateLimitError) {
         if (!seenContent) {
@@ -173,6 +169,25 @@ export async function* withPoolRetryStream(
 
       // All other errors surface
       throw err;
+    }
+
+    // Empty completion (reached only if the stream had no payload) — apply the
+    // SHORT emptyCooldownMs + failover. Outside the try so the catch (which
+    // uses the 24h rateLimitCooldownMs) doesn't re-handle it.
+    if (emptyCompletion) {
+      deps.log.warn("upstream returned empty completion — short cooldown + failover (likely Baxia CAPTCHA flag)", { accountId: id, cooldownMs: deps.config.emptyCooldownMs });
+      tried.add(id);
+      const result = await deps.pool.markRateLimitedAndSwitch(
+        id,
+        deps.config.emptyCooldownMs,
+      );
+      if (result.newActiveId !== null && !tried.has(result.newActiveId)) {
+        continue;
+      }
+      throw new RateLimitError(
+        "upstream returned an empty completion (account likely CAPTCHA-flagged by Baxia anti-bot)",
+        { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+      );
     }
   }
 }
