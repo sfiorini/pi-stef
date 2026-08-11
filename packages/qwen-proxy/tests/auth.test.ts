@@ -41,6 +41,7 @@ function makeConfig(overrides: Partial<QwenProxyConfig> = {}): QwenProxyConfig {
       { id: 1, email: "a@b.com", password: "pw1", ord: 1 },
     ],
     adminKey: undefined,
+    baxia: { useChromeBaxia: false, chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false },
     ...overrides,
   };
 }

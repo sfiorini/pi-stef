@@ -5,6 +5,15 @@ export interface Account {
   ord: number;
 }
 
+export interface BaxiaConfig {
+  useChromeBaxia: boolean;
+  chromePath?: string;
+  cacheTtlMs: number;
+  baxiaVersion: string;
+  preWarm: boolean;
+  fallback: boolean;
+}
+
 export interface QwenProxyConfig {
   host: string;               // SF_QWEN_HOST            default "127.0.0.1"
   port: number;               // SF_QWEN_PORT            default 7790
@@ -24,4 +33,5 @@ export interface QwenProxyConfig {
   logLevel: string;           // SF_QWEN_LOG_LEVEL            default "info"
   accounts: Account[];
   adminKey?: string;          // SF_QWEN_ADMIN_KEY      default undefined (dashboard disabled)
+  baxia: BaxiaConfig;
 }
