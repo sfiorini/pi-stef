@@ -11,6 +11,18 @@ import { createHash } from "node:crypto";
 import { decodeExpiryMs } from "./auth";
 import { classifyResponse, NetworkError, UnknownError } from "./errors";
 import { parseSseStream } from "./sse";
+import type {
+  OpenAiChatChunk,
+  OpenAiChatCompletion,
+  Model,
+  ChatCompletionsBody,
+} from "./types";
+export type {
+  OpenAiChatChunk,
+  OpenAiChatCompletion,
+  Model,
+  ChatCompletionsBody,
+} from "./types";
 
 // ── Public types ────────────────────────────────────────────────────────────
 
@@ -28,58 +40,9 @@ export interface LoginResult {
   expiresAt: number | null;
 }
 
-export interface Model {
-  id: string;
-  object: "model";
-  owned_by?: string;
-}
-
 export interface ImageResult {
   created: number;
   urls: string[];
-}
-
-/** Raw streaming chunk from the upstream OpenAI-compatible API. */
-export interface OpenAiChatChunk {
-  choices: {
-    index?: number;
-    delta?: {
-      role?: string;
-      content?: string;
-      reasoning_content?: string;
-      tool_calls?: unknown[];
-    };
-    finish_reason?: string | null;
-  }[];
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  } | null;
-}
-
-/** Raw non-stream completion from the upstream OpenAI-compatible API. */
-export interface OpenAiChatCompletion {
-  id: string;
-  object: "chat.completion";
-  created: number;
-  model: string;
-  system_fingerprint?: string;
-  choices: {
-    index: number;
-    message: {
-      role: string;
-      content: string;
-      reasoning_content?: string;
-      tool_calls?: unknown[];
-    };
-    finish_reason?: string;
-  }[];
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    total_tokens?: number;
-  } | null;
 }
 
 export interface UpstreamClient {
@@ -87,15 +50,7 @@ export interface UpstreamClient {
   listModels(bearer: string): Promise<Model[]>;
   chatCompletions(
     bearer: string,
-    body: {
-      model: string;
-      messages: { role: string; content: string }[];
-      stream: boolean;
-      enable_thinking?: boolean;
-      thinking_budget?: number;
-      tools?: unknown[];
-      tool_choice?: unknown;
-    },
+    body: ChatCompletionsBody,
   ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk>;
   imageGeneration(
     bearer: string,
@@ -230,15 +185,7 @@ export function createUpstreamClient(opts: UpstreamClientOpts): UpstreamClient {
 
   function chatCompletions(
     bearer: string,
-    body: {
-      model: string;
-      messages: { role: string; content: string }[];
-      stream: boolean;
-      enable_thinking?: boolean;
-      thinking_budget?: number;
-      tools?: unknown[];
-      tool_choice?: unknown;
-    },
+    body: ChatCompletionsBody,
   ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk> {
     // Thin body — just the essential fields, no rich wrapping
     const thinBody: Record<string, unknown> = {
