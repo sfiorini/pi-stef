@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-11
+### Changed
+- fix(qwen-proxy): retry empty upstream completions instead of silent stop
+
+
 ## [0.1.1] - 2026-08-11
 ### Changed
 - fix(qwen-proxy): accept text/html Content-Type for SSE streams
