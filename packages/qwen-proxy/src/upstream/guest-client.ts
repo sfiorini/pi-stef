@@ -56,23 +56,7 @@ export class GuestUpstreamClient {
   // ── createChatSession ──────────────────────────────────────────────────
 
   async createChatSession(model: string, chatType: "t2t" | "search"): Promise<string> {
-    const tokens = await this.baxia.ensureToken();
     const referer = `${this.chatUrl}/c/guest`;
-
-    const headers: Record<string, string> = {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      "bx-ua": tokens.bxUa,
-      "bx-umidtoken": tokens.bxUmidToken,
-      "bx-v": tokens.bxV,
-      Cookie: tokens.cookies,
-      source: "web",
-      version: "0.2.83",
-      Referer: referer,
-      "User-Agent": this.userAgent,
-      "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
-      "x-request-id": randomUUID(),
-    };
 
     const body = {
       title: "新建对话",
@@ -85,6 +69,22 @@ export class GuestUpstreamClient {
 
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const tokens = await this.baxia.ensureToken(attempt > 0 ? { forceRefresh: true } : undefined);
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "bx-ua": tokens.bxUa,
+        "bx-umidtoken": tokens.bxUmidToken,
+        "bx-v": tokens.bxV,
+        Cookie: tokens.cookies,
+        source: "web",
+        version: "0.2.83",
+        Referer: referer,
+        "User-Agent": this.userAgent,
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        "x-request-id": randomUUID(),
+      };
+
       const res = await this._fetch(`${this.chatUrl}/api/v2/chats/new`, {
         method: "POST",
         headers,
@@ -94,10 +94,9 @@ export class GuestUpstreamClient {
       const data = await res.json();
 
       // Check for rgv587 (Baxia captcha rejection)
-      if (RGV587_RE.test(JSON.stringify(data)) || RGV587_RE.test(String(res.status))) {
+      if (RGV587_RE.test(JSON.stringify(data))) {
         this.log.warn("createChatSession rgv587 detected, retrying", { attempt: attempt + 1 });
         if (attempt < maxRetries - 1) {
-          await this.baxia.ensureToken({ forceRefresh: true });
           await this._sleep(600);
           continue;
         }
@@ -340,26 +339,38 @@ export class GuestUpstreamClient {
   }
 
   private extractPrerenderedData(html: string): string[] {
-    // Try to find JSON with "models" array in the HTML
-    const match = html.match(/"models"\s*:\s*\[(.*?)\]/s);
-    if (match) {
+    // Try __PRERENDERED_DATA__ or __NEXT_DATA__ blob first (JSON.parse for robustness)
+    const blobMatch =
+      html.match(/__PRERENDERED_DATA__\s*=\s*(\{[\s\S]*?\})\s*[;<]/) ??
+      html.match(/__NEXT_DATA__\s*=\s*(\{[\s\S]*?\})\s*[;<]/);
+    if (blobMatch) {
       try {
-        const jsonStr = `[${match[1]}]`;
-        const arr = JSON.parse(jsonStr) as { id?: string }[];
-        return arr.map((m) => m.id ?? "").filter(Boolean);
+        const data = JSON.parse(blobMatch[1]) as { models?: { id: string }[] };
+        const models = (data.models ?? []).map((m) => m.id).filter(Boolean);
+        if (models.length > 0) return models;
       } catch {
         // fall through
       }
     }
 
-    // Try __PRERENDERED_DATA__ pattern
-    const prerenderedMatch = html.match(/__PRERENDERED_DATA__\s*=\s*(\{.*?\})\s*[;<]/s);
-    if (prerenderedMatch) {
-      try {
-        const data = JSON.parse(prerenderedMatch[1]) as { models?: { id: string }[] };
-        return (data.models ?? []).map((m) => m.id).filter(Boolean);
-      } catch {
-        // fall through
+    // Fallback: find "models" key and extract the balanced bracket array
+    const modelsKeyMatch = html.match(/"models"\s*:\s*\[/);
+    if (modelsKeyMatch?.index != null) {
+      const startBracket = modelsKeyMatch.index + modelsKeyMatch[0].length - 1;
+      let depth = 0;
+      for (let i = startBracket; i < html.length; i++) {
+        if (html[i] === "[") depth++;
+        if (html[i] === "]") {
+          depth--;
+          if (depth === 0) {
+            try {
+              const arr = JSON.parse(html.slice(startBracket, i + 1)) as { id?: string }[];
+              return arr.map((m) => m.id ?? "").filter(Boolean);
+            } catch {
+              return [];
+            }
+          }
+        }
       }
     }
 

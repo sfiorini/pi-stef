@@ -119,6 +119,71 @@ describe("createChatSession", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(baxia.ensureToken).toHaveBeenCalledWith({ forceRefresh: true });
   });
+
+  it("P1: rgv587 retry uses FRESH (not stale) bx-* headers after forceRefresh", async () => {
+    const STALE_TOKENS: BaxiaTokens = {
+      bxUa: "231!STALE-ua",
+      bxUmidToken: "STALE-umid" + "x".repeat(20),
+      bxV: "2.5.37",
+      cookies: "stale=c1",
+    };
+    const FRESH_TOKENS: BaxiaTokens = {
+      bxUa: "231!FRESH-ua",
+      bxUmidToken: "FRESH-umid" + "x".repeat(20),
+      bxV: "2.5.37",
+      cookies: "fresh=c1",
+    };
+
+    const ensureTokenMock = vi.fn()
+      // 1st call (no forceRefresh) → STALE
+      .mockResolvedValueOnce(STALE_TOKENS)
+      // 2nd call (forceRefresh:true) → FRESH
+      .mockResolvedValueOnce(FRESH_TOKENS);
+
+    const baxia = {
+      ensureToken: ensureTokenMock,
+      startRefreshLoop: vi.fn(),
+      stop: vi.fn(),
+      status: vi.fn(),
+    } as unknown as BaxiaTokenManager;
+
+    const fetcher = vi.fn()
+      // 1st POST: rgv587 rejection (triggers forceRefresh retry)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ rgv587: true, message: "captcha" }),
+      })
+      // 2nd POST: success
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "session-fresh" } }),
+      });
+
+    const client = new GuestUpstreamClient({
+      baxia,
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      sleep: async () => {},
+    });
+
+    const result = await client.createChatSession("qwen3-max", "t2t");
+
+    expect(result).toBe("session-fresh");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+
+    // (a) ensureToken was called with forceRefresh after the rgv587
+    expect(ensureTokenMock).toHaveBeenCalledTimes(2);
+    expect(ensureTokenMock).toHaveBeenNthCalledWith(1, undefined);
+    expect(ensureTokenMock).toHaveBeenNthCalledWith(2, { forceRefresh: true });
+
+    // (b) The 2nd POST must carry FRESH headers, not STALE
+    const [, retryInit] = fetcher.mock.calls[1];
+    const retryHeaders = retryInit.headers as Record<string, string>;
+    expect(retryHeaders["bx-ua"]).toBe(FRESH_TOKENS.bxUa);
+    expect(retryHeaders["bx-umidtoken"]).toBe(FRESH_TOKENS.bxUmidToken);
+    expect(retryHeaders["Cookie"]).toBe(FRESH_TOKENS.cookies);
+  });
 });
 
 // ── normalizeMessages ────────────────────────────────────────────────────
@@ -422,6 +487,52 @@ describe("listModels", () => {
 
     expect(models).toHaveLength(1);
     expect(models[0].id).toBe("qwen-turbo");
+  });
+
+  it("P3-1: extractPrerenderedData handles model objects with nested arrays", async () => {
+    // Model objects with nested arrays (e.g. "tags":["a","b"]) break the old non-greedy regex
+    const html = `<html><script>window.__PRERENDERED_DATA__ = {"models":[{"id":"qwen3-max","tags":["fast","smart"]},{"id":"qwen-turbo","capabilities":[{"name":"chat"},{"name":"search"}]}]}</script></html>`;
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/html" }),
+      text: async () => html,
+    });
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    const models = await client.listModels("ignored");
+
+    expect(models).toHaveLength(2);
+    expect(models[0].id).toBe("qwen3-max");
+    expect(models[1].id).toBe("qwen-turbo");
+  });
+
+  it("P3-1b: extracts models with nested arrays via balanced-bracket fallback (no __PRERENDERED_DATA__)", async () => {
+    // HTML with "models" key but no __PRERENDERED_DATA__ — exercises the balanced-bracket path
+    const html = `<html><script>var cfg = {"models":[{"id":"qwen-max","tags":["reasoning","code"]},{"id":"qwen-plus"}], "other":123};</script></html>`;
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "content-type": "text/html" }),
+      text: async () => html,
+    });
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    const models = await client.listModels("ignored");
+
+    expect(models).toHaveLength(2);
+    expect(models[0].id).toBe("qwen-max");
+    expect(models[1].id).toBe("qwen-plus");
   });
 
   it("caches results after first call", async () => {
