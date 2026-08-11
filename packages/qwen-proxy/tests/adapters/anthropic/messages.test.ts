@@ -156,6 +156,38 @@ describe("POST /v1/messages", () => {
     expect(capturedBody.enable_thinking).toBeUndefined();
   });
 
+  it("non-stream: finish_reason omitted (undefined) → stop_reason:end_turn", async () => {
+    const client = {
+      chatCompletions: async () => ({
+        id: "chatcmpl-test",
+        object: "chat.completion",
+        created: Date.now(),
+        model: "qwen3-max",
+        choices: [
+          {
+            index: 0,
+            message: { role: "assistant", content: "hi" },
+            // finish_reason intentionally OMITTED (not null, not undefined — absent)
+          },
+        ],
+        usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
+      }),
+    } as Pick<UpstreamClient, "chatCompletions">;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/messages", {
+      method: "POST",
+      headers: authHeaders(),
+      body: JSON.stringify(makeBody()),
+    });
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.stop_reason).toBe("end_turn");
+  });
+
   // ── Non-stream with thinking ───────────────────────────────────────────
 
   it("non-stream includes thinking block when reasoning_content present (D7 empty sig)", async () => {
