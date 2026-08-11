@@ -13,8 +13,8 @@
 
 import { OpenAPIHono } from "@hono/zod-openapi";
 import type Database from "better-sqlite3";
-import type { AccountPool } from "../pool/state";
-import type { UpstreamClient, ImageResult } from "../upstream/client";
+import type { PoolLike } from "../pool/types";
+import type { UpstreamClient } from "../upstream/client";
 import type { AuthScheduler } from "../upstream/auth";
 import type { QwenProxyConfig } from "../config/types";
 import type { Logger } from "./logger";
@@ -39,19 +39,13 @@ import {
 
 export interface AppDeps {
   db: Database.Database;
-  pool: AccountPool;
-  client: UpstreamClient;
+  pool: PoolLike;
+  client: Pick<UpstreamClient, "chatCompletions" | "listModels" | "deleteChats">;
   scheduler: Pick<AuthScheduler, "refreshOnDemand">;
   config: QwenProxyConfig;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
   throttle: RequestThrottle;
-  // media: bin-passthrough field for image routes (MediaImageDeps subset).
-  // Not consumed directly by createApp; exists so bin can pass runtime deps.
-  media: { client: UpstreamClient; retry: typeof WithPoolRetryFn; pool: AccountPool; scheduler: Pick<AuthScheduler, "refreshOnDemand">; config: QwenProxyConfig; log: Logger };
-  // video: bin-passthrough field for the synchronous video endpoint.
-  // Not consumed directly by createApp; exists so bin can pass the wired generateVideo closure.
-  video: { generateVideo: (params: { prompt: string; size?: string }) => Promise<ImageResult> };
   log: Logger;
 }
 
@@ -135,7 +129,6 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     retry: deps.retry,
     retryStream: deps.retryStream,
     throttle: deps.throttle,
-    video: deps.video,
   };
 
   app.route("/v1", openaiRoutes(openaiDeps));

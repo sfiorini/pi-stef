@@ -20,6 +20,7 @@ import {
 import type { OpenAiChatChunk } from "../../src/upstream/client";
 import type { Account } from "../../src/config/types";
 import type { Logger } from "../../src/server/logger";
+import { SingleAccountPool } from "../../src/pool/single";
 
 const ACCOUNTS: Account[] = [
   { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
@@ -213,16 +214,17 @@ describe("withPoolRetry", () => {
 
 // ── withPoolRetryStream (OpenAiChatChunk + StreamChunk) ─────────────────────
 
-describe("withPoolRetryStream", () => {
-  async function collectChunks(
-    iter: AsyncIterable<StreamChunk>,
-  ): Promise<StreamChunk[]> {
-    const chunks: StreamChunk[] = [];
-    for await (const chunk of iter) {
-      chunks.push(chunk);
-    }
-    return chunks;
+async function collectChunks(
+  iter: AsyncIterable<StreamChunk>,
+): Promise<StreamChunk[]> {
+  const chunks: StreamChunk[] = [];
+  for await (const chunk of iter) {
+    chunks.push(chunk);
   }
+  return chunks;
+}
+
+describe("withPoolRetryStream", () => {
 
   it("yields all OpenAiChatChunks on clean stream", async () => {
     const db = openDb(":memory:");
@@ -486,5 +488,60 @@ describe("withPoolRetryStream", () => {
       throw new Error("Expected sentinel");
     }
     db.close();
+  });
+});
+
+// ── withPoolRetry against SingleAccountPool ───────────────────────────────
+
+describe("withPoolRetry against SingleAccountPool", () => {
+  it("returns result on first success", async () => {
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    const result = await withPoolRetry(deps, async (_id, _bearer) => "ok");
+    expect(result).toBe("ok");
+  });
+
+  it("RateLimitError → PoolExhaustedError (no failover target)", async () => {
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        throw new RateLimitError("rate limited");
+      }),
+    ).rejects.toThrow(PoolExhaustedError);
+  });
+
+  it("empty-completion on sole account → RateLimitError", async () => {
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      // Empty completion — no content, only a finish_reason
+      yield finishChunk("stop");
+    }
+
+    await expect(
+      collectChunks(withPoolRetryStream(deps, op)),
+    ).rejects.toThrow(RateLimitError);
   });
 });

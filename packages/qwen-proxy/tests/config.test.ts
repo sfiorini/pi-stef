@@ -160,6 +160,27 @@ describe("config", () => {
       });
       expect(config.adminKey).toBeUndefined();
     });
+
+    it("returns baxia defaults", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.baxia).toEqual({
+        useChromeBaxia: true,
+        chromePath: undefined,
+        cacheTtlMs: 1_500_000,
+        baxiaVersion: "2.5.37",
+        preWarm: true,
+        fallback: false,
+      });
+    });
+
+    it("overrides baxia via env", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_USE_CHROME_BAXIA: "false",
+        SF_QWEN_BAXIA_VERSION: "9.9.9",
+      });
+      expect(config.baxia.useChromeBaxia).toBe(false);
+      expect(config.baxia.baxiaVersion).toBe("9.9.9");
+    });
   });
 
   describe("account supply", () => {

@@ -117,5 +117,13 @@ export async function loadQwenProxyConfig(
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",
     accounts: await resolveAccounts(env),
     adminKey: env.SF_QWEN_ADMIN_KEY || undefined,
+    baxia: {
+      useChromeBaxia: env.SF_QWEN_USE_CHROME_BAXIA !== "false",
+      chromePath: env.SF_QWEN_CHROME_PATH || undefined,
+      cacheTtlMs: parseIntEnv(env.SF_QWEN_BAXIA_CACHE_TTL_MS, 1_500_000),
+      baxiaVersion: env.SF_QWEN_BAXIA_VERSION || "2.5.37",
+      preWarm: env.SF_QWEN_BAXIA_PRE_WARM !== "false",
+      fallback: env.SF_QWEN_BAXIA_FALLBACK === "true",
+    },
   };
 }
