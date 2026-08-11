@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-11
+### Changed
+- feat(qwen-proxy): look-human throttle + short-cooldown failover for CAPTCHA flags
+
+
 ## [0.1.2] - 2026-08-11
 ### Changed
 - fix(qwen-proxy): retry empty upstream completions instead of silent stop
