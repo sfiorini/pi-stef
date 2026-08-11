@@ -28,4 +28,3 @@ export { AuthScheduler } from "./upstream/auth";
 export { createUpstreamClient } from "./upstream/client";
 export { stripDetails, DetailsStreamStripper } from "./upstream/details-strip";
 export * from "./pool";
-export * from "./media";

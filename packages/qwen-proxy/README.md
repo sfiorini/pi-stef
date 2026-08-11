@@ -34,10 +34,8 @@ curl http://127.0.0.1:7790/v1/health
 
 - **Multi-account pool** — round-robin across Qwen accounts with automatic failover on 429
 - **JWT-only token refresh** — scheduled JWT refresh per account (chat.qwen.ai login); on-demand re-login on 401
-- **Synchronous video generation** — `POST /v1/videos/generations` blocks until URL returns (≥300s wall-time budget)
-- **Third-party gateway** — forwards to [qwen.aikit.club](https://qwen.aikit.club), a community Cloudflare Worker that handles Baxia anti-bot internally ([docs](https://qwen-api.readme.io) · [source](https://github.com/encryptarun/qwen-api)); does NOT beat Baxia itself; self-host via `SF_QWEN_API_URL`
 - **Rate-limit cooldown** — automatic disable on rate-limit, periodic re-enable sweep
-- **OpenAI-compatible API** — `/v1/chat/completions`, `/v1/models`, `/v1/images/*`, `/v1/videos/*`
+- **OpenAI-compatible API** — `/v1/chat/completions`, `/v1/models`
 - **Anthropic-compatible API** — `/v1/messages` with `claude-*` model fallback to `qwen3-max`
 - **Admin dashboard** — read-only HTML dashboard at `/admin` (optional, gated by `SF_QWEN_ADMIN_KEY`)
 - **Docker** — multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR, non-root uid 1000

@@ -13,7 +13,6 @@ import { ReenableDaemon } from "../src/pool/reenable-daemon";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
 import { RequestThrottle } from "../src/pool/throttle";
-import { generateVideo } from "../src/media/videos";
 import type { AppDeps } from "../src/server/app";
 
 const log = createLogger();
@@ -65,17 +64,6 @@ async function main() {
     // Baxia CAPTCHA flagging. minGapMs=0 disables.
     const throttle = new RequestThrottle({ minGapMs: config.minRequestGapMs });
 
-    // Build retry deps (shared by pool, media, routes)
-    const retryDeps = { pool, scheduler, config, log, throttle };
-
-    // Media deps (shared by images and video)
-    const mediaDeps = {
-      ...retryDeps,
-      db,
-      client,
-      retry: withPoolRetry,
-    };
-
     // Build AppDeps for createApp/startServer
     const deps: AppDeps = {
       db,
@@ -86,12 +74,6 @@ async function main() {
       retry: withPoolRetry,
       retryStream: withPoolRetryStream,
       throttle,
-      media: {
-        ...mediaDeps,
-      },
-      video: {
-        generateVideo: (params) => generateVideo(mediaDeps, params),
-      },
       log,
     };
 
