@@ -61,6 +61,31 @@ function flattenContent(content: unknown): string {
   return "";
 }
 
+/**
+ * Flatten multi-turn conversation into a single user message.
+ * qwen.aikit.club only forwards the last message to chat.qwen.ai —
+ * prior messages in the array are ignored. This concatenates ALL
+ * non-system messages into one user message so the model sees full context.
+ */
+function flattenForUpstream(
+  messages: Array<{ role: string; content: string }>,
+): Array<{ role: string; content: string }> {
+  const systemMsgs = messages.filter((m) => m.role === "system");
+  const convoMsgs = messages.filter((m) => m.role !== "system");
+  if (convoMsgs.length <= 1) return messages;
+  const systemContent = systemMsgs.map((m) => m.content).join("\n\n");
+  const conversationText = convoMsgs
+    .map((m) => {
+      const label = m.role === "user" ? "User" : m.role === "assistant" ? "Assistant" : m.role;
+      return `${label}: ${m.content}`;
+    })
+    .join("\n\n");
+  const result: Array<{ role: string; content: string }> = [];
+  if (systemContent) result.push({ role: "system", content: systemContent });
+  result.push({ role: "user", content: conversationText });
+  return result;
+}
+
 
 export function chatRoutes(deps: ChatRouteDeps) {
   const r = createOpenApiSubApp();
@@ -173,6 +198,9 @@ export function chatRoutes(deps: ChatRouteDeps) {
     } else if (b.tool_choice !== undefined) {
       upstreamBody.tool_choice = b.tool_choice;
     }
+
+    // qwen.aikit.club only forwards the last message — flatten multi-turn
+    upstreamBody.messages = flattenForUpstream(upstreamBody.messages as Array<{ role: string; content: string }>);
 
     // ── Non-stream ────────────────────────────────────────────────────────
 

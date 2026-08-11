@@ -600,13 +600,15 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     const msgs = (chatCompletionsCalledWith as any).messages;
-    // tool messages should be rewritten to system with Tool prefix
-    const toolMsg = msgs.find((m: any) => typeof m.content === "string" && m.content.includes("Tool \`get_weather\`") );
-    expect(toolMsg).toBeDefined();
-    expect(toolMsg.content).toContain("{\"temp\":25}");
-    // assistant tool_calls should be rewritten to <tool_calls> text
-    const assistantMsg = msgs.find((m: any) => m.role === "assistant");
-    expect(assistantMsg.content).toContain("<tool_calls>");
+    // After flattenForUpstream: system(combined) has tool prompt + result; user(combined) has conversation
+    const systemMsg = msgs.find((m: any) => m.role === "system");
+    expect(systemMsg).toBeDefined();
+    expect(systemMsg.content).toContain("get_weather");
+    expect(systemMsg.content).toContain("temp");
+    const userMsg = msgs.find((m: any) => m.role === "user");
+    expect(userMsg).toBeDefined();
+    expect(userMsg.content).toContain("<tool_calls>");
+    expect(userMsg.content).toContain("Assistant:");
   });
 
   // ── Alias resolution ────────────────────────────────────────────────────
