@@ -31,8 +31,10 @@ Jira issue types, etc.). Each template is a self-documenting Markdown file conta
   body is the issue `description`); `jira_create_issue` / `jira_update_issue` convert it to
   Atlassian Document Format automatically. The converter only makes paragraph / line-break /
   text nodes — no real headings, lists, or bold — so Jira template bodies use ALL-CAPS
-  section headers as visual dividers. For rich formatting, pass a pre-built ADF object as
-  the `description`.
+  section headers as visual dividers. For rich formatting (bold headers,
+  lists, inline code), build an ADF `doc` and pass it through **`fields.description`** (the
+  top-level `description` stringifies objects into one text node); see
+  [`jira-story.md`](./jira-story.md) for the bold-header ADF pattern.
 - **PISTFIN Jira conventions.** pi-stef Jira projects (`PISTFIN`, `PISTQWE`, …) use a
   three-tier **Epic → Story → Sub-task** hierarchy with **no separate Feature type**
   (Feature bodies are enriched Epics — see `jira-feature.md`); `components[]` = the package

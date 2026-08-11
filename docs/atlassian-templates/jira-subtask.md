@@ -58,7 +58,8 @@ Part of {{PARENT_STORY_SUMMARY}}.
   `plainTextToAdf()`, which only produces `paragraph` / `hardBreak` / `text` nodes — **no
   real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines and
   `- ` / `**` markers render as literal text. Keep Sub-task bodies short (they're ≤1-day
-  slices); if a Sub-task genuinely needs rich formatting, pass a pre-built ADF object as the
-  `description`.
+  slices); if a Sub-task genuinely needs rich formatting, build an ADF object and pass it
+  through **`fields.description`** (the top-level `description` stringifies objects into one
+  text node); see [`jira-story.md`](./jira-story.md) for the bold-header ADF pattern.
 - **Verify after publishing** with `jira_get_issue` (or `jira_issue`): confirm the summary,
   description, parent Story, and fields all landed.

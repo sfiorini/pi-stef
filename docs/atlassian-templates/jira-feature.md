@@ -90,8 +90,9 @@ LEADING INDICATORS / OKRS
   real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines
   (visual dividers) and `- ` / `**` markers render as literal text. A blank line starts a
   new paragraph; a single newline is a line break within a paragraph. If a section genuinely
-  needs real lists/headings/bold, build an ADF object and pass it to `description` directly
-  (the tool passes ADF objects through unchanged).
+  needs real lists/headings/bold, build an ADF object and pass it through
+  **`fields.description`** (the top-level `description` stringifies objects into one text
+  node); see [`jira-story.md`](./jira-story.md) for the bold-header ADF pattern.
 - **Non-functional requirements must be honest.** They're first-class in this template on
   purpose — list the real performance/security/accessibility/observability constraints. If
   there are genuinely none, say `None identified yet.` rather than dropping the section.

@@ -43,8 +43,13 @@ Reusable, source-controlled templates for the Confluence spaces and Jira content
 
 1. Read the template `.md` and substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
 2. Publish in the right format: Confluence templates in **storage format**
-   (`bodyRepresentation: "storage"`); Jira templates as **plain text** passed to the
-   `description` (converted to ADF automatically), with fields via the `fields` map.
+   (`bodyRepresentation: "storage"`); Jira templates either as **plain text** to the
+   top-level `description` (converted to ADF automatically — no bold/lists/inline-code) or,
+   for rich formatting (bold section headers, bullet lists, inline code), as a pre-built
+   **ADF object via `fields.description`** (the top-level `description` arg stringifies
+   objects, so pass ADF through `fields.description`). See
+   [`docs/atlassian-templates/jira-story.md`](./docs/atlassian-templates/jira-story.md) for
+   the bold-header ADF pattern.
 3. Keep the canonical section order and the live macros (e.g. `recently-updated`) intact; adapt the *content*, not the structure.
 4. Verify after publishing (`confluence_page` for Confluence pages, `jira_get_issue` for
    Jira issues) that the content landed cleanly (version incremented / body replaced).

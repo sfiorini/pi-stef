@@ -11,11 +11,13 @@ conversation then fills out.
 - The unit of value you estimate and deliver in a few days (distinct from a multi-sprint
   Epic).
 
-Publish with `jira_create_issue` (new) or `jira_update_issue` (refresh). Pass the body as
-the `description` (plain text; converted to ADF automatically) and set `issueTypeName` to
-`Story`. Link the parent via `fields.parent.key`. Other values go through `fields`. For rich
-formatting (real headings, bullet lists, bold), build an ADF object and pass it to
-`description` directly (see Notes).
+Publish with `jira_create_issue` (new) or `jira_update_issue` (refresh). Set `issueTypeName`
+to `Story`; link the parent via `fields.parent.key`; other values go through `fields`. For
+the **description body** there are two paths: **plain text** via the top-level `description`
+arg (converted to ADF, but NO bold/lists/code) or — **recommended for any non-trivial
+story** — a pre-built **ADF object via `fields.description`** (bold headers, bullet lists,
+inline code; stored verbatim). DO NOT pass an ADF object to the top-level `description` arg
+— it gets stringified into one literal text node. See Notes.
 
 ## Placeholders
 
@@ -28,7 +30,52 @@ formatting (real headings, bullet lists, bold), build an ADF object and pass it 
 | `{{TECHNICAL_NOTES}}` | no | *Technical notes* — schema/API/algorithm sketches. Say `None.` if none. |
 | `{{SUGGESTED_SUBTASKS}}` | no | *Suggested sub-tasks* — a starter breakdown; **create each as a Sub-task issue** via [`jira-subtask.md`](./jira-subtask.md) (imperative summary, parent = this Story). Optional. |
 
-## Template body (Jira description, plain text)
+## Template body — ADF (recommended: bold headers + lists + inline code)
+
+For any non-trivial story, publish the description as an **ADF object via `fields.description`**
+(the plain-text path cannot do bold/lists/code — see Notes). **Section headers are bold
+paragraphs** (a paragraph whose only content is one text node with
+`marks:[{type:"strong"}]`); content under a header is a `paragraph` (prose) or a
+`bulletList` of `listItem` paragraphs (steps / files / AC); every file path, function,
+env var, and line ref is inline `code` (`marks:[{type:"code"}]`). Skeleton (substitute the
+`{{TOKENS}}`; repeat list items / sections as needed):
+
+```json
+{
+  "type": "doc", "version": 1, "content": [
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "CONTEXT", "marks": [{ "type": "strong" }] }
+    ]},
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "{{BACKGROUND_CONTEXT}}" }
+    ]},
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "ACCEPTANCE CRITERIA", "marks": [{ "type": "strong" }] }
+    ]},
+    { "type": "bulletList", "content": [
+      { "type": "listItem", "content": [ { "type": "paragraph", "content": [
+        { "type": "text", "text": "Given/When/Then — " },
+        { "type": "text", "text": "one AC per test", "marks": [{ "type": "code" }] }
+      ] } ] }
+    ]},
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "TECHNICAL NOTES", "marks": [{ "type": "strong" }] }
+    ]},
+    { "type": "paragraph", "content": [
+      { "type": "text", "text": "{{TECHNICAL_NOTES}}" }
+    ]}
+  ]
+}
+```
+
+Publish: `jira_create_issue({ projectKey, issueTypeName: "Story", summary, fields: { description: <ADF above>, parent: { key: "<EPIC>" }, /* components/labels/fixVersions/priority */ } })`
+(or `jira_update_issue({ issueIdOrKey, fields: { description: <ADF> } })` to refresh).
+
+## Template body — plain text (minimal fallback)
+
+Only for the simplest stories. Section headers are ALL-CAPS lines — there is **no bold, no
+real lists, no inline code** on this path (`- ` and `` ` `` render as literal text). A blank
+line starts a new paragraph; a single newline is a line break within a paragraph.
 
 ```text
 BACKGROUND & CONTEXT
@@ -58,17 +105,32 @@ SUGGESTED SUB-TASKS
   <benefit>` — persona not job title (`first-time portfolio importer`, not `user`), intent
   not implementation (`import a CSV of holdings`, not `a file-upload component`). Leave the
   implementation to the conversation.
-- **Publish mechanics.** `summary` → the `summary` param; the body above → the
-  `description` param (plain text; the tool converts to ADF); `issueTypeName: "Story"`;
-  `fields.parent.key` → the parent Epic/Feature; everything else via the `fields` map.
-  Substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
-- **The ADF limit (repo-specific).** `jira_create_issue` converts plain text via
-  `plainTextToAdf()`, which only produces `paragraph` / `hardBreak` / `text` nodes — **no
-  real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines
-  (visual dividers) and `- ` / `**` markers render as literal text. A blank line starts a
-  new paragraph; a single newline is a line break within a paragraph. If a section genuinely
-  needs real lists/headings/bold, build an ADF object and pass it to `description` directly
-  (the tool passes ADF objects through unchanged).
+- **Publish mechanics.** `summary` → the `summary` param; `issueTypeName: "Story"`;
+  `fields.parent.key` → the parent Epic; components/labels/fixVersions/priority via `fields`.
+  For the body: **plain text** → top-level `description` (no bold/lists/code); **ADF** →
+  `fields.description` (bold headers + bullet lists + inline `code`; recommended for
+  non-trivial stories). Never pass an ADF object to the top-level `description` — it
+  stringifies. Substitute **every** `{{TOKEN}}` — never publish a raw placeholder.
+- **Rich formatting (bold headers, lists, inline code) → pass ADF via `fields.description`.**
+  The top-level `description` arg runs `plainTextToAdf()`, which (a) only emits
+  `paragraph` / `hardBreak` / `text` nodes — **no bold, no real headings, no lists, no
+  inline code** — and (b) **stringifies any object you pass** (a hand-built ADF object
+  becomes one literal text node — double-serialized, useless). To get bold section headers
+  + bullet lists + inline code, build an ADF `doc` and pass it through **`fields.description`**
+  (the tool stores `fields.description` verbatim). This is the **recommended** path for any
+  story with ≥3 sections or file/function/env-var/line refs.
+  - **Bold header on its own line:** a paragraph whose only content is one text node with
+    `marks:[{type:"strong"}]` — e.g. `{"type":"paragraph","content":[{"type":"text","text":"ACCEPTANCE CRITERIA","marks":[{"type":"strong"}]}]}`.
+  - **Content under a header:** a `paragraph` (prose) or a `bulletList` of `listItem`
+    paragraphs (steps / files / AC).
+  - **Inline code** on every file path / function / env var / line ref:
+    `{"type":"text","text":"src/upstream/baxia-token.ts","marks":[{"type":"code"}]}`.
+  - **Verify** with `jira_get_issue(fields:["description"])` — it must return a `doc` with
+    `strong`/`code` marks, NOT a single stringified text node.
+  - **Large payloads:** hand-authoring big ADF JSON inline is error-prone (malformed-JSON
+    400s). Build it programmatically (Python `dict` → `json.dumps`) and, if the MCP tool
+    still 400s on size, PUT it via the Jira REST API directly
+    (`PUT /rest/api/3/issue/<KEY>` with `{"fields":{"description": <adf>}}`).
 - **Acceptance criteria are the *confirmation*** (the 3rd C). Testable, one-AC-per-test.
   Default to a `- [ ]` checklist; use Given/When/Then for behavioural/backend specs. This is
   the part reviewers read most closely.

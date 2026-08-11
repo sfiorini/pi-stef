@@ -80,8 +80,9 @@ NOTES & REFERENCES
   real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines
   (visual dividers) and `- ` / `**` markers render as literal text. A blank line starts a
   new paragraph; a single newline is a line break within a paragraph. If a section genuinely
-  needs real lists/headings/bold, build an ADF object and pass it to `description` directly
-  (the tool passes ADF objects through unchanged).
+  needs real lists/headings/bold, build an ADF object and pass it through
+  **`fields.description`** (the top-level `description` stringifies objects into one text
+  node); see [`jira-story.md`](./jira-story.md) for the bold-header ADF pattern.
 - **Out of scope must be honest.** It's the scope-creep guardrail; list the real non-goals.
   If there are none, say `None.` explicitly — never publish it empty.
 - **Acceptance criteria are Epic-level.** Broad and outcome-oriented (3–7), distinct from
