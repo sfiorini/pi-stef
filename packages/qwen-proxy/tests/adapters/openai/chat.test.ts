@@ -813,6 +813,13 @@ describe("POST /v1/chat/completions", () => {
       .filter((d) => d?.choices?.[0]?.finish_reason === "stop");
 
     expect(finishChunks.length).toBeGreaterThanOrEqual(1);
+
+    // M4-72: The synthetic finish_reason MUST be the last data: frame before [DONE].
+    const parsedChunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+    const lastData = parsedChunks[parsedChunks.length - 1];
+    expect(lastData?.choices?.[0]?.finish_reason).toBe("stop");
   });
 
   // ── Sentinel mid-stream → error + [DONE] ───────────────────────────────
@@ -1231,6 +1238,10 @@ describe("POST /v1/chat/completions", () => {
     // finish_reason should be "tool_calls"
     const finishChunks = chunks.filter((d) => d.choices?.[0]?.finish_reason);
     expect(finishChunks.some((d) => d.choices[0].finish_reason === "tool_calls")).toBe(true);
+
+    // M4-72: The synthetic finish_reason:tool_calls MUST be the last data: frame before [DONE].
+    const lastData = chunks[chunks.length - 1];
+    expect(lastData?.choices?.[0]?.finish_reason).toBe("tool_calls");
 
     // Raw <tool_calls> text must NOT appear in content deltas
     const contentChunks = chunks.filter((d) => d.choices?.[0]?.delta?.content);
