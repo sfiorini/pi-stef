@@ -55,7 +55,9 @@ The proxy logs into **chat.qwen.ai** to obtain a JWT, then forwards all API requ
 The proxy manages a pool of Qwen accounts. Each account has an `email`, `password`, and `ord` (ordinal for round-robin ordering). On startup the proxy reconciles the configured accounts against the database, logs in to each, and begins serving requests.
 
 - **Round-robin** — requests are distributed by `ord`; the active account rotates on each request
+- **Look-human throttle** — a per-account minimum gap (`SF_QWEN_MIN_REQUEST_GAP_MS`, ±50 % jitter) is enforced between requests so the proxy doesn't fire metronomic automated traffic — the pattern that trips chat.qwen.ai's Baxia anti-bot
 - **Auto-disable** — if an account receives a 429 from upstream, it is disabled for `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` (default 24 hours)
+- **CAPTCHA-flag failover** — if an account returns an *empty completion* (qwen.aikit.club masking a Baxia CAPTCHA flag), it is disabled for the shorter `SF_QWEN_EMPTY_COOLDOWN_MS` (default 10 minutes) and the next account is promoted; with multiple accounts the proxy cycles them as each recovers
 - **Re-enable sweep** — every `SF_QWEN_REENABLE_INTERVAL_MS` (default 1 minute) the proxy checks disabled accounts and re-enables those past their cooldown
 
 Database tables: `accounts`, `tokens`, `rate_limits`, `login_failures`, `video_jobs` (unused, retained for migration compatibility).
@@ -73,6 +75,22 @@ Each account maintains a JWT refreshed on a scheduled interval:
 ::: warning D13
 `setRateLimit` is a full upsert, not a merge. Any partial rate-limit state from a prior call is replaced.
 :::
+
+### Baxia anti-bot & CAPTCHA flagging
+
+chat.qwen.ai is fronted by the **Baxia** anti-bot, which flags accounts that fire rapid, metronomic automated traffic and demands a per-account CAPTCHA solve on the web. qwen.aikit.club can't solve those CAPTCHAs, so when an account is flagged it returns **empty completions** (`delta:{}` + `finish_reason:stop`, `usage:{}`) instead of real content — which a client silently treats as a finished-but-empty turn.
+
+The proxy defends against this in two complementary ways:
+
+1. **Look-human throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` (default 4 s, ±50 % jitter) paces requests per account so the cadence isn't metronomic, reducing how often accounts get flagged. Set `0` to disable. Expect pi to feel slower (every request is delayed by the gap); tune down if flagging is rare and latency matters.
+2. **Short-cooldown failover** — when an account returns an empty completion, it's disabled for `SF_QWEN_EMPTY_COOLDOWN_MS` (default 10 min, *not* the 24 h rate-limit cooldown) and the next account is promoted. The re-enable sweep (`SF_QWEN_REENABLE_INTERVAL_MS`, default 1 min) picks it back up once the cooldown lapses. With multiple accounts the proxy cycles them as each recovers.
+
+**Tuning guidance:**
+
+- The most effective lever is **multiple accounts** — throttling extends each account's lifespan, but failover needs spares to switch to. With one account you're down until its cooldown clears (or you solve the CAPTCHA on the web).
+- If accounts still get flagged, raise `SF_QWEN_MIN_REQUEST_GAP_MS` (e.g. 6000–8000).
+- If accounts self-clear faster than 10 min, lower `SF_QWEN_EMPTY_COOLDOWN_MS` so they cycle back sooner.
+- Lower `SF_QWEN_REENABLE_INTERVAL_MS` (e.g. 15 s) so recovered accounts are promoted promptly after their cooldown.
 
 ## Upstream gateway
 
@@ -163,6 +181,8 @@ Accounts can be configured via one of three modes (see [Account modes](#account-
 | `SF_QWEN_LOGIN_TIMEOUT_MS` | `10000` (10 s) | Login request timeout |
 | `SF_QWEN_STAGGER_MS` | `5000` (5 s) | Random stagger for startup logins (avoids thundering herd) |
 | `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
+| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10 min) | Cooldown for empty-completion / CAPTCHA-flag failover (see [Baxia anti-bot](#baxia-anti-bot--captcha-flagging)) |
+| `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Per-account minimum gap (±50 % jitter) between requests — "look-human" throttle. `0` disables |
 | `SF_QWEN_REENABLE_INTERVAL_MS` | `60000` (1 min) | Re-enable sweep interval |
 
 ### Account modes
