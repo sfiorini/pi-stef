@@ -1,5 +1,5 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError } from "../upstream/errors";
+import { RateLimitError, AuthExpiredError, UnknownError } from "../upstream/errors";
 import type { AuthScheduler } from "../upstream/auth";
 import type { AccountPool } from "./state";
 import { PoolExhaustedError } from "./errors";
@@ -19,6 +19,9 @@ export interface RetryDeps {
 export type StreamChunk =
   | OpenAiChatChunk
   | { done: true; extra?: { rateLimited?: boolean } };
+
+/** Max same-account retries for an empty upstream completion (transient qwen.aikit.club failure). */
+const MAX_EMPTY_RETRIES = 2;
 
 /**
  * Non-stream retry: RateLimitError → switch account → retry; AuthExpiredError → refresh → retry same.
@@ -85,16 +88,19 @@ export async function* withPoolRetryStream(
   const tried = new Set<number>();
   let authRefreshedFor: number | null = null;
 
+  let emptyRetries = 0;
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
+    let seenPayload = false;
 
     try {
       const iter = op(id, bearer);
       for await (const chunk of iter) {
+        if (!seenPayload && hasPayload(chunk)) seenPayload = true;
         if (!seenContent && isContentChunk(chunk)) {
           // First content token — flush buffer first, then yield this chunk
           seenContent = true;
@@ -110,6 +116,22 @@ export async function* withPoolRetryStream(
         }
       }
 
+      // Empty completion — qwen.aikit.club intermittently returns a stream with
+      // no content/reasoning/tool_calls (delta:{} + finish_reason:stop). Detect
+      // it and retry the same account (transient failure) before surfacing.
+      if (!seenPayload) {
+        emptyRetries++;
+        if (emptyRetries <= MAX_EMPTY_RETRIES) {
+          deps.log.warn("upstream returned empty completion, retrying", {
+            attempt: emptyRetries,
+            accountId: id,
+          });
+          continue;
+        }
+        throw new UnknownError(
+          "upstream returned an empty completion (no content) after retries — likely a transient qwen.aikit.club failure",
+        );
+      }
       // Clean end — flush remaining buffer
       yield* buffer;
       return;
@@ -164,5 +186,13 @@ export function isContentChunk(chunk: OpenAiChatChunk): boolean {
   return Boolean(
     chunk.choices?.[0]?.delta?.content ||
       chunk.choices?.[0]?.delta?.reasoning_content,
+  );
+}
+
+/** A chunk carries a substantive payload if it has content, reasoning, or tool_calls. */
+function hasPayload(chunk: OpenAiChatChunk): boolean {
+  const delta = chunk.choices?.[0]?.delta;
+  return Boolean(
+    delta && (delta.content || delta.reasoning_content || delta.tool_calls),
   );
 }

@@ -382,6 +382,55 @@ describe("withPoolRetryStream", () => {
     db.close();
   });
 
+  it("empty completion → retry same account → success", async () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, ACCOUNTS);
+    promote(db, 1);
+    const deps = makeDeps(db);
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount === 1) {
+        // Empty completion (qwen.aikit.club transient failure)
+        yield finishChunk("stop");
+        return;
+      }
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
+    expect(callCount).toBe(2);
+    db.close();
+  });
+
+  it("empty completion across all retries → throws", async () => {
+    const db = openDb(":memory:");
+    reconcileAccounts(db, ACCOUNTS);
+    promote(db, 1);
+    const deps = makeDeps(db);
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield finishChunk("stop");
+    }
+
+    await expect(
+      collectChunks(withPoolRetryStream(deps, op)),
+    ).rejects.toThrow(/empty completion/);
+    expect(callCount).toBe(3); // initial + 2 retries
+    db.close();
+  });
+
   it("reasoning_content counts as content for pre/post split", async () => {
     const db = openDb(":memory:");
     reconcileAccounts(db, ACCOUNTS);
