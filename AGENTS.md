@@ -61,6 +61,7 @@ Reusable, source-controlled templates for the Confluence spaces and Jira content
 When standing up a Jira backlog for a package, **mirror `PISTFIN`** (`@pi-stef/finance-api`) — it is the canonical example project. New package backlogs (e.g. `PISTQWE` for `@pi-stef/qwen-proxy`) replicate its structure exactly.
 
 - **Hierarchy:** `Epic → Story → Sub-task`. Next-gen (team-managed) projects use **no separate `Feature` type**; publish the `jira-feature.md` template as an enriched Epic (Option C) when a benefit-hypothesis shape is wanted.
+- **Epics carry an execution-order table.** Every Epic description includes an `Order | Story | Milestone | Blocked by | Blocks` ADF table (mark parallel milestones `∥`), derived from its Stories' `Blocks` links (`inwardIssue`=prereq/blocker, `outwardIssue`=dependent) — see [`jira-epic.md`](./docs/atlassian-templates/jira-epic.md).
 - **Fields (every issue):**
   - `components[]` = the **package name** (`qwen-proxy`, `finance-api`, `paths`) — never generic `api`/`infra`/`docs`.
   - `labels[]` = `enhancement` + the phase tag `phase-N` (e.g. `phase-1`), plus optional topic tags.

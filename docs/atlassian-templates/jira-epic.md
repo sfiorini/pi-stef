@@ -15,8 +15,10 @@ Epic in this project.
 
 Publish with `jira_create_issue` (new) or `jira_update_issue` (refresh). Pass the body as
 the `description` (plain text; converted to ADF automatically) and set `issueTypeName` to
-`Epic`. Other values go through `fields`. For rich formatting (real headings, bullet lists,
-bold), build an ADF object and pass it to `description` directly (see Notes).
+`Epic`. Other values go through `fields`. For rich formatting (bold headers, bullet lists, inline code, tables), pass a pre-built
+ADF object via **`fields.description`** — NOT the top-level `description` arg, which
+stringifies it (see Notes). Epics also include an execution-order table (see that section
+below).
 
 ## Placeholders
 
@@ -63,6 +65,40 @@ NOTES & REFERENCES
 {{REFERENCES}}
 ```
 
+## Execution-order table (Epic convention)
+
+Every Epic includes an **execution-order table** so the rollout is scannable at a glance.
+Derive it from the child Stories' `Blocks` links (`inwardIssue` = prereq/blocker,
+`outwardIssue` = dependent — see *Jira backlog conventions* in `AGENTS.md`). Columns:
+**Order | Story | Milestone | Blocked by | Blocks**; mark parallel milestones with `∥`.
+
+This is an ADF `table` node (only reachable via `fields.description` — plain text can't
+render tables). Skeleton:
+
+```json
+{
+  "type": "table", "attrs": { "layout": "default" }, "content": [
+    { "type": "tableRow", "content": [
+      { "type": "tableHeader", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Order" } ] } ] },
+      { "type": "tableHeader", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Story" } ] } ] },
+      { "type": "tableHeader", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Milestone" } ] } ] },
+      { "type": "tableHeader", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Blocked by" } ] } ] },
+      { "type": "tableHeader", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "Blocks" } ] } ] }
+    ] },
+    { "type": "tableRow", "content": [
+      { "type": "tableCell", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "1" } ] } ] },
+      { "type": "tableCell", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "PISTQWE-45", "marks": [ { "type": "code" } ] } ] } ] },
+      { "type": "tableCell", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "M1 — BaxiaTokenManager" } ] } ] },
+      { "type": "tableCell", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "—" } ] } ] },
+      { "type": "tableCell", "content": [ { "type": "paragraph", "content": [ { "type": "text", "text": "M2 (46), M6 (50)" } ] } ] }
+    ] }
+  ]
+}
+```
+
+Use `tableHeader` for the header row and `tableCell` for data; each cell wraps a `paragraph`.
+Re-derive the rows whenever the `Blocks` links change.
+
 ## Notes for the filling-in agent
 
 - **Summary is a label, not a sentence.** ≤72 chars (boards truncate). `In-App Messaging
@@ -71,10 +107,12 @@ NOTES & REFERENCES
   shape on the board. In pi-stef product projects (`PISTFIN`, `PISTQWE`, …) the convention is
   `<Product> — Phase N: <Title>` with an em-dash — e.g. `Qwen — Phase 1: MVP`,
   `Finance — Phase 1: Live-Data Foundation & Tracking MVP`.
-- **Publish mechanics.** `summary` → the `summary` param; the body above → the
-  `description` param (plain text; the tool converts to ADF); `issueTypeName: "Epic"`;
-  everything else via the `fields` map. Substitute **every** `{{TOKEN}}` — never publish a
-  raw placeholder.
+- **Publish mechanics.** `summary` → the `summary` param; `issueTypeName: "Epic"`;
+  components/labels/fixVersions/priority via `fields`. For the body: **plain text** → top-level
+  `description` (no bold/lists/tables); **ADF** → `fields.description` (bold headers + bullet
+  lists + the execution-order `table`; recommended). Never pass ADF to the top-level
+  `description` — it stringifies. Substitute **every** `{{TOKEN}}` — never publish a raw
+  placeholder.
 - **The ADF limit (repo-specific).** `jira_create_issue` converts plain text via
   `plainTextToAdf()`, which only produces `paragraph` / `hardBreak` / `text` nodes — **no
   real headings, bullet lists, or bold**. That's why section headers are ALL-CAPS lines

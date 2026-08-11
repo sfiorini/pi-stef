@@ -16,8 +16,9 @@ model the Feature body is dropped into an Epic; it also works verbatim on a cust
 Publish with `jira_create_issue` (new) or `jira_update_issue` (refresh). Pass the body as
 the `description` (plain text; converted to ADF automatically). Set `issueTypeName` to
 `Epic` (Option C — recommended, two-tier) **or** to a custom `Feature` type (Option A). Other
-values go through `fields`. For rich formatting (real headings, bullet lists, bold), build
-an ADF object and pass it to `description` directly (see Notes).
+values go through `fields`. For rich formatting (bold headers, bullet lists, inline code), pass a pre-built ADF object
+via **`fields.description`** — NOT the top-level `description` arg, which stringifies it
+(see Notes).
 
 ## Placeholders
 
