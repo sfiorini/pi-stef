@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import * as fs from "node:fs";
 import type { BaxiaTokenManagerConfig } from "../../src/upstream/baxia-token";
+
+// Auto-mock node:fs so vi.spyOn/vi.mocked works with ESM namespace imports
+vi.mock("node:fs");
 
 // ── Fakes ────────────────────────────────────────────────────────────────────
 
@@ -115,25 +119,71 @@ describe("BaxiaTokenManager", () => {
     it("uses config.chromePath when provided", async () => {
       const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
       const tmpPath = "/tmp/fake-chrome-" + Date.now();
-      // The config already has chromePath set
+
+      const replyMap = makeDefaultReplyMap();
+      const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+      const fetcherFn = vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return {
+            ok: true,
+            json: async () => [
+              { type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" },
+            ],
+          };
+        }
+        return { ok: false, json: async () => ({}) };
+      });
+
       const mgr = new BaxiaTokenManager(
-        makeConfig({ chromePath: tmpPath }),
+        makeConfig({
+          chromePath: tmpPath,
+          spawn: spawnFn as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: fetcherFn as any,
+          sleep: () => Promise.resolve(),
+          now: () => 1000,
+        }),
       );
-      // findChrome is private but we can test via startChrome path
-      // For now, we test that it doesn't throw when using the config path
-      // (real validation happens via fs.existsSync which we can't easily mock here)
-      // Instead we test the throw case:
-      expect(mgr).toBeDefined();
+
+      // Mock existsSync so startChrome doesn't fail on mkdtempSync etc.
+      // (just needs to pass findChrome which checks config.chromePath first)
+      await mgr.ensureToken();
+      // Verify spawn was called with the configured chromePath
+      expect(spawnFn).toHaveBeenCalledWith(
+        tmpPath,
+        expect.arrayContaining(["--headless=new"]),
+        expect.any(Object),
+      );
     });
 
     it("throws when no chromePath config and no candidates found", async () => {
       const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      // P2: mock fs.existsSync to return false for ALL paths so findChrome
+      // deterministically throws "Chrome not found" regardless of what's installed.
+      // This makes the test fully hermetic — no real Chrome binary is ever touched.
+      vi.mocked(fs.existsSync).mockReturnValue(false);
       const mgr = new BaxiaTokenManager(
         makeConfig({ chromePath: undefined }),
       );
-      // getBaxiaTokens internally calls findChrome which should throw
-      // We test this through the public API
       await expect(mgr.ensureToken()).rejects.toThrow(/Chrome not found/i);
+    });
+
+    // P0 regression: ensure internal _spawn is a real function, not a module namespace
+    it("resolves spawn to a callable function when no spawn is injected (P0 regression)", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      // Construct WITHOUT injecting config.spawn
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: undefined as any,
+          chromePath: "/nonexistent/chrome",
+        }),
+      );
+      // Access the exposed getter to verify it resolved to a real function
+      // (the P0 bug assigned the child_process MODULE NAMESPACE instead)
+      const spawnFn = (mgr as any).getSpawnFn();
+      expect(typeof spawnFn).toBe("function");
     });
   });
 
@@ -512,7 +562,7 @@ describe("BaxiaTokenManager", () => {
       advance(5000); // age = 5s
       const s1 = mgr.status();
       expect(s1.cached).toBe(true);
-      expect(s1.cachedAt).toBe(1000); // initial now
+      expect(s1.cachedAt).toBe(1000); // now() always returns 1000 in mock; P3 fix sets after getBaxiaTokens() resolves
       expect(s1.ageMs).toBe(5000);
       expect(s1.consecutiveFailures).toBe(0);
       expect(s1.lastSpawnDurationMs).toBeGreaterThanOrEqual(0);

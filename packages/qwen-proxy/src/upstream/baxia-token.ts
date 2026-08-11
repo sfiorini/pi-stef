@@ -7,6 +7,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { spawn as nodeSpawn } from "node:child_process";
 import { NetworkError } from "./errors";
 import type { Logger } from "../server/logger";
 
@@ -92,12 +93,15 @@ export class BaxiaTokenManager {
 
   constructor(config: BaxiaTokenManagerConfig) {
     this.config = config;
-    this._spawn =
-      config.spawn ??
-      (await_import_child_process() as any);
+    this._spawn = config.spawn ?? nodeSpawn;
     this._WebSocketCtor = config.WebSocketCtor ?? (globalThis as any).WebSocket;
     this._fetcher = config.fetcher ?? globalThis.fetch;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+  }
+
+  /** Expose resolved spawn fn for P0 regression testing. */
+  getSpawnFn(): typeof import("node:child_process").spawn {
+    return this._spawn;
   }
 
   // ── findChrome ──────────────────────────────────────────────────────────
@@ -360,7 +364,7 @@ export class BaxiaTokenManager {
     try {
       const tokens = await this.getBaxiaTokens();
       this.cached = tokens;
-      this.cachedAt = now;
+      this.cachedAt = this.config.now?.() ?? Date.now(); // P3: set after token obtained
       this.consecutiveFailures = 0;
       this.lastSpawnDurationMs =
         (this.config.now?.() ?? Date.now()) - start;
@@ -407,13 +411,4 @@ export class BaxiaTokenManager {
   }
 }
 
-// ── Lazy import helper ──────────────────────────────────────────────────────
 
-let _childProcess: typeof import("node:child_process") | undefined;
-function await_import_child_process() {
-  if (!_childProcess) {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    _childProcess = require("node:child_process");
-  }
-  return _childProcess;
-}
