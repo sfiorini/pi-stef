@@ -1,5 +1,4 @@
 export { PoolExhaustedError } from "./errors";
-export { AccountPool, type ActiveAccount, type AccountPoolDeps } from "./state";
-export { atomicSwitch, type SwitchResult } from "./switch";
-export { withPoolRetry, withPoolRetryStream, type RetryDeps } from "./retry";
-export { ReenableDaemon, type ReenableDaemonDeps } from "./reenable-daemon";
+export { withPoolRetry, withPoolRetryStream, type RetryDeps, type RetryScheduler } from "./retry";
+export { SingleAccountPool, type SingleAccountPoolDeps } from "./single";
+export { type PoolLike } from "./types";

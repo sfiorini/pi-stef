@@ -13,10 +13,11 @@
 
 import { OpenAPIHono } from "@hono/zod-openapi";
 import type Database from "better-sqlite3";
-import type { AccountPool } from "../pool/state";
-import type { UpstreamClient, ImageResult } from "../upstream/client";
-import type { AuthScheduler } from "../upstream/auth";
+import type { PoolLike } from "../pool/types";
+import type { UpstreamClient } from "../upstream/client";
+import type { RetryScheduler } from "../pool/retry";
 import type { QwenProxyConfig } from "../config/types";
+import type { BaxiaStatus } from "../upstream/baxia-token";
 import type { Logger } from "./logger";
 import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
 import type { withPoolRetryStream as WithPoolRetryStreamFn } from "../pool/retry";
@@ -39,20 +40,15 @@ import {
 
 export interface AppDeps {
   db: Database.Database;
-  pool: AccountPool;
-  client: UpstreamClient;
-  scheduler: Pick<AuthScheduler, "refreshOnDemand">;
+  pool: PoolLike;
+  client: Pick<UpstreamClient, "chatCompletions" | "listModels" | "deleteChats">;
+  scheduler: RetryScheduler;
   config: QwenProxyConfig;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;
   throttle: RequestThrottle;
-  // media: bin-passthrough field for image routes (MediaImageDeps subset).
-  // Not consumed directly by createApp; exists so bin can pass runtime deps.
-  media: { client: UpstreamClient; retry: typeof WithPoolRetryFn; pool: AccountPool; scheduler: Pick<AuthScheduler, "refreshOnDemand">; config: QwenProxyConfig; log: Logger };
-  // video: bin-passthrough field for the synchronous video endpoint.
-  // Not consumed directly by createApp; exists so bin can pass the wired generateVideo closure.
-  video: { generateVideo: (params: { prompt: string; size?: string }) => Promise<ImageResult> };
   log: Logger;
+  baxiaStatus?: () => BaxiaStatus;
 }
 
 export function createApp(deps: AppDeps): OpenAPIHono {
@@ -135,7 +131,6 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     retry: deps.retry,
     retryStream: deps.retryStream,
     throttle: deps.throttle,
-    video: deps.video,
   };
 
   app.route("/v1", openaiRoutes(openaiDeps));
@@ -154,7 +149,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   app.route("/v1", anthropicRoutes(anthropicDeps));
 
   // 5. Admin dashboard (NOT under /v1/* — bypasses clientAuthGate; gated by adminGate inside the sub-app)
-  app.route("/admin", adminRoutes({ db: deps.db, adminKey: deps.config.adminKey, log: deps.log }));
+  app.route("/admin", adminRoutes({ db: deps.db, adminKey: deps.config.adminKey, log: deps.log, baxiaStatus: deps.baxiaStatus }));
 
   return app;
 }

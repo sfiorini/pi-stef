@@ -2,19 +2,13 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { openDb } from "../../../src/store/db";
-import { reconcileAccounts, upsertToken } from "../../../src/store/repo";
-import { AccountPool } from "../../../src/pool/state";
+import { SingleAccountPool } from "../../../src/pool/single";
 import { withPoolRetry, withPoolRetryStream } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
 import { chatRoutes } from "../../../src/adapters/openai/chat";
-import { RateLimitError } from "../../../src/upstream/errors";
-import type { UpstreamClient, OpenAiChatChunk, OpenAiChatCompletion } from "../../../src/upstream/client";
-import type { Account } from "../../../src/config/types";
-import type { Logger } from "../../../src/server/logger";
 
-const ACCOUNTS: Account[] = [
-  { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
-];
+import type { UpstreamClient, OpenAiChatChunk, OpenAiChatCompletion } from "../../../src/upstream/client";
+import type { Logger } from "../../../src/server/logger";
 
 const noopLog: Logger = {
   info: () => {},
@@ -24,15 +18,12 @@ const noopLog: Logger = {
 
 function setupDb(): Database.Database {
   const db = openDb(":memory:");
-  reconcileAccounts(db, ACCOUNTS);
-  db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
-  upsertToken(db, 1, "test-bearer", 999999);
   return db;
 }
 
 interface ChatDeps {
   db: Database.Database;
-  pool: InstanceType<typeof AccountPool>;
+  pool: SingleAccountPool;
   scheduler: { refreshOnDemand: () => Promise<{ bearer: string; expiresAt: number }> };
   config: { rateLimitCooldownMs: number; emptyCooldownMs: number; modelAliasesRaw: string };
   log: Logger;
@@ -48,8 +39,7 @@ function makeDeps(
     config?: Partial<ChatDeps["config"]>;
   },
 ): ChatDeps {
-  const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     db,
     pool,
@@ -57,7 +47,6 @@ function makeDeps(
     config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "", ...overrides?.config },
     log: noopLog,
     client: {
-      login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [],
       chatCompletions: (async (_bearer: string, body: Record<string, unknown>) => {
         if (body.stream) {
@@ -73,9 +62,6 @@ function makeDeps(
           choices: [{ index: 0, message: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
         } as OpenAiChatCompletion;
       }) as unknown as UpstreamClient["chatCompletions"],
-      imageGeneration: async () => ({ created: 0, urls: [] }),
-      imageEdit: async () => ({ created: 0, urls: [] }),
-      videoGeneration: async () => ({ created: 0, urls: [] }),
       deleteChats: async () => {},
       ...overrides?.client,
     },
@@ -156,7 +142,7 @@ describe("POST /v1/chat/completions", () => {
 
     // upstream call
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", stream: false }),
+      expect.objectContaining({ model: "qwen3.8-max", stream: false }),
     );
   });
 
@@ -234,7 +220,7 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", stream: false, enable_thinking: true }),
+      expect.objectContaining({ model: "qwen3.8-max", stream: false, enable_thinking: true }),
     );
   });
 
@@ -259,7 +245,7 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", tools: [{ type: "web_search" }] }),
+      expect.objectContaining({ model: "qwen3.8-max", tools: [{ type: "web_search" }] }),
     );
   });
 
@@ -813,6 +799,13 @@ describe("POST /v1/chat/completions", () => {
       .filter((d) => d?.choices?.[0]?.finish_reason === "stop");
 
     expect(finishChunks.length).toBeGreaterThanOrEqual(1);
+
+    // M4-72: The synthetic finish_reason MUST be the last data: frame before [DONE].
+    const parsedChunks = dataLines
+      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
+      .filter(Boolean);
+    const lastData = parsedChunks[parsedChunks.length - 1];
+    expect(lastData?.choices?.[0]?.finish_reason).toBe("stop");
   });
 
   // ── Sentinel mid-stream → error + [DONE] ───────────────────────────────
@@ -990,101 +983,13 @@ describe("POST /v1/chat/completions", () => {
     }
   });
 
-  // ── F1 failover ────────────────────────────────────────────────────────
-
-  it("non-stream: chatCompletions RateLimitError triggers failover via retry", async () => {
-    db = openDb(":memory:");
-    reconcileAccounts(db, [
-      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
-      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
-    ]);
-    db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
-    upsertToken(db, 1, "bearer-1", 999999);
-    upsertToken(db, 2, "bearer-2", 999999);
-
-    let chatCompletionsCallCount = 0;
-    const client = {
-      chatCompletions: async (bearer: string) => {
-        chatCompletionsCallCount++;
-        if (bearer === "bearer-1") {
-          throw new RateLimitError("Rate limited");
-        }
-        return {
-          id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
-          choices: [{ index: 0, message: { role: "assistant", content: "Hello from account 2" }, finish_reason: "stop" }],
-        };
-      },
-    } as unknown as UpstreamClient;
-
-    const deps = makeDeps(db, { client });
-    const app = createTestApp(deps);
-
-    const res = await app.request("/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: false }),
-    });
-
-    expect(res.status).toBe(200);
-    const body = await res.json();
-    expect(body.choices[0].message.content).toBe("Hello from account 2");
-    expect(chatCompletionsCallCount).toBe(2);
-  });
-
-  it("stream: chatCompletions RateLimitError triggers failover via retryStream", async () => {
-    db = openDb(":memory:");
-    reconcileAccounts(db, [
-      { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
-      { id: 2, email: "b@test.com", password: "pw2", ord: 2 },
-    ]);
-    db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
-    upsertToken(db, 1, "bearer-1", 999999);
-    upsertToken(db, 2, "bearer-2", 999999);
-
-    let chatCompletionsCallCount = 0;
-    const client = {
-      chatCompletions: (bearer: string, body: Record<string, unknown>) => {
-        chatCompletionsCallCount++;
-        if (bearer === "bearer-1") {
-          throw new RateLimitError("Rate limited");
-        }
-        if (body.stream) {
-          return (async function* () {
-            yield { choices: [{ delta: { content: "Streamed from account 2" } }] } as OpenAiChatChunk;
-          })();
-        }
-        return Promise.resolve({} as OpenAiChatCompletion);
-      },
-    } as unknown as UpstreamClient;
-
-    const deps = makeDeps(db, { client });
-    const app = createTestApp(deps);
-
-    const res = await app.request("/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
-    });
-
-    expect(res.status).toBe(200);
-    const text = await res.text();
-    const dataLines = text.split("\n").filter((l) => l.startsWith("data: ") && l !== "data: [DONE]");
-    const allContent = dataLines
-      .map((l) => { try { return JSON.parse(l.slice(6)); } catch { return null; } })
-      .filter((d) => d?.choices?.[0]?.delta?.content)
-      .map((d) => d.choices[0].delta.content)
-      .join("");
-    expect(allContent).toContain("Streamed from account 2");
-    expect(chatCompletionsCallCount).toBe(2);
-  });
-
   // ── Pool exhausted → 429 ────────────────────────────────────────────────
+  // Multi-account failover is tested in tests/pool/retry.test.ts (FakeMultiPool).
+  // Here we test the adapter's 429 surface when SingleAccountPool is exhausted.
 
   it("non-stream: returns 429 on PoolExhaustedError", async () => {
-    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
-
-    const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-    pool.hydrate();
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    await pool.markRateLimitedAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();
@@ -1111,10 +1016,8 @@ describe("POST /v1/chat/completions", () => {
   });
 
   it("stream + pool exhausted → 429 with Retry-After header", async () => {
-    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
-
-    const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-    pool.hydrate();
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    await pool.markRateLimitedAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();
@@ -1231,6 +1134,10 @@ describe("POST /v1/chat/completions", () => {
     // finish_reason should be "tool_calls"
     const finishChunks = chunks.filter((d) => d.choices?.[0]?.finish_reason);
     expect(finishChunks.some((d) => d.choices[0].finish_reason === "tool_calls")).toBe(true);
+
+    // M4-72: The synthetic finish_reason:tool_calls MUST be the last data: frame before [DONE].
+    const lastData = chunks[chunks.length - 1];
+    expect(lastData?.choices?.[0]?.finish_reason).toBe("tool_calls");
 
     // Raw <tool_calls> text must NOT appear in content deltas
     const contentChunks = chunks.filter((d) => d.choices?.[0]?.delta?.content);

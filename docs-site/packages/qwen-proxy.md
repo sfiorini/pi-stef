@@ -1,6 +1,6 @@
 # qwen-proxy
 
-Multi-account proxy forwarding to the [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway with OpenAI + Anthropic compatibility.
+Guest-mode proxy for [chat.qwen.ai](https://chat.qwen.ai) with OpenAI + Anthropic compatibility. No Qwen account required — the proxy handles Baxia anti-bot tokens via headless Chromium (Chrome CDP).
 
 ## Quick start
 
@@ -28,82 +28,44 @@ curl http://127.0.0.1:7790/v1/health
 
 ## What it does
 
-qwen-proxy is an always-on reverse proxy that sits between your AI client (pi, OpenAI SDK, Anthropic SDK, or any HTTP client) and the upstream Qwen model API. It provides:
+qwen-proxy is an always-on reverse proxy that sits between your AI client (pi, OpenAI SDK, Anthropic SDK, or any HTTP client) and [chat.qwen.ai](https://chat.qwen.ai). It provides:
 
-- **Multi-account pool** — round-robin across Qwen accounts with automatic failover
-- **JWT-only token refresh** — scheduled JWT refresh per account (chat.qwen.ai login); on-demand re-login on 401
-- **Rate-limit cooldown** — automatic disable on 429 with configurable cooldown, periodic re-enable sweep
-- **OpenAI-compatible API** — `/v1/chat/completions`, `/v1/models`, `/v1/images/*`, `/v1/videos/*`
+- **Guest mode** — no Qwen account or login required; the proxy talks directly to chat.qwen.ai
+- **Baxia anti-bot tokens** — headless Chromium (Chrome CDP) fetches `__baxia__` tokens; 25-minute cache with background refresh and pre-warm at startup
+- **OpenAI-compatible API** — `/v1/chat/completions`, `/v1/models`
 - **Anthropic-compatible API** — `/v1/messages` with `claude-*` model fallback to `qwen3-max`
-- **Admin dashboard** — read-only HTML dashboard at `/admin` (optional)
+- **Tool calling** — OpenAI-style `tools`/`tool_choice` (upstream prompt-engineering translation)
+- **Model aliases** — map friendly names to upstream Qwen models (e.g. `gpt-4o` → `qwen3-max`)
+- **Global throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` paces all requests (±50% jitter) to look human
+- **Adaptive empty-cooldown** — escalation on empty completions (90/180/360/600s) with `markSuccess` reset
+- **Admin dashboard** — `/admin` with Baxia cache-status panel (optional, gated by `SF_QWEN_ADMIN_KEY`)
+- **Docker** — multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR, non-root uid 1000, bundled Chromium + fonts
 
 ## Architecture
 
 ### Request flow
 
 ```
-SDK client ──Bearer SF_QWEN_API_KEY──▶ our proxy (7790)
-                                        │ login: POST chat.qwen.ai/api/v1/auths/signin → JWT
-                                        │ forward: Bearer JWT → qwen.aikit.club/v1/*
-                                        ▼ chat.qwen.ai (via the Worker's internal anti-bot handling)
+SDK client ──Bearer SF_QWEN_API_KEY──▶ proxy (7790)
+                                        │ [Chromium CDP → __baxia__ tokens]
+                                        ▼ chat.qwen.ai (bx-* headers)
 ```
 
-The proxy logs into **chat.qwen.ai** to obtain a JWT, then forwards all API requests to **[qwen.aikit.club](https://qwen.aikit.club)** — a Cloudflare Worker that handles the Alibaba Baxia anti-bot internally. The proxy does **not** beat Baxia itself; it relies on the upstream gateway.
-
-### Account pool
-
-The proxy manages a pool of Qwen accounts. Each account has an `email`, `password`, and `ord` (ordinal for round-robin ordering). On startup the proxy reconciles the configured accounts against the database, logs in to each, and begins serving requests.
-
-- **Round-robin** — requests are distributed by `ord`; the active account rotates on each request
-- **Look-human throttle** — a per-account minimum gap (`SF_QWEN_MIN_REQUEST_GAP_MS`, ±50 % jitter) is enforced between requests so the proxy doesn't fire metronomic automated traffic — the pattern that trips chat.qwen.ai's Baxia anti-bot
-- **Auto-disable** — if an account receives a 429 from upstream, it is disabled for `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` (default 24 hours)
-- **CAPTCHA-flag failover** — if an account returns an *empty completion* (qwen.aikit.club masking a Baxia CAPTCHA flag), it is disabled for the shorter `SF_QWEN_EMPTY_COOLDOWN_MS` (default 10 minutes) and the next account is promoted; with multiple accounts the proxy cycles them as each recovers
-- **Re-enable sweep** — every `SF_QWEN_REENABLE_INTERVAL_MS` (default 1 minute) the proxy checks disabled accounts and re-enables those past their cooldown
-
-Database tables: `accounts`, `tokens`, `rate_limits`, `login_failures`, `video_jobs` (unused, retained for migration compatibility).
-
-### Token refresh
-
-Each account maintains a JWT refreshed on a scheduled interval:
-
-- **JWT** — refreshed every `SF_QWEN_JWT_REFRESH_MS` (default 6 hours); re-login if within `SF_QWEN_REFRESH_THRESHOLD_MS` of expiry or on-demand when a 401 is received from upstream
-
-### Rate-limit cooldown
-
-`setRateLimit` performs a full upsert (not a merge) — every call replaces the entire rate-limit row for that account. The default cooldown is 24 hours.
-
-::: warning D13
-`setRateLimit` is a full upsert, not a merge. Any partial rate-limit state from a prior call is replaced.
-:::
+The proxy runs in **guest mode** — no Qwen account or JWT login is required. `BaxiaTokenManager` spawns headless Chromium via Chrome CDP, navigates to chat.qwen.ai, and extracts `window.__baxia__` tokens. Tokens are cached for 25 minutes and refreshed in the background. Each API request includes the Baxia token as `bx-*` headers.
 
 ### Baxia anti-bot & CAPTCHA flagging
 
-chat.qwen.ai is fronted by the **Baxia** anti-bot, which flags accounts that fire rapid, metronomic automated traffic and demands a per-account CAPTCHA solve on the web. qwen.aikit.club can't solve those CAPTCHAs, so when an account is flagged it returns **empty completions** (`delta:{}` + `finish_reason:stop`, `usage:{}`) instead of real content — which a client silently treats as a finished-but-empty turn.
+chat.qwen.ai is fronted by the **Baxia** anti-bot, which flags automated traffic and demands CAPTCHA solves. The proxy defends against this:
 
-The proxy defends against this in two complementary ways:
-
-1. **Look-human throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` (default 4 s, ±50 % jitter) paces requests per account so the cadence isn't metronomic, reducing how often accounts get flagged. Set `0` to disable. Expect pi to feel slower (every request is delayed by the gap); tune down if flagging is rare and latency matters.
-2. **Short-cooldown failover** — when an account returns an empty completion, it's disabled for `SF_QWEN_EMPTY_COOLDOWN_MS` (default 10 min, *not* the 24 h rate-limit cooldown) and the next account is promoted. The re-enable sweep (`SF_QWEN_REENABLE_INTERVAL_MS`, default 1 min) picks it back up once the cooldown lapses. With multiple accounts the proxy cycles them as each recovers.
+1. **Headless Chromium tokens** — `BaxiaTokenManager` uses Chrome CDP to generate valid `__baxia__` tokens, bypassing the anti-bot gate. Tokens are pre-warmed at startup and refreshed every 25 minutes.
+2. **Look-human throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` (default 4 s, ±50 % jitter) paces all requests so the cadence isn't metronomic. Set `0` to disable. Expect slower responses; tune down if flagging is rare.
+3. **Adaptive empty-cooldown** — when the upstream returns an empty completion (Baxia CAPTCHA flag), the proxy applies an escalating cooldown (90s → 180s → 360s → 600s cap via `SF_QWEN_EMPTY_COOLDOWN_MS`). A successful completion resets the escalation.
 
 **Tuning guidance:**
 
-- The most effective lever is **multiple accounts** — throttling extends each account's lifespan, but failover needs spares to switch to. With one account you're down until its cooldown clears (or you solve the CAPTCHA on the web).
-- If accounts still get flagged, raise `SF_QWEN_MIN_REQUEST_GAP_MS` (e.g. 6000–8000).
-- If accounts self-clear faster than 10 min, lower `SF_QWEN_EMPTY_COOLDOWN_MS` so they cycle back sooner.
-- Lower `SF_QWEN_REENABLE_INTERVAL_MS` (e.g. 15 s) so recovered accounts are promoted promptly after their cooldown.
-
-## Upstream gateway
-
-The proxy forwards API requests to **[qwen.aikit.club](https://qwen.aikit.club)**, an OpenAI-compatible gateway to chat.qwen.ai. The gateway is a community-maintained Cloudflare Worker.
-
-| Resource | URL |
-|----------|-----|
-| Gateway API docs | [qwen-api.readme.io](https://qwen-api.readme.io) |
-| Worker source | [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) |
-
-::: warning Third-party dependency
-qwen-proxy's upstream reliability is coupled to the [qwen.aikit.club](https://qwen.aikit.club) Cloudflare Worker. If you need uptime control, you can self-host [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) and point `SF_QWEN_API_URL` at your own deployment.
-:::
+- The most effective lever is **Chromium availability** — without a working Chromium, the proxy cannot generate Baxia tokens and requests will fail. Ensure `SF_QWEN_CHROME_PATH` points to a valid Chromium binary.
+- If requests still get flagged, raise `SF_QWEN_MIN_REQUEST_GAP_MS` (e.g. 6000–8000).
+- Lower `SF_QWEN_EMPTY_COOLDOWN_MS` if empty completions self-clear faster than the cooldown.
 
 ## Authentication
 
@@ -147,82 +109,31 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_API_KEY` | *(unset)* | Client API keys, comma-separated (required for `/v1/*` endpoints) |
 | `SF_QWEN_ADMIN_KEY` | *(unset)* | Admin dashboard key. When unset, `/admin` returns **404** (dashboard invisible — D15) |
 
-### Upstream URLs
+### Baxia (headless Chromium CDP)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_AUTH_URL` | `https://chat.qwen.ai` | Login endpoint (JWT acquisition only) |
-| `SF_QWEN_API_URL` | `https://qwen.aikit.club` | Forward gateway for all API requests (`/v1/*`) |
+| `SF_QWEN_USE_CHROME_BAXIA` | `true` | Use headless Chromium (Chrome CDP) for Baxia tokens |
+| `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
+| `SF_QWEN_BAXIA_CACHE_TTL_MS` | `1500000` (25min) | Baxia token cache TTL |
+| `SF_QWEN_BAXIA_VERSION` | `2.5.37` | Baxia `bx-v` version |
+| `SF_QWEN_BAXIA_PRE_WARM` | `true` | Eagerly fetch the first token at startup (exit 1 on failure) |
+| `SF_QWEN_BAXIA_FALLBACK` | `false` | Return last-known token on fetch failure |
 
-`SF_QWEN_AUTH_URL` is used exclusively for login (`/api/v1/auths/signin`). All other requests are forwarded to `SF_QWEN_API_URL`. To use a self-hosted gateway, set `SF_QWEN_API_URL` to your own [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) deployment.
-
-### Account configuration
-
-Accounts can be configured via one of three modes (see [Account modes](#account-modes) below):
+### Timing & cooldown
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_ACCOUNTS` | *(unset)* | JSON array of account objects |
-| `SF_QWEN_ACCOUNTS_FILE` | *(unset)* | Path to a JSON file containing accounts |
-| `SF_QWEN_ACCOUNT_N_*` | *(unset)* | Numbered environment variables (see below) |
+| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
+| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10 min) | Empty-completion / CAPTCHA-flag cooldown cap (adaptive escalation up to this value) |
+| `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Global look-human throttle (±50 % jitter) between requests. `0` disables |
+| `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat — you can't send the next until the previous completes). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
 
 ### Model aliases
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias names to upstream model names (e.g. `{"gpt-4o":"qwen3-max"}`) |
-
-### Timing & cooldown
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `SF_QWEN_JWT_REFRESH_MS` | `21600000` (6 h) | Scheduled JWT refresh interval |
-| `SF_QWEN_REFRESH_THRESHOLD_MS` | `21600000` (6 h) | Token refresh threshold (re-login if within this of expiry) |
-| `SF_QWEN_LOGIN_TIMEOUT_MS` | `10000` (10 s) | Login request timeout |
-| `SF_QWEN_STAGGER_MS` | `5000` (5 s) | Random stagger for startup logins (avoids thundering herd) |
-| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
-| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10 min) | Cooldown for empty-completion / CAPTCHA-flag failover (see [Baxia anti-bot](#baxia-anti-bot--captcha-flagging)) |
-| `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Per-account minimum gap (±50 % jitter) between requests — "look-human" throttle. `0` disables |
-| `SF_QWEN_REENABLE_INTERVAL_MS` | `60000` (1 min) | Re-enable sweep interval |
-
-### Account modes
-
-Accounts are configured via one of three mutually exclusive modes. The proxy checks them in order: JSON → file → numbered env vars.
-
-#### Mode 1: `SF_QWEN_ACCOUNTS` (JSON inline)
-
-```bash
-SF_QWEN_ACCOUNTS='[{"id":1,"email":"user@example.com","password":"pass","ord":1}]'
-```
-
-#### Mode 2: `SF_QWEN_ACCOUNTS_FILE` (file path)
-
-```bash
-SF_QWEN_ACCOUNTS_FILE=/path/to/accounts.json
-```
-
-The file contains the same JSON array format as Mode 1.
-
-#### Mode 3: Numbered environment variables
-
-```bash
-SF_QWEN_ACCOUNT_1_EMAIL=user@example.com
-SF_QWEN_ACCOUNT_1_PASSWORD=pass
-SF_QWEN_ACCOUNT_1_ID=1        # optional (defaults to the number)
-SF_QWEN_ACCOUNT_1_ORD=1       # optional (defaults to ID)
-```
-
-Repeat for each account, incrementing the number (`SF_QWEN_ACCOUNT_2_EMAIL`, etc.). Only `EMAIL` and `PASSWORD` are required.
-
-### Model aliases
-
-Map friendly names to upstream Qwen model identifiers:
-
-```bash
-SF_QWEN_MODEL_ALIASES='{"gpt-4o":"qwen3-max","claude-3-opus":"qwen3-max"}'
-```
-
-This allows clients to request `gpt-4o` or `claude-3-opus` and have the proxy translate to the configured upstream model.
 
 ## OpenAI API surface
 
@@ -232,37 +143,18 @@ The proxy exposes an OpenAI-compatible API on `/v1/*`:
 |--------|------|-------------|
 | `GET` | `/v1/models` | List available models (including aliases) |
 | `POST` | `/v1/chat/completions` | Chat completions (streaming and non-streaming) |
-| `POST` | `/v1/images/generations` | Image generation |
-| `POST` | `/v1/images/edits` | Image editing |
-| `POST` | `/v1/videos/generations` | Video generation (synchronous — blocks until URL returns) |
-| `POST` | `/v1/videos/edits` | Video editing (**404** — not yet supported) |
 
 **Authentication:** `Authorization: Bearer <key>` or `x-api-key: <key>`.
 
 **Streaming:** `/v1/chat/completions` supports `stream: true` with Server-Sent Events (SSE). The response is a stream of `data: {...}` lines terminated by `data: [DONE]`.
 
-### Video generation (synchronous)
-
-Video generation is **synchronous**: `POST /v1/videos/generations` blocks until the upstream returns a video URL (200 response). There is no job-polling endpoint.
-
-```
-POST /v1/videos/generations
-{ "prompt": "a cat playing piano", "size": "1280x720" }
-
-→ 200 { "created": 1234567890, "data": [{ "url": "https://..." }] }
-```
-
-::: warning Wall-time budget
-Synchronous video generation can take 300+ seconds. Ensure your reverse proxy and Cloudflare settings allow at least a 300-second wall-time budget (e.g. `proxy_read_timeout 300s` in nginx; CF Enterprise for longer limits).
-:::
-
 ### Function calling
 
-OpenAI-style function calling (`tools`/`tool_choice`) is **supported** — qwen.aikit.club translates function definitions via prompt-engineering. `tools:[{type:"web_search"}]` and the `-search` model suffix also work for Qwen's built-in search.
+OpenAI-style function calling (`tools`/`tool_choice`) is **supported** — qwen translates function definitions via prompt-engineering. `tools:[{type:"web_search"}]` and the `-search` model suffix also work for Qwen's built-in search.
 
 ### Thinking mode
 
-`enable_thinking` is passed through to the upstream gateway (default **off**). To enable thinking:
+`enable_thinking` is passed through to the upstream (default **off**). To enable thinking:
 
 - Set `enable_thinking: true` in the request body, **or**
 - Append `-thinking` to the model name (e.g. `qwen3-max-thinking`)
@@ -302,12 +194,16 @@ The admin dashboard is an optional read-only HTML interface for monitoring the p
 **Gated by:** `SF_QWEN_ADMIN_KEY` — the dashboard key (separate from the client API key).
 
 **Sections:**
-- **Accounts** — pool state, email, ordinal, active/disabled status
-- **Pool snapshot** — current active account (or "Pool exhausted" warning)
-- **Tokens** — bearer status, expiry, last refresh time per account
-- **Rate limits** — 429 timestamps, retry-after, re-enable times
-- **Login failures** — recent failures with reason and status code
-- **Usage** — derived per-account metrics (login failures in 24h, last token refresh)
+
+- **Baxia cache-status panel** — shows the current state of the Baxia token cache:
+  - State: `cached` (green badge) or `cold start`
+  - Cached at: timestamp of last token fetch
+  - Age: seconds since last cache
+  - Cache TTL: configured TTL in seconds
+  - Next refresh: ms until next background refresh, or `—`
+  - Last spawn: duration of last Chromium spawn in seconds
+  - Consecutive failures: count of failed token fetches
+- **Guest mode note** — confirms the proxy is running in guest mode (no accounts)
 
 **Auto-refresh:** The dashboard reloads every 10 seconds (full page reload).
 
@@ -327,14 +223,6 @@ The cookie does not include the `Secure` flag (intentional — the proxy runs on
 
 Anthropic thinking blocks return `signature: ""`. Qwen does not provide verifiable signatures. SDKs that validate signatures will fail. This only applies when thinking mode is enabled via `thinking:{type:"enabled"}`.
 
-### D12 — Reconcile disables all but first account on startup
-
-On startup, the reconcile process may disable all accounts except the first one if there are conflicts in account configuration. Ensure each account has a unique `id` and `ord`.
-
-### D13 — `setRateLimit` is a full upsert
-
-The rate-limit store performs a full row replacement on every 429 response, not a field-level merge. Any partial state from a prior call is replaced.
-
 ### D14 — Mid-stream sentinel error handling
 
 When the upstream Qwen API sends a mid-stream sentinel error, the proxy terminates the stream with an error event followed by `data: [DONE]`. Clients should handle partial responses and not assume a complete response on stream close.
@@ -343,6 +231,10 @@ When the upstream Qwen API sends a mid-stream sentinel error, the proxy terminat
 
 The admin dashboard returns 404 (not 401) when `SF_QWEN_ADMIN_KEY` is unset. This is intentional — 401 would reveal the dashboard's existence. Set the key to enable.
 
-### D18 — qwen.aikit.club repoint
+### No account failover
 
-The proxy forwards to the third-party [qwen.aikit.club](https://qwen.aikit.club) OpenAI gateway (not directly to chat.qwen.ai). Video generation is synchronous (POST blocks until URL; no job polling). OpenAI function-calling (`tools`/`tool_choice`) is supported (qwen.aikit.club translates via prompt-engineering). The gateway handles anti-bot internally; the proxy authenticates with JWT only. `<details>` junk from upstream is stripped at the adapter boundary. Upstream reliability is coupled to the third-party CF Worker; self-host via `SF_QWEN_API_URL` for uptime control.
+Guest mode uses a single virtual session — there is no account pool or round-robin failover. When an empty completion is detected (Baxia CAPTCHA flag), the proxy applies an adaptive cooldown escalation (90s → 180s → 360s → 600s cap) and retries. A successful completion resets the escalation. There is no account to switch to; the proxy must wait for the cooldown to clear.
+
+### Chromium must be available
+
+The proxy requires a working Chromium binary for Baxia token generation. If Chromium is not available (e.g. `SF_QWEN_USE_CHROME_BAXIA=false` with no alternative token source, or the Chromium binary is missing), the proxy cannot generate Baxia tokens and requests to chat.qwen.ai will fail. In Docker, Chromium is bundled in the image; for native installs, ensure `chromium` is on `PATH` or set `SF_QWEN_CHROME_PATH`.

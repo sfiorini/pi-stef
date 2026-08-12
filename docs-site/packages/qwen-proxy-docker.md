@@ -1,6 +1,6 @@
 # qwen-proxy Docker
 
-The `@pi-stef/qwen-proxy` service is published as a multi-arch Docker image to the GitHub Container Registry (GHCR).
+The `@pi-stef/qwen-proxy` service is published as a multi-arch Docker image to the GitHub Container Registry.
 
 ## Quick start
 
@@ -9,7 +9,7 @@ cd packages/qwen-proxy/docker
 SF_QWEN_API_KEY=your-secret-key docker compose up -d
 ```
 
-This pulls `ghcr.io/sfiorini/pi-stef/qwen-proxy:latest` and starts the proxy on port 7790.
+This pulls `ghcr.io/sfiorini/pi-stef/qwen-proxy:latest` and starts the service.
 
 Check it's running:
 
@@ -17,6 +17,14 @@ Check it's running:
 curl http://127.0.0.1:7790/v1/health
 # {"status":"ok"}
 ```
+
+## Architecture
+
+```
+SDK client → proxy → chat.qwen.ai
+```
+
+The proxy runs in **guest mode** — no Qwen account or login required. It talks directly to [chat.qwen.ai](https://chat.qwen.ai), using headless Chromium (Chrome CDP) to generate Baxia anti-bot tokens. Tokens are cached for 25 minutes with background refresh.
 
 ## Port binding: same machine vs remote server
 
@@ -88,6 +96,15 @@ To override the user (e.g. for debugging), pass `--user`:
 docker run --rm --user root -it qwen-proxy:dev /bin/bash
 ```
 
+## Chromium requirements
+
+The Docker image bundles Chromium for Baxia token generation. The compose file and Dockerfile are tuned for this:
+
+- **`shm_size: 2g` + `mem_limit: 2g`** — Chromium needs >64 MB `/dev/shm`; the 2 GB limits cover Chromium (~250 MB) + Node + SQLite with headroom.
+- **`--no-sandbox`** — required under Docker's default seccomp profile because a non-root user (uid 1000) cannot use the user-namespace sandbox. Mitigated by: non-root uid 1000, localhost-only CDP, ephemeral browser dir, single trusted URL (chat.qwen.ai), and short-lived Chrome processes. The flag is already set in `BaxiaTokenManager.startChrome`.
+- **`fonts-liberation` + `fonts-noto-color-emoji`** — CJK and emoji rendering for Baxia page content.
+- **`XDG_CACHE_HOME=/home/node/.cache`** — writable fontconfig cache directory (pre-created and chowned to uid 1000 in the Dockerfile).
+
 ## Build from source (local dev)
 
 To build the image locally instead of pulling from the registry:
@@ -107,7 +124,7 @@ docker build -f packages/qwen-proxy/docker/Dockerfile -t qwen-proxy:dev .
 The Dockerfile is a multi-stage source build:
 
 - **Build stage** — installs `python3`/`make`/`g++` to compile `better-sqlite3` native bindings; runs `pnpm install --prod --frozen-lockfile`
-- **Runtime stage** — `node:22-slim` with `curl` for healthchecks; non-root uid 1000; `/data` pre-created and chowned
+- **Runtime stage** — `node:22-bookworm-slim` with Chromium, fonts, and `curl`; non-root uid 1000; `/data` and `/home/node/.cache` pre-created and chowned
 
 ## docker-compose.yml
 
@@ -121,6 +138,10 @@ services:
     # build:
     #   context: ../../..
     #   dockerfile: packages/qwen-proxy/docker/Dockerfile
+    # Chromium needs >64MB /dev/shm; --disable-dev-shm-usage is belt-and-suspenders.
+    # mem_limit covers Chromium ~250MB + Node + SQLite (~2GB total headroom).
+    shm_size: 2g
+    mem_limit: 2g
     ports:
       - "${SF_QWEN_BIND:-127.0.0.1}:${SF_QWEN_HOST_PORT:-7790}:7790"
     volumes:
@@ -131,16 +152,17 @@ services:
       - SF_QWEN_PORT=7790
       # Required — operator sets directly (no auto-generated token):
       - SF_QWEN_API_KEY=${SF_QWEN_API_KEY:?must be set}
+      # Baxia (headless Chromium CDP) — enabled by default in the Docker image:
+      - SF_QWEN_USE_CHROME_BAXIA=true
+      - SF_QWEN_CHROME_PATH=/usr/bin/chromium
       # Optional — admin dashboard (unset → /admin returns 404):
       # - SF_QWEN_ADMIN_KEY=${SF_QWEN_ADMIN_KEY}
-      # Accounts (one of the three modes — see docs):
-      # - SF_QWEN_ACCOUNTS=${SF_QWEN_ACCOUNTS}
+      # Optional — Baxia cache TTL (default 25 min):
+      # - SF_QWEN_BAXIA_CACHE_TTL_MS=1500000
+      # Optional — eagerly warm the first Baxia token at startup (default true):
+      # - SF_QWEN_BAXIA_PRE_WARM=true
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:7790/v1/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
+    # healthcheck lives in the Dockerfile
 
 volumes:
   qwen-data:
@@ -148,45 +170,29 @@ volumes:
 
 The compose file defaults to `127.0.0.1` only. See [Port binding](#port-binding-same-machine-vs-remote-server) above to expose the service to the LAN.
 
-## Architecture
-
-```
-SDK client → our proxy (7790) → qwen.aikit.club → chat.qwen.ai
-```
-
-The proxy logs into **chat.qwen.ai** to obtain a JWT, then forwards all API requests to **[qwen.aikit.club](https://qwen.aikit.club)** — a community Cloudflare Worker that handles the Alibaba Baxia anti-bot internally. See the [Upstream gateway](./qwen-proxy#upstream-gateway) section in the service docs for links and the self-host option.
-
-::: warning Third-party dependency
-qwen-proxy's upstream reliability is coupled to the [qwen.aikit.club](https://qwen.aikit.club) Cloudflare Worker. To control uptime, self-host [encryptarun/qwen-api](https://github.com/encryptarun/qwen-api) and set `SF_QWEN_API_URL` to your deployment.
-:::
-
 ## Configuration
 
 All configuration is via environment variables (prefix `SF_QWEN_`). Set them in the `environment:` section of `docker-compose.yml` or your shell:
 
-| Variable | Default (Docker) | Description |
-|----------|------------------|-------------|
-| `SF_QWEN_HOST` | `0.0.0.0` | Server bind host |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SF_QWEN_HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Server bind host |
 | `SF_QWEN_PORT` | `7790` | Server port |
-| `SF_QWEN_DB` | `/data/qwen-proxy.db` | SQLite database path (D17 — single source of truth) |
-| `SF_QWEN_API_KEY` | **required** | Client API keys, comma-separated |
-| `SF_QWEN_ADMIN_KEY` | _(unset)_ | Admin dashboard key; unset → `/admin` returns 404 (D15) |
-| `SF_QWEN_API_URL` | `https://qwen.aikit.club` | Forward gateway for API requests (`/v1/*`) |
-| `SF_QWEN_AUTH_URL` | `https://chat.qwen.ai` | Login endpoint (JWT acquisition only) |
-
-::: warning D17
-There is **no `SF_QWEN_DATA_DIR`**. The database path `SF_QWEN_DB=/data/qwen-proxy.db` is the single source of truth. The proxy derives the data directory from `dirname(dbPath)`.
-:::
-
-**Account modes** (one of three — see [service docs](./qwen-proxy#account-modes)):
-
-| Mode | Variable | Description |
-|------|----------|-------------|
-| JSON inline | `SF_QWEN_ACCOUNTS` | JSON array of account objects |
-| File path | `SF_QWEN_ACCOUNTS_FILE` | Path to a JSON file containing accounts |
-| Numbered env | `SF_QWEN_ACCOUNT_N_*` | `SF_QWEN_ACCOUNT_1_EMAIL`, etc. |
-
-See the [service configuration](./qwen-proxy#configuration) for the full reference.
+| `SF_QWEN_DB` | `./data/qwen-proxy.db` (`/data/qwen-proxy.db` in Docker) | SQLite database path |
+| `SF_QWEN_API_KEY` | *(required)* | Client API keys, comma-separated |
+| `SF_QWEN_ADMIN_KEY` | *(unset)* | Admin dashboard key; unset → `/admin` returns 404 (D15) |
+| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24h) | Rate-limit cooldown duration |
+| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10min) | Empty-completion / CAPTCHA-flag cooldown cap |
+| `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4s) | Global look-human throttle (±50% jitter); `0` disables |
+| `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
+| `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias → upstream model |
+| `SF_QWEN_LOG_LEVEL` | `info` | Log level |
+| `SF_QWEN_USE_CHROME_BAXIA` | `true` | Use headless Chromium (Chrome CDP) for Baxia tokens |
+| `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
+| `SF_QWEN_BAXIA_CACHE_TTL_MS` | `1500000` (25min) | Baxia token cache TTL |
+| `SF_QWEN_BAXIA_VERSION` | `2.5.37` | Baxia `bx-v` version |
+| `SF_QWEN_BAXIA_PRE_WARM` | `true` | Eagerly fetch the first token at startup (exit 1 on failure) |
+| `SF_QWEN_BAXIA_FALLBACK` | `false` | Return last-known token on fetch failure |
 
 ## Volumes
 
@@ -197,10 +203,6 @@ One named volume persists data across container restarts:
 | `qwen-data` | `/data` | SQLite database (`qwen-proxy.db`) |
 
 qwen-proxy does **not** use a config/token volume — the API key is set directly via `SF_QWEN_API_KEY` (no auto-generated token).
-
-## Video generation (synchronous)
-
-Video generation is synchronous: `POST /v1/videos/generations` blocks until the upstream returns a URL (200 response). Ensure your reverse proxy and Cloudflare settings allow at least a **300-second** wall-time budget (e.g. `proxy_read_timeout 300s` in nginx).
 
 ## Healthcheck
 
@@ -266,6 +268,7 @@ The first push creates the package under the `sfiorini` namespace on GHCR. By de
 | Image pull fails (private package) | Make the GHCR package public (see [GHCR visibility](#ghcr-visibility) above) |
 | SSE streaming is slow or buffered | Disable response buffering in your reverse proxy (see [Reverse-proxy notes](#reverse-proxy-notes)) |
 | `/admin` returns 404 | Set `SF_QWEN_ADMIN_KEY` — the dashboard is invisible when the key is unset (D15) |
+| Chromium fails to start | Check `docker compose logs`; ensure `shm_size: 2g` is set and `/home/node/.cache` is writable |
 
 ## Native (non-Docker) alternative
 

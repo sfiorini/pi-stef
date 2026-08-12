@@ -1,13 +1,14 @@
 /**
- * Per-account request pacer ("look human").
+ * Global request pacer ("look human").
  *
- * Baxia (chat.qwen.ai's anti-bot) flags accounts that fire rapid, metronomic
+ * Baxia (chat.qwen.ai's anti-bot) flags clients that fire rapid, metronomic
  * automated traffic. Enforcing a minimum gap — with random jitter — between
- * consecutive dispatches to the SAME account makes the proxy's cadence look
- * organic, reducing how often an account gets CAPTCHA-flagged.
+ * consecutive dispatches makes the proxy's cadence look organic, reducing how
+ * often it gets CAPTCHA-flagged.
  *
  * Call `await throttle.waitFor(accountId)` immediately before each upstream
- * dispatch. The first call to an account never waits.
+ * dispatch. The `_accountId` param is ignored (kept so retry.ts call sites
+ * need zero changes). The first call never waits.
  */
 export interface RequestThrottleDeps {
   /** Minimum gap between consecutive dispatches to the same account, in ms. 0 disables. */
@@ -25,7 +26,7 @@ export class RequestThrottle {
   private readonly jitterFraction: number;
   private readonly now: () => number;
   private readonly sleep: (ms: number) => Promise<void>;
-  private readonly lastDispatchAt = new Map<number, number>();
+  private lastDispatchAt: number | null = null;
 
   constructor(deps: RequestThrottleDeps) {
     this.minGapMs = Math.max(0, deps.minGapMs);
@@ -35,13 +36,13 @@ export class RequestThrottle {
       deps.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  /** Block until the per-account minimum gap (±jitter) has elapsed. */
-  async waitFor(accountId: number): Promise<void> {
+  /** Block until the global minimum gap (±jitter) has elapsed. */
+  async waitFor(_accountId: number): Promise<void> {
     if (this.minGapMs <= 0) return;
-    const last = this.lastDispatchAt.get(accountId);
+    const last = this.lastDispatchAt;
     const t = this.now();
-    if (last === undefined) {
-      this.lastDispatchAt.set(accountId, t);
+    if (last === null) {
+      this.lastDispatchAt = t;
       return;
     }
     // Randomize the gap so the cadence isn't metronomic.
@@ -54,6 +55,6 @@ export class RequestThrottle {
     if (wait > 0) {
       await this.sleep(wait);
     }
-    this.lastDispatchAt.set(accountId, this.now());
+    this.lastDispatchAt = this.now();
   }
 }

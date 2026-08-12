@@ -46,4 +46,8 @@ features:
     title: finance-api
     details: Always-on local service for financial data ingestion, SQLite storage, and a deterministic quant engine — Docker image on GHCR.
     link: /packages/finance-api
+  - icon: 🤖
+    title: Qwen Proxy
+    details: Self-hostable OpenAI + Anthropic-compatible proxy for Qwen (chat.qwen.ai) with Baxia anti-bot bypass via headless Chromium CDP — Docker image on GHCR.
+    link: /packages/qwen-proxy
 ---

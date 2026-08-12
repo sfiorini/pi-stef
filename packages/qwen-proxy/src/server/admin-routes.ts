@@ -1,19 +1,8 @@
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import type { Logger } from "./logger";
+import type { BaxiaStatus } from "../upstream/baxia-token";
 import { adminGate } from "./admin-gate";
-import {
-  listAccountsForAdmin,
-  listTokensForAdmin,
-  listRateLimitsForAdmin,
-  listRecentLoginFailures,
-  countLoginFailuresByAccount,
-  getActiveAccountId,
-  type AdminAccountRow,
-  type AdminTokenRow,
-  type AdminRateLimitRow,
-  type AdminLoginFailureRow,
-} from "../store/admin";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -84,131 +73,35 @@ ${body}
 </html>`;
 }
 
-// ── Section renderers ────────────────────────────────────────────────────────
-
-/** Render the accounts section. */
-export function renderAccountsSection(rows: AdminAccountRow[]): string {
-  const badge = (state: string) =>
-    state === "active"
-      ? '<span class="state-active">active</span>'
-      : `<span class="state-disabled">${escapeHtml(state)}</span>`;
-
-  return `<h2>Accounts</h2>
-<table>
-<thead><tr><th>ID</th><th>Email</th><th>Ord</th><th>State</th><th>Re-enable At</th></tr></thead>
-<tbody>
-${rows.map((r) => `<tr><td>${r.id}</td><td>${escapeHtml(r.email)}</td><td>${r.ord}</td><td>${badge(r.state)}</td><td>${fmtTimestamp(r.re_enable_at)}</td></tr>`).join("\n")}
-</tbody>
-</table>`;
-}
-
-/** Render the tokens section. */
-export function renderTokensSection(rows: AdminTokenRow[]): string {
-  return `<h2>Tokens</h2>
-<table>
-<thead><tr><th>Account</th><th>Bearer</th><th>Expires At</th><th>Last Refresh</th></tr></thead>
-<tbody>
-${rows
-  .map(
-    (r) =>
-      `<tr><td>${r.account_id}</td><td>${r.has_bearer ? "✓" : "✗"}</td><td>${fmtTimestamp(r.expires_at)}</td><td>${fmtRecency(r.updated_at)}</td></tr>`,
-  )
-  .join("\n")}
-</tbody>
-</table>`;
-}
-
-/** Render the rate limits section. */
-export function renderRateLimitsSection(rows: AdminRateLimitRow[]): string {
-  return `<h2>Rate Limits</h2>
-<table>
-<thead><tr><th>Account</th><th>Last 429</th><th>Retry After</th><th>Re-enable At</th><th>Updated</th></tr></thead>
-<tbody>
-${rows
-  .map(
-    (r) =>
-      `<tr><td>${r.account_id}</td><td>${fmtTimestamp(r.last_429_at)}</td><td>${fmtTimestamp(r.retry_after_at)}</td><td>${fmtTimestamp(r.re_enable_at)}</td><td>${fmtTimestamp(r.updated_at)}</td></tr>`,
-  )
-  .join("\n")}
-</tbody>
-</table>`;
-}
-
-/** Render the recent login failures section. */
-export function renderLoginFailuresSection(
-  rows: AdminLoginFailureRow[],
-): string {
-  return `<h2>Login Failures</h2>
-<table>
-<thead><tr><th>ID</th><th>Account</th><th>Time</th><th>Reason</th><th>Status</th></tr></thead>
-<tbody>
-${rows
-  .map(
-    (r) =>
-      `<tr><td>${r.id}</td><td>${r.account_id}</td><td>${fmtTimestamp(r.attempted_at)}</td><td>${escapeHtml(r.reason)}</td><td>${r.status_code ?? "—"}</td></tr>`,
-  )
-  .join("\n")}
-</tbody>
-</table>`;
-}
-
-/** Render the derived usage section (pure composition, no queries). */
-export function renderUsageSection(
-  accounts: AdminAccountRow[],
-  failureCounts: { account_id: number; count: number }[],
-  tokens: AdminTokenRow[],
-): string {
-  const failMap = new Map(failureCounts.map((f) => [f.account_id, f.count]));
-  const tokenMap = new Map(tokens.map((t) => [t.account_id, t]));
-
-  return `<h2>Usage</h2>
-<table>
-<thead><tr><th>Account</th><th>Email</th><th>Failures (24h)</th><th>Last Token Refresh</th></tr></thead>
-<tbody>
-${accounts
-  .map((a) => {
-    const fails = failMap.get(a.id) ?? 0;
-    const tok = tokenMap.get(a.id);
-    const lastRefresh = tok ? fmtRecency(tok.updated_at) : "—";
-    return `<tr><td>${a.id}</td><td>${escapeHtml(a.email)}</td><td>${fails}</td><td>${lastRefresh}</td></tr>`;
-  })
-  .join("\n")}
-</tbody>
-</table>`;
-}
-
 // ── Dashboard orchestrator ───────────────────────────────────────────────────
 
-/** Render the full admin dashboard HTML. */
-export function renderDashboard(deps: { db: Database.Database }): string {
-  const { db } = deps;
+/** Render Baxia cache-status section. */
+export function renderBaxiaStatusSection(s: BaxiaStatus): string {
+  const stateHtml = s.cached
+    ? `<span class="state_active">cached</span>`
+    : `cold start`;
+  const ageSec = s.ageMs !== null ? `${(s.ageMs / 1000).toFixed(0)}s` : "—";
+  const ttlSec = `${(s.ttlMs / 1000).toFixed(0)}s`;
+  const nextRefresh = s.nextRefreshInMs !== null ? `${(s.nextRefreshInMs / 1000).toFixed(0)}s` : "—";
+  const lastSpawn = s.lastSpawnDurationMs !== null ? `${(s.lastSpawnDurationMs / 1000).toFixed(0)}s` : "—";
 
-  const accounts = listAccountsForAdmin(db);
-  const tokens = listTokensForAdmin(db);
-  const rateLimits = listRateLimitsForAdmin(db);
-  const loginFailures = listRecentLoginFailures(db);
-  const now = Date.now();
-  const failureCounts = countLoginFailuresByAccount(db, now - 86_400_000);
+  return `<h2>Baxia token cache</h2>
+<table>
+  <tr><th>Field</th><th>Value</th></tr>
+  <tr><td>State</td><td>${stateHtml}</td></tr>
+  <tr><td>Cached at</td><td>${fmtTimestamp(s.cachedAt)}</td></tr>
+  <tr><td>Age</td><td>${ageSec}</td></tr>
+  <tr><td>Cache TTL</td><td>${ttlSec}</td></tr>
+  <tr><td>Next refresh</td><td>${nextRefresh}</td></tr>
+  <tr><td>Last spawn</td><td>${lastSpawn}</td></tr>
+  <tr><td>Consecutive failures</td><td>${String(s.consecutiveFailures)}</td></tr>
+</table>`;
+}
 
-  // Pool snapshot banner
-  const activeId = getActiveAccountId(db);
-  let banner: string;
-  if (activeId !== null) {
-    const activeAccount = accounts.find((a) => a.id === activeId);
-    const email = activeAccount ? activeAccount.email : "unknown";
-    banner = `<div class="banner banner-ok">Active account: #${activeId} (${escapeHtml(email)})</div>`;
-  } else {
-    banner = `<div class="banner banner-warn">⚠ Pool exhausted — no active account</div>`;
-  }
-
-  const body = `${banner}
-${renderAccountsSection(accounts)}
-${renderTokensSection(tokens)}
-${renderRateLimitsSection(rateLimits)}
-${renderLoginFailuresSection(loginFailures)}
-${renderUsageSection(accounts, failureCounts, tokens)}`;
-
-  return renderShell("qwen-proxy admin", body);
+/** Guest-mode dashboard with optional Baxia cache-status panel. */
+export function renderDashboard(status?: BaxiaStatus): string {
+  const baxia = status ? renderBaxiaStatusSection(status) : "";
+  return renderShell("qwen-proxy admin", `<h1>qwen-proxy admin</h1>${baxia}<p class="text-muted">Guest mode. No accounts.</p>`);
 }
 
 // ── Route handler ────────────────────────────────────────────────────────────
@@ -217,6 +110,7 @@ export interface AdminRouteDeps {
   db: Database.Database;
   adminKey: string | undefined;
   log: Logger;
+  baxiaStatus?: () => BaxiaStatus;
 }
 
 /**
@@ -232,7 +126,7 @@ export function adminRoutes(deps: AdminRouteDeps): Hono {
   app.use("/*", adminGate({ adminKey: deps.adminKey }));
 
   // Dashboard
-  app.get("/", (c) => c.html(renderDashboard({ db: deps.db })));
+  app.get("/", (c) => c.html(renderDashboard(deps.baxiaStatus?.())));
 
   return app;
 }

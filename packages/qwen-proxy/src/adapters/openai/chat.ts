@@ -63,7 +63,7 @@ function flattenContent(content: unknown): string {
 
 /**
  * Flatten multi-turn conversation into a single user message.
- * qwen.aikit.club only forwards the last message to chat.qwen.ai —
+ * chat.qwen.ai guest mode only forwards the last message —
  * prior messages in the array are ignored. This concatenates ALL
  * non-system messages into one user message so the model sees full context.
  */
@@ -199,7 +199,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
       upstreamBody.tool_choice = b.tool_choice;
     }
 
-    // qwen.aikit.club only forwards the last message — flatten multi-turn
+    // chat.qwen.ai guest mode only forwards the last message — flatten multi-turn
     upstreamBody.messages = flattenForUpstream(upstreamBody.messages as Array<{ role: string; content: string }>);
 
     // ── Non-stream ────────────────────────────────────────────────────────

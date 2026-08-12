@@ -4,17 +4,17 @@ import {
   startServer,
   createLogger,
   openDb,
-  reconcileAccounts,
-  AuthScheduler,
-  createUpstreamClient,
 } from "../src/index";
-import { AccountPool } from "../src/pool/state";
-import { ReenableDaemon } from "../src/pool/reenable-daemon";
+import { BaxiaTokenManager } from "../src/upstream/baxia-token";
+import { GuestUpstreamClient } from "../src/upstream/guest-client";
+import { SingleAccountPool } from "../src/pool/single";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
 import { RequestThrottle } from "../src/pool/throttle";
-import { generateVideo } from "../src/media/videos";
+import { Semaphore } from "../src/pool/semaphore";
 import type { AppDeps } from "../src/server/app";
+
+const CHAT_URL = "https://chat.qwen.ai";
 
 const log = createLogger();
 
@@ -29,52 +29,49 @@ async function main() {
     // Open DB (mkdir + foreign_keys ON + migrations)
     const db = openDb(config.dbPath);
 
-    // Reconcile accounts with config
-    const stats = reconcileAccounts(db, config.accounts);
-    log.info("accounts reconciled", stats);
-
-    // Pool hydration (after reconcile, before routes)
-    const pool = new AccountPool({ db, log });
-    pool.hydrate();
-
-    // Reenable daemon (back-of-queue sweep)
-    const reenableDaemon = new ReenableDaemon({
-      pool,
-      intervalMs: config.reenableIntervalMs,
+    // Baxia token manager (Chrome CDP for guest Baxia tokens)
+    const baxia = new BaxiaTokenManager({
+      useChromeBaxia: config.baxia.useChromeBaxia,
+      chatUrl: CHAT_URL,
+      chromePath: config.baxia.chromePath,
+      cacheTtlMs: config.baxia.cacheTtlMs,
+      baxiaVersion: config.baxia.baxiaVersion,
+      fallback: config.baxia.fallback,
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36",
       log,
     });
-    reenableDaemon.start();
 
-    // Upstream client
-    const client = createUpstreamClient({
-      authUrl: config.authUrl,
-      apiUrl: config.apiUrl,
-      timeoutMs: config.loginTimeoutMs,
-    });
+    // Pre-warm: eagerly fetch the first token so the server starts ready
+    if (config.baxia.preWarm) {
+      try {
+        await baxia.ensureToken();
+        log.info("baxia pre-warm succeeded");
+      } catch (e) {
+        log.error("baxia pre-warm failed", { error: String(e) });
+        process.exit(1);
+      }
+    }
 
-    // Auth scheduler (per-account JWT refresh + on-demand 401)
-    const scheduler = new AuthScheduler({
-      db,
-      config,
-      login: client.login,
-      log,
-    });
-    await scheduler.start();
+    // Start background refresh loop
+    baxia.startRefreshLoop();
+
+    // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
+    // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
+    const concurrency = new Semaphore(config.maxConcurrency);
+    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log });
+
+    // Single-account pool shim (guest mode: one virtual account, no failover)
+    const pool = new SingleAccountPool({ log });
+
+    // No-op auth scheduler (guest has no JWT to refresh)
+    const scheduler = {
+      refreshOnDemand: async () => ({ bearer: "guest", expiresAt: null }),
+    };
 
     // Per-account request throttle (look-human): paces dispatches to reduce
     // Baxia CAPTCHA flagging. minGapMs=0 disables.
     const throttle = new RequestThrottle({ minGapMs: config.minRequestGapMs });
-
-    // Build retry deps (shared by pool, media, routes)
-    const retryDeps = { pool, scheduler, config, log, throttle };
-
-    // Media deps (shared by images and video)
-    const mediaDeps = {
-      ...retryDeps,
-      db,
-      client,
-      retry: withPoolRetry,
-    };
 
     // Build AppDeps for createApp/startServer
     const deps: AppDeps = {
@@ -86,13 +83,8 @@ async function main() {
       retry: withPoolRetry,
       retryStream: withPoolRetryStream,
       throttle,
-      media: {
-        ...mediaDeps,
-      },
-      video: {
-        generateVideo: (params) => generateVideo(mediaDeps, params),
-      },
       log,
+      baxiaStatus: () => baxia.status(),
     };
 
     // Start HTTP server
@@ -104,12 +96,10 @@ async function main() {
 
     log.info("qwen-proxy started", { port: handle.port });
 
-    // Graceful shutdown order:
-    // reenableDaemon → scheduler → server → db
+    // Graceful shutdown: baxia refresh → server → db
     const shutdown = () => {
       log.info("shutting down");
-      reenableDaemon.stop();
-      scheduler.stop();
+      baxia.stop();
       handle.close();
       db.close();
       process.exit(0);

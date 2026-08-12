@@ -32,68 +32,70 @@ describe("parseModelAliases", () => {
 });
 
 describe("resolveModel", () => {
+  // Use qwen3.7-max (a real current model NOT in the built-in default aliases)
+  // as the base for suffix-stripping tests, so they isolate suffix behavior.
   const emptyAliases = new Map<string, string>();
 
   it("passthrough for unmapped id with no suffix", () => {
-    const result = resolveModel("qwen3-max", emptyAliases);
+    const result = resolveModel("qwen3.7-max", emptyAliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: false,
       search: false,
     });
   });
 
   it("strips -thinking suffix", () => {
-    const result = resolveModel("qwen3-max-thinking", emptyAliases);
+    const result = resolveModel("qwen3.7-max-thinking", emptyAliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: true,
       search: false,
     });
   });
 
   it("strips -search suffix", () => {
-    const result = resolveModel("qwen3-max-search", emptyAliases);
+    const result = resolveModel("qwen3.7-max-search", emptyAliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: false,
       search: true,
     });
   });
 
   it("strips -thinking-search suffix", () => {
-    const result = resolveModel("qwen3-max-thinking-search", emptyAliases);
+    const result = resolveModel("qwen3.7-max-thinking-search", emptyAliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: true,
       search: true,
     });
   });
 
   it("strips -search-thinking suffix (reversed order)", () => {
-    const result = resolveModel("qwen3-max-search-thinking", emptyAliases);
+    const result = resolveModel("qwen3.7-max-search-thinking", emptyAliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: true,
       search: true,
     });
   });
 
   it("resolves alias then strips suffix", () => {
-    const aliases = new Map([["claude-sonnet-4-6", "qwen3-max"]]);
+    const aliases = new Map([["claude-sonnet-4-6", "qwen3.7-max"]]);
     const result = resolveModel("claude-sonnet-4-6-thinking", aliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: true,
       search: false,
     });
   });
 
   it("resolves alias without suffix", () => {
-    const aliases = new Map([["claude-sonnet-4-6", "qwen3-max"]]);
+    const aliases = new Map([["claude-sonnet-4-6", "qwen3.7-max"]]);
     const result = resolveModel("claude-sonnet-4-6", aliases);
     expect(result).toEqual({
-      upstreamId: "qwen3-max",
+      upstreamId: "qwen3.7-max",
       thinking: false,
       search: false,
     });
@@ -106,5 +108,27 @@ describe("resolveModel", () => {
       thinking: true,
       search: false,
     });
+  });
+
+  // ── built-in default aliases (common short/legacy names → current ids) ──
+
+  it("applies built-in default alias for a common name (qwen3-max → qwen3.8-max)", () => {
+    const result = resolveModel("qwen3-max", emptyAliases);
+    expect(result.upstreamId).toBe("qwen3.8-max");
+  });
+
+  it("applies default alias after stripping a suffix (qwen-max-thinking → qwen3.8-max + thinking)", () => {
+    const result = resolveModel("qwen-max-thinking", emptyAliases);
+    expect(result).toEqual({
+      upstreamId: "qwen3.8-max",
+      thinking: true,
+      search: false,
+    });
+  });
+
+  it("user aliases override the built-in defaults", () => {
+    const aliases = new Map([["qwen3-max", "qwen3.9-max"]]);
+    const result = resolveModel("qwen3-max", aliases);
+    expect(result.upstreamId).toBe("qwen3.9-max");
   });
 });
