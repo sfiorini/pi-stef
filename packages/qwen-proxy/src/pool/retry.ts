@@ -1,13 +1,17 @@
 import type { OpenAiChatChunk } from "../upstream/client";
 import { RateLimitError, AuthExpiredError } from "../upstream/errors";
-import type { AuthScheduler } from "../upstream/auth";
 import type { PoolLike } from "./types";
 import { PoolExhaustedError } from "./errors";
 import type { RequestThrottle } from "./throttle";
 
+/** Minimal scheduler contract retry needs: on-demand token refresh. */
+export interface RetryScheduler {
+  refreshOnDemand(id: number): Promise<{ bearer: string; expiresAt: number | null }>;
+}
+
 export interface RetryDeps {
   pool: PoolLike;
-  scheduler: Pick<AuthScheduler, "refreshOnDemand">;
+  scheduler: RetryScheduler;
   config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
@@ -40,7 +44,9 @@ export async function withPoolRetry<T>(
     await deps.throttle?.waitFor(id);
 
     try {
-      return await op(id, bearer);
+      const result = await op(id, bearer);
+      deps.pool.markSuccess();
+      return result;
     } catch (err) {
       if (err instanceof RateLimitError) {
         tried.add(id);
@@ -127,7 +133,8 @@ export async function* withPoolRetryStream(
       if (!seenPayload) {
         emptyCompletion = true;
       } else {
-        // Clean end — flush remaining buffer
+        // Clean end — reset empty-escalation, flush remaining buffer
+        deps.pool.markSuccess();
         yield* buffer;
         return;
       }
@@ -177,7 +184,7 @@ export async function* withPoolRetryStream(
     if (emptyCompletion) {
       deps.log.warn("upstream returned empty completion — short cooldown + failover (likely Baxia CAPTCHA flag)", { accountId: id, cooldownMs: deps.config.emptyCooldownMs });
       tried.add(id);
-      const result = await deps.pool.markRateLimitedAndSwitch(
+      const result = await deps.pool.markEmptyAndSwitch(
         id,
         deps.config.emptyCooldownMs,
       );

@@ -14,10 +14,10 @@ describe("migrations", () => {
     const rows = db
       .prepare("SELECT version FROM schema_versions ORDER BY version")
       .all() as { version: number }[];
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2]);
   });
 
-  it("creates the 7 expected tables", () => {
+  it("creates the 2 expected tables", () => {
     const db = new Database(":memory:");
     applyMigrations(db);
 
@@ -29,16 +29,11 @@ describe("migrations", () => {
         .all() as { name: string }[]
     ).map((r) => r.name);
 
-    expect(tables).toContain("accounts");
-    expect(tables).toContain("tokens");
-    expect(tables).toContain("rate_limits");
-    expect(tables).toContain("login_failures");
     expect(tables).toContain("schema_versions");
     expect(tables).toContain("api_keys");
-    expect(tables).toContain("video_jobs");
   });
 
-  it("creates the 4 expected indexes", () => {
+  it("creates no user indexes", () => {
     const db = new Database(":memory:");
     applyMigrations(db);
 
@@ -50,34 +45,7 @@ describe("migrations", () => {
         .all() as { name: string }[]
     ).map((r) => r.name);
 
-    expect(indexes).toContain("idx_accounts_ord");
-    expect(indexes).toContain("idx_tokens_updated");
-    expect(indexes).toContain("idx_rate_limits_updated");
-    expect(indexes).toContain("idx_accounts_active");
-    expect(indexes).toContain("idx_video_jobs_status");
-  });
-
-  it("v11 adds state and re_enable_at columns to accounts", () => {
-    const db = new Database(":memory:");
-    applyMigrations(db);
-
-    const cols = db
-      .prepare("PRAGMA table_info(accounts)")
-      .all() as { name: string }[];
-    const colNames = cols.map((c) => c.name);
-    expect(colNames).toContain("state");
-    expect(colNames).toContain("re_enable_at");
-  });
-
-  it("v11 adds re_enable_at column to rate_limits", () => {
-    const db = new Database(":memory:");
-    applyMigrations(db);
-
-    const cols = db
-      .prepare("PRAGMA table_info(rate_limits)")
-      .all() as { name: string }[];
-    const colNames = cols.map((c) => c.name);
-    expect(colNames).toContain("re_enable_at");
+    expect(indexes).toEqual([]);
   });
 
   it("is idempotent — second call adds no rows", () => {
@@ -88,7 +56,7 @@ describe("migrations", () => {
     const rows = db
       .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
       .get() as { cnt: number };
-    expect(rows.cnt).toBe(12);
+    expect(rows.cnt).toBe(2);
   });
 });
 
@@ -98,7 +66,7 @@ describe("openDb", () => {
     const rows = db
       .prepare("SELECT version FROM schema_versions ORDER BY version")
       .all() as { version: number }[];
-    expect(rows.map((r) => r.version)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(rows.map((r) => r.version)).toEqual([1, 2]);
     db.close();
   });
 
@@ -117,14 +85,14 @@ describe("openDb", () => {
       const rows1 = db1
         .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
         .get() as { cnt: number };
-      expect(rows1.cnt).toBe(12);
+      expect(rows1.cnt).toBe(2);
       db1.close();
 
       const db2 = openDb(dbPath);
       const rows2 = db2
         .prepare("SELECT COUNT(*) as cnt FROM schema_versions")
         .get() as { cnt: number };
-      expect(rows2.cnt).toBe(12);
+      expect(rows2.cnt).toBe(2);
       db2.close();
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });

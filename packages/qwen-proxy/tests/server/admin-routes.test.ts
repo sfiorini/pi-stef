@@ -4,22 +4,10 @@ import {
   fmtTimestamp,
   fmtRecency,
   renderShell,
-  renderAccountsSection,
-  renderTokensSection,
-  renderRateLimitsSection,
-  renderLoginFailuresSection,
-  renderUsageSection,
 } from "../../src/server/admin-routes";
-import type {
-  AdminAccountRow,
-  AdminTokenRow,
-  AdminRateLimitRow,
-  AdminLoginFailureRow,
-} from "../../src/store/admin";
 import { createApp } from "../../src/server/app";
 import { openDb } from "../../src/store/db";
-import { reconcileAccounts } from "../../src/store/repo";
-import { AccountPool } from "../../src/pool/state";
+import { SingleAccountPool } from "../../src/pool/single";
 import { RequestThrottle } from "../../src/pool/throttle";
 import type { AppDeps } from "../../src/server/app";
 
@@ -104,109 +92,13 @@ describe("renderShell", () => {
   });
 });
 
-// ── renderAccountsSection ────────────────────────────────────────────────────
-
-describe("renderAccountsSection", () => {
-  it("renders escaped email and state badge", () => {
-    const rows: AdminAccountRow[] = [
-      { id: 1, email: "a<b>@test.com", ord: 1, state: "active", re_enable_at: null },
-    ];
-    const html = renderAccountsSection(rows);
-    expect(html).toContain("Accounts");
-    expect(html).toContain("a&lt;b&gt;@test.com");
-    expect(html).toContain("active");
-    expect(html).not.toContain("a<b>@test.com");
-  });
-
-  it("handles empty array (header only, empty tbody)", () => {
-    const html = renderAccountsSection([]);
-    expect(html).toContain("Accounts");
-    expect(html).toContain("<tbody>");
-  });
-});
-
-// ── renderTokensSection ──────────────────────────────────────────────────────
-
-describe("renderTokensSection", () => {
-  it("renders has_bearer as checkmark/cross", () => {
-    const rows: AdminTokenRow[] = [
-      { account_id: 1, has_bearer: true, expires_at: null, updated_at: 1000 },
-      { account_id: 2, has_bearer: false, expires_at: 5000, updated_at: 2000 },
-    ];
-    const html = renderTokensSection(rows);
-    expect(html).toContain("Tokens");
-    expect(html).toContain("✓");
-    expect(html).toContain("✗");
-  });
-
-  it("renders empty table for no tokens", () => {
-    const html = renderTokensSection([]);
-    expect(html).toContain("Tokens");
-  });
-});
-
-// ── renderRateLimitsSection ──────────────────────────────────────────────────
-
-describe("renderRateLimitsSection", () => {
-  it("renders rate limit fields", () => {
-    const rows: AdminRateLimitRow[] = [
-      { account_id: 1, last_429_at: 1000, retry_after_at: 2000, re_enable_at: null, updated_at: 3000 },
-    ];
-    const html = renderRateLimitsSection(rows);
-    expect(html).toContain("Rate Limits");
-    expect(html).toContain("1970-01-01T00:00:01.000Z"); // 1000ms
-    expect(html).toContain("1970-01-01T00:00:02.000Z"); // 2000ms
-    expect(html).toContain("—"); // null re_enable_at
-  });
-});
-
-// ── renderLoginFailuresSection ───────────────────────────────────────────────
-
-describe("renderLoginFailuresSection", () => {
-  it("renders escaped reason", () => {
-    const rows: AdminLoginFailureRow[] = [
-      { id: 1, account_id: 1, attempted_at: 1000, reason: "<script>alert(1)</script>", status_code: 401 },
-    ];
-    const html = renderLoginFailuresSection(rows);
-    expect(html).toContain("Login Failures");
-    expect(html).toContain("&lt;script&gt;");
-    expect(html).not.toContain("<script>");
-  });
-
-  it("renders empty table for no failures", () => {
-    const html = renderLoginFailuresSection([]);
-    expect(html).toContain("Login Failures");
-  });
-});
-
-// ── renderUsageSection ───────────────────────────────────────────────────────
-
-describe("renderUsageSection", () => {
-  it("renders usage data per account", () => {
-    const accounts: AdminAccountRow[] = [
-      { id: 1, email: "a@test.com", ord: 1, state: "active", re_enable_at: null },
-    ];
-    const failureCounts = [{ account_id: 1, count: 3 }];
-    const tokens: AdminTokenRow[] = [
-      { account_id: 1, has_bearer: true, expires_at: null, updated_at: Date.now() - 300_000 },
-    ];
-    const html = renderUsageSection(accounts, failureCounts, tokens);
-    expect(html).toContain("Usage");
-    expect(html).toContain("a@test.com");
-    expect(html).toContain("3"); // failure count
-    expect(html).toContain("5m ago"); // token refresh recency
-  });
-});
-
 // ── Integration tests via createApp ─────────────────────────────────────────
 
 const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
 
 function makeStubDeps(adminKey?: string): AppDeps {
   const db = openDb(":memory:");
-  reconcileAccounts(db, []);
-  const pool = new AccountPool({ db, log: noopLog });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     db,
     pool,
@@ -216,20 +108,12 @@ function makeStubDeps(adminKey?: string): AppDeps {
       host: "127.0.0.1",
       port: 0,
       dbPath: ":memory:",
-      authUrl: "",
-      apiUrl: "",
-      jwtRefreshMs: 21600000,
-      refreshThresholdMs: 21600000,
-      loginTimeoutMs: 10000,
-      staggerMs: 5000,
       rateLimitCooldownMs: 86400000,
       emptyCooldownMs: 600_000,
       minRequestGapMs: 0,
-      reenableIntervalMs: 60000,
       apiKeyEnv: [],
       modelAliasesRaw: "",
       logLevel: "info",
-      accounts: [],
       adminKey,
       baxia: { useChromeBaxia: false, chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false },
     },
@@ -241,15 +125,8 @@ function makeStubDeps(adminKey?: string): AppDeps {
 }
 
 describe("adminRoutes integration via createApp", () => {
-  it("GET /admin?key=test-admin-key returns 200 with escaped HTML", async () => {
+  it("GET /admin?key=test-admin-key returns 200 with HTML", async () => {
     const deps = makeStubDeps("test-admin-key");
-    // Seed an account with XSS email
-    reconcileAccounts(deps.db, [
-      { id: 1, email: "a<b>@test.com", password: "pw", ord: 1 },
-    ]);
-    // Set account active
-    deps.db.prepare("UPDATE accounts SET state = 'active' WHERE id = 1").run();
-
     const app = createApp(deps);
     const res = await app.request("/admin?key=test-admin-key");
 
@@ -257,11 +134,7 @@ describe("adminRoutes integration via createApp", () => {
     expect(res.headers.get("Content-Type")).toContain("text/html");
     const body = await res.text();
     expect(body).toContain("<html");
-    expect(body).toContain("a&lt;b&gt;@test.com");
-    expect(body).not.toContain("a<b>@test.com");
-    expect(body).toContain("Accounts");
-    expect(body).toContain("Tokens");
-    expect(body).not.toContain("Video Jobs");
+    expect(body).toContain("Guest mode");
   });
 
   it("GET /admin without auth returns 401", async () => {

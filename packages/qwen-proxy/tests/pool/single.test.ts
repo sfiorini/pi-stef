@@ -69,3 +69,44 @@ describe("SingleAccountPool", () => {
     expect(pool.earliestReEnableAt()).toBe(61_000);
   });
 });
+
+describe("SingleAccountPool adaptive empty-cooldown", () => {
+  it("markEmptyAndSwitch escalates 90→180→360→600(cap)", async () => {
+    let now = 0;
+    const pool = new SingleAccountPool({ log: noopLog, now: () => now });
+    const cap = 600_000;
+    const r1 = await pool.markEmptyAndSwitch(0, cap); // n=0 → 90s
+    now = 1_000;
+    const r2 = await pool.markEmptyAndSwitch(0, cap); // n=1 → 180s
+    now = 2_000;
+    const r3 = await pool.markEmptyAndSwitch(0, cap); // n=2 → 360s
+    now = 3_000;
+    const r4 = await pool.markEmptyAndSwitch(0, cap); // n=3 → min(720,600)=600s
+    expect(r1.earliestReEnableAt).toBe(0 + 90_000);
+    expect(r2.earliestReEnableAt).toBe(1_000 + 180_000);
+    expect(r3.earliestReEnableAt).toBe(2_000 + 360_000);
+    expect(r4.earliestReEnableAt).toBe(3_000 + 600_000);
+  });
+
+  it("markSuccess resets the empty counter", async () => {
+    let now = 0;
+    const pool = new SingleAccountPool({ log: noopLog, now: () => now });
+    await pool.markEmptyAndSwitch(0, 600_000); // 90s
+    now = 1_000;
+    await pool.markEmptyAndSwitch(0, 600_000); // 180s
+    pool.markSuccess();
+    now = 2_000;
+    const r = await pool.markEmptyAndSwitch(0, 600_000); // back to 90s (n=0)
+    expect(r.earliestReEnableAt).toBe(2_000 + 90_000);
+  });
+
+  it("markRateLimitedAndSwitch does NOT escalate (flat)", async () => {
+    let now = 0;
+    const pool = new SingleAccountPool({ log: noopLog, now: () => now });
+    const r1 = await pool.markRateLimitedAndSwitch(0, 86_400_000);
+    now = 1_000;
+    const r2 = await pool.markRateLimitedAndSwitch(0, 86_400_000);
+    expect(r1.earliestReEnableAt).toBe(86_400_000);
+    expect(r2.earliestReEnableAt).toBe(1_000 + 86_400_000); // flat, no doubling
+  });
+});

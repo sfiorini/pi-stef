@@ -20,6 +20,10 @@ export class SingleAccountPool implements PoolLike {
   readonly id = 0;
   readonly bearer = "guest";
   private disabledUntil: number | null = null;
+  private consecutiveEmpties = 0;
+
+  static readonly EMPTY_BASE_MS = 90_000;
+  static readonly EMPTY_CAP_MS = 600_000;
 
   constructor(private deps: SingleAccountPoolDeps) {}
 
@@ -38,6 +42,22 @@ export class SingleAccountPool implements PoolLike {
     const now = this.deps.now?.() ?? Date.now();
     this.disabledUntil = now + cooldownMs;
     return { newActiveId: null, earliestReEnableAt: this.disabledUntil };
+  }
+
+  async markEmptyAndSwitch(
+    _failedId: number,
+    cooldownMs: number,
+  ): Promise<{ newActiveId: number | null; earliestReEnableAt: number | null }> {
+    const now = this.deps.now?.() ?? Date.now();
+    const cap = Math.min(cooldownMs, SingleAccountPool.EMPTY_CAP_MS);
+    const effective = Math.min(SingleAccountPool.EMPTY_BASE_MS * 2 ** this.consecutiveEmpties, cap);
+    this.consecutiveEmpties += 1;
+    this.disabledUntil = now + effective;
+    return { newActiveId: null, earliestReEnableAt: this.disabledUntil };
+  }
+
+  markSuccess(): void {
+    this.consecutiveEmpties = 0;
   }
 
   earliestReEnableAt(): number | null {

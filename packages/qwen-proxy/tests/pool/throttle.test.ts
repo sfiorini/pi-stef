@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { RequestThrottle } from "../../src/pool/throttle";
 
 describe("RequestThrottle", () => {
-  it("first call to an account never waits", async () => {
+  it("first call never waits", async () => {
     const slept: number[] = [];
     const t = new RequestThrottle({
       minGapMs: 5000,
@@ -14,7 +14,6 @@ describe("RequestThrottle", () => {
       },
     });
     await t.waitFor(1);
-    await t.waitFor(2);
     expect(slept).toEqual([]);
   });
 
@@ -55,21 +54,19 @@ describe("RequestThrottle", () => {
     expect(slept).toEqual([]);
   });
 
-  it("accounts are independent — no cross-account wait", async () => {
+  it("global pacing: waitFor(1) then waitFor(2) within gap sleeps", async () => {
     let now = 1000;
     const slept: number[] = [];
     const t = new RequestThrottle({
       minGapMs: 5000,
       jitterFraction: 0,
       now: () => now,
-      sleep: (ms) => {
-        slept.push(ms);
-        return Promise.resolve();
-      },
+      sleep: (ms) => { slept.push(ms); now += ms; return Promise.resolve(); },
     });
-    await t.waitFor(1); // account 1 first
-    await t.waitFor(2); // account 2 first — independent, no wait
-    expect(slept).toEqual([]);
+    await t.waitFor(1);   // first dispatch → records last=1000
+    now = 1500;           // 500ms later
+    await t.waitFor(2);   // gap 5000 − 500 → wait 4500 (GLOBAL, not per-account)
+    expect(slept).toEqual([4500]);
   });
 
   it("minGapMs=0 disables throttling entirely", async () => {
