@@ -1,5 +1,5 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError } from "../upstream/errors";
+import { RateLimitError, AuthExpiredError, EmptyCompletionError } from "../upstream/errors";
 import type { PoolLike } from "./types";
 import { PoolExhaustedError } from "./errors";
 import type { RequestThrottle } from "./throttle";
@@ -40,6 +40,7 @@ export async function withPoolRetry<T>(
 ): Promise<T> {
   const tried = new Set<number>();
   let authRefreshedFor: number | null = null;
+  let emptyRetries = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
@@ -70,6 +71,27 @@ export async function withPoolRetry<T>(
           continue;
         }
         throw err;
+      }
+
+      if (err instanceof EmptyCompletionError) {
+        const { emptyRetryMax, emptyRetryGapMs, emptyCooldownMs } = deps.config;
+        if (emptyRetries < emptyRetryMax) {
+          deps.log.warn("empty completion — inline retry", {
+            accountId: id,
+            attempt: emptyRetries + 1,
+            max: emptyRetryMax,
+          });
+          await sleep(emptyRetryGapMs);
+          emptyRetries++;
+          continue;
+        }
+        // Exhausted — flat cooldown + 429
+        deps.log.warn("empty completion retries exhausted — flat cooldown + 429", {
+          accountId: id,
+          cooldownMs: emptyCooldownMs,
+        });
+        await deps.pool.markEmptyAndSwitch(id, emptyCooldownMs);
+        throw new RateLimitError("upstream returned an empty completion after retries (account likely CAPTCHA-flagged by Baxia anti-bot)", { status: 429, retryAfterMs: emptyCooldownMs });
       }
 
       throw err;

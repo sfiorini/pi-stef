@@ -12,6 +12,7 @@ import {
   RateLimitError,
   AuthExpiredError,
   ClientError,
+  EmptyCompletionError,
 } from "../../src/upstream/errors";
 import type { OpenAiChatChunk } from "../../src/upstream/client";
 import type { Logger } from "../../src/server/logger";
@@ -185,6 +186,86 @@ describe("withPoolRetry", () => {
     ).rejects.toThrow(PoolExhaustedError);
 
     expect(triedIds).toEqual([1, 2, 3]);
+  });
+});
+
+describe("withPoolRetry empty-completion (non-stream)", () => {
+  it("empty then success on inline retry (non-stream)", async () => {
+    let callCount = 0;
+    let markEmptyCalled = 0;
+
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+
+    const depsWithSpy = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+
+    const result = await withPoolRetry(depsWithSpy, async (_id, _bearer) => {
+      callCount++;
+      if (callCount === 1) throw new EmptyCompletionError("empty");
+      return "ok";
+    });
+
+    expect(result).toBe("ok");
+    expect(callCount).toBe(2);
+    expect(markEmptyCalled).toBe(0); // no exhaustion
+  });
+
+  it("exhausted empty → RateLimitError(429)", async () => {
+    let markEmptyCalled = 0;
+
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+
+    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new EmptyCompletionError("empty");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(4); // 1 initial + 3 retries
+    expect(markEmptyCalled).toBe(1); // exhaustion
+  });
+
+  it("emptyRetryMax=0 → immediate 429 (non-stream)", async () => {
+    let markEmptyCalled = 0;
+
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+
+    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new EmptyCompletionError("empty");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(1); // no retries
+    expect(markEmptyCalled).toBe(1); // immediate exhaustion
   });
 });
 
@@ -458,7 +539,6 @@ describe("withPoolRetryStream", () => {
   });
 
   it("finish_reason regression: content + no finish_reason → success (no retry)", async () => {
-    const deps = makeDeps();
     let callCount = 0;
     let markSuccessCalled = 0;
     let markEmptyCalled = 0;
