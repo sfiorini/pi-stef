@@ -281,35 +281,55 @@ export class BaxiaTokenManager {
         // Navigate to chat.qwen.ai
         await cdp.send("Page.navigate", { url: this.config.chatUrl });
 
-        // Poll for window.__baxia__ to be available (60 × 500ms = 30s max)
-        const baxiaExpr = `JSON.stringify({fy: window.__baxia__?.getFYModule?.()?.getFYToken?.(), uid: window.__baxia__?.getFYModule?.()?.getUidToken?.()})`;
+        // Poll for window.__baxia__.getFYModule to be READY (60 × 500ms = 30s max).
+        // Mirrors qwen2api scripts/baxia-token.js: getFYModule is a function-OBJECT
+        // whose methods (getUidToken/getFYToken) + fyObj property are attached by the
+        // SDK once ready — so DO NOT call getFYModule(); read fm.fyObj/fm.getUidToken()
+        // directly. Readiness gate = fm.fyObj exists. Sleep BEFORE each check (gives
+        // the page + SDK time to init). Cookies come from document.cookie.
+        const baxiaExpr = `(function(){
+  var fm = (window.__baxia__||{}).getFYModule;
+  if (!fm || !fm.fyObj) return { ready: false };
+  var uid='', fy='';
+  try { uid = String(fm.getUidToken()); } catch(e) {}
+  try { fy = String(fm.getFYToken()); } catch(e) {}
+  return { ready: true, uid: uid, fy: fy, cookie: document.cookie || '' };
+})()`;
 
-        let baxiaData: { fy: string; uid: string } | null = null;
+        let baxiaData:
+          | { uid: string; fy: string; cookies: string }
+          | null = null;
         for (let i = 0; i < 60; i++) {
+          await this._sleep(500); // sleep first (qwen2api ordering — lets the SDK init)
           try {
             const result = await cdp.send("Runtime.evaluate", {
               expression: baxiaExpr,
               returnByValue: true,
             });
-            if (result?.result?.type === "string" && result.result.value) {
-              const parsed = JSON.parse(result.result.value) as {
-                fy: string;
-                uid: string;
+            const val = result?.result?.value as
+              | {
+                  ready: boolean;
+                  uid?: string;
+                  fy?: string;
+                  cookie?: string;
+                }
+              | undefined;
+            if (
+              val?.ready &&
+              typeof val.uid === "string" &&
+              /^T2gA/i.test(val.uid) &&
+              val.uid.length > 20
+            ) {
+              baxiaData = {
+                uid: val.uid,
+                fy: val.fy ?? "",
+                cookies: val.cookie ?? "",
               };
-              // Gate: uid must match /^T2gA/i AND length > 20
-              if (
-                parsed.uid &&
-                /^T2gA/i.test(parsed.uid) &&
-                parsed.uid.length > 20
-              ) {
-                baxiaData = parsed;
-                break;
-              }
+              break;
             }
           } catch {
             // evaluation failed, retry
           }
-          await this._sleep(500);
         }
 
         if (!baxiaData) {
@@ -318,24 +338,11 @@ export class BaxiaTokenManager {
           );
         }
 
-        // Get cookies
-        let cookies = "";
-        try {
-          const cookieResult = await cdp.send("Network.getAllCookies");
-          if (cookieResult?.cookies) {
-            cookies = cookieResult.cookies
-              .map((c: any) => `${c.name}=${c.value}`)
-              .join("; ");
-          }
-        } catch {
-          // best-effort cookies
-        }
-
         return {
           bxUa: baxiaData.fy || "231!" + baxiaData.uid,
           bxUmidToken: baxiaData.uid,
           bxV: this.config.baxiaVersion,
-          cookies,
+          cookies: baxiaData.cookies,
         };
       } finally {
         await cdp.close();

@@ -79,24 +79,26 @@ class FakeWebSocket {
 }
 
 function makeDefaultReplyMap(
-  baxiaResult: string = JSON.stringify({
-    fy: "FYFAKE",
+  baxiaResult: {
+    ready: boolean;
+    uid?: string;
+    fy?: string;
+    cookie?: string;
+  } = {
+    ready: true,
     uid: "T2gA" + "a".repeat(24),
-  }),
+    fy: "FYFAKE",
+    cookie: "c1=v1; c2=v2",
+  },
 ): Map<string, (id: number, params: any) => any> {
   const map = new Map<string, (id: number, params: any) => any>();
   map.set("Page.enable", () => ({}));
   map.set("Runtime.enable", () => ({}));
   map.set("Page.navigate", () => ({ frameId: "f1" }));
-  map.set("Network.getAllCookies", () => ({
-    cookies: [
-      { name: "c1", value: "v1", domain: ".qwen.ai" },
-      { name: "c2", value: "v2", domain: ".qwen.ai" },
-    ],
-  }));
   map.set("Runtime.evaluate", (_id, params) => {
     if (params?.expression?.includes("__baxia__")) {
-      return { result: { type: "string", value: baxiaResult } };
+      // Mirrors CDP Runtime.evaluate returnByValue for an object result.
+      return { result: { type: "object", value: baxiaResult } };
     }
     return { result: { type: "undefined" } };
   });
@@ -337,21 +339,20 @@ describe("BaxiaTokenManager", () => {
       const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
       let evalCount = 0;
       const uid = "T2gA" + "b".repeat(24);
-      const baxiaResult = JSON.stringify({ fy: "FY_RETRY", uid });
+      const baxiaResult = { ready: true, fy: "FY_RETRY", uid, cookie: "ck=v" };
 
       const replyMap = new Map<string, (id: number, params: any) => any>();
       replyMap.set("Page.enable", () => ({}));
       replyMap.set("Runtime.enable", () => ({}));
       replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
-      replyMap.set("Network.getAllCookies", () => ({ cookies: [] }));
       replyMap.set("Runtime.evaluate", (_id, params) => {
         if (params?.expression?.includes("__baxia__")) {
           evalCount++;
           if (evalCount < 3) {
-            // First two calls: __baxia__ is undefined
-            return { result: { type: "undefined" } };
+            // First two calls: __baxia__.getFYModule.fyObj not ready yet
+            return { result: { type: "object", value: { ready: false } } };
           }
-            return { result: { type: "string", value: baxiaResult } };
+          return { result: { type: "object", value: baxiaResult } };
         }
         return { result: { type: "undefined" } };
       });
