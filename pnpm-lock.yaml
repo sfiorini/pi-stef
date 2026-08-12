@@ -336,9 +336,6 @@ importers:
       hono:
         specifier: ^4.6.0
         version: 4.12.27
-      jose:
-        specifier: ^5.9.6
-        version: 5.10.0
       tsx:
         specifier: ^4.0.0
         version: 4.22.4
