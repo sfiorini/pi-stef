@@ -10,6 +10,9 @@ describe("config", () => {
       expect(config.dbPath).toBe("./data/qwen-proxy.db");
       expect(config.logLevel).toBe("info");
       expect(config.rateLimitCooldownMs).toBe(86_400_000);
+      expect(config.emptyCooldownMs).toBe(10_000);
+      expect(config.emptyRetryMax).toBe(3);
+      expect(config.emptyRetryGapMs).toBe(1_000);
       expect(config.apiKeyEnv).toEqual([]);
     });
 
@@ -121,6 +124,68 @@ describe("config", () => {
       });
       expect(config.baxia.useChromeBaxia).toBe(false);
       expect(config.baxia.baxiaVersion).toBe("9.9.9");
+    });
+  });
+
+  describe("empty-retry config", () => {
+    it("returns defaults: emptyCooldownMs=10000, emptyRetryMax=3, emptyRetryGapMs=1000", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.emptyCooldownMs).toBe(10_000);
+      expect(config.emptyRetryMax).toBe(3);
+      expect(config.emptyRetryGapMs).toBe(1_000);
+    });
+
+    it("overrides via env", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_COOLDOWN_MS: "5000",
+        SF_QWEN_EMPTY_RETRY_MAX: "5",
+        SF_QWEN_EMPTY_RETRY_GAP_MS: "2000",
+      });
+      expect(config.emptyCooldownMs).toBe(5_000);
+      expect(config.emptyRetryMax).toBe(5);
+      expect(config.emptyRetryGapMs).toBe(2_000);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_MAX=0 is valid (disables retry)", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_MAX: "0",
+      });
+      expect(config.emptyRetryMax).toBe(0);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_MAX negative → fallback 3", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_MAX: "-1",
+      });
+      expect(config.emptyRetryMax).toBe(3);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_MAX non-numeric → fallback 3", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_MAX: "abc",
+      });
+      expect(config.emptyRetryMax).toBe(3);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_MAX fractional (1.5) → fallback 3", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_MAX: "1.5",
+      });
+      expect(config.emptyRetryMax).toBe(3);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_MAX whitespace → fallback 3", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_MAX: "   ",
+      });
+      expect(config.emptyRetryMax).toBe(3);
+    });
+
+    it("SF_QWEN_EMPTY_RETRY_GAP_MS=0 → fallback 1000 (parseIntEnv rejects <=0)", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_EMPTY_RETRY_GAP_MS: "0",
+      });
+      expect(config.emptyRetryGapMs).toBe(1_000);
     });
   });
 });
