@@ -215,15 +215,20 @@ describe("normalizeMessages", () => {
     expect(result.models).toEqual(["qwen3-max"]);
     expect(result.chat_type).toBe("t2t");
 
-    // feature_config (6 fields)
+    // feature_config (7 fields — matches qwen2api core.js, incl. thinking_mode)
     expect(result.feature_config).toEqual({
       thinking_enabled: true,
       output_schema: "phase",
       research_mode: "normal",
       auto_thinking: true,
+      thinking_mode: "Auto",
       thinking_format: "summary",
       auto_search: false,
     });
+
+    // qwen2api sends id:null + an empty model field on the message
+    expect(result.id).toBeNull();
+    expect(result.model).toBe("");
 
     // extra.meta.subChatType
     expect(result.extra.meta.subChatType).toBe("t2t");
@@ -332,6 +337,13 @@ describe("chatCompletions", () => {
     const postedBody = JSON.parse(completionsInit.body);
     expect(postedBody.messages[0].feature_config.output_schema).toBe("phase");
     expect(postedBody.messages[0].feature_config.thinking_enabled).toBe(true);
+    expect(postedBody.messages[0].feature_config.thinking_mode).toBe("Auto");
+    expect(postedBody.messages[0].id).toBeNull();
+    expect(postedBody.messages[0].model).toBe("");
+    // Anti-bot headers chat.qwen.ai expects (Origin/Referer/x-accel-buffering)
+    expect(completionsInit.headers.Origin).toBe("https://chat.qwen.ai");
+    expect(completionsInit.headers.Referer).toBe("https://chat.qwen.ai/c/guest");
+    expect(completionsInit.headers["x-accel-buffering"]).toBe("no");
   });
 
   it("tools with web_search → chat_type:search + auto_search:true", async () => {

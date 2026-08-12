@@ -77,6 +77,7 @@ export class GuestUpstreamClient {
         "bx-umidtoken": tokens.bxUmidToken,
         "bx-v": tokens.bxV,
         Cookie: tokens.cookies,
+        Origin: this.chatUrl,
         source: "web",
         version: "0.2.83",
         Referer: referer,
@@ -144,6 +145,7 @@ export class GuestUpstreamClient {
     }
 
     return {
+      id: null,
       fid: randomUUID(),
       parentId: null,
       parent_id: null,
@@ -154,12 +156,14 @@ export class GuestUpstreamClient {
       files: [],
       timestamp: Date.now(),
       models: [model],
+      model: "",
       chat_type: chatType,
       feature_config: {
         thinking_enabled: !!enableThinking,
         output_schema: "phase",
         research_mode: "normal",
         auto_thinking: true,
+        thinking_mode: "Auto",
         thinking_format: "summary",
         auto_search: !!autoSearch,
       },
@@ -265,14 +269,17 @@ export class GuestUpstreamClient {
     };
 
     const headers: Record<string, string> = {
-      Accept: "text/event-stream",
+      Accept: "application/json",
       "Content-Type": "application/json",
       "bx-ua": tokens.bxUa,
       "bx-umidtoken": tokens.bxUmidToken,
       "bx-v": tokens.bxV,
       Cookie: tokens.cookies,
+      "x-accel-buffering": "no",
+      Origin: this.chatUrl,
       source: "web",
       version: "0.2.83",
+      Referer: `${this.chatUrl}/c/guest`,
       "User-Agent": this.userAgent,
       "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
       "x-request-id": randomUUID(),
