@@ -1,9 +1,26 @@
 /**
  * Model alias resolution.
  *
- * parseModelAliases: JSON string → Map<alias, upstreamId>
- * resolveModel: strip capability suffixes (-thinking, -search) then alias-lookup
+ * parseModelAliases: JSON string → Map<alias, upstreamId> (user-configured only;
+ *   NOT advertised in /v1/models beyond what the user set).
+ * resolveModel: strip capability suffixes (-thinking, -search), then alias-lookup
+ *   (user aliases win, then built-in defaults, then passthrough).
  */
+
+/**
+ * Built-in default aliases mapping common short/legacy model names to the
+ * current chat.qwen.ai guest-mode model ids. chat.qwen.ai silently returns an
+ * empty completion for unrecognized model names, so mapping the names clients
+ * naturally send (e.g. `qwen3-max`) avoids those mysterious empties. Applied as
+ * a FALLBACK in resolveModel (user aliases via SF_QWEN_MODEL_ALIASES override
+ * these); NOT merged into parseModelAliases, so they don't pollute /v1/models.
+ */
+const DEFAULT_ALIASES: Record<string, string> = {
+  "qwen3-max": "qwen3.8-max",
+  "qwen-max": "qwen3.8-max",
+  "qwen-plus": "qwen3.7-plus",
+  "qwen3-plus": "qwen3.7-plus",
+};
 
 export function parseModelAliases(raw: string | undefined): Map<string, string> {
   if (!raw || raw.trim() === "") return new Map();
@@ -37,7 +54,8 @@ export interface ResolvedModel {
 /**
  * Resolve a model input string:
  * 1. Strip trailing capability suffixes: -thinking, -search, -thinking-search, -search-thinking
- * 2. Look up the remainder in the alias map (passthrough if unmapped)
+ * 2. Look up the remainder: user aliases (SF_QWEN_MODEL_ALIASES) win, then the
+ *    built-in DEFAULT_ALIASES (common short/legacy names → current ids), then passthrough.
  */
 export function resolveModel(
   input: string,
@@ -61,8 +79,8 @@ export function resolveModel(
     search = true;
   }
 
-  // Alias lookup (passthrough if unmapped)
-  const upstreamId = aliases.get(id) ?? id;
+  // Alias lookup: user aliases win, then built-in defaults, then passthrough.
+  const upstreamId = aliases.get(id) ?? DEFAULT_ALIASES[id] ?? id;
 
   return { upstreamId, thinking, search };
 }

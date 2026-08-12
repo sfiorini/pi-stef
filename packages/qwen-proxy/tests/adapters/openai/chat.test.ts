@@ -142,7 +142,7 @@ describe("POST /v1/chat/completions", () => {
 
     // upstream call
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", stream: false }),
+      expect.objectContaining({ model: "qwen3.8-max", stream: false }),
     );
   });
 
@@ -220,7 +220,7 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", stream: false, enable_thinking: true }),
+      expect.objectContaining({ model: "qwen3.8-max", stream: false, enable_thinking: true }),
     );
   });
 
@@ -245,7 +245,7 @@ describe("POST /v1/chat/completions", () => {
 
     expect(res.status).toBe(200);
     expect(chatCompletionsCalledWith).toEqual(
-      expect.objectContaining({ model: "qwen3-max", tools: [{ type: "web_search" }] }),
+      expect.objectContaining({ model: "qwen3.8-max", tools: [{ type: "web_search" }] }),
     );
   });
 
