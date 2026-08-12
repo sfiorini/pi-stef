@@ -214,4 +214,20 @@ describe("adminRoutes integration via createApp", () => {
     expect(body).toContain("Baxia token cache");
     expect(body).toContain("cold start");
   });
+
+  it("GET /admin returns 404 when adminKey unset even with baxiaStatus provided (D15 gate runs first)", async () => {
+    const deps = makeStubDeps(undefined);
+    deps.baxiaStatus = () => ({
+      cached: true,
+      cachedAt: Date.now(),
+      ageMs: 0,
+      ttlMs: 1_500_000,
+      nextRefreshInMs: 1_500_000,
+      lastSpawnDurationMs: 3_000,
+      consecutiveFailures: 0,
+    });
+    const app = createApp(deps);
+    const res = await app.request("/admin");
+    expect(res.status).toBe(404);
+  });
 });
