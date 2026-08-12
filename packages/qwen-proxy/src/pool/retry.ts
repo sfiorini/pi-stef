@@ -12,7 +12,7 @@ export interface RetryScheduler {
 export interface RetryDeps {
   pool: PoolLike;
   scheduler: RetryScheduler;
-  config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
+  config: { rateLimitCooldownMs: number; emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
   log: {
@@ -21,6 +21,9 @@ export interface RetryDeps {
     error: (msg: string, ctx?: unknown) => void;
   };
 }
+
+/** Module-level sleep helper for inline empty-retry gaps. */
+function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
 /** The union of raw upstream chunks and the one synthetic sentinel chunk. */
 export type StreamChunk =
@@ -94,6 +97,7 @@ export async function* withPoolRetryStream(
 ): AsyncIterable<StreamChunk> {
   const tried = new Set<number>();
   let authRefreshedFor: number | null = null;
+  let emptyRetries = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
@@ -124,16 +128,12 @@ export async function* withPoolRetryStream(
         }
       }
 
-      // Empty completion — chat.qwen.ai masks Baxia CAPTCHA flags as empty
-      // 200s (delta:{} + finish_reason:stop, usage:{}). Retrying is pointless
-      // (the account is blocked until the CAPTCHA clears) and hammering it is
-      // suspicious. Flag it; the handler below the catch applies a SHORT
-      // cooldown + failover (not the 24h real-rate-limit cooldown) so accounts
-      // cycle back as they recover.
+      // Empty completion — no payload seen. Inline retry up to
+      // emptyRetryMax, then apply flat emptyCooldownMs + sentinel.
       if (!seenPayload) {
         emptyCompletion = true;
       } else {
-        // Clean end — reset empty-escalation, flush remaining buffer
+        // Clean end — flush remaining buffer
         deps.pool.markSuccess();
         yield* buffer;
         return;
@@ -178,23 +178,31 @@ export async function* withPoolRetryStream(
       throw err;
     }
 
-    // Empty completion (reached only if the stream had no payload) — apply the
-    // SHORT emptyCooldownMs + failover. Outside the try so the catch (which
-    // uses the 24h rateLimitCooldownMs) doesn't re-handle it.
+    // Inline retry on empty completion — same account, up to emptyRetryMax.
     if (emptyCompletion) {
-      deps.log.warn("upstream returned empty completion — short cooldown + failover (likely Baxia CAPTCHA flag)", { accountId: id, cooldownMs: deps.config.emptyCooldownMs });
-      tried.add(id);
-      const result = await deps.pool.markEmptyAndSwitch(
-        id,
-        deps.config.emptyCooldownMs,
-      );
-      if (result.newActiveId !== null && !tried.has(result.newActiveId)) {
+      const { emptyRetryMax, emptyRetryGapMs, emptyCooldownMs } = deps.config;
+      if (emptyRetries < emptyRetryMax) {
+        deps.log.warn("empty completion — inline retry", {
+          accountId: id,
+          attempt: emptyRetries + 1,
+          max: emptyRetryMax,
+        });
+        await sleep(emptyRetryGapMs);
+        emptyRetries++;
         continue;
       }
-      throw new RateLimitError(
-        "upstream returned an empty completion (account likely CAPTCHA-flagged by Baxia anti-bot)",
-        { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
-      );
+      // Exhausted — fire-and-forget flat cooldown + graceful sentinel
+      deps.log.warn("empty completion retries exhausted — flat cooldown + sentinel", {
+        accountId: id,
+        cooldownMs: emptyCooldownMs,
+      });
+      deps.pool
+        .markEmptyAndSwitch(id, emptyCooldownMs)
+        .catch(() => {
+          deps.log.error("background markEmptyAndSwitch failed");
+        });
+      yield { done: true, extra: { rateLimited: true } };
+      return;
     }
   }
 }

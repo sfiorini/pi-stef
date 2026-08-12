@@ -61,7 +61,7 @@ function makeDeps(
         expiresAt: 999999,
       }),
     },
-    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
     log: noopLog,
     ...overrides,
   };
@@ -332,44 +332,85 @@ describe("withPoolRetryStream", () => {
     expect(chunks[2]).toEqual(contentChunk("answer here"));
   });
 
-  it("empty completion → failover to next account → success", async () => {
-    const deps = makeDeps();
-    const triedIds: number[] = [];
-
-    async function* op(
-      id: number,
-      _bearer: string,
-    ): AsyncIterable<OpenAiChatChunk> {
-      triedIds.push(id);
-      if (id === 1) {
-        yield finishChunk("stop");
-        return;
-      }
-      yield contentChunk("recovered on account " + id);
-      yield finishChunk("stop");
-    }
-
-    const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(chunks).toEqual([
-      contentChunk("recovered on account 2"),
-      finishChunk("stop"),
-    ]);
-    expect(triedIds).toEqual([1, 2]);
-  });
-
-  it("empty completion on sole account → RateLimitError (no failover target)", async () => {
-    const deps = makeDeps({ pool: new FakeMultiPool([1]) });
+  it("empty then success on inline retry", async () => {
+    const deps = makeDeps({ config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    let callCount = 0;
 
     async function* op(
       _id: number,
       _bearer: string,
     ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount === 1) {
+        yield finishChunk("stop"); // empty — no payload
+        return;
+      }
+      yield contentChunk("recovered");
       yield finishChunk("stop");
     }
 
-    await expect(
-      collectChunks(withPoolRetryStream(deps, op)),
-    ).rejects.toThrow(RateLimitError);
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
+    expect(callCount).toBe(2);
+  });
+
+  it("empty → exhausted → sentinel (no throw)", async () => {
+    let markEmptyCalled = 0;
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield finishChunk("stop"); // always empty
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(4); // 1 initial + 3 retries
+    expect(markEmptyCalled).toBe(1);
+    // Sentinel, not throw
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
+  });
+
+  it("emptyRetryMax=0 → immediate sentinel", async () => {
+    const deps = makeDeps({ config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(1); // no retries
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
   });
 
   it("invokes the throttle before dispatching to an account", async () => {
@@ -425,7 +466,7 @@ describe("withPoolRetry against SingleAccountPool", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 
@@ -438,7 +479,7 @@ describe("withPoolRetry against SingleAccountPool", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 
@@ -449,12 +490,12 @@ describe("withPoolRetry against SingleAccountPool", () => {
     ).rejects.toThrow(PoolExhaustedError);
   });
 
-  it("empty-completion on sole account → RateLimitError", async () => {
+  it("empty-completion on sole account → sentinel (no throw)", async () => {
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
       log: noopLog,
     };
 
@@ -465,9 +506,15 @@ describe("withPoolRetry against SingleAccountPool", () => {
       yield finishChunk("stop");
     }
 
-    await expect(
-      collectChunks(withPoolRetryStream(deps, op)),
-    ).rejects.toThrow(RateLimitError);
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
   });
 });
 
@@ -490,13 +537,13 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
     return { pool: p, calls };
   }
 
-  it("empty completion → markEmptyAndSwitch (NOT markRateLimitedAndSwitch)", async () => {
+  it("empty completion → markEmptyAndSwitch (sentinel, not throw)", async () => {
     const base = new SingleAccountPool({ log: noopLog, now: () => 1000 });
     const { pool, calls } = spyPool(base);
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
       log: noopLog,
     };
 
@@ -504,7 +551,14 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
       yield finishChunk("stop"); // empty — no payload
     }
 
-    await expect(collectChunks(withPoolRetryStream(deps, op))).rejects.toThrow(RateLimitError);
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
     expect(calls).toContain("markEmptyAndSwitch");
     expect(calls).not.toContain("markRateLimitedAndSwitch");
   });
@@ -514,7 +568,7 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 
@@ -535,7 +589,7 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 

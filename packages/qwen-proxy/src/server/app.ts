@@ -139,7 +139,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   const anthropicDeps: AnthropicRouteDeps = {
     pool: deps.pool,
     scheduler: deps.scheduler,
-    config: { rateLimitCooldownMs: deps.config.rateLimitCooldownMs, emptyCooldownMs: deps.config.emptyCooldownMs, modelAliasesRaw: deps.config.modelAliasesRaw ?? "" },
+    config: { rateLimitCooldownMs: deps.config.rateLimitCooldownMs, emptyCooldownMs: deps.config.emptyCooldownMs, emptyRetryMax: deps.config.emptyRetryMax, emptyRetryGapMs: deps.config.emptyRetryGapMs, modelAliasesRaw: deps.config.modelAliasesRaw ?? "" },
     log: deps.log,
     client: deps.client,
     retry: deps.retry,

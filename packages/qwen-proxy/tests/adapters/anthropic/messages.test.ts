@@ -63,7 +63,7 @@ function makeDeps(
   return {
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "", ...overrides?.config },
+    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000, modelAliasesRaw: "", ...overrides?.config },
     log: noopLog,
     client: {
       chatCompletions: async () => makeCompletion({ content: "Hello" }),
