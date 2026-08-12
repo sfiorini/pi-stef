@@ -13,6 +13,8 @@ import { withPoolRetryStream } from "../src/pool/retry";
 import { RequestThrottle } from "../src/pool/throttle";
 import type { AppDeps } from "../src/server/app";
 
+const CHAT_URL = "https://chat.qwen.ai";
+
 const log = createLogger();
 
 async function main() {
@@ -29,7 +31,7 @@ async function main() {
     // Baxia token manager (Chrome CDP for guest Baxia tokens)
     const baxia = new BaxiaTokenManager({
       useChromeBaxia: config.baxia.useChromeBaxia,
-      chatUrl: config.authUrl,
+      chatUrl: CHAT_URL,
       chromePath: config.baxia.chromePath,
       cacheTtlMs: config.baxia.cacheTtlMs,
       baxiaVersion: config.baxia.baxiaVersion,
@@ -54,7 +56,7 @@ async function main() {
     baxia.startRefreshLoop();
 
     // Guest upstream client
-    const client = new GuestUpstreamClient({ baxia, chatUrl: config.authUrl, log });
+    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, log });
 
     // Single-account pool shim (guest mode: one virtual account, no failover)
     const pool = new SingleAccountPool({ log });
