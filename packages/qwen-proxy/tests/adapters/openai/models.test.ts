@@ -56,15 +56,11 @@ function makeDeps(
     config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
     log: noopLog,
     client: {
-      login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [
         { id: "qwen3-max", object: "model" as const, owned_by: "qwen" },
         { id: "wan2.1", object: "model" as const, owned_by: "qwen" },
       ],
       chatCompletions: (async () => ({ id: "", object: "chat.completion" as const, created: 0, model: "", choices: [], usage: null })) as unknown as UpstreamClient["chatCompletions"],
-      imageGeneration: async () => ({ created: 0, urls: [] }),
-      imageEdit: async () => ({ created: 0, urls: [] }),
-      videoGeneration: async () => ({ created: 0, urls: [] }),
       deleteChats: async () => {},
       ...overrides?.client,
     },

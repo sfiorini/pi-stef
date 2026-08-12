@@ -57,7 +57,6 @@ function makeDeps(
     config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "", ...overrides?.config },
     log: noopLog,
     client: {
-      login: async () => ({ bearer: "", expiresAt: null }),
       listModels: async () => [],
       chatCompletions: (async (_bearer: string, body: Record<string, unknown>) => {
         if (body.stream) {
@@ -73,9 +72,6 @@ function makeDeps(
           choices: [{ index: 0, message: { role: "assistant", content: "Hello" }, finish_reason: "stop" }],
         } as OpenAiChatCompletion;
       }) as unknown as UpstreamClient["chatCompletions"],
-      imageGeneration: async () => ({ created: 0, urls: [] }),
-      imageEdit: async () => ({ created: 0, urls: [] }),
-      videoGeneration: async () => ({ created: 0, urls: [] }),
       deleteChats: async () => {},
       ...overrides?.client,
     },

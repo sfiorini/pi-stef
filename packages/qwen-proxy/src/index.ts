@@ -25,7 +25,6 @@ export {
 } from "./store/admin";
 export { constantTimeEquals } from "./store/api-keys";
 export { AuthScheduler } from "./upstream/auth";
-export { createUpstreamClient } from "./upstream/client";
 export { stripDetails, DetailsStreamStripper } from "./upstream/details-strip";
 export { BaxiaTokenManager, type BaxiaTokens, type BaxiaTokenManagerConfig, type BaxiaStatus } from "./upstream/baxia-token";
 export { GuestUpstreamClient, type GuestUpstreamClientConfig } from "./upstream/guest-client";
