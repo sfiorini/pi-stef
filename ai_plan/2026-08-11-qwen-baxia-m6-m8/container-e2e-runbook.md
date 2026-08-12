@@ -66,4 +66,53 @@ docker inspect qwen-proxy:baxia --format '{{range .Config.Env}}{{println .}}{{en
 
 ## 2. Health + completion
 
-_(Appended in S-M6-86 — see below.)_
+### 2.1 Start the container
+
+```bash
+docker run -d --name qwen-baxia-test -p 7791:7790 -e SF_QWEN_API_KEY=test qwen-proxy:baxia
+```
+
+### 2.2 Poll health endpoint
+
+```bash
+for i in $(seq 1 30); do
+  STATUS=$(curl -s http://127.0.0.1:7791/v1/health 2>/dev/null)
+  echo "$STATUS"
+  if echo "$STATUS" | grep -q '"status":"ok"'; then
+    echo "Health OK after $i attempts"
+    break
+  fi
+  sleep 2
+done
+```
+
+**Expected:** `{"status":"ok"}` within 30 attempts (up to 60s — Chromium cold-start + first Baxia token).
+
+### 2.3 Streaming completion
+
+```bash
+curl -N http://127.0.0.1:7791/v1/chat/completions \
+  -H "Authorization: Bearer test" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3-max",
+    "messages": [{"role": "user", "content": "Say hello in one word."}],
+    "stream": true
+  }'
+```
+
+**PASS criteria:** At least one SSE delta contains a non-empty `choices[0].delta.content` value before the final `[DONE]` event.
+
+A PASS means Chromium launched as uid 1000, generated a Baxia token, and the proxy relayed a non-empty streaming completion from chat.qwen.ai.
+
+### 2.4 Cleanup
+
+```bash
+docker stop qwen-baxia-test && docker rm qwen-baxia-test && docker rmi qwen-proxy:baxia
+```
+
+---
+
+## Done
+
+M6 is **done** only when the USER confirms both phases passed on mini.
