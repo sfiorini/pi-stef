@@ -112,6 +112,7 @@ function makeStubDeps(adminKey?: string): AppDeps {
       rateLimitCooldownMs: 86400000,
       emptyCooldownMs: 600_000,
       minRequestGapMs: 0,
+      maxConcurrency: 1,
       apiKeyEnv: [],
       modelAliasesRaw: "",
       logLevel: "info",

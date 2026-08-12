@@ -11,6 +11,7 @@ import { SingleAccountPool } from "../src/pool/single";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
 import { RequestThrottle } from "../src/pool/throttle";
+import { Semaphore } from "../src/pool/semaphore";
 import type { AppDeps } from "../src/server/app";
 
 const CHAT_URL = "https://chat.qwen.ai";
@@ -55,8 +56,10 @@ async function main() {
     // Start background refresh loop
     baxia.startRefreshLoop();
 
-    // Guest upstream client
-    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, log });
+    // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
+    // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
+    const concurrency = new Semaphore(config.maxConcurrency);
+    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log });
 
     // Single-account pool shim (guest mode: one virtual account, no failover)
     const pool = new SingleAccountPool({ log });

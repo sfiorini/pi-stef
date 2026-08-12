@@ -26,6 +26,11 @@ export interface GuestUpstreamClientConfig {
   userAgent?: string;
   log: Logger;
   sleep?: (ms: number) => Promise<void>;
+  /** Optional in-flight concurrency cap (async semaphore). Absent = unlimited.
+   *  Baxia flags the IP on concurrent upstream connections, so bin wires a
+   *  Semaphore(SF_QWEN_MAX_CONCURRENCY, default 1) to serialize — like the web
+   *  chat (you can't send the next until the previous completes). */
+  concurrency?: { acquire(): Promise<void>; release(): void };
 }
 
 const DEFAULT_UA =
@@ -43,6 +48,7 @@ export class GuestUpstreamClient {
   private log: Logger;
   private _sleep: (ms: number) => Promise<void>;
   private modelsCache: Model[] | null = null;
+  private concurrency?: { acquire(): Promise<void>; release(): void };
 
   constructor(config: GuestUpstreamClientConfig) {
     this.baxia = config.baxia;
@@ -51,6 +57,7 @@ export class GuestUpstreamClient {
     this.userAgent = config.userAgent ?? DEFAULT_UA;
     this.log = config.log;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.concurrency = config.concurrency;
   }
 
   // ── createChatSession ──────────────────────────────────────────────────
@@ -191,51 +198,61 @@ export class GuestUpstreamClient {
   private async *chatCompletionsStream(
     body: ChatCompletionsBody,
   ): AsyncGenerator<OpenAiChatChunk> {
-    const res = await this.doChatCompletionsRequest(body);
-    if (!res.body) {
-      throw new Error("Response body is null (no stream)");
+    await this.concurrency?.acquire();
+    try {
+      const res = await this.doChatCompletionsRequest(body);
+      if (!res.body) {
+        throw new Error("Response body is null (no stream)");
+      }
+      yield* translateQwenSse(res.body);
+    } finally {
+      this.concurrency?.release();
     }
-    yield* translateQwenSse(res.body);
   }
 
   private async chatCompletionsNonStream(
     body: ChatCompletionsBody,
   ): Promise<OpenAiChatCompletion> {
-    const res = await this.doChatCompletionsRequest(body);
-    if (!res.body) {
-      throw new Error("Response body is null (no stream)");
-    }
+    await this.concurrency?.acquire();
+    try {
+      const res = await this.doChatCompletionsRequest(body);
+      if (!res.body) {
+        throw new Error("Response body is null (no stream)");
+      }
 
-    // Buffer the entire stream
-    let content = "";
-    let reasoning = "";
-    let usage: any = undefined;
+      // Buffer the entire stream
+      let content = "";
+      let reasoning = "";
+      let usage: any = undefined;
 
-    for await (const chunk of translateQwenSse(res.body)) {
-      const delta = chunk.choices?.[0]?.delta;
-      if (delta?.content) content += delta.content;
-      if (delta?.reasoning_content) reasoning += delta.reasoning_content;
-      if (chunk.usage) usage = chunk.usage;
-    }
+      for await (const chunk of translateQwenSse(res.body)) {
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) content += delta.content;
+        if (delta?.reasoning_content) reasoning += delta.reasoning_content;
+        if (chunk.usage) usage = chunk.usage;
+      }
 
-    return {
-      id: "chatcmpl-" + randomUUID(),
-      object: "chat.completion" as const,
-      created: Math.floor(Date.now() / 1000),
-      model: body.model,
-      choices: [
-        {
-          index: 0,
-          message: {
-            role: "assistant",
-            content,
-            ...(reasoning ? { reasoning_content: reasoning } : {}),
+      return {
+        id: "chatcmpl-" + randomUUID(),
+        object: "chat.completion" as const,
+        created: Math.floor(Date.now() / 1000),
+        model: body.model,
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: "assistant",
+              content,
+              ...(reasoning ? { reasoning_content: reasoning } : {}),
+            },
+            finish_reason: "stop",
           },
-          finish_reason: "stop",
-        },
-      ],
-      ...(usage ? { usage } : {}),
-    };
+        ],
+        ...(usage ? { usage } : {}),
+      };
+    } finally {
+      this.concurrency?.release();
+    }
   }
 
   private async doChatCompletionsRequest(body: ChatCompletionsBody): Promise<Response> {
