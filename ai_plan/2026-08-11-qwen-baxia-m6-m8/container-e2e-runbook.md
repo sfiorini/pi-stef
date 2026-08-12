@@ -95,7 +95,7 @@ curl -N http://127.0.0.1:7791/v1/chat/completions \
   -H "Authorization: Bearer test" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "qwen3-max",
+    "model": "qwen3.8-max",
     "messages": [{"role": "user", "content": "Say hello in one word."}],
     "stream": true
   }'
