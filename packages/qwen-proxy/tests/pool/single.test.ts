@@ -70,34 +70,32 @@ describe("SingleAccountPool", () => {
   });
 });
 
-describe("SingleAccountPool adaptive empty-cooldown", () => {
-  it("markEmptyAndSwitch escalates 90→180→360→600(cap)", async () => {
+describe("SingleAccountPool flat empty-cooldown", () => {
+  it("markEmptyAndSwitch applies flat cooldown each time (no escalation)", async () => {
     let now = 0;
     const pool = new SingleAccountPool({ log: noopLog, now: () => now });
-    const cap = 600_000;
-    const r1 = await pool.markEmptyAndSwitch(0, cap); // n=0 → 90s
+    // Use a cooldownMs that would differ if escalation existed (BASE=90000 * 2^n)
+    const cooldownMs = 600_000;
+    const r1 = await pool.markEmptyAndSwitch(0, cooldownMs);
     now = 1_000;
-    const r2 = await pool.markEmptyAndSwitch(0, cap); // n=1 → 180s
+    const r2 = await pool.markEmptyAndSwitch(0, cooldownMs);
     now = 2_000;
-    const r3 = await pool.markEmptyAndSwitch(0, cap); // n=2 → 360s
-    now = 3_000;
-    const r4 = await pool.markEmptyAndSwitch(0, cap); // n=3 → min(720,600)=600s
-    expect(r1.earliestReEnableAt).toBe(0 + 90_000);
-    expect(r2.earliestReEnableAt).toBe(1_000 + 180_000);
-    expect(r3.earliestReEnableAt).toBe(2_000 + 360_000);
-    expect(r4.earliestReEnableAt).toBe(3_000 + 600_000);
+    const r3 = await pool.markEmptyAndSwitch(0, cooldownMs);
+    // Flat each time: now + cooldownMs (no escalation)
+    expect(r1.earliestReEnableAt).toBe(600_000);
+    expect(r2.earliestReEnableAt).toBe(601_000);
+    expect(r3.earliestReEnableAt).toBe(602_000);
   });
 
-  it("markSuccess resets the empty counter", async () => {
+  it("markSuccess is a no-op (does not change the cooldown)", async () => {
     let now = 0;
     const pool = new SingleAccountPool({ log: noopLog, now: () => now });
-    await pool.markEmptyAndSwitch(0, 600_000); // 90s
-    now = 1_000;
-    await pool.markEmptyAndSwitch(0, 600_000); // 180s
-    pool.markSuccess();
-    now = 2_000;
-    const r = await pool.markEmptyAndSwitch(0, 600_000); // back to 90s (n=0)
-    expect(r.earliestReEnableAt).toBe(2_000 + 90_000);
+    await pool.markEmptyAndSwitch(0, 10_000); // disabledUntil = 10_000
+    pool.markSuccess(); // should not affect disabledUntil
+    // cooldown still applies
+    expect(() => pool.getActiveAccount()).toThrow(PoolExhaustedError);
+    now = 11_000;
+    expect(pool.getActiveAccount()).toEqual({ id: 0, bearer: "guest", expiresAt: null });
   });
 
   it("markRateLimitedAndSwitch does NOT escalate (flat)", async () => {
