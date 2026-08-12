@@ -45,6 +45,13 @@ export class UnknownError extends QwenUpstreamError {
   readonly retryable = false;
 }
 
+/** Empty completion (HTTP 200, no payload — likely a Baxia CAPTCHA flag).
+ *  Surfaced by chatCompletionsNonStream; caught by withPoolRetry's inline
+ *  retry loop. Semantic signal — NOT produced by classifyResponse. */
+export class EmptyCompletionError extends QwenUpstreamError {
+  readonly retryable = true;
+}
+
 /** Parse `Retry-After` header: integer seconds → ms; HTTP-date → undefined. */
 function parseRetryAfterMs(value: string | null): number | undefined {
   if (!value) return undefined;

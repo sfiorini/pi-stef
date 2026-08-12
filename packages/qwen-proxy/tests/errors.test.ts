@@ -8,6 +8,7 @@ import {
   NetworkError,
   UnknownError,
   QwenUpstreamError,
+  EmptyCompletionError,
 } from "../src/upstream/errors";
 
 function headers(obj: Record<string, string> = {}): Headers {
@@ -144,5 +145,21 @@ describe("classifyResponse", () => {
       expect(err).toBeInstanceOf(Error);
       expect(typeof err.retryable).toBe("boolean");
     }
+  });
+});
+
+describe("EmptyCompletionError", () => {
+  it("is a QwenUpstreamError with retryable=true, name, and message", () => {
+    const err = new EmptyCompletionError("empty completion");
+    expect(err).toBeInstanceOf(QwenUpstreamError);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.retryable).toBe(true);
+    expect(err.name).toBe("EmptyCompletionError");
+    expect(err.message).toBe("empty completion");
+  });
+
+  it("has status undefined (semantic, not HTTP-classified)", () => {
+    const err = new EmptyCompletionError("empty");
+    expect(err.status).toBeUndefined();
   });
 });
