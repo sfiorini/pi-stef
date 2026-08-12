@@ -1,0 +1,5 @@
+data: {"choices":[{"delta":{"reasoning_content":"Let me think..."}}]}
+
+data: {"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}
+
+data: [DONE]

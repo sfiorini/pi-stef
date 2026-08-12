@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { GuestUpstreamClient } from "../../src/upstream/guest-client";
+import { EmptyCompletionError } from "../../src/upstream/errors";
 import type { BaxiaTokenManager, BaxiaTokens } from "../../src/upstream/baxia-token";
 import type { UpstreamClient } from "../../src/upstream/client";
 import type { OpenAiChatCompletion } from "../../src/upstream/types";
@@ -569,6 +570,63 @@ describe("listModels", () => {
 
     // fetcher called only once (cached)
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ── chatCompletions non-stream empty detection ──────────────────────────
+
+describe("chatCompletions non-stream empty detection", () => {
+  it("empty SSE (only [DONE]) → EmptyCompletionError", async () => {
+    const fetcher = vi
+      .fn()
+      // createChatSession
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-empty" } }),
+      })
+      // chat completions stream (empty — only [DONE])
+      .mockResolvedValueOnce(makeSseResponse("empty-done-only.txt"));
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    await expect(
+      client.chatCompletions("ignored", {
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "hi" }],
+      } as any),
+    ).rejects.toThrow(EmptyCompletionError);
+  });
+
+  it("reasoning-only SSE → success (empty content, non-empty reasoning_content)", async () => {
+    const fetcher = vi
+      .fn()
+      // createChatSession
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-reasoning" } }),
+      })
+      // chat completions stream (reasoning only)
+      .mockResolvedValueOnce(makeSseResponse("reasoning-only.txt"));
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    const result = await client.chatCompletions("ignored", {
+      model: "qwen3-max",
+      messages: [{ role: "user", content: "hi" }],
+    } as any) as OpenAiChatCompletion;
+
+    expect(result.choices[0].message.content).toBe("");
+    expect(result.choices[0].message.reasoning_content).toBe("Let me think...");
   });
 });
 

@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { BaxiaTokenManager } from "./baxia-token";
-import { RateLimitError } from "./errors";
+import { RateLimitError, EmptyCompletionError } from "./errors";
 import { translateQwenSse, isDataInspectionFailed } from "./qwen-sse";
 import type {
   OpenAiChatChunk,
@@ -230,6 +230,10 @@ export class GuestUpstreamClient {
         if (delta?.content) content += delta.content;
         if (delta?.reasoning_content) reasoning += delta.reasoning_content;
         if (chunk.usage) usage = chunk.usage;
+      }
+
+      if (content === "" && reasoning === "") {
+        throw new EmptyCompletionError("upstream returned an empty completion (content and reasoning_content both empty — likely Baxia CAPTCHA flag)");
       }
 
       return {
