@@ -164,12 +164,28 @@ export class BaxiaTokenManager {
 
     const ws = new this._WebSocketCtor(wsUrl);
 
-    // GAP-FIX: reject all pending on error/close
+    // Await the WebSocket OPEN event before any send(): the browser WebSocket
+    // throws InvalidStateError ("Sent before connected") if send() is called
+    // while still CONNECTING. The unit-test fake mirrors this via readyState.
+    let openResolve!: () => void;
+    let openReject!: (e: Error) => void;
+    const openPromise = new Promise<void>((resolve, reject) => {
+      openResolve = resolve;
+      openReject = reject;
+    });
+    let opened = false;
+
+    // GAP-FIX: reject all pending on error/close (and the open promise if not yet open)
     function rejectAll(err: Error) {
       for (const [, p] of pending) p.reject(err);
       pending.clear();
+      if (!opened) openReject(err);
     }
 
+    ws.addEventListener("open", () => {
+      opened = true;
+      openResolve();
+    });
     ws.addEventListener("error", () =>
       rejectAll(new NetworkError("cdp ws error")),
     );
@@ -195,7 +211,8 @@ export class BaxiaTokenManager {
     });
 
     return {
-      send(method: string, params?: Record<string, unknown>): Promise<any> {
+      async send(method: string, params?: Record<string, unknown>): Promise<any> {
+        await openPromise; // rejects on error/close-before-open
         return new Promise((resolve, reject) => {
           const msgId = ++id;
           pending.set(msgId, { resolve, reject });
@@ -204,11 +221,12 @@ export class BaxiaTokenManager {
       },
       async close(): Promise<void> {
         try {
+          await openPromise;
           // Close the browser tab/target
           const closeId = ++id;
           ws.send(JSON.stringify({ id: closeId, method: "Target.closeTarget" }));
         } catch {
-          // best effort
+          // never opened — best effort
         }
         ws.close();
       },

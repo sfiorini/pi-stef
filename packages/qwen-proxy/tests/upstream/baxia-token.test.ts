@@ -16,6 +16,9 @@ class FakeWebSocket {
   listeners: Record<string, Array<(ev: any) => void>> = {};
   sent: any[] = [];
   closed = false;
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  readyState = FakeWebSocket.CONNECTING;
   private replyMap: Map<string, (id: number, params: any) => any>;
 
   constructor(
@@ -26,6 +29,7 @@ class FakeWebSocket {
     FakeWebSocket.instances.push(this);
     // Auto-dispatch after construction so addEventListener handlers are attached
     queueMicrotask(() => {
+      this.readyState = FakeWebSocket.OPEN;
       this.dispatchOpen();
     });
   }
@@ -36,6 +40,11 @@ class FakeWebSocket {
   }
 
   send(data: string) {
+    if (this.readyState !== FakeWebSocket.OPEN) {
+      // Mirror the browser WebSocket: sending before the OPEN event throws
+      // InvalidStateError ("Sent before connected"). cdpConnect must await open.
+      throw new Error("InvalidStateError: Sent before connected.");
+    }
     const msg = JSON.parse(data);
     this.sent.push(msg);
     const handler = this.replyMap.get(msg.method);
