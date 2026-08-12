@@ -39,7 +39,7 @@ curl http://127.0.0.1:7790/v1/health
 - **Tool calling** — OpenAI-style `tools`/`tool_choice` (upstream prompt-engineering translation)
 - **Model aliases** — map friendly names to upstream Qwen models (e.g. `gpt-4o` → `qwen3-max`)
 - **Global throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` paces all requests (±50% jitter) to look human
-- **Adaptive empty-cooldown** — escalation on empty completions (90/180/360/600s) with `markSuccess` reset
+- **Inline retry-on-empty** — retries empty completions up to `SF_QWEN_EMPTY_RETRY_MAX` (default 3, `SF_QWEN_EMPTY_RETRY_GAP_MS` gap) before a flat 10s pool cooldown
 - **Admin dashboard** — `/admin` with Baxia cache-status panel (optional, gated by `SF_QWEN_ADMIN_KEY`)
 - **Docker** — multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR, non-root uid 1000, bundled Chromium + fonts
 
@@ -57,7 +57,9 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_API_KEY` | *(required)* | Client API keys, comma-separated |
 | `SF_QWEN_ADMIN_KEY` | *(unset)* | Admin dashboard key; unset → `/admin` returns 404 (D15) |
 | `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24h) | Rate-limit cooldown duration |
-| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10min) | Empty-completion / CAPTCHA-flag cooldown cap |
+| `SF_QWEN_EMPTY_COOLDOWN_MS` | `10000` (10s) | Flat pool cooldown applied only AFTER inline empty-retries are exhausted |
+| `SF_QWEN_EMPTY_RETRY_MAX` | `3` | Inline retries on an empty completion (Baxia CAPTCHA flag) before giving up. `0` disables (immediate cooldown) |
+| `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4s) | Global look-human throttle (±50% jitter); `0` disables |
 | `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
 | `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias → upstream model |

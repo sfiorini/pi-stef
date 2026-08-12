@@ -37,7 +37,7 @@ qwen-proxy is an always-on reverse proxy that sits between your AI client (pi, O
 - **Tool calling** — OpenAI-style `tools`/`tool_choice` (upstream prompt-engineering translation)
 - **Model aliases** — map friendly names to upstream Qwen models (e.g. `gpt-4o` → `qwen3-max`)
 - **Global throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` paces all requests (±50% jitter) to look human
-- **Adaptive empty-cooldown** — escalation on empty completions (90/180/360/600s) with `markSuccess` reset
+- **Inline retry-on-empty** — retries empty completions up to `SF_QWEN_EMPTY_RETRY_MAX` (default 3, `SF_QWEN_EMPTY_RETRY_GAP_MS` gap) before a flat 10s pool cooldown
 - **Admin dashboard** — `/admin` with Baxia cache-status panel (optional, gated by `SF_QWEN_ADMIN_KEY`)
 - **Docker** — multi-arch image (`linux/amd64`, `linux/arm64`) on GHCR, non-root uid 1000, bundled Chromium + fonts
 
@@ -59,13 +59,13 @@ chat.qwen.ai is fronted by the **Baxia** anti-bot, which flags automated traffic
 
 1. **Headless Chromium tokens** — `BaxiaTokenManager` uses Chrome CDP to generate valid `__baxia__` tokens, bypassing the anti-bot gate. Tokens are pre-warmed at startup and refreshed every 25 minutes.
 2. **Look-human throttle** — `SF_QWEN_MIN_REQUEST_GAP_MS` (default 4 s, ±50 % jitter) paces all requests so the cadence isn't metronomic. Set `0` to disable. Expect slower responses; tune down if flagging is rare.
-3. **Adaptive empty-cooldown** — when the upstream returns an empty completion (Baxia CAPTCHA flag), the proxy applies an escalating cooldown (90s → 180s → 360s → 600s cap via `SF_QWEN_EMPTY_COOLDOWN_MS`). A successful completion resets the escalation.
+3. **Inline retry-on-empty** — when the upstream returns an empty completion (Baxia CAPTCHA flag), the proxy retries the same request inline up to `SF_QWEN_EMPTY_RETRY_MAX` (default 3) with a `SF_QWEN_EMPTY_RETRY_GAP_MS` sleep (default 1s). The transient flag usually lifts mid-retry, converting would-be-empties into successes. Only after retries are exhausted does the proxy apply a short flat pool cooldown (`SF_QWEN_EMPTY_COOLDOWN_MS`, default 10s) + return 429 (stream paths that already committed HTTP 200 degrade to a graceful sentinel instead).
 
 **Tuning guidance:**
 
 - The most effective lever is **Chromium availability** — without a working Chromium, the proxy cannot generate Baxia tokens and requests will fail. Ensure `SF_QWEN_CHROME_PATH` points to a valid Chromium binary.
 - If requests still get flagged, raise `SF_QWEN_MIN_REQUEST_GAP_MS` (e.g. 6000–8000).
-- Lower `SF_QWEN_EMPTY_COOLDOWN_MS` if empty completions self-clear faster than the cooldown.
+- If empties persist, raise `SF_QWEN_EMPTY_RETRY_MAX` (default 3) or `SF_QWEN_EMPTY_RETRY_GAP_MS`; the post-exhaustion `SF_QWEN_EMPTY_COOLDOWN_MS` is a flat 10s.
 
 ## Authentication
 
@@ -125,7 +125,9 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
-| `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10 min) | Empty-completion / CAPTCHA-flag cooldown cap (adaptive escalation up to this value) |
+| `SF_QWEN_EMPTY_COOLDOWN_MS` | `10000` (10s) | Flat pool cooldown applied only AFTER inline empty-retries are exhausted |
+| `SF_QWEN_EMPTY_RETRY_MAX` | `3` | Inline retries on an empty completion (Baxia CAPTCHA flag) before giving up. `0` disables (immediate cooldown) |
+| `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Global look-human throttle (±50 % jitter) between requests. `0` disables |
 | `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat — you can't send the next until the previous completes). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
 
@@ -233,7 +235,7 @@ The admin dashboard returns 404 (not 401) when `SF_QWEN_ADMIN_KEY` is unset. Thi
 
 ### No account failover
 
-Guest mode uses a single virtual session — there is no account pool or round-robin failover. When an empty completion is detected (Baxia CAPTCHA flag), the proxy applies an adaptive cooldown escalation (90s → 180s → 360s → 600s cap) and retries. A successful completion resets the escalation. There is no account to switch to; the proxy must wait for the cooldown to clear.
+Guest mode uses a single virtual session — there is no account pool or round-robin failover. When an empty completion is detected (Baxia CAPTCHA flag), the proxy retries the same request inline up to `SF_QWEN_EMPTY_RETRY_MAX` (default 3) times; on exhaustion it applies a flat `SF_QWEN_EMPTY_COOLDOWN_MS` (10s) pool cooldown + returns 429 (a stream that already committed HTTP 200 degrades to a graceful sentinel). There is no account to switch to; the proxy must wait for the cooldown to clear.
 
 ### Chromium must be available
 
