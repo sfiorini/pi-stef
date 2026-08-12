@@ -81,6 +81,9 @@ describe("createChatSession", () => {
     expect(headers["source"]).toBe("web");
     expect(headers["version"]).toBe("0.2.83");
     expect(headers["User-Agent"]).toContain("Chrome");
+    // Anti-bot headers chat.qwen.ai expects on session creation too
+    expect(headers["Origin"]).toBe("https://chat.qwen.ai");
+    expect(headers["Referer"]).toBe("https://chat.qwen.ai/c/guest");
 
     const body = JSON.parse(init.body);
     expect(body.chat_mode).toBe("guest");
