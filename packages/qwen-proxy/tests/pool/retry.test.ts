@@ -37,6 +37,10 @@ class FakeMultiPool implements PoolLike {
     if (next !== undefined) { this.activeIdx = this.ids.indexOf(next); }
     return { newActiveId: next !== undefined ? next : null, earliestReEnableAt: null };
   }
+  async markEmptyAndSwitch(failedId: number, cooldownMs: number) {
+    return this.markRateLimitedAndSwitch(failedId, cooldownMs);
+  }
+  markSuccess(): void {}
   earliestReEnableAt() { return null; }
 }
 
@@ -464,5 +468,83 @@ describe("withPoolRetry against SingleAccountPool", () => {
     await expect(
       collectChunks(withPoolRetryStream(deps, op)),
     ).rejects.toThrow(RateLimitError);
+  });
+});
+
+// ── Branch spy tests (S-M5-78) ─────────────────────────────────────────────
+
+describe("retry.ts branch dispatch (S-M5-78)", () => {
+  /** Track which PoolLike method was called. */
+  function spyPool(pool: PoolLike): { pool: PoolLike; calls: string[] } {
+    const calls: string[] = [];
+    const p = new Proxy(pool, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, receiver);
+        if (typeof val !== "function") return val;
+        return (...args: unknown[]) => {
+          calls.push(String(prop));
+          return (val as Function).apply(target, args);
+        };
+      },
+    });
+    return { pool: p, calls };
+  }
+
+  it("empty completion → markEmptyAndSwitch (NOT markRateLimitedAndSwitch)", async () => {
+    const base = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    const { pool, calls } = spyPool(base);
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    async function* op(_id: number, _bearer: string): AsyncIterable<OpenAiChatChunk> {
+      yield finishChunk("stop"); // empty — no payload
+    }
+
+    await expect(collectChunks(withPoolRetryStream(deps, op))).rejects.toThrow(RateLimitError);
+    expect(calls).toContain("markEmptyAndSwitch");
+    expect(calls).not.toContain("markRateLimitedAndSwitch");
+  });
+
+  it("real RateLimitError → markRateLimitedAndSwitch (NOT empty)", async () => {
+    const { pool, calls } = spyPool(new FakeMultiPool([1, 2]));
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    async function* op(id: number, _bearer: string): AsyncIterable<OpenAiChatChunk> {
+      if (id === 1) throw new RateLimitError("rate limited");
+      yield contentChunk("ok");
+      yield finishChunk("stop");
+    }
+
+    await collectChunks(withPoolRetryStream(deps, op));
+    expect(calls).toContain("markRateLimitedAndSwitch");
+    expect(calls).not.toContain("markEmptyAndSwitch");
+  });
+
+  it("clean stream → markSuccess", async () => {
+    const base = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    const { pool, calls } = spyPool(base);
+    const deps: RetryDeps = {
+      pool,
+      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
+      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+      log: noopLog,
+    };
+
+    async function* op(_id: number, _bearer: string): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("hello");
+      yield finishChunk("stop");
+    }
+
+    await collectChunks(withPoolRetryStream(deps, op));
+    expect(calls).toContain("markSuccess");
   });
 });

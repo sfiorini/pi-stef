@@ -44,7 +44,9 @@ export async function withPoolRetry<T>(
     await deps.throttle?.waitFor(id);
 
     try {
-      return await op(id, bearer);
+      const result = await op(id, bearer);
+      deps.pool.markSuccess();
+      return result;
     } catch (err) {
       if (err instanceof RateLimitError) {
         tried.add(id);
@@ -131,7 +133,8 @@ export async function* withPoolRetryStream(
       if (!seenPayload) {
         emptyCompletion = true;
       } else {
-        // Clean end — flush remaining buffer
+        // Clean end — reset empty-escalation, flush remaining buffer
+        deps.pool.markSuccess();
         yield* buffer;
         return;
       }
@@ -181,7 +184,7 @@ export async function* withPoolRetryStream(
     if (emptyCompletion) {
       deps.log.warn("upstream returned empty completion — short cooldown + failover (likely Baxia CAPTCHA flag)", { accountId: id, cooldownMs: deps.config.emptyCooldownMs });
       tried.add(id);
-      const result = await deps.pool.markRateLimitedAndSwitch(
+      const result = await deps.pool.markEmptyAndSwitch(
         id,
         deps.config.emptyCooldownMs,
       );
