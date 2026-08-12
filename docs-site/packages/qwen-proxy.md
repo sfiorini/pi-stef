@@ -127,6 +127,7 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
 | `SF_QWEN_EMPTY_COOLDOWN_MS` | `600000` (10 min) | Empty-completion / CAPTCHA-flag cooldown cap (adaptive escalation up to this value) |
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Global look-human throttle (±50 % jitter) between requests. `0` disables |
+| `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat — you can't send the next until the previous completes). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
 
 ### Model aliases
 
