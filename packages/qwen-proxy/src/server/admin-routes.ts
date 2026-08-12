@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import type { Logger } from "./logger";
+import type { BaxiaStatus } from "../upstream/baxia-token";
 import { adminGate } from "./admin-gate";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -74,9 +75,33 @@ ${body}
 
 // ── Dashboard orchestrator ───────────────────────────────────────────────────
 
-/** Minimal guest-mode dashboard (M7 will add baxia status). */
-export function renderDashboard(): string {
-  return renderShell("qwen-proxy admin", `<h1>qwen-proxy admin</h1><p class="text-muted">Guest mode. Account/token/rate-limit tables removed (M5).</p>`);
+/** Render Baxia cache-status section. */
+export function renderBaxiaStatusSection(s: BaxiaStatus): string {
+  const stateHtml = s.cached
+    ? `<span class="state_active">cached</span>`
+    : `cold start`;
+  const ageSec = s.ageMs !== null ? `${(s.ageMs / 1000).toFixed(0)}s` : "—";
+  const ttlSec = `${(s.ttlMs / 1000).toFixed(0)}s`;
+  const nextRefresh = s.nextRefreshInMs !== null ? `${(s.nextRefreshInMs / 1000).toFixed(0)}s` : "—";
+  const lastSpawn = s.lastSpawnDurationMs !== null ? `${(s.lastSpawnDurationMs / 1000).toFixed(0)}s` : "—";
+
+  return `<h2>Baxia token cache</h2>
+<table>
+  <tr><th>Field</th><th>Value</th></tr>
+  <tr><td>State</td><td>${stateHtml}</td></tr>
+  <tr><td>Cached at</td><td>${fmtTimestamp(s.cachedAt)}</td></tr>
+  <tr><td>Age</td><td>${ageSec}</td></tr>
+  <tr><td>Cache TTL</td><td>${ttlSec}</td></tr>
+  <tr><td>Next refresh</td><td>${nextRefresh}</td></tr>
+  <tr><td>Last spawn</td><td>${lastSpawn}</td></tr>
+  <tr><td>Consecutive failures</td><td>${String(s.consecutiveFailures)}</td></tr>
+</table>`;
+}
+
+/** Guest-mode dashboard with optional Baxia cache-status panel. */
+export function renderDashboard(status?: BaxiaStatus): string {
+  const baxia = status ? renderBaxiaStatusSection(status) : "";
+  return renderShell("qwen-proxy admin", `<h1>qwen-proxy admin</h1>${baxia}<p class="text-muted">Guest mode. No accounts.</p>`);
 }
 
 // ── Route handler ────────────────────────────────────────────────────────────
@@ -85,6 +110,7 @@ export interface AdminRouteDeps {
   db: Database.Database;
   adminKey: string | undefined;
   log: Logger;
+  baxiaStatus?: () => BaxiaStatus;
 }
 
 /**
@@ -100,7 +126,7 @@ export function adminRoutes(deps: AdminRouteDeps): Hono {
   app.use("/*", adminGate({ adminKey: deps.adminKey }));
 
   // Dashboard
-  app.get("/", (c) => c.html(renderDashboard()));
+  app.get("/", (c) => c.html(renderDashboard(deps.baxiaStatus?.())));
 
   return app;
 }

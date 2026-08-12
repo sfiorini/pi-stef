@@ -81,6 +81,7 @@ async function main() {
       retryStream: withPoolRetryStream,
       throttle,
       log,
+      baxiaStatus: () => baxia.status(),
     };
 
     // Start HTTP server

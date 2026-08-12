@@ -1,5 +1,5 @@
 /**
- * Strip the `<details>…</details>` block that qwen.aikit.club appends to
+ * Strip the `<details>…</details>` block that chat.qwen.ai appends to
  * non-streaming responses (contains Response ID / Request ID junk).
  *
  * Two modes:

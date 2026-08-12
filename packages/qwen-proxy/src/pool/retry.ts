@@ -124,7 +124,7 @@ export async function* withPoolRetryStream(
         }
       }
 
-      // Empty completion — qwen.aikit.club masks Baxia CAPTCHA flags as empty
+      // Empty completion — chat.qwen.ai masks Baxia CAPTCHA flags as empty
       // 200s (delta:{} + finish_reason:stop, usage:{}). Retrying is pointless
       // (the account is blocked until the CAPTCHA clears) and hammering it is
       // suspicious. Flag it; the handler below the catch applies a SHORT
