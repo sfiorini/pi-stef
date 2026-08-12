@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-12
+### Changed
+- docs(qwen-proxy): add landing-page tile + document SF_QWEN_MAX_CONCURRENCY
+- feat(qwen-proxy): in-flight concurrency cap (SF_QWEN_MAX_CONCURRENCY, default 1)
+- fix(qwen-proxy): default-alias common model names to current guest-mode ids (empty completions)
+- test(qwen-proxy): assert Origin/Referer on createChatSession too (audit P3)
+- fix(qwen-proxy): send Origin/Referer headers + full qwen body (empty completions)
+- fix(qwen-proxy): match qwen2api's real baxia-token.js extraction (tokens never ready)
+- fix(qwen-proxy): await CDP WebSocket open before sending (InvalidStateError in container)
+- chore(qwen-proxy): reword stale qwen.aikit.club comments to chat.qwen.ai (S-M8-95)
+- test(qwen-proxy): admin 404 regression with baxiaStatus (S-M7-91)
+- feat(qwen-proxy): add Baxia cache-status panel to admin dashboard (S-M7-90)
+- docs(qwen-proxy): rewrite README + docker/README for guest-mode/baxia (S-M7-87)
+- chore(qwen-proxy): bump shm_size/mem_limit + baxia env (S-M6-84)
+- feat(qwen-proxy): add Chromium+fonts to non-root Docker image (S-M6-83)
+- chore(qwen-proxy): remove orphaned jose dep (auth.ts JWT was its only consumer; ripped in M5-80b)
+- feat(M5-76): guest-only DB schema (api_keys + schema_versions); rewrite migration tests
+- refactor(M5-81): rip store/admin + account config; slim repo/admin dashboard; drop account env
+- feat(M5-78): adaptive empty-cooldown (markEmptyAndSwitch escalation 90/180/360/600 + markSuccess; 429 flat)
+- refactor(M5-80b): rip pool/auth/daemon; retype scheduler to RetryScheduler; adapt tests
+- refactor(M5-80a): slim upstream/client.ts to types; drop createUpstreamClient
+- refactor(M5-79): collapse RequestThrottle to a single global scalar
+- test(M4-73): assert undefined finish_reason → stop_reason end_turn
+- test(M4-72): assert finish_reason stop/tool_calls is last frame before [DONE]
+- test(qwen-proxy): add M3 real-testing gate (S-M3-5, write-only)
+- refactor(qwen-proxy): swap bin to BaxiaTokenManager + GuestUpstreamClient + SingleAccountPool (S-M3-4)
+- refactor(qwen-proxy): rip image/video generation + slim AppDeps (S-M3-3)
+- refactor(qwen-proxy): widen retry.ts pool→PoolLike + SingleAccountPool test suite (S-M3-2)
+- feat(qwen-proxy): add PoolLike interface + SingleAccountPool + tests (S-M3-1)
+- fix(qwen-proxy): refresh bx-* headers on rgv587 retry (audit P1)
+- test(qwen-proxy): add guest-client smoke test (SMOKE=1 gated, write-only) (S-M2-4)
+- feat(qwen-proxy): add chatCompletions (stream/non-stream) + listModels + deleteChats + structural typing (S-M2-3)
+- feat(qwen-proxy): add GuestUpstreamClient with createChatSession + normalizeMessages (S-M2-2)
+- feat(qwen-proxy): add qwen-sse.ts SSE translator + helpers + recorded fixture (S-M2-1)
+- fix(qwen-proxy): resolve spawn function for BaxiaTokenManager (audit P0)
+- feat(qwen-proxy): add BaxiaTokenManager smoke test (SMOKE=1 gated, write-only)
+- feat(qwen-proxy): add BaxiaTokenManager orchestration (ensureToken cache + single-flight + refresh loop + status)
+- feat(qwen-proxy): port BaxiaTokenManager CDP layer with GAP-FIX
+- feat(qwen-proxy): add BaxiaConfig to config types and load, adapt test configs
+- feat(qwen-proxy): extract upstream types to types.ts with ChatCompletionsBody re-export shim
+
+
 ## [0.1.3] - 2026-08-11
 ### Changed
 - feat(qwen-proxy): look-human throttle + short-cooldown failover for CAPTCHA flags
