@@ -456,6 +456,41 @@ describe("withPoolRetryStream", () => {
       throw new Error("Expected sentinel");
     }
   });
+
+  it("finish_reason regression: content + no finish_reason → success (no retry)", async () => {
+    const deps = makeDeps();
+    let callCount = 0;
+    let markSuccessCalled = 0;
+    let markEmptyCalled = 0;
+    let markRateLimitCalled = 0;
+
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markRateLimitedAndSwitch: async () => { markRateLimitCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
+      markSuccess: () => { markSuccessCalled++; },
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+
+    const depsWithSpy = makeDeps({ pool });
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield contentChunk("real answer");
+      // NO finishChunk — no finish_reason
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(depsWithSpy, op));
+    expect(chunks).toEqual([contentChunk("real answer")]);
+    expect(callCount).toBe(1); // no retry
+    expect(markSuccessCalled).toBe(1); // success
+    expect(markEmptyCalled).toBe(0); // no empty handling
+    expect(markRateLimitCalled).toBe(0); // no rate limit
+  });
 });
 
 // ── withPoolRetry against SingleAccountPool ───────────────────────────────
