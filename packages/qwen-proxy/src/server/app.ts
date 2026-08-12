@@ -17,6 +17,7 @@ import type { PoolLike } from "../pool/types";
 import type { UpstreamClient } from "../upstream/client";
 import type { RetryScheduler } from "../pool/retry";
 import type { QwenProxyConfig } from "../config/types";
+import type { BaxiaStatus } from "../upstream/baxia-token";
 import type { Logger } from "./logger";
 import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
 import type { withPoolRetryStream as WithPoolRetryStreamFn } from "../pool/retry";
@@ -47,6 +48,7 @@ export interface AppDeps {
   retryStream: typeof WithPoolRetryStreamFn;
   throttle: RequestThrottle;
   log: Logger;
+  baxiaStatus?: () => BaxiaStatus;
 }
 
 export function createApp(deps: AppDeps): OpenAPIHono {
@@ -147,7 +149,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
   app.route("/v1", anthropicRoutes(anthropicDeps));
 
   // 5. Admin dashboard (NOT under /v1/* — bypasses clientAuthGate; gated by adminGate inside the sub-app)
-  app.route("/admin", adminRoutes({ db: deps.db, adminKey: deps.config.adminKey, log: deps.log }));
+  app.route("/admin", adminRoutes({ db: deps.db, adminKey: deps.config.adminKey, log: deps.log, baxiaStatus: deps.baxiaStatus }));
 
   return app;
 }

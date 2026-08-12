@@ -10,6 +10,7 @@ import { openDb } from "../../src/store/db";
 import { SingleAccountPool } from "../../src/pool/single";
 import { RequestThrottle } from "../../src/pool/throttle";
 import type { AppDeps } from "../../src/server/app";
+import type { BaxiaStatus } from "../../src/upstream/baxia-token";
 
 // ── escapeHtml ──────────────────────────────────────────────────────────────
 
@@ -163,5 +164,54 @@ describe("adminRoutes integration via createApp", () => {
     const app = createApp(deps);
     const res = await app.request("/v1/health");
     expect(res.status).toBe(200);
+  });
+
+  it("GET /admin renders Baxia section when baxiaStatus provided", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const baxia: BaxiaStatus = {
+      cached: true,
+      cachedAt: Date.now() - 120_000,
+      ageMs: 120_000,
+      ttlMs: 1_500_000,
+      nextRefreshInMs: 1_380_000,
+      lastSpawnDurationMs: 3_200,
+      consecutiveFailures: 0,
+    };
+    deps.baxiaStatus = () => baxia;
+    const app = createApp(deps);
+    const res = await app.request("/admin?key=test-admin-key");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Baxia token cache");
+    expect(body).toContain("cached");
+  });
+
+  it("GET /admin omits Baxia section when baxiaStatus undefined", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const app = createApp(deps);
+    const res = await app.request("/admin?key=test-admin-key");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).not.toContain("Baxia token cache");
+  });
+
+  it("GET /admin Baxia section shows cold-start marker when not cached", async () => {
+    const deps = makeStubDeps("test-admin-key");
+    const baxia: BaxiaStatus = {
+      cached: false,
+      cachedAt: null,
+      ageMs: null,
+      ttlMs: 1_500_000,
+      nextRefreshInMs: null,
+      lastSpawnDurationMs: null,
+      consecutiveFailures: 0,
+    };
+    deps.baxiaStatus = () => baxia;
+    const app = createApp(deps);
+    const res = await app.request("/admin?key=test-admin-key");
+    expect(res.status).toBe(200);
+    const body = await res.text();
+    expect(body).toContain("Baxia token cache");
+    expect(body).toContain("cold start");
   });
 });
