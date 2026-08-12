@@ -10,16 +10,16 @@ import {
   renderLoginFailuresSection,
   renderUsageSection,
 } from "../../src/server/admin-routes";
-import type {
-  AdminAccountRow,
-  AdminTokenRow,
-  AdminRateLimitRow,
-  AdminLoginFailureRow,
+import {
+  type AdminAccountRow,
+  type AdminTokenRow,
+  type AdminRateLimitRow,
+  type AdminLoginFailureRow,
 } from "../../src/store/admin";
+import { reconcileAccounts } from "../../src/store/repo";
 import { createApp } from "../../src/server/app";
 import { openDb } from "../../src/store/db";
-import { reconcileAccounts } from "../../src/store/repo";
-import { AccountPool } from "../../src/pool/state";
+import { SingleAccountPool } from "../../src/pool/single";
 import { RequestThrottle } from "../../src/pool/throttle";
 import type { AppDeps } from "../../src/server/app";
 
@@ -204,9 +204,7 @@ const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
 
 function makeStubDeps(adminKey?: string): AppDeps {
   const db = openDb(":memory:");
-  reconcileAccounts(db, []);
-  const pool = new AccountPool({ db, log: noopLog });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     db,
     pool,

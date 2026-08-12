@@ -3,17 +3,11 @@ import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import type { UpstreamClient, OpenAiChatChunk, OpenAiChatCompletion } from "../../../src/upstream/client";
 import type { Logger } from "../../../src/server/logger";
-import type { Account } from "../../../src/config/types";
 import { openDb } from "../../../src/store/db";
-import { reconcileAccounts, upsertToken } from "../../../src/store/repo";
-import { AccountPool } from "../../../src/pool/state";
+import { SingleAccountPool } from "../../../src/pool/single";
 import { withPoolRetry, withPoolRetryStream } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
 import { anthropicRoutes, type AnthropicRouteDeps } from "../../../src/adapters/anthropic";
-
-const ACCOUNTS: Account[] = [
-  { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
-];
 
 const noopLog: Logger = {
   info: () => {},
@@ -23,9 +17,6 @@ const noopLog: Logger = {
 
 function setupDb(): Database.Database {
   const db = openDb(":memory:");
-  reconcileAccounts(db, ACCOUNTS);
-  db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
-  upsertToken(db, 1, "test-bearer", 999999);
   return db;
 }
 
@@ -62,14 +53,13 @@ function makeCompletion(opts: {
 }
 
 function makeDeps(
-  db: Database.Database,
+  _db?: Database.Database,
   overrides?: {
     client?: Partial<UpstreamClient>;
     config?: Partial<AnthropicRouteDeps["config"]>;
   },
 ): AnthropicRouteDeps {
-  const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
@@ -361,10 +351,8 @@ describe("POST /v1/messages", () => {
   // ── Pool exhausted → 429 ───────────────────────────────────────────────
 
   it("pool exhausted → 429 Anthropic error", async () => {
-    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
-
-    const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-    pool.hydrate();
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    await pool.markRateLimitedAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();

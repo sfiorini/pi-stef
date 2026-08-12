@@ -15,7 +15,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import type Database from "better-sqlite3";
 import type { PoolLike } from "../pool/types";
 import type { UpstreamClient } from "../upstream/client";
-import type { AuthScheduler } from "../upstream/auth";
+import type { RetryScheduler } from "../pool/retry";
 import type { QwenProxyConfig } from "../config/types";
 import type { Logger } from "./logger";
 import type { withPoolRetry as WithPoolRetryFn } from "../pool/retry";
@@ -41,7 +41,7 @@ export interface AppDeps {
   db: Database.Database;
   pool: PoolLike;
   client: Pick<UpstreamClient, "chatCompletions" | "listModels" | "deleteChats">;
-  scheduler: Pick<AuthScheduler, "refreshOnDemand">;
+  scheduler: RetryScheduler;
   config: QwenProxyConfig;
   retry: typeof WithPoolRetryFn;
   retryStream: typeof WithPoolRetryStreamFn;

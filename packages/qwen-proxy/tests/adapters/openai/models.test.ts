@@ -2,18 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { openDb } from "../../../src/store/db";
-import { reconcileAccounts, upsertToken } from "../../../src/store/repo";
-import { AccountPool } from "../../../src/pool/state";
+import { SingleAccountPool } from "../../../src/pool/single";
 import { withPoolRetry } from "../../../src/pool/retry";
 import { clientAuthGate } from "../../../src/server/auth";
 import { modelsRoutes } from "../../../src/adapters/openai/models";
 import type { UpstreamClient } from "../../../src/upstream/client";
-import type { Account } from "../../../src/config/types";
 import type { Logger } from "../../../src/server/logger";
-
-const ACCOUNTS: Account[] = [
-  { id: 1, email: "a@test.com", password: "pw1", ord: 1 },
-];
 
 const noopLog: Logger = {
   info: () => {},
@@ -23,15 +17,12 @@ const noopLog: Logger = {
 
 function setupDb(): Database.Database {
   const db = openDb(":memory:");
-  reconcileAccounts(db, ACCOUNTS);
-  db.prepare("UPDATE accounts SET state='active', re_enable_at=NULL WHERE id=1").run();
-  upsertToken(db, 1, "test-bearer", 999999);
   return db;
 }
 
 interface TestDeps {
   db: Database.Database;
-  pool: AccountPool;
+  pool: SingleAccountPool;
   scheduler: { refreshOnDemand: () => Promise<{ bearer: string; expiresAt: number }> };
   config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
   log: Logger;
@@ -47,8 +38,7 @@ function makeDeps(
     configModels?: { modelAliasesRaw: string };
   },
 ): TestDeps {
-  const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     db,
     pool,
@@ -157,14 +147,11 @@ describe("GET /v1/models", () => {
   });
 
   it("returns 429 on PoolExhaustedError with Retry-After header", async () => {
-    // Exhaust the pool: disable the only account
-    db.prepare("UPDATE accounts SET state='disabled', re_enable_at=? WHERE id=1").run(Date.now() + 60_000);
-
-    const pool = new AccountPool({ db, log: noopLog, now: () => 1000 });
-    pool.hydrate();
+    // Exhaust the pool: mark it rate-limited
+    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
+    await pool.markRateLimitedAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
-    // Override pool to be exhausted
     const app = new Hono();
     app.use("/v1/*", clientAuthGate({
       db: deps.db,

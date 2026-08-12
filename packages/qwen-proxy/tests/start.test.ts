@@ -2,17 +2,14 @@ import { describe, it, expect } from "vitest";
 import { startServer } from "../src/server/start";
 import type { AppDeps } from "../src/server/app";
 import { openDb } from "../src/store/db";
-import { reconcileAccounts } from "../src/store/repo";
-import { AccountPool } from "../src/pool/state";
+import { SingleAccountPool } from "../src/pool/single";
 import { RequestThrottle } from "../src/pool/throttle";
 
 const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
 
 function makeStubDeps(): AppDeps {
   const db = openDb(":memory:");
-  reconcileAccounts(db, []);
-  const pool = new AccountPool({ db, log: noopLog });
-  pool.hydrate();
+  const pool = new SingleAccountPool({ log: noopLog });
   return {
     db,
     pool,

@@ -1,13 +1,17 @@
 import type { OpenAiChatChunk } from "../upstream/client";
 import { RateLimitError, AuthExpiredError } from "../upstream/errors";
-import type { AuthScheduler } from "../upstream/auth";
 import type { PoolLike } from "./types";
 import { PoolExhaustedError } from "./errors";
 import type { RequestThrottle } from "./throttle";
 
+/** Minimal scheduler contract retry needs: on-demand token refresh. */
+export interface RetryScheduler {
+  refreshOnDemand(id: number): Promise<{ bearer: string; expiresAt: number | null }>;
+}
+
 export interface RetryDeps {
   pool: PoolLike;
-  scheduler: Pick<AuthScheduler, "refreshOnDemand">;
+  scheduler: RetryScheduler;
   config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
