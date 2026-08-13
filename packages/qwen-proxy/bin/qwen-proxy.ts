@@ -66,6 +66,9 @@ async function main() {
     // No-op auth scheduler (guest has no JWT to refresh)
     const scheduler = {
       refreshOnDemand: async () => ({ bearer: "guest", expiresAt: null }),
+      // Rotate the Baxia token on empty-exhaustion: in guest mode the token/session
+      // can get flagged by Baxia, and a fresh Chromium spawn recovers it without a restart.
+      refreshBaxiaToken: async () => { await baxia.ensureToken({ forceRefresh: true }); },
     };
 
     // Per-account request throttle (look-human): paces dispatches to reduce

@@ -182,7 +182,15 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
 
-    const deps = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    let refreshBaxiaCalled = 0;
+    const deps = makeDeps({
+      pool,
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => { refreshBaxiaCalled++; },
+      },
+    });
     let callCount = 0;
 
     await expect(
@@ -194,6 +202,29 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
 
     expect(callCount).toBe(4); // 1 initial + 3 retries
     expect(markEmptyCalled).toBe(1); // exhaustion
+    expect(refreshBaxiaCalled).toBe(1); // Baxia token rotated on exhaustion
+  });
+
+  it("empty-exhaustion rotates the Baxia token even if refresh rejects (best-effort)", async () => {
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markEmptyAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+    const deps = makeDeps({
+      pool,
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => { throw new Error("spawn failed"); },
+      },
+    });
+    // A rejecting refresh must NOT prevent the exhaustion 429 (best-effort catch):
+    await expect(
+      withPoolRetry(deps, async () => { throw new EmptyCompletionError("empty"); }),
+    ).rejects.toThrow(RateLimitError);
   });
 
   it("emptyRetryMax=0 → immediate 429 (non-stream)", async () => {
@@ -333,7 +364,15 @@ describe("withPoolRetryStream", () => {
       markSuccess: () => {},
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
-    const deps = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    let refreshBaxiaCalled = 0;
+    const deps = makeDeps({
+      pool,
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => { refreshBaxiaCalled++; },
+      },
+    });
     let callCount = 0;
 
     async function* op(
@@ -347,6 +386,7 @@ describe("withPoolRetryStream", () => {
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
     expect(callCount).toBe(4); // 1 initial + 3 retries
     expect(markEmptyCalled).toBe(1);
+    expect(refreshBaxiaCalled).toBe(1); // Baxia token rotated on exhaustion
     // Sentinel, not throw
     expect(chunks).toHaveLength(1);
     const sentinel = chunks[0];
@@ -356,6 +396,31 @@ describe("withPoolRetryStream", () => {
     } else {
       throw new Error("Expected sentinel");
     }
+  });
+
+  it("stream empty-exhaustion still yields sentinel if refresh rejects (best-effort)", async () => {
+    const pool: PoolLike = {
+      id: 0, bearer: "guest", expiresAt: null,
+      getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
+      markEmptyAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
+      markSuccess: () => {},
+      earliestReEnableAt: () => null,
+    } as unknown as PoolLike;
+    const deps = makeDeps({
+      pool,
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => { throw new Error("spawn failed"); },
+      },
+    });
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      yield finishChunk("stop"); // empty
+    }
+    // A rejecting refresh must NOT prevent the exhaustion sentinel (best-effort):
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toHaveLength(1);
+    expect("done" in chunks[0] && chunks[0].done).toBe(true);
   });
 
   it("emptyRetryMax=0 → immediate sentinel", async () => {
