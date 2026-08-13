@@ -113,7 +113,6 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_USE_CHROME_BAXIA` | `true` | Use headless Chromium (Chrome CDP) for Baxia tokens |
 | `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
 | `SF_QWEN_BAXIA_CACHE_TTL_MS` | `1500000` (25min) | Baxia token cache TTL |
 | `SF_QWEN_BAXIA_VERSION` | `2.5.37` | Baxia `bx-v` version |
@@ -124,7 +123,7 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `86400000` (24 h) | Rate-limit cooldown duration |
+| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `60000` (60s) | Cooldown after a real HTTP 429 from chat.qwen.ai (rare — Baxia flags arrive as empty-200s, handled by the empty-retry knobs) |
 | `SF_QWEN_EMPTY_COOLDOWN_MS` | `10000` (10s) | Flat pool cooldown applied only AFTER inline empty-retries are exhausted |
 | `SF_QWEN_EMPTY_RETRY_MAX` | `3` | Inline retries on an empty completion (Baxia CAPTCHA flag) before giving up. `0` disables (immediate cooldown) |
 | `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
@@ -239,4 +238,4 @@ Guest mode uses a single virtual session — there is no account pool or round-r
 
 ### Chromium must be available
 
-The proxy requires a working Chromium binary for Baxia token generation. If Chromium is not available (e.g. `SF_QWEN_USE_CHROME_BAXIA=false` with no alternative token source, or the Chromium binary is missing), the proxy cannot generate Baxia tokens and requests to chat.qwen.ai will fail. In Docker, Chromium is bundled in the image; for native installs, ensure `chromium` is on `PATH` or set `SF_QWEN_CHROME_PATH`.
+The proxy requires a working Chromium binary for Baxia token generation. If Chromium is not available (the binary is missing or `SF_QWEN_CHROME_PATH` points nowhere valid), the proxy cannot generate Baxia tokens and requests to chat.qwen.ai will fail. In Docker, Chromium is bundled in the image; for native installs, ensure `chromium` is on `PATH` or set `SF_QWEN_CHROME_PATH`.

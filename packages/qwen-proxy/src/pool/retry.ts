@@ -91,7 +91,7 @@ export async function withPoolRetry<T>(
           cooldownMs: emptyCooldownMs,
         });
         await deps.pool.markEmptyAndSwitch(id, emptyCooldownMs);
-        throw new RateLimitError("upstream returned an empty completion after retries (account likely CAPTCHA-flagged by Baxia anti-bot)", { status: 429, retryAfterMs: emptyCooldownMs });
+        throw new RateLimitError("upstream returned an empty completion after retries (likely rate-limited, try again later)", { status: 429, retryAfterMs: emptyCooldownMs });
       }
 
       throw err;

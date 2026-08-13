@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { GuestUpstreamClient } from "../../src/upstream/guest-client";
-import { EmptyCompletionError } from "../../src/upstream/errors";
+import { ClientError, EmptyCompletionError } from "../../src/upstream/errors";
 import type { BaxiaTokenManager, BaxiaTokens } from "../../src/upstream/baxia-token";
 import type { UpstreamClient } from "../../src/upstream/client";
 import type { OpenAiChatCompletion } from "../../src/upstream/types";
@@ -421,7 +421,7 @@ describe("chatCompletions", () => {
     expect(result.usage!.completion_tokens).toBe(2);
   });
 
-  it("throws RateLimitError on data_inspection_failed", async () => {
+  it("throws ClientError(400) on data_inspection_failed (content moderation)", async () => {
     const fetcher = vi
       .fn()
       .mockResolvedValueOnce({
@@ -448,13 +448,18 @@ describe("chatCompletions", () => {
     });
 
     // Stream mode: throws when iterating
-    await expect(async () => {
+    let caught: unknown;
+    try {
       for await (const _ of client.chatCompletions("ignored", {
         model: "qwen3-max",
         messages: [{ role: "user", content: "Hello" }],
         stream: true,
       }) as AsyncIterable<any>) { /* drain */ }
-    }).rejects.toThrow("data_inspection_failed");
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ClientError);
+    expect((caught as ClientError).status).toBe(400);
   });
 });
 

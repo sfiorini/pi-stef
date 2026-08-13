@@ -1,5 +1,4 @@
 export interface BaxiaConfig {
-  useChromeBaxia: boolean;
   chromePath?: string;
   cacheTtlMs: number;
   baxiaVersion: string;
@@ -11,7 +10,7 @@ export interface QwenProxyConfig {
   host: string;               // SF_QWEN_HOST            default "127.0.0.1"
   port: number;               // SF_QWEN_PORT            default 7790
   dbPath: string;             // SF_QWEN_DB              default "./data/qwen-proxy.db"
-  rateLimitCooldownMs: number;// SF_QWEN_RATE_LIMIT_COOLDOWN_MS default 86400000 (24h)
+  rateLimitCooldownMs: number;// SF_QWEN_RATE_LIMIT_COOLDOWN_MS default 60000 (60s — real HTTP 429 from chat.qwen.ai; rare, since Baxia uses empty-200s)
   emptyCooldownMs: number;    // SF_QWEN_EMPTY_COOLDOWN_MS    default 10000  (10s — flat pool cooldown applied AFTER inline empty-retries are exhausted)
   emptyRetryMax: number;     // SF_QWEN_EMPTY_RETRY_MAX    default 3   (inline retries on an empty completion before giving up; 0 disables)
   emptyRetryGapMs: number;   // SF_QWEN_EMPTY_RETRY_GAP_MS default 1000 (sleep between inline empty-retries, ms)

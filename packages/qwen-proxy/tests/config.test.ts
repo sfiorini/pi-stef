@@ -9,7 +9,7 @@ describe("config", () => {
       expect(config.port).toBe(7790);
       expect(config.dbPath).toBe("./data/qwen-proxy.db");
       expect(config.logLevel).toBe("info");
-      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+      expect(config.rateLimitCooldownMs).toBe(60_000);
       expect(config.emptyCooldownMs).toBe(10_000);
       expect(config.emptyRetryMax).toBe(3);
       expect(config.emptyRetryGapMs).toBe(1_000);
@@ -43,7 +43,7 @@ describe("config", () => {
 
     it("returns default rateLimitCooldownMs when unset", async () => {
       const config = await loadQwenProxyConfig({});
-      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+      expect(config.rateLimitCooldownMs).toBe(60_000);
     });
 
     it("parses rateLimitCooldownMs from env", async () => {
@@ -57,7 +57,7 @@ describe("config", () => {
       const config = await loadQwenProxyConfig({
         SF_QWEN_RATE_LIMIT_COOLDOWN_MS: "abc",
       });
-      expect(config.rateLimitCooldownMs).toBe(86_400_000);
+      expect(config.rateLimitCooldownMs).toBe(60_000);
     });
 
     it("returns empty apiKeyEnv when SF_QWEN_API_KEY is unset", async () => {
@@ -108,7 +108,6 @@ describe("config", () => {
     it("returns baxia defaults", async () => {
       const config = await loadQwenProxyConfig({});
       expect(config.baxia).toEqual({
-        useChromeBaxia: true,
         chromePath: undefined,
         cacheTtlMs: 1_500_000,
         baxiaVersion: "2.5.37",
@@ -119,10 +118,10 @@ describe("config", () => {
 
     it("overrides baxia via env", async () => {
       const config = await loadQwenProxyConfig({
-        SF_QWEN_USE_CHROME_BAXIA: "false",
+        SF_QWEN_CHROME_PATH: "/usr/local/bin/chromium",
         SF_QWEN_BAXIA_VERSION: "9.9.9",
       });
-      expect(config.baxia.useChromeBaxia).toBe(false);
+      expect(config.baxia.chromePath).toBe("/usr/local/bin/chromium");
       expect(config.baxia.baxiaVersion).toBe("9.9.9");
     });
   });

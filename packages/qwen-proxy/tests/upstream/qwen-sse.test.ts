@@ -8,6 +8,7 @@ import {
   isDataInspectionFailed,
   translateQwenSse,
 } from "../../src/upstream/qwen-sse";
+import { ClientError } from "../../src/upstream/errors";
 
 // ── mapUpstreamDeltaToOpenAI ─────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ describe("translateQwenSse", () => {
     expect(chunks[0].choices[0].delta.content).toBe("ok");
   });
 
-  it("throws RateLimitError on data_inspection_failed", async () => {
+  it("throws ClientError(400) on data_inspection_failed (content moderation, not a rate limit)", async () => {
     const content = 'data: {"data_inspection_failed":true}\n\ndata: [DONE]\n';
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
@@ -217,10 +218,15 @@ describe("translateQwenSse", () => {
         controller.close();
       },
     });
-    await expect(async () => {
+    let caught: unknown;
+    try {
       for await (const _ of translateQwenSse(stream)) {
         // should throw before yielding
       }
-    }).rejects.toThrow("data_inspection_failed");
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(ClientError);
+    expect((caught as ClientError).status).toBe(400);
   });
 });

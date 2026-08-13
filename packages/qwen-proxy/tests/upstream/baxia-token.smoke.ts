@@ -10,7 +10,6 @@ const SMOKE = process.env.SMOKE === "1";
 (SMOKE ? describe : describe.skip)("baxia-token smoke", () => {
   it("ensureToken returns a real T2gA token via host Chrome", async () => {
     const mgr = new BaxiaTokenManager({
-      useChromeBaxia: true,
       chatUrl: "https://chat.qwen.ai",
       chromePath: process.env.SF_QWEN_CHROME_PATH,
       cacheTtlMs: 1_500_000,

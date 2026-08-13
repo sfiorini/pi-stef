@@ -29,7 +29,7 @@ function makeStubDeps(): AppDeps {
       modelAliasesRaw: "",
       logLevel: "info",
       adminKey: undefined,
-      baxia: { useChromeBaxia: false, chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false },
+      baxia: { chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false },
     },
     retry: (async () => {}) as any,
     retryStream: (async function* () {}) as any,

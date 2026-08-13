@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { BaxiaTokenManager } from "./baxia-token";
-import { RateLimitError, EmptyCompletionError } from "./errors";
+import { ClientError, EmptyCompletionError } from "./errors";
 import { translateQwenSse, isDataInspectionFailed } from "./qwen-sse";
 import type {
   OpenAiChatChunk,
@@ -321,10 +321,10 @@ export class GuestUpstreamClient {
       try {
         const json = JSON.parse(text);
         if (isDataInspectionFailed(json)) {
-          throw new RateLimitError("data_inspection_failed", { status: 429 });
+          throw new ClientError("data_inspection_failed: content moderated by upstream", { status: 400 });
         }
       } catch (e) {
-        if (e instanceof RateLimitError) throw e;
+        if (e instanceof ClientError) throw e;
       }
       throw new Error(`chatCompletions upstream error ${res.status}: ${text.slice(0, 300)}`);
     }

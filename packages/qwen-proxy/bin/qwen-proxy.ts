@@ -31,7 +31,6 @@ async function main() {
 
     // Baxia token manager (Chrome CDP for guest Baxia tokens)
     const baxia = new BaxiaTokenManager({
-      useChromeBaxia: config.baxia.useChromeBaxia,
       chatUrl: CHAT_URL,
       chromePath: config.baxia.chromePath,
       cacheTtlMs: config.baxia.cacheTtlMs,
