@@ -9,7 +9,6 @@ describe("config", () => {
       expect(config.port).toBe(7790);
       expect(config.dbPath).toBe("./data/qwen-proxy.db");
       expect(config.logLevel).toBe("info");
-      expect(config.rateLimitCooldownMs).toBe(60_000);
       expect(config.emptyCooldownMs).toBe(10_000);
       expect(config.emptyRetryMax).toBe(3);
       expect(config.emptyRetryGapMs).toBe(1_000);
@@ -39,25 +38,6 @@ describe("config", () => {
     it("falls back to default on negative port", async () => {
       const config = await loadQwenProxyConfig({ SF_QWEN_PORT: "-1" });
       expect(config.port).toBe(7790);
-    });
-
-    it("returns default rateLimitCooldownMs when unset", async () => {
-      const config = await loadQwenProxyConfig({});
-      expect(config.rateLimitCooldownMs).toBe(60_000);
-    });
-
-    it("parses rateLimitCooldownMs from env", async () => {
-      const config = await loadQwenProxyConfig({
-        SF_QWEN_RATE_LIMIT_COOLDOWN_MS: "3600000",
-      });
-      expect(config.rateLimitCooldownMs).toBe(3_600_000);
-    });
-
-    it("falls back to default on invalid rateLimitCooldownMs", async () => {
-      const config = await loadQwenProxyConfig({
-        SF_QWEN_RATE_LIMIT_COOLDOWN_MS: "abc",
-      });
-      expect(config.rateLimitCooldownMs).toBe(60_000);
     });
 
     it("returns empty apiKeyEnv when SF_QWEN_API_KEY is unset", async () => {

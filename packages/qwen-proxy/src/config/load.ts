@@ -22,7 +22,6 @@ export async function loadQwenProxyConfig(
     host: env.SF_QWEN_HOST || "127.0.0.1",
     port: parseIntEnv(env.SF_QWEN_PORT, 7790),
     dbPath: env.SF_QWEN_DB || "./data/qwen-proxy.db",
-    rateLimitCooldownMs: parseIntEnv(env.SF_QWEN_RATE_LIMIT_COOLDOWN_MS, 60_000),
     emptyCooldownMs: parseIntEnv(env.SF_QWEN_EMPTY_COOLDOWN_MS, 10_000),
     emptyRetryMax: parseNonNegativeIntEnv(env.SF_QWEN_EMPTY_RETRY_MAX, 3),
     emptyRetryGapMs: parseIntEnv(env.SF_QWEN_EMPTY_RETRY_GAP_MS, 1_000),

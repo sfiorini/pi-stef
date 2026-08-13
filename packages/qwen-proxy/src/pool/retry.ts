@@ -11,7 +11,7 @@ export interface RetryScheduler {
 export interface RetryDeps {
   pool: PoolLike;
   scheduler: RetryScheduler;
-  config: { rateLimitCooldownMs: number; emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
+  config: { emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
   log: {

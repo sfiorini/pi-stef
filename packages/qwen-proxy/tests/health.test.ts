@@ -17,7 +17,6 @@ function makeStubDeps(): AppDeps {
       host: "127.0.0.1",
       port: 0,
       dbPath: ":memory:",
-      rateLimitCooldownMs: 86400000,
       emptyCooldownMs: 10_000,
       emptyRetryMax: 3,
       emptyRetryGapMs: 1_000,

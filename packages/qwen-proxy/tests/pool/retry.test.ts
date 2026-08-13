@@ -57,7 +57,7 @@ function makeDeps(
         expiresAt: 999999,
       }),
     },
-    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
+    config: { emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
     log: noopLog,
     ...overrides,
   };
@@ -158,7 +158,7 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
 
-    const depsWithSpy = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    const depsWithSpy = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
 
     const result = await withPoolRetry(depsWithSpy, async (_id, _bearer) => {
       callCount++;
@@ -182,7 +182,7 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
 
-    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    const deps = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
     let callCount = 0;
 
     await expect(
@@ -207,7 +207,7 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
 
-    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
+    const deps = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
     let callCount = 0;
 
     await expect(
@@ -303,7 +303,7 @@ describe("withPoolRetryStream", () => {
   });
 
   it("empty then success on inline retry", async () => {
-    const deps = makeDeps({ config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    const deps = makeDeps({ config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
     let callCount = 0;
 
     async function* op(
@@ -333,7 +333,7 @@ describe("withPoolRetryStream", () => {
       markSuccess: () => {},
       earliestReEnableAt: () => null,
     } as unknown as PoolLike;
-    const deps = makeDeps({ pool, config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
+    const deps = makeDeps({ pool, config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 0 } });
     let callCount = 0;
 
     async function* op(
@@ -359,7 +359,7 @@ describe("withPoolRetryStream", () => {
   });
 
   it("emptyRetryMax=0 → immediate sentinel", async () => {
-    const deps = makeDeps({ config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
+    const deps = makeDeps({ config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 } });
     let callCount = 0;
 
     async function* op(
@@ -444,7 +444,7 @@ describe("withPoolRetry against SingleAccountPool", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 
@@ -457,7 +457,7 @@ describe("withPoolRetry against SingleAccountPool", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
       log: noopLog,
     };
 
@@ -505,7 +505,7 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 0, emptyRetryGapMs: 0 },
       log: noopLog,
     };
 
@@ -530,7 +530,7 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
     const deps: RetryDeps = {
       pool,
       scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
+      config: { emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
       log: noopLog,
     };
 
