@@ -352,7 +352,7 @@ describe("POST /v1/messages", () => {
 
   it("pool exhausted → 429 Anthropic error", async () => {
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();

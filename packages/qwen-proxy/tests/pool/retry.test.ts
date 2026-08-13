@@ -17,9 +17,8 @@ import type { OpenAiChatChunk } from "../../src/upstream/client";
 import type { Logger } from "../../src/server/logger";
 import { SingleAccountPool } from "../../src/pool/single";
 
-/** Fake multi-account PoolLike for retry.ts failover-cycle tests (guest mode has
- *  only SingleAccountPool; this exercises the generic markRateLimitedAndSwitch
- *  branches of retry.ts without a DB). S-M5-78 extends PoolLike + this fake. */
+/** Fake multi-account PoolLike for retry.ts failover tests.
+ *  Exercises the markEmptyAndSwitch branch of retry.ts without a DB. */
 import type { PoolLike } from "../../src/pool/types";
 
 class FakeMultiPool implements PoolLike {
@@ -31,14 +30,11 @@ class FakeMultiPool implements PoolLike {
     const id = this.ids[this.activeIdx];
     return { id, bearer: `b-${id}`, expiresAt: null };
   }
-  async markRateLimitedAndSwitch(failedId: number, _cooldownMs: number) {
+  async markEmptyAndSwitch(failedId: number, _cooldownMs: number) {
     this.disabled.add(failedId);
     const next = this.ids.find((i) => !this.disabled.has(i));
     if (next !== undefined) { this.activeIdx = this.ids.indexOf(next); }
     return { newActiveId: next !== undefined ? next : null, earliestReEnableAt: null };
-  }
-  async markEmptyAndSwitch(failedId: number, cooldownMs: number) {
-    return this.markRateLimitedAndSwitch(failedId, cooldownMs);
   }
   markSuccess(): void {}
   earliestReEnableAt() { return null; }

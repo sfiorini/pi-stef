@@ -31,15 +31,6 @@ export class SingleAccountPool implements PoolLike {
     return { id: 0, bearer: "guest", expiresAt: null };
   }
 
-  async markRateLimitedAndSwitch(
-    _failedId: number,
-    cooldownMs: number,
-  ): Promise<{ newActiveId: number | null; earliestReEnableAt: number | null }> {
-    const now = this.deps.now?.() ?? Date.now();
-    this.disabledUntil = now + cooldownMs;
-    return { newActiveId: null, earliestReEnableAt: this.disabledUntil };
-  }
-
   async markEmptyAndSwitch(
     _failedId: number,
     cooldownMs: number,

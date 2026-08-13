@@ -989,7 +989,7 @@ describe("POST /v1/chat/completions", () => {
 
   it("non-stream: returns 429 on PoolExhaustedError", async () => {
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();
@@ -1017,7 +1017,7 @@ describe("POST /v1/chat/completions", () => {
 
   it("stream + pool exhausted → 429 with Retry-After header", async () => {
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();

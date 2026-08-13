@@ -149,7 +149,7 @@ describe("GET /v1/models", () => {
   it("returns 429 on PoolExhaustedError with Retry-After header", async () => {
     // Exhaust the pool: mark it rate-limited
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();
