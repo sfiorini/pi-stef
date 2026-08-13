@@ -2,7 +2,7 @@
  * Single-account pool shim for guest mode.
  *
  * Implements PoolLike with a single virtual account (id=0, bearer="guest").
- * On rate-limit, the account is disabled for the cooldown period — there is
+ * On empty-completion exhaustion, the account is disabled for the cooldown period — there is
  * no failover target, so subsequent getActiveAccount() throws
  * PoolExhaustedError until the cooldown elapses.
  */
