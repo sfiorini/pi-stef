@@ -503,12 +503,12 @@ describe("chatCompletions", () => {
 // ── listModels ────────────────────────────────────────────────────────
 
 describe("listModels", () => {
-  it("JSON path: returns models from /api/models", async () => {
+  it("JSON path: returns models from /api/models (upstream returns { data: [...] })", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,
       headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({
-        models: [{ id: "qwen3-max" }, { id: "qwen3-plus" }],
+        data: [{ id: "qwen3.8-max" }, { id: "qwen3.7-plus" }],
       }),
     });
 
@@ -522,8 +522,8 @@ describe("listModels", () => {
     const models = await client.listModels("ignored");
 
     expect(models).toHaveLength(2);
-    expect(models[0]).toEqual({ id: "qwen3-max", object: "model", owned_by: "qwen" });
-    expect(models[1]).toEqual({ id: "qwen3-plus", object: "model", owned_by: "qwen" });
+    expect(models[0]).toEqual({ id: "qwen3.8-max", object: "model", owned_by: "qwen" });
+    expect(models[1]).toEqual({ id: "qwen3.7-plus", object: "model", owned_by: "qwen" });
   });
 
   it("HTML-scrape path: extracts models from prerendered data", async () => {
