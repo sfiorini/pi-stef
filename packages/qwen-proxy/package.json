@@ -1,6 +1,6 @@
 {
   "name": "@pi-stef/qwen-proxy",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Local proxy for the upstream Qwen chat API.",
   "type": "module",
   "license": "MIT",

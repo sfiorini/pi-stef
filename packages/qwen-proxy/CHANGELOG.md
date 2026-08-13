@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-13
+### Changed
+- docs(qwen-proxy): fix stale rate-limit docstrings (models.ts + single.ts)
+- docs(qwen-proxy): drop SF_QWEN_RATE_LIMIT_COOLDOWN_MS env row
+- refactor(qwen-proxy): remove rateLimitCooldownMs config
+- refactor(qwen-proxy): delete classifyResponse + parseRetryAfterMs + RATE_LIMIT_RE
+- refactor(qwen-proxy): remove markRateLimitedAndSwitch from pool interface + adapter rewrites
+- refactor(qwen-proxy): drop RateLimitError account-failover from retry.ts
+- fix(qwen-proxy): purge SF_QWEN_USE_CHROME_BAXIA from Docker files + test non-OK moderation guard
+- refactor(qwen-proxy): env-var cleanup + reclassify data_inspection moderation
+- docs(qwen-proxy): document inline empty-retry env knobs
+- feat(qwen-proxy): detect empty completions in non-stream path
+- feat(qwen-proxy): inline retry-on-empty for non-stream path (429 on exhaustion)
+- test(qwen-proxy): add finish_reason empty-retry regression guard
+- feat(qwen-proxy): inline retry-on-empty for stream path (sentinel on exhaustion)
+- refactor(qwen-proxy): flatten SingleAccountPool empty-cooldown (remove escalation state)
+- feat(qwen-proxy): add EmptyCompletionError for semantic empty-completion detection
+- feat(qwen-proxy): add inline retry config knobs (emptyRetryMax, emptyRetryGapMs) + lower emptyCooldownMs default to 10s
+
+
 ## [0.2.0] - 2026-08-12
 ### Changed
 - docs(qwen-proxy): add landing-page tile + document SF_QWEN_MAX_CONCURRENCY
