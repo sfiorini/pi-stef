@@ -6,7 +6,6 @@ import {
   type RetryDeps,
   type StreamChunk,
 } from "../../src/pool/retry";
-import { PoolExhaustedError } from "../../src/pool/errors";
 import type { RequestThrottle as RequestThrottleType } from "../../src/pool/throttle";
 import {
   RateLimitError,
@@ -115,20 +114,6 @@ describe("withPoolRetry", () => {
     expect(result).toBe("ok");
   });
 
-  it("retries on RateLimitError → switch → success on next account", async () => {
-    const deps = makeDeps();
-    let callCount = 0;
-
-    const result = await withPoolRetry(deps, async (id, _bearer) => {
-      callCount++;
-      if (id === 1) throw new RateLimitError("rate limited");
-      return `account-${id}`;
-    });
-
-    expect(result).toBe("account-2");
-    expect(callCount).toBe(2);
-  });
-
   it("retries on AuthExpiredError → refreshOnDemand → retry same account", async () => {
     let refreshCalled = false;
     const deps = makeDeps({
@@ -162,31 +147,6 @@ describe("withPoolRetry", () => {
     ).rejects.toThrow(ClientError);
   });
 
-  it("propagates PoolExhaustedError when all accounts tried", async () => {
-    const deps = makeDeps({
-      pool: new FakeMultiPool([1]),
-    });
-
-    await expect(
-      withPoolRetry(deps, async () => {
-        throw new RateLimitError("rate limited");
-      }),
-    ).rejects.toThrow(PoolExhaustedError);
-  });
-
-  it("cycle guard: each account tried at most once per call", async () => {
-    const deps = makeDeps();
-    const triedIds: number[] = [];
-
-    await expect(
-      withPoolRetry(deps, async (id) => {
-        triedIds.push(id);
-        throw new RateLimitError("rate limited");
-      }),
-    ).rejects.toThrow(PoolExhaustedError);
-
-    expect(triedIds).toEqual([1, 2, 3]);
-  });
 });
 
 describe("withPoolRetry empty-completion (non-stream)", () => {
@@ -197,7 +157,6 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
     const pool: PoolLike = {
       id: 0, bearer: "guest", expiresAt: null,
       getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
-      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
       markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markSuccess: () => {},
       earliestReEnableAt: () => null,
@@ -222,7 +181,6 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
     const pool: PoolLike = {
       id: 0, bearer: "guest", expiresAt: null,
       getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
-      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
       markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markSuccess: () => {},
       earliestReEnableAt: () => null,
@@ -248,7 +206,6 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
     const pool: PoolLike = {
       id: 0, bearer: "guest", expiresAt: null,
       getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
-      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
       markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markSuccess: () => {},
       earliestReEnableAt: () => null,
@@ -303,52 +260,6 @@ describe("withPoolRetryStream", () => {
     ]);
   });
 
-  it("pre-first-content RateLimitError → switch + re-invoke, buffer discarded", async () => {
-    const deps = makeDeps();
-    let callCount = 0;
-
-    async function* op(
-      id: number,
-      _bearer: string,
-    ): AsyncIterable<OpenAiChatChunk> {
-      callCount++;
-      if (id === 1) {
-        yield finishChunk("stop");
-        throw new RateLimitError("rate limited");
-      }
-      yield contentChunk("recovered");
-      yield finishChunk("stop");
-    }
-
-    const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
-    expect(callCount).toBe(2);
-  });
-
-  it("post-first-content RateLimitError → D14 sentinel + terminate", async () => {
-    const deps = makeDeps();
-
-    async function* op(
-      _id: number,
-      _bearer: string,
-    ): AsyncIterable<OpenAiChatChunk> {
-      yield contentChunk("partial");
-      throw new RateLimitError("rate limited");
-    }
-
-    const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(chunks[0]).toEqual(contentChunk("partial"));
-
-    const sentinel = chunks[1];
-    if ("done" in sentinel) {
-      expect(sentinel.done).toBe(true);
-      expect(sentinel.extra?.rateLimited).toBe(true);
-    } else {
-      throw new Error("Expected sentinel with done=true");
-    }
-    expect(chunks).toHaveLength(2);
-  });
-
   it("pre-first-content AuthExpiredError → refresh + retry same account", async () => {
     let refreshCalled = false;
     const deps = makeDeps({
@@ -375,24 +286,6 @@ describe("withPoolRetryStream", () => {
     expect(refreshCalled).toBe(true);
     expect(callCount).toBe(2);
     expect(chunks[0]).toEqual(contentChunk("ok"));
-  });
-
-  it("cycle guard: each account tried at most once", async () => {
-    const deps = makeDeps();
-    const triedIds: number[] = [];
-
-    async function* op(
-      id: number,
-      _bearer: string,
-    ): AsyncIterable<OpenAiChatChunk> {
-      triedIds.push(id);
-      throw new RateLimitError("rate limited");
-    }
-
-    await expect(
-      collectChunks(withPoolRetryStream(deps, op)),
-    ).rejects.toThrow(PoolExhaustedError);
-    expect(triedIds).toEqual([1, 2, 3]);
   });
 
   it("flushes buffered control chunks on clean end", async () => {
@@ -440,7 +333,6 @@ describe("withPoolRetryStream", () => {
     const pool: PoolLike = {
       id: 0, bearer: "guest", expiresAt: null,
       getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
-      markRateLimitedAndSwitch: async () => ({ newActiveId: null, earliestReEnableAt: null }),
       markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markSuccess: () => {},
       earliestReEnableAt: () => null,
@@ -516,38 +408,14 @@ describe("withPoolRetryStream", () => {
     expect(throttled).toEqual([1]);
   });
 
-  it("reasoning_content counts as content for pre/post split", async () => {
-    const deps = makeDeps();
-
-    async function* op(
-      _id: number,
-      _bearer: string,
-    ): AsyncIterable<OpenAiChatChunk> {
-      yield reasoningChunk("let me think...");
-      throw new RateLimitError("rate limited");
-    }
-
-    const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(chunks[0]).toEqual(reasoningChunk("let me think..."));
-    const sentinel = chunks[1];
-    if ("done" in sentinel) {
-      expect(sentinel.done).toBe(true);
-      expect(sentinel.extra?.rateLimited).toBe(true);
-    } else {
-      throw new Error("Expected sentinel");
-    }
-  });
-
   it("finish_reason regression: content + no finish_reason → success (no retry)", async () => {
     let callCount = 0;
     let markSuccessCalled = 0;
     let markEmptyCalled = 0;
-    let markRateLimitCalled = 0;
 
     const pool: PoolLike = {
       id: 0, bearer: "guest", expiresAt: null,
       getActiveAccount: () => ({ id: 0, bearer: "guest", expiresAt: null }),
-      markRateLimitedAndSwitch: async () => { markRateLimitCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markEmptyAndSwitch: async () => { markEmptyCalled++; return { newActiveId: null, earliestReEnableAt: null }; },
       markSuccess: () => { markSuccessCalled++; },
       earliestReEnableAt: () => null,
@@ -569,7 +437,6 @@ describe("withPoolRetryStream", () => {
     expect(callCount).toBe(1); // no retry
     expect(markSuccessCalled).toBe(1); // success
     expect(markEmptyCalled).toBe(0); // no empty handling
-    expect(markRateLimitCalled).toBe(0); // no rate limit
   });
 });
 
@@ -587,22 +454,6 @@ describe("withPoolRetry against SingleAccountPool", () => {
 
     const result = await withPoolRetry(deps, async (_id, _bearer) => "ok");
     expect(result).toBe("ok");
-  });
-
-  it("RateLimitError → PoolExhaustedError (no failover target)", async () => {
-    const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    const deps: RetryDeps = {
-      pool,
-      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
-      log: noopLog,
-    };
-
-    await expect(
-      withPoolRetry(deps, async () => {
-        throw new RateLimitError("rate limited");
-      }),
-    ).rejects.toThrow(PoolExhaustedError);
   });
 
   it("empty-completion on sole account → sentinel (no throw)", async () => {
@@ -675,27 +526,6 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
       throw new Error("Expected sentinel");
     }
     expect(calls).toContain("markEmptyAndSwitch");
-    expect(calls).not.toContain("markRateLimitedAndSwitch");
-  });
-
-  it("real RateLimitError → markRateLimitedAndSwitch (NOT empty)", async () => {
-    const { pool, calls } = spyPool(new FakeMultiPool([1, 2]));
-    const deps: RetryDeps = {
-      pool,
-      scheduler: { refreshOnDemand: async () => ({ bearer: "", expiresAt: null }) },
-      config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 10_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
-      log: noopLog,
-    };
-
-    async function* op(id: number, _bearer: string): AsyncIterable<OpenAiChatChunk> {
-      if (id === 1) throw new RateLimitError("rate limited");
-      yield contentChunk("ok");
-      yield finishChunk("stop");
-    }
-
-    await collectChunks(withPoolRetryStream(deps, op));
-    expect(calls).toContain("markRateLimitedAndSwitch");
-    expect(calls).not.toContain("markEmptyAndSwitch");
   });
 
   it("clean stream → markSuccess", async () => {
