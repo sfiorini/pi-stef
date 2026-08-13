@@ -123,7 +123,6 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SF_QWEN_RATE_LIMIT_COOLDOWN_MS` | `60000` (60s) | Cooldown after a real HTTP 429 from chat.qwen.ai (rare — Baxia flags arrive as empty-200s, handled by the empty-retry knobs) |
 | `SF_QWEN_EMPTY_COOLDOWN_MS` | `10000` (10s) | Flat pool cooldown applied only AFTER inline empty-retries are exhausted |
 | `SF_QWEN_EMPTY_RETRY_MAX` | `3` | Inline retries on an empty completion (Baxia CAPTCHA flag) before giving up. `0` disables (immediate cooldown) |
 | `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
