@@ -2,7 +2,7 @@
  * Single-account pool shim for guest mode.
  *
  * Implements PoolLike with a single virtual account (id=0, bearer="guest").
- * On rate-limit, the account is disabled for the cooldown period — there is
+ * On empty-completion exhaustion, the account is disabled for the cooldown period — there is
  * no failover target, so subsequent getActiveAccount() throws
  * PoolExhaustedError until the cooldown elapses.
  */
@@ -20,10 +20,6 @@ export class SingleAccountPool implements PoolLike {
   readonly id = 0;
   readonly bearer = "guest";
   private disabledUntil: number | null = null;
-  private consecutiveEmpties = 0;
-
-  static readonly EMPTY_BASE_MS = 90_000;
-  static readonly EMPTY_CAP_MS = 600_000;
 
   constructor(private deps: SingleAccountPoolDeps) {}
 
@@ -35,7 +31,7 @@ export class SingleAccountPool implements PoolLike {
     return { id: 0, bearer: "guest", expiresAt: null };
   }
 
-  async markRateLimitedAndSwitch(
+  async markEmptyAndSwitch(
     _failedId: number,
     cooldownMs: number,
   ): Promise<{ newActiveId: number | null; earliestReEnableAt: number | null }> {
@@ -44,20 +40,8 @@ export class SingleAccountPool implements PoolLike {
     return { newActiveId: null, earliestReEnableAt: this.disabledUntil };
   }
 
-  async markEmptyAndSwitch(
-    _failedId: number,
-    cooldownMs: number,
-  ): Promise<{ newActiveId: number | null; earliestReEnableAt: number | null }> {
-    const now = this.deps.now?.() ?? Date.now();
-    const cap = Math.min(cooldownMs, SingleAccountPool.EMPTY_CAP_MS);
-    const effective = Math.min(SingleAccountPool.EMPTY_BASE_MS * 2 ** this.consecutiveEmpties, cap);
-    this.consecutiveEmpties += 1;
-    this.disabledUntil = now + effective;
-    return { newActiveId: null, earliestReEnableAt: this.disabledUntil };
-  }
-
   markSuccess(): void {
-    this.consecutiveEmpties = 0;
+    // No-op in guest mode (retained for PoolLike contract).
   }
 
   earliestReEnableAt(): number | null {

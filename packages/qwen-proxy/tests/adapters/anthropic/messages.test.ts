@@ -63,7 +63,7 @@ function makeDeps(
   return {
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000, modelAliasesRaw: "", ...overrides?.config },
+    config: { emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000, modelAliasesRaw: "", ...overrides?.config },
     log: noopLog,
     client: {
       chatCompletions: async () => makeCompletion({ content: "Hello" }),
@@ -352,7 +352,7 @@ describe("POST /v1/messages", () => {
 
   it("pool exhausted → 429 Anthropic error", async () => {
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();

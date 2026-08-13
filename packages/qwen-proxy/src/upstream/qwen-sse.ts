@@ -9,7 +9,7 @@
 
 import { parseSseStream } from "./sse";
 import type { OpenAiChatChunk } from "./types";
-import { RateLimitError } from "./errors";
+import { ClientError } from "./errors";
 
 /**
  * Map a Qwen upstream delta to a partial OpenAI delta.
@@ -155,7 +155,7 @@ export function isDataInspectionFailed(payload: any): boolean {
  * Layers on parseSseStream; maps each event through the helpers above.
  *
  * CRITICAL: never sets finish_reason — the adapter synthesizes it.
- * On data_inspection_failed → throws RateLimitError.
+ * On data_inspection_failed → throws ClientError (content moderation, not a rate limit).
  */
 export async function* translateQwenSse(
   body: ReadableStream<Uint8Array>,
@@ -172,7 +172,7 @@ export async function* translateQwenSse(
     }
 
     if (isDataInspectionFailed(json)) {
-      throw new RateLimitError("data_inspection_failed", { status: 429 });
+      throw new ClientError("data_inspection_failed: content moderated by upstream", { status: 400 });
     }
 
     const upDelta = json?.choices?.[0]?.delta;

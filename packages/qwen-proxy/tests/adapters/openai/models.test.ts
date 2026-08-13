@@ -24,7 +24,7 @@ interface TestDeps {
   db: Database.Database;
   pool: SingleAccountPool;
   scheduler: { refreshOnDemand: () => Promise<{ bearer: string; expiresAt: number }> };
-  config: { rateLimitCooldownMs: number; emptyCooldownMs: number };
+  config: { emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
   log: Logger;
   client: UpstreamClient;
   retry: typeof withPoolRetry;
@@ -43,7 +43,7 @@ function makeDeps(
     db,
     pool,
     scheduler: { refreshOnDemand: async () => ({ bearer: "r", expiresAt: 999999 }) },
-    config: { rateLimitCooldownMs: 60_000, emptyCooldownMs: 600_000 },
+    config: { emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1_000 },
     log: noopLog,
     client: {
       listModels: async () => [
@@ -149,7 +149,7 @@ describe("GET /v1/models", () => {
   it("returns 429 on PoolExhaustedError with Retry-After header", async () => {
     // Exhaust the pool: mark it rate-limited
     const pool = new SingleAccountPool({ log: noopLog, now: () => 1000 });
-    await pool.markRateLimitedAndSwitch(0, 60_000);
+    await pool.markEmptyAndSwitch(0, 60_000);
 
     const deps = makeDeps(db);
     const app = new Hono();

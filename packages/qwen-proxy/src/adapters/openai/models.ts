@@ -1,7 +1,7 @@
 /**
  * GET /v1/models — list available models (live upstream + configured aliases).
  *
- * Uses withPoolRetry for account failover.
+ * Uses withPoolRetry for empty-completion inline-retry + cooldown.
  * PoolExhaustedError → 429 rate_limit_error + Retry-After.
  * Upstream errors → openaiError envelope.
  */

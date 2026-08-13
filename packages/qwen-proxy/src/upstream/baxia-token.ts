@@ -21,7 +21,6 @@ export interface BaxiaTokens {
 }
 
 export interface BaxiaTokenManagerConfig {
-  useChromeBaxia: boolean;
   chatUrl: string;
   chromePath?: string;
   cacheTtlMs: number;

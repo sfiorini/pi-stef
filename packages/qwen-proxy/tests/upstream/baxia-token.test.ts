@@ -107,7 +107,6 @@ function makeDefaultReplyMap(
 
 function makeConfig(overrides: Partial<BaxiaTokenManagerConfig> = {}): BaxiaTokenManagerConfig {
   return {
-    useChromeBaxia: true,
     chatUrl: "https://chat.qwen.ai",
     chromePath: "/usr/bin/fake-chrome",
     cacheTtlMs: 1_500_000,

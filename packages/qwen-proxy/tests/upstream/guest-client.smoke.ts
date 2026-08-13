@@ -21,7 +21,6 @@ const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
 
   beforeAll(() => {
     baxia = new BaxiaTokenManager({
-      useChromeBaxia: true,
       chatUrl: "https://chat.qwen.ai",
       chromePath: process.env.SF_QWEN_CHROME_PATH,
       cacheTtlMs: 1_500_000,
