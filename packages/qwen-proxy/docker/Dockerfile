@@ -51,7 +51,6 @@ RUN mkdir -p /data /home/node/.cache && chown 1000:1000 /data /home/node/.cache
 ENV HOME=/home/node
 ENV XDG_CACHE_HOME=/home/node/.cache
 ENV SF_QWEN_CHROME_PATH=/usr/bin/chromium
-ENV SF_QWEN_USE_CHROME_BAXIA=true
 ENV SF_QWEN_BAXIA_PRE_WARM=true
 ENV SF_QWEN_HOST=0.0.0.0
 ENV SF_QWEN_PORT=7790

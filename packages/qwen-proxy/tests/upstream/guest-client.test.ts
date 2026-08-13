@@ -461,6 +461,43 @@ describe("chatCompletions", () => {
     expect(caught).toBeInstanceOf(ClientError);
     expect((caught as ClientError).status).toBe(400);
   });
+
+  it("non-OK response with data_inspection_failed body → ClientError(400) (re-throw guard, not generic 500)", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-nonok" } }),
+      })
+      // completion returns non-OK with a moderation body
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () => '{"data_inspection_failed":true}',
+      });
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    let caught: unknown;
+    try {
+      for await (const _ of client.chatCompletions("ignored", {
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hello" }],
+        stream: true,
+      }) as AsyncIterable<any>) { /* drain */ }
+    } catch (e) {
+      caught = e;
+    }
+    // The instanceof ClientError re-throw guard must preserve this —
+    // without it the moderation signal would be swallowed into a generic 500.
+    expect(caught).toBeInstanceOf(ClientError);
+    expect((caught as ClientError).status).toBe(400);
+  });
 });
 
 // ── listModels ────────────────────────────────────────────────────────

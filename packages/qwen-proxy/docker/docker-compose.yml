@@ -25,7 +25,6 @@ services:
       # Required — operator sets directly (no auto-generated token):
       - SF_QWEN_API_KEY=${SF_QWEN_API_KEY:?must be set}
       # Baxia (headless Chromium CDP) — enabled by default in the Docker image:
-      - SF_QWEN_USE_CHROME_BAXIA=true
       - SF_QWEN_CHROME_PATH=/usr/bin/chromium
       # Optional — admin dashboard (unset → /admin returns 404):
       # - SF_QWEN_ADMIN_KEY=${SF_QWEN_ADMIN_KEY}
