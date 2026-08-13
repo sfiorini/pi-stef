@@ -353,8 +353,8 @@ export class GuestUpstreamClient {
     const contentType = res.headers.get("content-type") ?? "";
 
     if (contentType.includes("application/json")) {
-      const json = (await res.json()) as { models?: { id: string }[] };
-      const ids = (json.models ?? []).map((m) => m.id);
+      const json = (await res.json()) as { data?: { id: string }[]; models?: { id: string }[] };
+      const ids = (json.data ?? json.models ?? []).map((m) => m.id);
       this.modelsCache = ids.map((id) => ({ id, object: "model" as const, owned_by: "qwen" }));
       return this.modelsCache;
     }
