@@ -6,6 +6,8 @@ import type { RequestThrottle } from "./throttle";
 /** Minimal scheduler contract retry needs: on-demand token refresh. */
 export interface RetryScheduler {
   refreshOnDemand(id: number): Promise<{ bearer: string; expiresAt: number | null }>;
+  /** Best-effort Baxia token rotation — called on empty-exhaustion so the next request gets a fresh, unflagged token. Optional (absent in tests). */
+  refreshBaxiaToken?(): Promise<void>;
 }
 
 export interface RetryDeps {
@@ -77,6 +79,10 @@ export async function withPoolRetry<T>(
           cooldownMs: emptyCooldownMs,
         });
         await deps.pool.markEmptyAndSwitch(id, emptyCooldownMs);
+        // Rotate the Baxia token so the next request (after cooldown) gets a fresh,
+        // unflagged token — recovers the sustained-token-burn "stuck" state without a restart.
+        try { await deps.scheduler.refreshBaxiaToken?.(); }
+        catch (e) { deps.log.error("baxia token refresh failed after empty-exhaustion", { error: String(e) }); }
         throw new RateLimitError("upstream returned an empty completion after retries (likely rate-limited, try again later)", { status: 429, retryAfterMs: emptyCooldownMs });
       }
 
@@ -181,6 +187,9 @@ export async function* withPoolRetryStream(
         .catch(() => {
           deps.log.error("background markEmptyAndSwitch failed");
         });
+      // Rotate the Baxia token so the next request gets a fresh, unflagged token.
+      try { await deps.scheduler.refreshBaxiaToken?.(); }
+      catch (e) { deps.log.error("baxia token refresh failed after empty-exhaustion", { error: String(e) }); }
       yield { done: true, extra: { rateLimited: true } };
       return;
     }
