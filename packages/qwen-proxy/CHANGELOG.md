@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-13
+### Changed
+- fix(qwen-proxy): parse /v1/models from upstream { data: [...] } shape
+
+
 ## [0.3.1] - 2026-08-13
 ### Changed
 - fix(qwen-proxy): rotate Baxia token on empty-exhaustion to recover from sustained token-burn
