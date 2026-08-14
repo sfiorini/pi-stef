@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.3] - 2026-08-14
+### Changed
+- fix(qwen-proxy): silence Chromium telemetry in bridge spawns (SOCKS auth throttle)
+
+
 ## [0.5.2] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): undici SOCKS dispatcher for proxied completions (rotation actually works)
