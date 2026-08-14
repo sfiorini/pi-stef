@@ -377,8 +377,12 @@ describe("POST /v1/chat/completions", () => {
     // folded into the flattened user turn as <tool_calls> text (guest-mode flattening)
     expect(msgs.some((m: any) => m.role === "system" && m.content.includes("Tool `web_search` returned:"))).toBe(true);
     expect(JSON.stringify(msgs)).toContain("<tool_calls>");
-    // NO "# Available Tools" injection anywhere
-    expect(JSON.stringify(msgs)).not.toContain("# Available Tools");
+    // NO "# Available Tools" in the SYSTEM position (suppression trigger) —
+    // the tool list is appended to the LAST message instead (tool discovery preserved)
+    expect(msgs.some((m: any) => m.role === "system" && m.content.includes("# Available Tools"))).toBe(false);
+    const lastMsg = msgs[msgs.length - 1];
+    expect(String(lastMsg.content)).toContain("# Available Tools");
+    expect(String(lastMsg.content)).toContain("web_search");
   });
 
   it("non-function tools (web_search) still passthrough", async () => {

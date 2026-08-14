@@ -180,6 +180,43 @@ export function injectToolResults(
   });
 }
 
+// ── appendToolListToLastMessage ──────────────────────────────────────────────
+
+/**
+ * Append the tool definitions to the LAST message (continuation turns).
+ *
+ * Live-debugged on mini (2026-08-14): qwen suppresses continuation-turn
+ * answers when the tool prompt is prepended to the SYSTEM message — the
+ * same body answers normally with no system injection. Appending the tool
+ * list to the final turn keeps tool discovery available (multi-tool agent
+ * loops can still see tools that were not yet called) while avoiding the
+ * system-position trigger. Mutates the array's last message in place.
+ */
+export function appendToolListToLastMessage(
+  messages: { role: string; content: string }[],
+  tools: unknown[],
+): void {
+  if (messages.length === 0) return;
+  const functionTools = (tools as FunctionTool[]).filter(
+    (t) => t.type === "function" && t.function,
+  );
+  if (functionTools.length === 0) return;
+  const toolList = functionTools
+    .map((t) => {
+      const fn = t.function!;
+      const params = fn.parameters ? JSON.stringify(fn.parameters, null, 2) : "{}";
+      return `- **${fn.name}**: ${fn.description ?? "No description"}\n  Parameters: \`\`\`json\n${params}\n\`\`\``;
+    })
+    .join("\n");
+  const block =
+    "# Available Tools\n\n" +
+    toolList +
+    "\n\nYou may call a tool by responding with a `<tool_calls>` block containing a JSON array:\n" +
+    '<tool_calls>[{"name":"tool_name","arguments":{"key":"value"}}]</tool_calls>';
+  const last = messages[messages.length - 1];
+  last.content = last.content ? last.content + "\n\n" + block : block;
+}
+
 // ── prependToFirstSystemMessage ──────────────────────────────────────────────
 
 /**

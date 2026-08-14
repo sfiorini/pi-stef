@@ -586,7 +586,8 @@ export async function* withPoolRetryStream(
 }
 
 /**
- * A chunk carries real content if it has delta.content or delta.reasoning_content.
+ * A chunk carries VISIBLE content: delta.content or delta.tool_calls
+ * (reasoning_content is deliberately excluded — see the rationale inside).
  * Use `("done" in chunk) && !("choices" in chunk)` to narrow to the sentinel
  * before accessing `extra`. A real OpenAiChatChunk always has `choices`.
  */
@@ -605,20 +606,11 @@ export function isContentChunk(chunk: OpenAiChatChunk): boolean {
   );
 }
 
-/** A chunk carries a substantive payload if it has VISIBLE content or tool_calls (reasoning alone is not payload — see isContentChunk). */
+/** Visible payload — delegates to isContentChunk (single source of truth).
+ *  The stall-guard's chunkHasPayload is intentionally different: it counts
+ *  reasoning_content because thinking is stream liveness. */
 function hasPayload(chunk: OpenAiChatChunk): boolean {
-  const delta = chunk.choices?.[0]?.delta;
-  // NOTE: reasoning_content deliberately does NOT count as payload here.
-  // A reasoning-only completion (thinking streamed, zero visible content,
-  // no tool_calls) is an empty completion to the client — live-debugged on
-  // mini (2026-08-14): qwen suppressed answers to ~47 thinking tokens with no
-  // content deltas, and counting reasoning as payload classified those as
-  // clean successes, bypassing the empty-retry machinery entirely. (The
-  // stall-guard's chunkHasPayload is separate and intentionally still counts
-  // reasoning_content — thinking IS stream liveness.)
-  return Boolean(
-    delta && (delta.content || delta.tool_calls),
-  );
+  return isContentChunk(chunk);
 }
 
 /**

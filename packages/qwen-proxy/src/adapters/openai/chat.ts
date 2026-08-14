@@ -20,7 +20,7 @@ import { openaiError } from "./errors";
 import { stripDetails } from "../../upstream/details-strip";
 import { DetailsStreamStripper } from "../../upstream/details-strip";
 import { firstChunk, mapOpenAiChunk, TERMINATOR } from "./chunks";
-import { injectToolPrompt, injectToolResults, prependToFirstSystemMessage } from "../../upstream/tool-prompt";
+import { injectToolPrompt, injectToolResults, prependToFirstSystemMessage, appendToolListToLastMessage } from "../../upstream/tool-prompt";
 import { parseToolCalls } from "../../upstream/tool-parse";
 import { ToolStreamDetector } from "../../upstream/tool-stream";
 
@@ -167,6 +167,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
     // Tools handling — S-5: detect function tools, inject prompt-engineering
     let toolsInjected = false;
+    let isContinuation = false;
     if (Array.isArray(b.tools)) {
       const functionTools = (b.tools as Array<Record<string, unknown>>).filter(
         (t) => t.type === "function" && t.function,
@@ -193,7 +194,8 @@ export function chatRoutes(deps: ChatRouteDeps) {
         // Require a preceding assistant tool_calls (not a bare tool message):
         // the in-context <tool_calls> convention the model relies on comes
         // from that assistant turn — without it the format still needs priming.
-        const isContinuation = (b.messages as Array<Record<string, unknown>>).some(
+        // (Declared at this scope level so the post-flatten append below can see it.)
+        isContinuation = (b.messages as Array<Record<string, unknown>>).some(
           (m) =>
             m.role === "assistant" && Array.isArray(m.tool_calls) && (m.tool_calls as unknown[]).length > 0,
         );
@@ -201,6 +203,12 @@ export function chatRoutes(deps: ChatRouteDeps) {
           const toolPrompt = injectToolPrompt(b.tools as unknown[], b.tool_choice);
           prependToFirstSystemMessage(flatMessages, toolPrompt);
         }
+        // Continuation turns append the tool list AFTER flattening (below) —
+        // qwen suppresses answers when the tool prompt sits in the SYSTEM
+        // message (live-debugged on mini 2026-08-14: zero content/reasoning
+        // deltas, ~47 tokens consumed, deterministic across ~20 attempts).
+        // Appending to the final flattened turn keeps tool discovery for
+        // multi-tool loops while avoiding the system-position trigger.
         upstreamBody.messages = flatMessages;
         // Strip function tools + tool_choice from upstream body
         const nonFunctionTools = (b.tools as Array<Record<string, unknown>>).filter(
@@ -223,6 +231,16 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
     // chat.qwen.ai guest mode only forwards the last message — flatten multi-turn
     upstreamBody.messages = flattenForUpstream(upstreamBody.messages as Array<{ role: string; content: string }>);
+
+    // Continuation turn (history already carries tool calls/results): append
+    // the tool list to the LAST (flattened) message — see the tools-handling
+    // block above for the suppression rationale.
+    if (toolsInjected && isContinuation) {
+      appendToolListToLastMessage(
+        upstreamBody.messages as Array<{ role: string; content: string }>,
+        b.tools as unknown[],
+      );
+    }
 
     // ── Non-stream ────────────────────────────────────────────────────────
 
