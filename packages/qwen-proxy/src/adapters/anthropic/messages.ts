@@ -220,8 +220,8 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
 
     if (!stream) {
       try {
-        const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer) => {
-          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any) as Promise<OpenAiChatCompletion>;
+        const completion: OpenAiChatCompletion = await deps.retry(deps, async (_accountId, bearer, proxy?) => {
+          return deps.client.chatCompletions(bearer, { ...upstreamBody, stream: false } as any, proxy) as Promise<OpenAiChatCompletion>;
         });
 
         return c.json(buildAnthropicMessage(modelInput, completion));
@@ -248,8 +248,9 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
     const qwenStream = deps.retryStream(deps, async function* (
       _accountId: number,
       bearer: string,
+      proxy?: string,
     ): AsyncIterable<OpenAiChatChunk> {
-      yield* (deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any) as AsyncIterable<OpenAiChatChunk>);
+      yield* (deps.client.chatCompletions(bearer, { ...upstreamBody, stream: true } as any, proxy) as AsyncIterable<OpenAiChatChunk>);
     });
 
     const anthropicEvents = streamAnthropicEvents(qwenStream, {

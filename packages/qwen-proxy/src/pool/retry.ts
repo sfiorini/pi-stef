@@ -3,6 +3,13 @@ import { RateLimitError, AuthExpiredError, EmptyCompletionError } from "../upstr
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
 
+/** Minimal proxy-pool contract for rotation mode (S-M2). */
+export interface ProxyPoolLike {
+  readonly size: number;
+  getActive(): string | undefined;
+  rotate(): string | undefined;
+}
+
 /** Minimal scheduler contract retry needs: on-demand token refresh. */
 export interface RetryScheduler {
   refreshOnDemand(id: number): Promise<{ bearer: string; expiresAt: number | null }>;
@@ -16,6 +23,8 @@ export interface RetryDeps {
   config: { emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
+  /** Optional proxy pool for SOCKS5 rotation mode (S-M2). */
+  proxyPool?: ProxyPoolLike;
   log: {
     info: (msg: string, ctx?: unknown) => void;
     warn: (msg: string, ctx?: unknown) => void;
@@ -37,7 +46,7 @@ export type StreamChunk =
  */
 export async function withPoolRetry<T>(
   deps: RetryDeps,
-  op: (accountId: number, bearer: string) => Promise<T>,
+  op: (accountId: number, bearer: string, proxy?: string) => Promise<T>,
 ): Promise<T> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
@@ -46,9 +55,10 @@ export async function withPoolRetry<T>(
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
+    const proxy = deps.proxyPool?.getActive();
 
     try {
-      const result = await op(id, bearer);
+      const result = await op(id, bearer, proxy);
       deps.pool.markSuccess();
       return result;
     } catch (err) {
@@ -106,7 +116,7 @@ export async function withPoolRetry<T>(
  */
 export async function* withPoolRetryStream(
   deps: RetryDeps,
-  op: (accountId: number, bearer: string) => AsyncIterable<OpenAiChatChunk>,
+  op: (accountId: number, bearer: string, proxy?: string) => AsyncIterable<OpenAiChatChunk>,
 ): AsyncIterable<StreamChunk> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
@@ -115,6 +125,7 @@ export async function* withPoolRetryStream(
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
+    const proxy = deps.proxyPool?.getActive();
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
@@ -122,7 +133,7 @@ export async function* withPoolRetryStream(
     let emptyCompletion = false;
 
     try {
-      const iter = op(id, bearer);
+      const iter = op(id, bearer, proxy);
       for await (const chunk of iter) {
         if (!seenPayload && hasPayload(chunk)) seenPayload = true;
         if (!seenContent && isContentChunk(chunk)) {
