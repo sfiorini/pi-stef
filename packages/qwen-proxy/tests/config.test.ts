@@ -93,6 +93,7 @@ describe("config", () => {
         baxiaVersion: "2.5.37",
         preWarm: true,
         fallback: false,
+        readinessTimeoutMs: 30_000,
       });
     });
 
@@ -103,6 +104,34 @@ describe("config", () => {
       });
       expect(config.baxia.chromePath).toBe("/usr/local/bin/chromium");
       expect(config.baxia.baxiaVersion).toBe("9.9.9");
+    });
+
+    it("SF_QWEN_BAXIA_READINESS_TIMEOUT_MS=8000 overrides", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_BAXIA_READINESS_TIMEOUT_MS: "8000",
+      });
+      expect(config.baxia.readinessTimeoutMs).toBe(8_000);
+    });
+
+    it("SF_QWEN_BAXIA_READINESS_TIMEOUT_MS non-numeric → default 30000", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_BAXIA_READINESS_TIMEOUT_MS: "abc",
+      });
+      expect(config.baxia.readinessTimeoutMs).toBe(30_000);
+    });
+
+    it("SF_QWEN_BAXIA_READINESS_TIMEOUT_MS empty → default 30000", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_BAXIA_READINESS_TIMEOUT_MS: "",
+      });
+      expect(config.baxia.readinessTimeoutMs).toBe(30_000);
+    });
+
+    it("SF_QWEN_BAXIA_READINESS_TIMEOUT_MS=3000 clamps to 5000", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_BAXIA_READINESS_TIMEOUT_MS: "3000",
+      });
+      expect(config.baxia.readinessTimeoutMs).toBe(5_000);
     });
   });
 

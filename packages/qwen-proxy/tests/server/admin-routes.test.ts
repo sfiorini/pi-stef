@@ -124,7 +124,7 @@ function makeStubDeps(adminKey?: string): AppDeps {
       proxyCountriesRaw: "",
       timeoutMs: 60_000,
       adminKey,
-      baxia: { chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false },
+      baxia: { chromePath: undefined, cacheTtlMs: 1_500_000, baxiaVersion: "2.5.37", preWarm: false, fallback: false, readinessTimeoutMs: 30_000 },
     },
     retry: (async () => {}) as any,
     retryStream: (async function* () {}) as any,

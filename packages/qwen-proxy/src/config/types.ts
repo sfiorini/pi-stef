@@ -4,6 +4,7 @@ export interface BaxiaConfig {
   baxiaVersion: string;
   preWarm: boolean;
   fallback: boolean;
+  readinessTimeoutMs: number; // SF_QWEN_BAXIA_READINESS_TIMEOUT_MS  default 30000 (clamp ≥5000)
 }
 
 export interface QwenProxyConfig {
