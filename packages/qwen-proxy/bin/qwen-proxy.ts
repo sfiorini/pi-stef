@@ -7,6 +7,7 @@ import {
 } from "../src/index";
 import { BaxiaTokenManager } from "../src/upstream/baxia-token";
 import { GuestUpstreamClient } from "../src/upstream/guest-client";
+import { ProxyBridge } from "../src/upstream/proxy-bridge";
 import { SingleAccountPool } from "../src/pool/single";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
@@ -42,28 +43,10 @@ async function main() {
       log,
     });
 
-    // Pre-warm: eagerly fetch the first token so the server starts ready
-    if (config.baxia.preWarm) {
-      try {
-        await baxia.ensureToken();
-        log.info("baxia pre-warm succeeded");
-      } catch (e) {
-        log.error("baxia pre-warm failed", { error: String(e) });
-        process.exit(1);
-      }
-    }
-
-    // Start background refresh loop
-    baxia.startRefreshLoop();
-
-    // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
-    // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
-    const concurrency = new Semaphore(config.maxConcurrency);
-    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache: undefined, timeoutMs: config.timeoutMs });
-
     // Proxy pool rotation (NordVPN SOCKS5)
     let proxyPool;
     let proxyDispatcherCache;
+    let bridge: ProxyBridge | undefined;
     if (config.proxyCount > 1 || config.proxyUrlsRaw.trim()) {
       proxyPool = await createProxyPool({
         proxyCount: config.proxyCount,
@@ -76,12 +59,37 @@ async function main() {
       });
       if (proxyPool.size > 0) {
         proxyDispatcherCache = new ProxyDispatcherCache();
+        // S-M2-2: start loopback SOCKS5 bridge for proxy-affine token gen
+        bridge = new ProxyBridge({ log });
+        await bridge.start();
+        baxia.setBridge(bridge);
+        log.info("proxy-affine bridge started", { port: bridge.getPort() });
         log.info("proxy rotation enabled", { size: proxyPool.size });
       } else {
         proxyPool = undefined;
         log.warn("proxy pool empty — legacy");
       }
     }
+
+    // Pre-warm: eagerly fetch the first token so the server starts ready
+    // (S-M2-2: after bridge setup so token-gen egresses through the bridge)
+    if (config.baxia.preWarm) {
+      try {
+        await baxia.ensureToken();
+        log.info("baxia pre-warm succeeded");
+      } catch (e) {
+        log.error("baxia pre-warm failed", { error: String(e) });
+        process.exit(1);
+      }
+    }
+
+    // Start background refresh loop (S-M2-2: no-op when bridge set — lazy per-proxy)
+    baxia.startRefreshLoop();
+
+    // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
+    // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
+    const concurrency = new Semaphore(config.maxConcurrency);
+    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache, timeoutMs: config.timeoutMs });
 
     // Re-create client with proxy dispatcher cache + timeout if rotation enabled
     const finalClient = proxyDispatcherCache
@@ -127,11 +135,12 @@ async function main() {
 
     log.info("qwen-proxy started", { port: handle.port });
 
-    // Graceful shutdown: baxia refresh → server → db
-    const shutdown = () => {
+    // Graceful shutdown: drain HTTP → baxia → bridge → db
+    const shutdown = async () => {
       log.info("shutting down");
-      baxia.stop();
       handle.close();
+      baxia.stop();
+      if (bridge) await bridge.stop();
       db.close();
       process.exit(0);
     };
