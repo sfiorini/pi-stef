@@ -167,4 +167,70 @@ describe("config", () => {
       expect(config.emptyRetryGapMs).toBe(1_000);
     });
   });
+
+  describe("proxy rotation config", () => {
+    it("returns correct defaults with empty env", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.proxyCount).toBe(0);
+      expect(config.proxyUrlsRaw).toBe("");
+      expect(config.proxyUser).toBeUndefined();
+      expect(config.proxyPass).toBeUndefined();
+      expect(config.proxyCountriesRaw).toBe("");
+      expect(config.timeoutMs).toBe(60_000);
+    });
+
+    it("overrides proxyCount via SF_QWEN_PROXY_COUNT", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_COUNT: "5" });
+      expect(config.proxyCount).toBe(5);
+    });
+
+    it("overrides proxyUrlsRaw via SF_QWEN_PROXY_URLS", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_URLS: "socks5://a:1080,socks5://b:1080" });
+      expect(config.proxyUrlsRaw).toBe("socks5://a:1080,socks5://b:1080");
+    });
+
+    it("overrides proxyUser/proxyPass via SF_QWEN_PROXY_USER/PASS", async () => {
+      const config = await loadQwenProxyConfig({
+        SF_QWEN_PROXY_USER: "myuser",
+        SF_QWEN_PROXY_PASS: "mypass",
+      });
+      expect(config.proxyUser).toBe("myuser");
+      expect(config.proxyPass).toBe("mypass");
+    });
+
+    it("overrides proxyCountriesRaw via SF_QWEN_PROXY_COUNTRIES", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_COUNTRIES: "US,DE" });
+      expect(config.proxyCountriesRaw).toBe("US,DE");
+    });
+
+    it("overrides timeoutMs via SF_QWEN_TIMEOUT_MS", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_TIMEOUT_MS: "30000" });
+      expect(config.timeoutMs).toBe(30_000);
+    });
+
+    it("SF_QWEN_PROXY_COUNT=0 is valid", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_COUNT: "0" });
+      expect(config.proxyCount).toBe(0);
+    });
+
+    it("SF_QWEN_PROXY_COUNT negative → fallback 0", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_COUNT: "-1" });
+      expect(config.proxyCount).toBe(0);
+    });
+
+    it("SF_QWEN_PROXY_COUNT non-numeric → fallback 0", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_COUNT: "abc" });
+      expect(config.proxyCount).toBe(0);
+    });
+
+    it("SF_QWEN_TIMEOUT_MS=0 → fallback 60000", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_TIMEOUT_MS: "0" });
+      expect(config.timeoutMs).toBe(60_000);
+    });
+
+    it("empty SF_QWEN_PROXY_URLS → empty string", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_PROXY_URLS: "" });
+      expect(config.proxyUrlsRaw).toBe("");
+    });
+  });
 });
