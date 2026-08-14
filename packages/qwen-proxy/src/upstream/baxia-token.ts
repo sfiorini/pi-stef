@@ -28,6 +28,8 @@ export interface BaxiaTokenManagerConfig {
   fallback: boolean;
   userAgent: string;
   log: Logger;
+  /** Optional bridge for proxy-affine token generation (S-M1-7). */
+  bridge?: { getPort(): number; setUpstream(key: string): void };
   now?: () => number;
   spawn?: typeof import("node:child_process").spawn;
   WebSocketCtor?: typeof WebSocket;
@@ -90,6 +92,8 @@ export class BaxiaTokenManager {
   private static readonly DIRECT_KEY = "";
   // Global spawn mutex — serializes all doRefresh calls
   private spawnChain: Promise<void> = Promise.resolve();
+  // Optional bridge for proxy-affine token generation (S-M1-7)
+  private bridge?: { getPort(): number; setUpstream(key: string): void };
 
   constructor(config: BaxiaTokenManagerConfig) {
     this.config = config;
@@ -97,6 +101,12 @@ export class BaxiaTokenManager {
     this._WebSocketCtor = config.WebSocketCtor ?? (globalThis as any).WebSocket;
     this._fetcher = config.fetcher ?? globalThis.fetch;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.bridge = config.bridge;
+  }
+
+  /** Set the bridge for proxy-affine token generation (S-M1-7 / S-M2-2). */
+  setBridge(bridge: { getPort(): number; setUpstream(key: string): void }): void {
+    this.bridge = bridge;
   }
 
   /** Expose resolved spawn fn for P0 regression testing. */
@@ -132,7 +142,7 @@ export class BaxiaTokenManager {
 
   // ── startChrome ─────────────────────────────────────────────────────────
 
-  private startChrome(exe: string): { child: any; port: number } {
+  private startChrome(exe: string, proxyServerUrl?: string): { child: any; port: number } {
     const port = randomPort(9400, 9999);
     const userDataDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "baxia-chrome-"),
@@ -149,6 +159,11 @@ export class BaxiaTokenManager {
       `--user-agent=${this.config.userAgent}`,
       "about:blank",
     ];
+    // S-M1-7: inject proxy-server + DNS pinning for proxy-affine token gen
+    if (proxyServerUrl) {
+      args.unshift(`--proxy-server=${proxyServerUrl}`);
+      args.unshift("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
+    }
     const child = this._spawn(exe, args, { stdio: "ignore" });
     return { child, port };
   }
@@ -235,9 +250,13 @@ export class BaxiaTokenManager {
 
   // ── getBaxiaTokens ──────────────────────────────────────────────────────
 
-  private async getBaxiaTokens(): Promise<BaxiaTokens> {
+  private async getBaxiaTokens(proxy?: string): Promise<BaxiaTokens> {
     const exe = this.findChrome();
-    const { child, port } = this.startChrome(exe);
+    // S-M1-7: compute loopback SOCKS5 URL for proxy-affine token gen
+    const proxyServerUrl = (proxy && this.bridge)
+      ? `socks5://127.0.0.1:${this.bridge.getPort()}`
+      : undefined;
+    const { child, port } = this.startChrome(exe, proxyServerUrl);
 
     try {
       // Wait for Chrome to start /json/list endpoint
@@ -397,10 +416,15 @@ export class BaxiaTokenManager {
   }
 
   private async doRefresh(key: string): Promise<BaxiaTokens> {
+    const proxy = key !== BaxiaTokenManager.DIRECT_KEY ? key : undefined;
     return this.withSpawnLock(async () => {
     const start = this.config.now?.() ?? Date.now();
     try {
-      const tokens = await this.getBaxiaTokens();
+      // S-M1-7: set upstream proxy on bridge before spawning Chrome
+      if (proxy && this.bridge) {
+        this.bridge.setUpstream(proxy);
+      }
+      const tokens = await this.getBaxiaTokens(proxy);
       this.proxyCache.set(key, {
         tokens,
         cachedAt: this.config.now?.() ?? Date.now(),
@@ -426,6 +450,8 @@ export class BaxiaTokenManager {
   }
 
   startRefreshLoop(): void {
+    // S-M1-7: bridge mode uses lazy per-proxy refresh (no periodic loop)
+    if (this.bridge) return;
     if (this.refreshTimer) return; // idempotent
     const interval = Math.max(60_000, this.config.cacheTtlMs - 120_000);
     this.refreshTimer = setInterval(() => {
