@@ -50,3 +50,18 @@ export class UnknownError extends QwenUpstreamError {
 export class EmptyCompletionError extends QwenUpstreamError {
   readonly retryable = true;
 }
+
+export type TokenMintCause = "egress" | "not-ready";
+
+/** Baxia token MINT failure (spawn/readiness). cause "egress" = page never
+ *  loaded / spawn infra failure; "not-ready" = page loaded, Baxia SDK never
+ *  initialized within the readiness timeout. Extends NetworkError: retryable,
+ *  rotatable, 503-class. */
+export class TokenMintError extends NetworkError {
+  readonly cause: TokenMintCause; // narrowed shadow of Error.cause
+  constructor(cause: TokenMintCause, message: string, opts?: { status?: number; retryAfterMs?: number }) {
+    super(message, opts);
+    this.cause = cause;
+    this.name = "TokenMintError";
+  }
+}
