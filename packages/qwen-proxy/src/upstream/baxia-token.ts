@@ -88,6 +88,8 @@ export class BaxiaTokenManager {
   private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private static readonly DIRECT_KEY = "";
+  // Global spawn mutex — serializes all doRefresh calls
+  private spawnChain: Promise<void> = Promise.resolve();
 
   constructor(config: BaxiaTokenManagerConfig) {
     this.config = config;
@@ -386,7 +388,16 @@ export class BaxiaTokenManager {
     }
   }
 
+  private async withSpawnLock<T>(fn: () => Promise<T>): Promise<T> {
+    // Chain onto spawnChain so new spawns wait for the previous one to settle
+    const chained = this.spawnChain.then(fn, fn);
+    // Re-chain the settled promise (never rejects — fn is called for both resolve/reject)
+    this.spawnChain = chained.then(() => {}, () => {});
+    return chained;
+  }
+
   private async doRefresh(key: string): Promise<BaxiaTokens> {
+    return this.withSpawnLock(async () => {
     const start = this.config.now?.() ?? Date.now();
     try {
       const tokens = await this.getBaxiaTokens();
@@ -411,6 +422,7 @@ export class BaxiaTokenManager {
       }
       throw e;
     }
+    });
   }
 
   startRefreshLoop(): void {
