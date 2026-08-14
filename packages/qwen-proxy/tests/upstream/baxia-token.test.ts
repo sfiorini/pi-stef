@@ -310,6 +310,8 @@ describe("BaxiaTokenManager", () => {
 
       // GAP-FIX: the error handler rejects all pending CDP promises
       await expect(mgr.ensureToken()).rejects.toThrow(/cdp ws error/i);
+      await expect(mgr.ensureToken()).rejects.toBeInstanceOf(TokenMintError);
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "egress" });
     });
 
     it("rejects pending on ws close (GAP-FIX)", async () => {
@@ -348,6 +350,8 @@ describe("BaxiaTokenManager", () => {
       );
 
       await expect(mgr.ensureToken()).rejects.toThrow(/cdp ws closed/i);
+      await expect(mgr.ensureToken()).rejects.toBeInstanceOf(TokenMintError);
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "egress" });
     });
   });
 

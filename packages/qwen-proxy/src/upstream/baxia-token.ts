@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
-import { NetworkError, TokenMintError } from "./errors";
+import { TokenMintError } from "./errors";
 import { redactProxyKey } from "./proxy-bridge";
 import type { Logger } from "../server/logger";
 
@@ -246,10 +246,10 @@ export class BaxiaTokenManager {
       openResolve();
     });
     ws.addEventListener("error", () =>
-      rejectAll(new NetworkError("cdp ws error")),
+      rejectAll(new TokenMintError("egress", "cdp ws error")),
     );
     ws.addEventListener("close", () =>
-      rejectAll(new Error("cdp ws closed")),
+      rejectAll(new TokenMintError("egress", "cdp ws closed")),
     );
 
     ws.addEventListener("message", (ev: any) => {
