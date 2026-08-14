@@ -127,6 +127,11 @@ export class ProxyBridge {
    * (SOCKS5 handshake + forwarding — implemented in S-M1-3/S-M1-4.)
    */
   private async handleConnection(socket: net.Socket): Promise<void> {
+    // Lifetime error handler — installed BEFORE any await so a mid-lifecycle
+    // ECONNRESET (Chromium resetting a connection) can never become an unhandled
+    // 'error' event (which would crash the process). Destroying is the correct
+    // response; any pending readN rejects via its own close/error handling.
+    socket.on("error", () => socket.destroy());
     const VER = 0x05, AUTH_NONE = 0x00, AUTH_NO_ACCEPTABLE = 0xFF;
     const CMD_CONNECT = 0x01, REP_CMD_NOT_SUPPORTED = 0x07, REP_ATYP_NOT_SUPPORTED = 0x08;
     const ATYP_IPV4 = 0x01, ATYP_DOMAIN = 0x03, ATYP_IPV6 = 0x04;
@@ -209,6 +214,9 @@ export class ProxyBridge {
         timeout: 10_000,
       });
 
+      // Lifetime error handler on the remote socket too — before piping, so an
+      // upstream reset can never become an unhandled 'error' event (crash).
+      remote.on("error", () => remote.destroy());
       // Success reply: BND.ADDR = 127.0.0.1:0 (placeholder)
       client.write(Buffer.from([VER, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 0]));
       this.pipeBoth(client, remote);
