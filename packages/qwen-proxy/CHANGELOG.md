@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-14
+### Changed
+- fix(qwen-proxy): audit fixes (discovery timeout, dedup, isRotationTrigger, recreate doc)
+- fix(qwen-proxy): proxy-rotation review fixes (bin fetcher, size-1 consistency, docs, creds)
+- docs(qwen-proxy): document proxy rotation env knobs (NordVPN SOCKS5 pool) Add SF_QWEN_PROXY_COUNT/URLS/USER/PASS/COUNTRIES + SF_QWEN_TIMEOUT_MS to all 4 env tables; add a 'Proxy rotation (NordVPN SOCKS5 pool)' prose section to the README + docs-site qwen-proxy page (legacy vs rotation modes, token-gen-direct affinity, setup, graceful degrade, token/IP-mismatch empirical limitation).
+- feat(qwen-proxy): bin wiring + app.ts proxyPool threading (e2e)
+- feat(qwen-proxy): rotation branch in withPoolRetryStream (pre-first-content only)
+- feat(qwen-proxy): rotation branch in withPoolRetry
+- feat(qwen-proxy): add isRotationTrigger() error classifier
+- feat(qwen-proxy): thread proxy? through retry op signature + adapters
+- feat(qwen-proxy): TTFB timeout via AbortController (cleared on headers) doFetch wraps each chat.qwen.ai fetch in an AbortController that fires after SF_QWEN_TIMEOUT_MS (default 60s) if no response headers arrive; timer cleared on headers so long streams are never aborted mid-flight. AbortError (name-based check, handles DOMException + plain-Error aborts) surfaces as NetworkError (rotatable in proxy-rotation mode; mapped 503 legacy).
+- feat(qwen-proxy): TTFB timeout via AbortController (cleared on headers) doFetch wraps each chat.qwen.ai fetch in an AbortController that fires after SF_QWEN_TIMEOUT_MS (default 60s) if no response headers arrive; the timer is cleared on headers so long streams are never aborted mid-flight. AbortError surfaces as NetworkError (rotatable in proxy-rotation mode, mapped 503 legacy).
+- feat(qwen-proxy): thread proxy? through guest-client + typed non-OK errors
+- feat(qwen-proxy): add NordVPN discovery + graceful degrade for createProxyPool
+- feat(qwen-proxy): add normalizeSocksUrl, parseProxyUrls, createProxyPool
+- feat(qwen-proxy): add socks-proxy-agent dep + ProxyPool + ProxyDispatcherCache + fetchWithProxy
+- feat(qwen-proxy): add proxy rotation config knobs (types + load + tests)
+
+
 ## [0.3.2] - 2026-08-13
 ### Changed
 - fix(qwen-proxy): parse /v1/models from upstream { data: [...] } shape
