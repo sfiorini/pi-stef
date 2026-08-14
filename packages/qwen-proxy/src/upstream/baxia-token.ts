@@ -354,7 +354,7 @@ export class BaxiaTokenManager {
         // Navigate to chat.qwen.ai
         await cdp.send("Page.navigate", { url: this.config.chatUrl });
 
-        // Poll for window.__baxia__.getFYModule to be READY (60 × 500ms = 30s max).
+        // Poll for window.__baxia__.getFYModule to be READY (ceil(readinessTimeoutMs/500) polls, default 30s → 60 polls).
         // Mirrors qwen2api scripts/baxia-token.js: getFYModule is a function-OBJECT
         // whose methods (getUidToken/getFYToken) + fyObj property are attached by the
         // SDK once ready — so DO NOT call getFYModule(); read fm.fyObj/fm.getUidToken()
