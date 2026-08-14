@@ -61,6 +61,12 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4s) | Global look-human throttle (±50% jitter); `0` disables |
 | `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
+| `SF_QWEN_PROXY_COUNT` | `0` | Proxy pool size for NordVPN SOCKS5 rotation. `0` = legacy (single-IP, no rotation); `>1` = enable rotation across N proxies |
+| `SF_QWEN_PROXY_URLS` | *(unset)* | Comma-separated SOCKS5 proxy URLs (overrides auto-discovery; e.g. `socks5://user:pass@host:1080,...`) |
+| `SF_QWEN_PROXY_USER` | *(unset)* | NordVPN service username (used for auto-discovery; ignored if `SF_QWEN_PROXY_URLS` is set) |
+| `SF_QWEN_PROXY_PASS` | *(unset)* | NordVPN service password |
+| `SF_QWEN_PROXY_COUNTRIES` | *(unset)* | Comma-separated country codes for auto-discovery (e.g. `us,de,gb`) |
+| `SF_QWEN_TIMEOUT_MS` | `60000` | TTFB timeout in ms — aborts if no response headers arrive within this window (cleared on headers, never aborts mid-stream) |
 | `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias → upstream model |
 | `SF_QWEN_LOG_LEVEL` | `info` | Log level |
 | `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
@@ -70,6 +76,44 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_BAXIA_FALLBACK` | `false` | Return last-known token on fetch failure |
 
 See the [full documentation](https://sfiorini.github.io/pi-stef/packages/qwen-proxy) for architecture, API surface, and known limitations.
+
+---
+
+## Proxy rotation (NordVPN SOCKS5 pool)
+
+By default the proxy uses a single IP for all upstream requests. When Qwen's Baxia anti-bot flags that IP, every subsequent request hits the same ceiling — retries rotate the same token but the IP stays the same.
+
+**Rotation mode** (`SF_QWEN_PROXY_COUNT > 1` or `SF_QWEN_PROXY_URLS` set) distributes completion requests across N SOCKS5 proxies. Each proxy is tried once per request (budget = N); if all N are exhausted (empty / network / 5xx), the proxy returns 429 with a cooldown.
+
+### How it works
+
+| Mode | Trigger | Behavior |
+|------|---------|----------|
+| **Legacy** (N ≤ 1) | — | Single IP; `SF_QWEN_EMPTY_RETRY_MAX` inline retries + `SF_QWEN_EMPTY_COOLDOWN_MS` cooldown |
+| **Rotation** (N > 1) | `emptyRetryMax` ignored | Rotate on empty/network/5xx; budget = N attempts; all-burned → 429 + cooldown |
+
+- **Rotate triggers:** `EmptyCompletionError`, `NetworkError` (TTFB timeout, connection reset), `ServerError` (5xx), `TypeError` (fetch internals), raw `Error` (e.g. SOCKS connect failure).
+- **Terminal (no rotate):** `ClientError` (4xx, incl. `data_inspection_failed`), `RateLimitError` (429), `UnknownError`.
+- **Token generation stays direct** — Baxia tokens are fetched without a proxy (affinity with the browser fingerprint). Only `createChatSession` + the completion fetch route through SOCKS5.
+- **Stream rotation is pre-first-content only** — once the first content token has been yielded to the client, no rotation occurs (would duplicate already-sent chunks). A post-content error surfaces directly.
+- **No `refreshBaxiaToken`** on rotation exhaustion — the token is fine; the IP ceiling is the bottleneck.
+
+### Setup
+
+1. **NordVPN service credentials** — obtain from [my.nordaccount.com](https://my.nordaccount.com) → Service credentials (not your NordVPN account password).
+2. **Auto-discovery** (recommended): set `SF_QWEN_PROXY_USER` + `SF_QWEN_PROXY_PASS`; the proxy queries `api.nordvpn.com` for SOCKS5 servers, sorted by load, filtered by `SF_QWEN_PROXY_COUNTRIES` if set. Takes the N lowest-load servers.
+3. **Explicit URLs**: set `SF_QWEN_PROXY_URLS` (comma-separated, e.g. `socks5://user:pass@host1:1080,socks5://user:pass@host2:1080`). Overrides auto-discovery.
+4. **Docker**: the image now depends on `socks-proxy-agent`; ensure outbound port 1080 is open.
+
+### Graceful degradation
+
+- If discovery returns fewer servers than `SF_QWEN_PROXY_COUNT`, the proxy uses what it got (with a warning).
+- If discovery returns 0 usable servers (or credentials are missing), the proxy falls back to legacy mode silently.
+- If `SF_QWEN_PROXY_COUNT ≤ 1` and no explicit URLs, legacy mode applies (byte-for-byte backward-compatible).
+
+### Token/IP-mismatch empirical limitation
+
+Qwen may correlate the Baxia token's originating IP with the completion request IP. If the token was generated on IP A but the completion egresses through SOCKS5 IP B, upstream may reject the request. This is an empirical observation, not confirmed behavior. If it becomes a problem, the auth-bridge follow-up (token generation through the same SOCKS5 proxy) would be needed.
 
 ---
 

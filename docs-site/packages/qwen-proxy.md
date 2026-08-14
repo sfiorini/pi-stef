@@ -129,6 +129,17 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4 s) | Global look-human throttle (±50 % jitter) between requests. `0` disables |
 | `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat — you can't send the next until the previous completes). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
 
+### Proxy rotation (NordVPN SOCKS5)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `SF_QWEN_PROXY_COUNT` | `0` | Proxy pool size. `0` = legacy (single-IP); `>1` = enable SOCKS5 rotation across N proxies |
+| `SF_QWEN_PROXY_URLS` | *(unset)* | Comma-separated SOCKS5 proxy URLs (overrides auto-discovery) |
+| `SF_QWEN_PROXY_USER` | *(unset)* | NordVPN service username (for auto-discovery) |
+| `SF_QWEN_PROXY_PASS` | *(unset)* | NordVPN service password |
+| `SF_QWEN_PROXY_COUNTRIES` | *(unset)* | Comma-separated country codes for auto-discovery (e.g. `us,de,gb`) |
+| `SF_QWEN_TIMEOUT_MS` | `60000` | TTFB timeout in ms (cleared on headers, never aborts mid-stream) |
+
 ### Model aliases
 
 | Variable | Default | Description |
