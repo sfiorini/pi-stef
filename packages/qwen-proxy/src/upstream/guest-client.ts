@@ -106,7 +106,7 @@ export class GuestUpstreamClient {
 
     const maxRetries = 3;
     for (let attempt = 0; attempt < maxRetries; attempt++) {
-      const tokens = await this.baxia.ensureToken(attempt > 0 ? { forceRefresh: true } : undefined);
+      const tokens = await this.baxia.ensureToken(attempt > 0 ? { forceRefresh: true, proxy } : { proxy });
       const headers: Record<string, string> = {
         Accept: "application/json",
         "Content-Type": "application/json",
@@ -311,7 +311,7 @@ export class GuestUpstreamClient {
     const chatType: "t2t" | "search" = wantsSearch ? "search" : "t2t";
 
     const chatId = await this.createChatSession(body.model, chatType, proxy);
-    const tokens = await this.baxia.ensureToken();
+    const tokens = await this.baxia.ensureToken({ proxy });
 
     const qwenMsg = this.normalizeMessages(
       body.messages,
