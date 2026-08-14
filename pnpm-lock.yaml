@@ -38,6 +38,9 @@ importers:
       '@pi-stef/web':
         specifier: workspace:^0.3.0
         version: link:packages/web
+      socks-proxy-agent:
+        specifier: ^10.1.0
+        version: 10.1.0
     devDependencies:
       '@types/node':
         specifier: ^22.0.0
@@ -71,7 +74,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(socks-proxy-agent@10.1.0)
 
   packages/atlassian:
     dependencies:
@@ -98,7 +101,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(socks-proxy-agent@10.1.0)
       '@sinclair/typebox':
         specifier: '*'
         version: 0.34.49
@@ -128,7 +131,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(socks-proxy-agent@10.1.0)
 
   packages/catalog:
     dependencies:
@@ -155,7 +158,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(socks-proxy-agent@10.1.0)
       '@sinclair/typebox':
         specifier: '*'
         version: 0.34.49
@@ -195,7 +198,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(socks-proxy-agent@10.1.0)
       '@sinclair/typebox':
         specifier: '*'
         version: 0.34.49
@@ -317,7 +320,7 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(socks-proxy-agent@10.1.0)
 
   packages/qwen-proxy:
     dependencies:
@@ -336,6 +339,9 @@ importers:
       hono:
         specifier: ^4.6.0
         version: 4.12.27
+      socks-proxy-agent:
+        specifier: ^10.1.0
+        version: 10.1.0
       tsx:
         specifier: ^4.0.0
         version: 4.22.4
@@ -384,13 +390,13 @@ importers:
         version: 0.3.0
       '@pi-stef/web':
         specifier: ^0.3.0
-        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))
+        version: 0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(socks-proxy-agent@10.1.0)
       '@sinclair/typebox':
         specifier: '*'
         version: 0.34.49
       cloakbrowser:
         specifier: ^0.3.31
-        version: 0.3.31(playwright-core@1.60.0)
+        version: 0.3.31(playwright-core@1.60.0)(socks-proxy-agent@10.1.0)
       defuddle:
         specifier: ^0.18.1
         version: 0.18.1
@@ -1844,6 +1850,10 @@ packages:
     resolution: {integrity: sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ==}
     engines: {node: '>= 14'}
 
+  agent-base@9.0.0:
+    resolution: {integrity: sha512-TQf59BsZnytt8GdJKLPfUZ54g/iaUL2OWDSFCCvMOhsHduDQxO8xC4PNeyIkVcA5KwL2phPSv0douC0fgWzmnA==}
+    engines: {node: '>= 20'}
+
   ajv-draft-04@1.0.0:
     resolution: {integrity: sha512-mv00Te6nmYbRp5DCwclxtt7yV/joXJPGS7nM+97GdxvuttCOfgI3K4U25zboyeX0O+myI8ERluxQe5wljMmVIw==}
     peerDependencies:
@@ -2416,6 +2426,10 @@ packages:
   ini@1.3.8:
     resolution: {integrity: sha512-JV/yugV2uzW5iMRSiZAyDtQd+nxtUnjeLt0acNdw98kKLrvuRVyB80tsREOE7yvGVgalhZ6RNXCmEHkUKBKxew==}
 
+  ip-address@10.5.0:
+    resolution: {integrity: sha512-R5SnVLJmgYYvf2F2ZgwSBnelz5G4q5AxIC277GDfUaNbrZKNANcBC7RHqYYePlszf4kBolVkJauG0ZjHHFh55g==}
+    engines: {node: '>= 12'}
+
   is-fullwidth-code-point@3.0.0:
     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
@@ -2968,9 +2982,21 @@ packages:
   simple-get@4.0.1:
     resolution: {integrity: sha512-brv7p5WgH0jmQJr1ZDDfKDOSeWWg+OVypG99A/5vYGPqJ6pxiaHLy8nxtFjBA7oMa01ebA9gfh1uMCFqOuXxvA==}
 
+  smart-buffer@4.2.0:
+    resolution: {integrity: sha512-94hK0Hh8rPqQl2xXc3HsaBoOXKV20MToPkcXvwbISWLEs+64sBq5kFgn2kJDHb1Pry9yrP0dxrCI9RRci7RXKg==}
+    engines: {node: '>= 6.0.0', npm: '>= 3.0.0'}
+
   snaptrade-typescript-sdk@10.0.17:
     resolution: {integrity: sha512-4efhjNMZTEY4KmTgY2X9+jig49FGWkwZt6EPLq6qCXkpJyX0h4YM59McfGU6k4+2XoP0O3IqPm0lf4Lme2++rQ==}
     engines: {node: '>=18'}
+
+  socks-proxy-agent@10.1.0:
+    resolution: {integrity: sha512-WlMj/67cEJ6MDI1OcsnjuYKDNDoyPCCYZ249kuuXPiMDw9F8PXkVaQ7YWu3siTydfQ/4BEZcvGzu+aYvz7dDCQ==}
+    engines: {node: '>= 20'}
+
+  socks@2.8.9:
+    resolution: {integrity: sha512-LJhUYUvItdQ0LkJTmPeaEObWXAqFyfmP85x0tch/ez9cahmhlBBLbIqDFnvBnUJGagb0JbIQrkBs1wJ+yRYpEw==}
+    engines: {node: '>= 10.0.0', npm: '>= 3.0.0'}
 
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
@@ -4439,14 +4465,14 @@ snapshots:
 
   '@pi-stef/paths@0.3.0': {}
 
-  '@pi-stef/web@0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))':
+  '@pi-stef/web@0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@3.25.76))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@3.25.76))(socks-proxy-agent@10.1.0)':
     dependencies:
       '@earendil-works/pi-ai': 0.76.0(ws@8.21.0)(zod@3.25.76)
       '@earendil-works/pi-coding-agent': 0.76.0(ws@8.21.0)(zod@3.25.76)
       '@mozilla/readability': 0.6.0
       '@pi-stef/paths': 0.3.0
       '@sinclair/typebox': 0.34.49
-      cloakbrowser: 0.3.31(playwright-core@1.60.0)
+      cloakbrowser: 0.3.31(playwright-core@1.60.0)(socks-proxy-agent@10.1.0)
       defuddle: 0.18.1
       jsdom: 29.1.1
       playwright-core: 1.60.0
@@ -4458,14 +4484,14 @@ snapshots:
       - puppeteer-core
       - socks-proxy-agent
 
-  '@pi-stef/web@0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))':
+  '@pi-stef/web@0.3.0(@earendil-works/pi-ai@0.76.0(ws@8.21.0)(zod@4.4.3))(@earendil-works/pi-coding-agent@0.76.0(ws@8.21.0)(zod@4.4.3))(socks-proxy-agent@10.1.0)':
     dependencies:
       '@earendil-works/pi-ai': 0.76.0(ws@8.21.0)(zod@4.4.3)
       '@earendil-works/pi-coding-agent': 0.76.0(ws@8.21.0)(zod@4.4.3)
       '@mozilla/readability': 0.6.0
       '@pi-stef/paths': 0.3.0
       '@sinclair/typebox': 0.34.49
-      cloakbrowser: 0.3.31(playwright-core@1.60.0)
+      cloakbrowser: 0.3.31(playwright-core@1.60.0)(socks-proxy-agent@10.1.0)
       defuddle: 0.18.1
       jsdom: 29.1.1
       playwright-core: 1.60.0
@@ -5000,6 +5026,8 @@ snapshots:
 
   agent-base@7.1.4: {}
 
+  agent-base@9.0.0: {}
+
   ajv-draft-04@1.0.0(ajv@8.11.0):
     optionalDependencies:
       ajv: 8.11.0
@@ -5142,11 +5170,12 @@ snapshots:
       strip-ansi: 6.0.1
       wrap-ansi: 7.0.0
 
-  cloakbrowser@0.3.31(playwright-core@1.60.0):
+  cloakbrowser@0.3.31(playwright-core@1.60.0)(socks-proxy-agent@10.1.0):
     dependencies:
       tar: 7.5.15
     optionalDependencies:
       playwright-core: 1.60.0
+      socks-proxy-agent: 10.1.0
 
   color-convert@2.0.1:
     dependencies:
@@ -5614,6 +5643,8 @@ snapshots:
   inherits@2.0.4: {}
 
   ini@1.3.8: {}
+
+  ip-address@10.5.0: {}
 
   is-fullwidth-code-point@3.0.0: {}
 
@@ -6235,12 +6266,27 @@ snapshots:
       once: 1.4.0
       simple-concat: 1.0.1
 
+  smart-buffer@4.2.0: {}
+
   snaptrade-typescript-sdk@10.0.17:
     dependencies:
       axios: 1.16.1
     transitivePeerDependencies:
       - debug
       - supports-color
+
+  socks-proxy-agent@10.1.0:
+    dependencies:
+      agent-base: 9.0.0
+      debug: 4.4.3
+      socks: 2.8.9
+    transitivePeerDependencies:
+      - supports-color
+
+  socks@2.8.9:
+    dependencies:
+      ip-address: 10.5.0
+      smart-buffer: 4.2.0
 
   source-map-js@1.2.1: {}
 
