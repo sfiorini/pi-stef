@@ -1761,3 +1761,59 @@ describe("[F2] mixed-error walk exhausts with mint strikes → mint-exhaustion c
     expect(refreshCalls).toHaveLength(0);
   });
 });
+
+// ── [F4] injectable cooldown sleep (audit fix) ───────────────────────────
+
+describe("[F4] cooldownSleep injected via RetryDeps", () => {
+  it("non-stream: 2-strike mint exhaustion calls cooldownSleep once with emptyCooldownMs", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const sleepCalls: number[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 42, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      cooldownSleep: async (ms: number) => { sleepCalls.push(ms); },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+      },
+    });
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new TokenMintError("egress", "x");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(2); // 2nd TokenMintError hits MINT_STRIKE_MAX=2
+    expect(sleepCalls).toHaveLength(1);
+    expect(sleepCalls[0]).toBe(42); // emptyCooldownMs
+  });
+
+  it("stream: 2-strike mint exhaustion calls cooldownSleep once with emptyCooldownMs", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const sleepCalls: number[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 42, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      cooldownSleep: async (ms: number) => { sleepCalls.push(ms); },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+      },
+    });
+    let callCount = 0;
+
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      throw new TokenMintError("egress", "x");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(2); // 2nd TokenMintError hits MINT_STRIKE_MAX=2
+    expect(chunks).toHaveLength(1);
+    expect("done" in chunks[0] && (chunks[0] as any).done).toBe(true);
+    expect("done" in chunks[0] && (chunks[0] as any).extra?.rateLimited).toBe(true);
+    expect(sleepCalls).toHaveLength(1);
+    expect(sleepCalls[0]).toBe(42); // emptyCooldownMs
+  });
+});

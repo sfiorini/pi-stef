@@ -36,6 +36,8 @@ export interface RetryDeps {
   throttle?: RequestThrottle;
   /** Optional proxy pool for SOCKS5 rotation mode (S-M2). */
   proxyPool?: ProxyPoolLike;
+  /** Injectable cooldown sleep for mint-exhaustion paths (default: module sleep). */
+  cooldownSleep?: (ms: number) => Promise<void>;
   log: {
     info: (msg: string, ctx?: unknown) => void;
     warn: (msg: string, ctx?: unknown) => void;
@@ -107,7 +109,7 @@ async function applyMintExhaustionStream(
 ): Promise<{ done: true; extra: { rateLimited: true } }> {
   deps.log.warn("mint failures exhausted walk — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
   deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs).catch(() => {});
-  await sleep(deps.config.emptyCooldownMs);
+  await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
   return { done: true, extra: { rateLimited: true } };
 }
 
@@ -201,7 +203,7 @@ export async function withPoolRetry<T>(
             if (mintStrikes >= MINT_STRIKE_MAX) {
               deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
               await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
-              await sleep(deps.config.emptyCooldownMs);
+              await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
               throw new RateLimitError(
                 "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
                 { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
@@ -257,7 +259,7 @@ export async function withPoolRetry<T>(
           if (mintStrikes >= MINT_STRIKE_MAX) {
             deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
             await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
-            await sleep(deps.config.emptyCooldownMs);
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
             throw new RateLimitError(
               "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
               { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
@@ -415,7 +417,7 @@ export async function* withPoolRetryStream(
               deps.pool
                 .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
                 .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
-              await sleep(deps.config.emptyCooldownMs);
+              await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
               yield { done: true, extra: { rateLimited: true } };
               return;
             }
@@ -468,7 +470,7 @@ export async function* withPoolRetryStream(
             deps.pool
               .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
               .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
-            await sleep(deps.config.emptyCooldownMs); // awaited — the in-process storm gate
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs); // awaited — the in-process storm gate
             yield { done: true, extra: { rateLimited: true } };
             return;
           }
@@ -508,7 +510,7 @@ export async function* withPoolRetryStream(
             deps.pool
               .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
               .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
-            await sleep(deps.config.emptyCooldownMs);
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
             yield { done: true, extra: { rateLimited: true } };
             return;
           }
