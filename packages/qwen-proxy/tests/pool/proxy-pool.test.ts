@@ -389,3 +389,65 @@ describe("createProxyPool", () => {
     });
   });
 });
+
+// ── per-proxy serialization slots (S-M3-1) ──────────────────────────────────
+
+describe("ProxyPool slots", () => {
+  const K1 = "socks5://u:p@h1:1080";
+  const K2 = "socks5://u:p@h2:1080";
+  const K3 = "socks5://u:p@h3:1080";
+
+  it("sticky: sequential acquire/release returns the same key", async () => {
+    const pool = new ProxyPool([K1, K2, K3]);
+    const a = await pool.acquire();
+    expect(a).toBe(K1);
+    pool.release(a);
+    const b = await pool.acquire();
+    expect(b).toBe(K1); // head slot free → same proxy (avoid extra mints)
+    pool.release(b);
+  });
+
+  it("spread: concurrent acquire lands on distinct proxies", async () => {
+    const pool = new ProxyPool([K1, K2, K3]);
+    const a = await pool.acquire();
+    const b = await pool.acquire();
+    expect(a).toBe(K1);
+    expect(b).toBe(K2); // K1 busy → next free slot
+    expect(pool.getActive()).toBe(K2); // head tracks last acquisition
+    pool.release(a);
+    pool.release(b);
+  });
+
+  it("release then acquire reuses the freed slot (scan wraps from head)", async () => {
+    const pool = new ProxyPool([K1, K2]);
+    const a = await pool.acquire(); // K1, head=K1
+    const b = await pool.acquire(); // K2, head=K2
+    expect(b).toBe(K2);
+    pool.release(a); // K1 free, head stays K2
+    const c = await pool.acquire(); // K2 busy → wraps to K1
+    expect(c).toBe(K1);
+    pool.release(b);
+    pool.release(c);
+  });
+
+  it("all slots busy: acquire blocks FIFO until release", async () => {
+    const pool = new ProxyPool([K1]);
+    const a = await pool.acquire();
+    expect(a).toBe(K1);
+    let resolved = "";
+    const pending = pool.acquire().then((k) => { resolved = k; return k; });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(resolved).toBe(""); // still blocked
+    pool.release(a);
+    const k = await pending;
+    expect(k).toBe(K1);
+  });
+
+  it("getActive/rotate/getKeys/size unchanged by slots", async () => {
+    const pool = new ProxyPool([K1, K2, K3]);
+    expect(pool.size).toBe(3);
+    expect(pool.getKeys()).toEqual([K1, K2, K3]);
+    expect(pool.rotate()).toBe(K2);
+    expect(pool.getActive()).toBe(K2);
+  });
+});

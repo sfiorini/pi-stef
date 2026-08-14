@@ -95,6 +95,11 @@ export function parseProxyUrls(
 export class ProxyPool {
   private readonly keys: string[];
   private head: number;
+  /** Per-proxy serialization ledger: key → held slot (0 = free). Q2=C — assignment
+   *  returns the first FREE slot (sticky-first from head), so concurrency spreads
+   *  and sequential load sticks with no config special-case. */
+  private readonly busy = new Map<string, number>();
+  private readonly slotWaiters: Array<() => void> = [];
 
   constructor(keys: string[]) {
     this.keys = keys;
@@ -117,6 +122,46 @@ export class ProxyPool {
 
   getKeys(): string[] {
     return [...this.keys];
+  }
+
+  private slotFree(key: string): boolean {
+    return (this.busy.get(key) ?? 0) === 0;
+  }
+
+  /** First key with a free slot, STICKY-FIRST from the current head (head's own
+   *  slot first, then wrap-around scan). Sets head to the acquired key so the
+   *  next sequential request reuses it. Blocks FIFO while every slot is busy —
+   *  progress is guaranteed because slots are only held by in-flight or
+   *  queued requests, both of which always complete. pick() and busy.set() run
+   *  in one synchronous stretch after every await, so two woken acquirers can
+   *  never take the same key. */
+  async acquire(): Promise<string> {
+    const pick = (): string | undefined => {
+      for (let i = 0; i < this.keys.length; i++) {
+        const idx = (this.head + i) % this.keys.length;
+        const k = this.keys[idx];
+        if (this.slotFree(k)) {
+          this.head = idx; // stickiness: head follows the acquisition
+          return k;
+        }
+      }
+      return undefined;
+    };
+    let k = pick();
+    while (k === undefined) {
+      await new Promise<void>((resolve) => this.slotWaiters.push(resolve));
+      k = pick();
+    }
+    this.busy.set(k, 1);
+    return k;
+  }
+
+  /** Free the request's slot. Head unchanged — the next sequential request
+   *  sticks to the last-used proxy. Wakes exactly one FIFO waiter. */
+  release(key: string): void {
+    this.busy.set(key, 0);
+    const next = this.slotWaiters.shift();
+    if (next) next();
   }
 }
 
