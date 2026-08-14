@@ -139,12 +139,14 @@ export async function* withPoolRetryStream(
 ): AsyncIterable<StreamChunk> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
+  const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  let tried = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
-    const proxy = deps.proxyPool?.getActive();
+    const proxy = rotationMode ? deps.proxyPool!.getActive() : undefined;
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
@@ -190,8 +192,34 @@ export async function* withPoolRetryStream(
         throw err;
       }
 
+      // Rotation mode: rotate on rotatable errors (PRE-first-content ONLY)
+      if (rotationMode && !seenContent && isRotationTrigger(err)) {
+        tried++;
+        if (tried < deps.proxyPool!.size) {
+          deps.proxyPool!.rotate();
+          continue;
+        }
+        // All proxies burned — sentinel (no refreshBaxiaToken)
+        deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size });
+        yield { done: true, extra: { rateLimited: true } };
+        return;
+      }
+
       // All other errors surface
       throw err;
+    }
+
+    // Rotation mode: empty → rotate (PRE-first-content)
+    if (emptyCompletion && rotationMode) {
+      tried++;
+      if (tried < deps.proxyPool!.size) {
+        deps.proxyPool!.rotate();
+        continue;
+      }
+      // All proxies burned — sentinel (no refreshBaxiaToken)
+      deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
+      yield { done: true, extra: { rateLimited: true } };
+      return;
     }
 
     // Inline retry on empty completion — same account, up to emptyRetryMax.

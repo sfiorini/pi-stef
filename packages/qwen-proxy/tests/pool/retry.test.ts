@@ -309,6 +309,118 @@ describe("withPoolRetry — rotation mode", () => {
   });
 });
 
+// ── withPoolRetryStream — rotation mode ─────────────────────────────────────
+
+/** Helper to build rotation-mode stream deps, reusing FakeProxyPool. */
+function rotStreamDeps(
+  proxyPool: FakeProxyPool,
+  overrides?: Partial<RetryDeps>,
+): RetryDeps {
+  return makeDeps({ proxyPool, ...overrides });
+}
+
+describe("withPoolRetryStream — rotation mode", () => {
+  it("pre-first-content error → rotate → success (buffer discarded, no dup)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+    let callCount = 0;
+    const seen: string[] = [];
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) throw new NetworkError("timeout");
+      yield contentChunk("ok");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual(["A", "B"]);
+    expect(proxyPool.rotateCalls).toBe(1);
+    // Buffer discarded (pre-content control chunks from the error attempt are gone)
+    expect(chunks).toEqual([contentChunk("ok"), finishChunk("stop")]);
+  });
+
+  it("pre-first-content empty → rotate → success", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+    let callCount = 0;
+    const seen: string[] = [];
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) {
+        yield finishChunk("stop"); // empty — no payload
+        return;
+      }
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual(["A", "B"]);
+    expect(proxyPool.rotateCalls).toBe(1);
+    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
+  });
+
+  it("post-first-content error → NO rotate (surfaces as today)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("partial");
+      throw new NetworkError("mid-stream disconnect");
+    }
+
+    // Post-first-content error surfaces (no rotation, no duplicate)
+    await expect(collectChunks(withPoolRetryStream(deps, op))).rejects.toThrow(NetworkError);
+    expect(proxyPool.rotateCalls).toBe(0); // no rotation after content seen
+  });
+
+  it("budget=size N=2: both-empty → sentinel (no legacy retry)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool, {
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+    });
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield finishChunk("stop"); // always empty
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    // N=2: try A (empty), rotate to B (empty), all burned → sentinel
+    expect(callCount).toBe(2);
+    expect(proxyPool.rotateCalls).toBe(1);
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
+  });
+});
+
 // ── withPoolRetry (unchanged logic) ─────────────────────────────────────────
 
 describe("withPoolRetry", () => {
