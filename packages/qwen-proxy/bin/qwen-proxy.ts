@@ -36,6 +36,7 @@ async function main() {
       chatUrl: CHAT_URL,
       chromePath: config.baxia.chromePath,
       cacheTtlMs: config.baxia.cacheTtlMs,
+      readinessTimeoutMs: config.baxia.readinessTimeoutMs,
       baxiaVersion: config.baxia.baxiaVersion,
       fallback: config.baxia.fallback,
       userAgent:
