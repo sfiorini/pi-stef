@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-08-14
+### Changed
+- fix(qwen-proxy): reset mint strikes on successful inline re-mint
+- fix(qwen-proxy): injectable cooldown sleep in mint-exhaustion paths + hold assertion
+- chore(qwen-proxy): refresh readiness loop comment for configurable timeout
+- fix(qwen-proxy): apply mint-exhaustion cooldown when mint failures exhaust the walk
+- fix(qwen-proxy): release proxy slot before acquiring the next (rotation deadlock)
+- docs(qwen-proxy): document SF_QWEN_BAXIA_READINESS_TIMEOUT_MS in env tables
+- chore(qwen-proxy): demote readiness-poll logs to info; mint-failure logs carry cause + redacted proxy
+- fix(qwen-proxy): map TokenMintError to 503 in app onError (both envelopes)
+- feat(qwen-proxy): count emptyBurnStep inline re-mint failures toward the mint budget
+- feat(qwen-proxy): per-request 2-strike mint budget in withPoolRetryStream (sentinel on exhaustion)
+- feat(qwen-proxy): per-request 2-strike mint budget in withPoolRetry (cooldown + 429 on exhaustion)
+- feat(qwen-proxy): treat TokenMintError as rotatable in isRotationTrigger
+- feat(qwen-proxy): pass configured Baxia readiness timeout through bin
+- feat(qwen-proxy): fast-fail Baxia mint on chrome-error pages (TokenMintError egress)
+- feat(qwen-proxy): configurable readiness timeout + TokenMintError(not-ready) on timeout
+- feat(qwen-proxy): add SF_QWEN_BAXIA_READINESS_TIMEOUT_MS config knob (default 30s, clamp ≥5s)
+- fix(qwen-proxy): type CDP websocket mint failures as TokenMintError(egress)
+- fix(qwen-proxy): type Chrome-missing, /json/list, and sync-spawn mint failures as TokenMintError(egress)
+- feat(qwen-proxy): add TokenMintError class (egress/not-ready mint causes)
+
+
 ## [0.6.0] - 2026-08-14
 ### Changed
 - docs(qwen-proxy): correct emptyBurnStep action-object doc comment (audit polish)
