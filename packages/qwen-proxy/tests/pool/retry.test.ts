@@ -3,6 +3,7 @@ import {
   withPoolRetry,
   withPoolRetryStream,
   isContentChunk,
+  isRotationTrigger,
   type RetryDeps,
   type StreamChunk,
 } from "../../src/pool/retry";
@@ -11,6 +12,9 @@ import {
   RateLimitError,
   AuthExpiredError,
   ClientError,
+  ServerError,
+  NetworkError,
+  UnknownError,
   EmptyCompletionError,
 } from "../../src/upstream/errors";
 import type { OpenAiChatChunk } from "../../src/upstream/client";
@@ -98,6 +102,62 @@ describe("isContentChunk", () => {
 
   it("returns false for finish_reason-only chunk", () => {
     expect(isContentChunk(finishChunk("stop"))).toBe(false);
+  });
+});
+
+// ── isRotationTrigger ──────────────────────────────────────────────────────
+
+describe("isRotationTrigger", () => {
+  // Rotatable errors — should return true
+  it("EmptyCompletionError → true (rotatable)", () => {
+    expect(isRotationTrigger(new EmptyCompletionError("empty"))).toBe(true);
+  });
+
+  it("NetworkError → true (rotatable)", () => {
+    expect(isRotationTrigger(new NetworkError("timeout"))).toBe(true);
+  });
+
+  it("ServerError 5xx → true (rotatable)", () => {
+    expect(isRotationTrigger(new ServerError("bad gateway", { status: 502 }))).toBe(true);
+  });
+
+  it("TypeError → true (rotatable)", () => {
+    expect(isRotationTrigger(new TypeError("fetch failed"))).toBe(true);
+  });
+
+  it("AbortError (name-based) → true (rotatable)", () => {
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    expect(isRotationTrigger(err)).toBe(true);
+  });
+
+  it("generic Error (residual) → true (rotatable)", () => {
+    expect(isRotationTrigger(new Error("SOCKS connect ECONNREFUSED"))).toBe(true);
+  });
+
+  // Terminal errors — should return false
+  it("ClientError 4xx → false (terminal)", () => {
+    expect(isRotationTrigger(new ClientError("bad request", { status: 400 }))).toBe(false);
+  });
+
+  it("ClientError data_inspection 400 → false (terminal)", () => {
+    expect(isRotationTrigger(new ClientError("data_inspection_failed", { status: 400 }))).toBe(false);
+  });
+
+  it("RateLimitError → false (terminal)", () => {
+    expect(isRotationTrigger(new RateLimitError("rate limited", { status: 429 }))).toBe(false);
+  });
+
+  it("UnknownError → false (terminal)", () => {
+    expect(isRotationTrigger(new UnknownError("unknown"))).toBe(false);
+  });
+
+  // Non-Error → false
+  it("non-Error value → false", () => {
+    expect(isRotationTrigger("string error")).toBe(false);
+    expect(isRotationTrigger(null)).toBe(false);
+    expect(isRotationTrigger(undefined)).toBe(false);
+    expect(isRotationTrigger(42)).toBe(false);
   });
 });
 

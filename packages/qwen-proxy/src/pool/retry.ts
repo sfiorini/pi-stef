@@ -1,5 +1,5 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError, EmptyCompletionError } from "../upstream/errors";
+import { RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
 
@@ -225,4 +225,35 @@ function hasPayload(chunk: OpenAiChatChunk): boolean {
   return Boolean(
     delta && (delta.content || delta.reasoning_content || delta.tool_calls),
   );
+}
+
+/**
+ * Classify whether an error should trigger proxy rotation (vs being terminal).
+ *
+ * Rotatable (rotate to next proxy):
+ *   - EmptyCompletionError (likely Baxia CAPTCHA flag)
+ *   - NetworkError (TTFB timeout, connection reset)
+ *   - ServerError (5xx upstream failure)
+ *   - TypeError (fetch internals failure)
+ *   - AbortError (name-based, e.g. undici abort)
+ *   - Residual generic Error (e.g. raw SOCKS connect failure)
+ *
+ * Terminal (do NOT rotate — surface immediately):
+ *   - ClientError (4xx, incl data_inspection_failed)
+ *   - RateLimitError (429)
+ *   - UnknownError
+ *
+ * Non-Error → false (not rotatable).
+ */
+export function isRotationTrigger(err: unknown): boolean {
+  if (err instanceof EmptyCompletionError) return true;
+  if (err instanceof NetworkError) return true;
+  if (err instanceof ServerError) return true;
+  if (err instanceof TypeError) return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  if (err instanceof ClientError) return false;
+  if (err instanceof RateLimitError) return false;
+  if (err instanceof UnknownError) return false;
+  if (err instanceof Error) return true; // residual generic Error → rotate
+  return false; // non-Error → not rotatable
 }
