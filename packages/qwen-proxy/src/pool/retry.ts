@@ -82,8 +82,9 @@ async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Pro
  *  2. evict the proxy's burned token
  *  3. if no inline re-mint happened yet for this request: force re-mint and
  *     retry the SAME proxy (bounded: one per request)
- *  4. else rotate (or signal all-burned when tried >= size)
- *  Returns the next proxy to try, or null when all proxies are burned. */
+ *  4. else rotate (or signal all-burned when the walk budget is spent)
+ *  Returns the next action: remint (retry same proxy), rotate (next proxy),
+ *  or all-burned (sentinel/429 + refresh). */
 async function emptyBurnStep(
   deps: RetryDeps,
   opts: { proxy: string | undefined; tried: number; inlineReminted: boolean },
