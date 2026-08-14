@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
-import { NetworkError } from "./errors";
+import { NetworkError, TokenMintError } from "./errors";
 import { redactProxyKey } from "./proxy-bridge";
 import type { Logger } from "../server/logger";
 
@@ -138,7 +138,8 @@ export class BaxiaTokenManager {
       if (fs.existsSync(c)) return c;
     }
 
-    throw new Error(
+    throw new TokenMintError(
+      "egress",
       "Chrome not found — set config.chromePath or CHROME_PATH env",
     );
   }
@@ -182,7 +183,16 @@ export class BaxiaTokenManager {
       args.unshift(`--proxy-server=${proxyServerUrl}`);
       args.unshift("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
     }
-    const child = this._spawn(exe, args, { stdio: "ignore", detached: true });
+    const child = (() => {
+      try {
+        return this._spawn(exe, args, { stdio: "ignore", detached: true });
+      } catch (e) {
+        throw new TokenMintError(
+          "egress",
+          `chromium spawn failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    })();
     return { child, port };
   }
 
@@ -324,7 +334,8 @@ export class BaxiaTokenManager {
       }
 
       if (!wsUrl) {
-        throw new NetworkError(
+        throw new TokenMintError(
+          "egress",
           "Chrome /json/list never returned a page (40×250ms)",
         );
       }

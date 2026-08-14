@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as fs from "node:fs";
 import type { BaxiaTokenManagerConfig } from "../../src/upstream/baxia-token";
+import { TokenMintError } from "../../src/upstream/errors";
 
 // Auto-mock node:fs so vi.spyOn/vi.mocked works with ESM namespace imports
 vi.mock("node:fs");
@@ -178,6 +179,64 @@ describe("BaxiaTokenManager", () => {
         makeConfig({ chromePath: undefined }),
       );
       await expect(mgr.ensureToken()).rejects.toThrow(/Chrome not found/i);
+      await expect(mgr.ensureToken()).rejects.toBeInstanceOf(TokenMintError);
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "egress" });
+    });
+
+    it("fetcher never returns /json/list → TokenMintError(egress)", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const fetcherFn = vi.fn(async () => ({
+        ok: false,
+        json: async () => ({}),
+      }));
+      const replyMap = makeDefaultReplyMap();
+      const child = { pid: 1, kill: vi.fn() };
+
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: vi.fn(() => child) as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: fetcherFn as any,
+          sleep: () => Promise.resolve(),
+          now: () => 1000,
+        }),
+      );
+
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "egress" });
+      await expect(mgr.ensureToken()).rejects.toThrow(/never returned a page/i);
+    });
+
+    it("sync spawn throw → TokenMintError(egress)", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const replyMap = makeDefaultReplyMap();
+      const fetcherFn = vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return {
+            ok: true,
+            json: async () => [
+              { type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" },
+            ],
+          };
+        }
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: (() => { throw new Error("spawn EACCES"); }) as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: fetcherFn as any,
+          sleep: () => Promise.resolve(),
+          now: () => 1000,
+        }),
+      );
+
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "egress" });
+      await expect(mgr.ensureToken()).rejects.toThrow(/chromium spawn failed/i);
     });
 
     // P0 regression: ensure internal _spawn is a real function, not a module namespace
