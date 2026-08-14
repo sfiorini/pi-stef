@@ -386,7 +386,7 @@ export class BaxiaTokenManager {
                   returnByValue: true,
                 });
                 lastPageState = String((st?.result?.value as string) ?? "");
-                this.config.log.warn("[baxia-debug] readiness poll", { poll: i, page: lastPageState.slice(0, 300) });
+                this.config.log.info("[baxia-debug] readiness poll", { poll: i, page: lastPageState.slice(0, 300) });
               } catch { /* page evaluating mid-nav */ }
             }
             const result = await cdp.send("Runtime.evaluate", {
@@ -431,6 +431,7 @@ export class BaxiaTokenManager {
 
         if (!baxiaData) {
           this.config.log.error(`[baxia-debug] readiness FAILED after ${this.readinessTimeoutMs}ms`, {
+            cause: "not-ready",
             proxy: redactProxyKey(proxy),
             lastPage: lastPageState.slice(0, 300),
           });
@@ -550,6 +551,9 @@ export class BaxiaTokenManager {
       this.lastUsedProxy = key; // SUCCESS only
       return tokens;
     } catch (e) {
+      if (e instanceof TokenMintError) {
+        this.config.log.error("[baxia] token mint failed", { cause: e.cause, proxy: redactProxyKey(proxy), message: e.message });
+      }
       const prev = this.proxyCache.get(key);
       this.proxyCache.set(key, {
         tokens: prev?.tokens ?? null,

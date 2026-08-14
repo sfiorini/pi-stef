@@ -1423,3 +1423,95 @@ describe("baxia log redaction", () => {
     expect(spawnLog!.ctx.proxy).toBe("redact-me:1080");
   });
 });
+
+// ── mint log polish (S-M3-1) ─────────────────────────────────────────────────
+
+describe("mint log polish", () => {
+  it("readiness poll logs at info, never warn", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const infoMessages: string[] = [];
+    const warnMessages: string[] = [];
+    const log = {
+      info: (msg: string) => infoMessages.push(msg),
+      warn: (msg: string) => warnMessages.push(msg),
+      error: () => {},
+    };
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) {
+        return { result: { type: "object", value: { ready: false, href: "https://chat.qwen.ai/" } } };
+      }
+      return { result: { type: "undefined" } };
+    });
+    const config = makeConfig({
+      spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }) as any,
+      sleep: () => Promise.resolve(),
+      now: vi.fn(() => 1000),
+      readinessTimeoutMs: 5000,
+      log,
+    });
+    const mgr = new BaxiaTokenManager(config);
+
+    await mgr.ensureToken({ proxy: "socks5://u:secretpw@host:1080" }).catch(() => {});
+
+    expect(warnMessages.filter((m) => m.includes("readiness poll"))).toHaveLength(0);
+    const readinessInfoCount = infoMessages.filter((m) => m.includes("readiness poll")).length;
+    expect(readinessInfoCount).toBeGreaterThan(0);
+  });
+
+  it("mint failure log.error carries cause + redacted proxy", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const records: Array<{ msg: string; ctx: any }> = [];
+    const log = {
+      info: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      warn: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      error: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+    };
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) {
+        return { result: { type: "object", value: { ready: false, href: "https://chat.qwen.ai/" } } };
+      }
+      return { result: { type: "undefined" } };
+    });
+    const config = makeConfig({
+      spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }) as any,
+      sleep: () => Promise.resolve(),
+      now: vi.fn(() => 1000),
+      readinessTimeoutMs: 5000,
+      log,
+    });
+    const mgr = new BaxiaTokenManager(config);
+    const proxy = "socks5://u:secretpw@host:1080";
+
+    await mgr.ensureToken({ proxy }).catch(() => {});
+
+    const mintFail = records.find((r) => r.msg === "[baxia] token mint failed");
+    expect(mintFail).toBeDefined();
+    expect(mintFail!.ctx.cause).toBe("not-ready");
+    expect(mintFail!.ctx.proxy).toBe("host:1080");
+    const serialized = JSON.stringify(records);
+    expect(serialized).not.toContain("u:secretpw");
+    expect(serialized).not.toContain("socks5://u:secretpw@host:1080");
+  });
+});
