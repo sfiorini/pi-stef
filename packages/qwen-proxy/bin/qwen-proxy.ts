@@ -72,10 +72,19 @@ async function main() {
     }
 
     // Pre-warm: eagerly fetch the first token so the server starts ready.
-    // In rotation mode (bridge set), skip pre-warm — the lazy on-demand refresh
-    // handles the first proxy's token when the first request arrives. Pre-warming
-    // with no proxy would mint a DIRECT_KEY token via direct Chromium (wasteful).
-    if (config.baxia.preWarm && !bridge) {
+    // Non-rotation (direct Chromium): exit 1 on failure — the first request
+    // would be equally broken. Rotation mode (bridge set): pre-mint the ACTIVE
+    // proxy's token under the SAME SF_QWEN_BAXIA_PRE_WARM flag (Q5 — no new
+    // knob), but a failure only logs: lazy on-demand re-mint self-heals, and one
+    // Nord server hiccup at boot must not kill the service.
+    if (config.baxia.preWarm && bridge && proxyPool && proxyPool.size > 0) {
+      try {
+        await baxia.ensureToken({ proxy: proxyPool.getActive() });
+        log.info("baxia pre-warm succeeded (rotation)");
+      } catch (e) {
+        log.error("baxia rotation pre-warm failed — continuing (lazy mint on first request)", { error: String(e) });
+      }
+    } else if (config.baxia.preWarm && !bridge) {
       try {
         await baxia.ensureToken();
         log.info("baxia pre-warm succeeded");
@@ -91,12 +100,15 @@ async function main() {
     // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
     // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
     const concurrency = new Semaphore(config.maxConcurrency);
-    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache, timeoutMs: config.timeoutMs });
-
-    // Re-create client with proxy dispatcher cache + timeout if rotation enabled
-    const finalClient = proxyDispatcherCache
-      ? new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache, timeoutMs: config.timeoutMs })
-      : client;
+    const client = new GuestUpstreamClient({
+      baxia, chatUrl: CHAT_URL, concurrency, log,
+      timeoutMs: config.timeoutMs,
+      ...(proxyDispatcherCache ? { proxyDispatcherCache } : {}),
+      stallGuard: {
+        firstPayloadTimeoutMs: config.firstPayloadTimeoutMs,
+        idleTimeoutMs: config.streamIdleTimeoutMs,
+      },
+    });
 
     // Single-account pool shim (guest mode: one virtual account, no failover)
     const pool = new SingleAccountPool({ log });
@@ -104,14 +116,22 @@ async function main() {
     // No-op auth scheduler (guest has no JWT to refresh)
     const scheduler = {
       refreshOnDemand: async () => ({ bearer: "guest", expiresAt: null }),
-      // Rotate the Baxia token on empty-exhaustion: in guest mode the token/session
-      // can get flagged by Baxia, and a fresh Chromium spawn recovers it without a restart.
-      // When a proxyPool exists, thread the active proxy so the refresh targets
-      // the proxy's cache entry (not DIRECT_KEY). Without this, size===1 proxy setups
-      // would refresh direct-Chromium's token instead of the proxy's → stale token.
-      refreshBaxiaToken: async () => {
-        const proxy = proxyPool?.getActive();
-        await baxia.ensureToken({ forceRefresh: true, ...(proxy ? { proxy } : {}) });
+      // Force-refresh a proxy's Baxia token (defaults to the active proxy).
+      // Burn-dynamics: called for the ≤1 inline re-mint on empty and at the
+      // all-burned sentinel so the next request self-recovers without a restart.
+      refreshBaxiaToken: async (proxy?: string) => {
+        const p = proxy ?? proxyPool?.getActive();
+        await baxia.ensureToken({ forceRefresh: true, ...(p ? { proxy: p } : {}) });
+      },
+      // Mark a proxy's token burned (evicts cache + logs requestsServed).
+      evictBaxiaToken: (proxy?: string) => {
+        baxia.evictToken(proxy ?? proxyPool?.getActive());
+      },
+      // Cached-token age for empty-walk logging.
+      baxiaTokenAgeMs: (proxy?: string) => {
+        const p = proxy ?? proxyPool?.getActive();
+        if (!p) return baxia.status().ageMs;
+        return baxia.proxyStatuses()[p]?.ageMs ?? null;
       },
     };
 
@@ -123,7 +143,7 @@ async function main() {
     const deps: AppDeps = {
       db,
       pool,
-      client: finalClient,
+      client,
       scheduler,
       config,
       retry: withPoolRetry,

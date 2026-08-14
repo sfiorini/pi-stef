@@ -174,6 +174,8 @@ All configuration is via environment variables (prefix `SF_QWEN_`), set automati
 | `SF_QWEN_PROXY_PASS` | *(unset)* | NordVPN service password |
 | `SF_QWEN_PROXY_COUNTRIES` | *(unset)* | Comma-separated country codes for auto-discovery (e.g. `us,de,gb`) |
 | `SF_QWEN_TIMEOUT_MS` | `60000` | TTFB timeout in ms — aborts if no response headers arrive within this window (cleared on headers, never aborts mid-stream) |
+| `SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS` | `30000` | Abort an upstream completion that produces no payload chunk within this many ms after headers (`0` disables). The abort throws EmptyCompletionError → token eviction + proxy rotation, and always releases the concurrency slot |
+| `SF_QWEN_STREAM_IDLE_TIMEOUT_MS` | `30000` | Abort an upstream stream that goes silent for this many ms after content started flowing (`0` disables). Ends the response gracefully with the partial content — no token eviction |
 | `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias → upstream model |
 | `SF_QWEN_LOG_LEVEL` | `info` | Log level |
 | `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
