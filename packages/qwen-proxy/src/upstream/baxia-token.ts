@@ -153,6 +153,21 @@ export class BaxiaTokenManager {
       "--disable-gpu",
       "--disable-dev-shm-usage",
       "--disable-extensions",
+      // Kill Chromium telemetry/background traffic — each CONNECT through the
+      // SOCKS bridge is a full SOCKS5 auth handshake against NordVPN, and
+      // Google/telemetry beacons were >50% of all handshakes (observed live:
+      // 76 Google/* vs 42 chat.qwen.ai in one hour), tripping NordVPN's
+      // per-server credential throttle ("User was rejected by the SOCKS5
+      // server"). These flags stop the phone-home; only page-essential
+      // traffic remains.
+      "--disable-background-networking",
+      "--disable-component-update",
+      "--disable-sync",
+      "--disable-domain-reliability",
+      "--no-pings",
+      "--disable-breakpad",
+      "--disable-client-side-phishing-detection",
+      "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,MediaRouter",
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${userDataDir}`,
       "--window-size=1280,800",
