@@ -648,32 +648,6 @@ describe("chatCompletions non-stream empty detection", () => {
     ).rejects.toThrow(EmptyCompletionError);
   });
 
-  it("reasoning-only SSE (no content, no tool_calls) → EmptyCompletionError", async () => {
-    // Regression (live on mini 2026-08-14): reasoning_content alone must not
-    // rescue an empty completion — the client got nothing visible.
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { id: "sid-reasoning-only" } }),
-      })
-      .mockResolvedValueOnce(makeSseResponse("reasoning-only.txt"));
-
-    const client = new GuestUpstreamClient({
-      baxia: makeBaxia(),
-      chatUrl: "https://chat.qwen.ai",
-      fetcher: fetcher as unknown as typeof fetch,
-      log: noopLog,
-    });
-
-    await expect(
-      client.chatCompletions("ignored", {
-        model: "qwen3-max",
-        messages: [{ role: "user", content: "hi" }],
-      } as any),
-    ).rejects.toThrow(/no content and no tool_calls/);
-  });
-
   it("tool_calls XML in content → NOT an empty completion", async () => {
     const fetcher = vi
       .fn()

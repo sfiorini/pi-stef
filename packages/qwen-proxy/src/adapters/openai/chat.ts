@@ -190,10 +190,12 @@ export function chatRoutes(deps: ChatRouteDeps) {
         // multi-turn history for guest mode (assistant turns fold into a
         // synthesized user message), so rewrittenMessages may carry no
         // assistant role at all.
+        // Require a preceding assistant tool_calls (not a bare tool message):
+        // the in-context <tool_calls> convention the model relies on comes
+        // from that assistant turn — without it the format still needs priming.
         const isContinuation = (b.messages as Array<Record<string, unknown>>).some(
           (m) =>
-            (m.role === "assistant" && Array.isArray(m.tool_calls) && (m.tool_calls as unknown[]).length > 0) ||
-            m.role === "tool",
+            m.role === "assistant" && Array.isArray(m.tool_calls) && (m.tool_calls as unknown[]).length > 0,
         );
         if (!isContinuation) {
           const toolPrompt = injectToolPrompt(b.tools as unknown[], b.tool_choice);

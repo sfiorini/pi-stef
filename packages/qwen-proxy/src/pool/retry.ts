@@ -591,13 +591,21 @@ export async function* withPoolRetryStream(
  * before accessing `extra`. A real OpenAiChatChunk always has `choices`.
  */
 export function isContentChunk(chunk: OpenAiChatChunk): boolean {
+  // VISIBLE payload only — reasoning_content deliberately excluded (see
+  // hasPayload below). Pre-first-visible-content chunks (role, reasoning,
+  // control) are buffered, NOT streamed live: a reasoning-only attempt must
+  // be fully retractable when the empty-retry machinery rotates (streaming
+  // attempt-1 reasoning/finish live and then appending attempt-2's answer
+  // would emit two finish_reason chunks — strict clients stop at the first
+  // and drop the recovered answer). Consequence: thinking deltas are flushed
+  // together with the first visible token (or at clean end), not live.
   return Boolean(
     chunk.choices?.[0]?.delta?.content ||
-      chunk.choices?.[0]?.delta?.reasoning_content,
+      chunk.choices?.[0]?.delta?.tool_calls,
   );
 }
 
-/** A chunk carries a substantive payload if it has content, reasoning, or tool_calls. */
+/** A chunk carries a substantive payload if it has VISIBLE content or tool_calls (reasoning alone is not payload — see isContentChunk). */
 function hasPayload(chunk: OpenAiChatChunk): boolean {
   const delta = chunk.choices?.[0]?.delta;
   // NOTE: reasoning_content deliberately does NOT count as payload here.

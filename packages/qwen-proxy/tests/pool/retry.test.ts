@@ -90,8 +90,10 @@ describe("isContentChunk", () => {
     expect(isContentChunk(contentChunk("hello"))).toBe(true);
   });
 
-  it("returns true for chunk with delta.reasoning_content", () => {
-    expect(isContentChunk(reasoningChunk("thinking..."))).toBe(true);
+  it("returns false for chunk with delta.reasoning_content (buffered, not live)", () => {
+    // 2026-08-14 hotfix: reasoning is NOT visible payload — pre-visible
+    // chunks buffer so a reasoning-only attempt is fully retractable on retry.
+    expect(isContentChunk(reasoningChunk("thinking..."))).toBe(false);
   });
 
   it("returns false for chunk with no content or reasoning_content", () => {
@@ -816,13 +818,9 @@ describe("withPoolRetryStream — reasoning-only completions are empty", () => {
       }
     }
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // attempt 1 streams role+reasoning live (isContentChunk counts reasoning),
-    // is then classified empty at stream end → rotate; attempt 2 delivers content.
-    const texts = chunks
-      .map((c: any) => c.choices?.[0]?.delta?.content ?? "")
-      .join("");
-    expect(texts).toContain("the answer");
-    expect(chunks[chunks.length - 1]).toEqual(finishChunk("stop"));
+    // attempt 1 (role+reasoning+finish) is fully buffered and DISCARDED on
+    // retry — the client sees only attempt 2, single terminal chunk.
+    expect(chunks).toEqual([contentChunk("the answer"), finishChunk("stop")]);
     expect(opCalls).toBe(2); // first attempt classified EMPTY → retried
   });
 
@@ -837,7 +835,8 @@ describe("withPoolRetryStream — reasoning-only completions are empty", () => {
       yield finishChunk("stop");
     }
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // reasoning streams live, then content, then finish — one op call only.
+    // reasoning is buffered pre-visible-content and flushed WITH the first
+    // content token (not streamed live) — still one op call, single finish.
     expect(chunks).toEqual([
       reasoningChunk("thinking..."),
       contentChunk("visible answer"),
