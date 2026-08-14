@@ -995,19 +995,14 @@ describe("S-M1-6: TTFB timeout", () => {
   it("no headers within timeout → NetworkError", async () => {
     vi.useFakeTimers();
 
-    const fetcher = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ data: { id: "sid-ttfb-timeout" } }),
-      })
-      // This fetch hangs — but honors the abort signal (rejects AbortError when it fires)
-      .mockImplementationOnce((_u: string, init: any) =>
-        new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () =>
-            reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
-          );
-        }),
-      );
+    // createChatSession fetch hangs but honors the abort signal (rejects AbortError on abort)
+    const fetcher = vi.fn().mockImplementationOnce((_u: string, init: any) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+        );
+      }),
+    );
 
     const client = new GuestUpstreamClient({
       baxia: makeBaxia(),
@@ -1017,20 +1012,14 @@ describe("S-M1-6: TTFB timeout", () => {
       timeoutMs: 5_000,
     });
 
-    const completionPromise = client.chatCompletions("ignored", {
-      model: "qwen3-max",
-      messages: [{ role: "user", content: "Hello" }],
-      stream: true,
-    }) as AsyncIterable<any>;
+    // Attach the rejection handler BEFORE advancing the timer so the rejection
+    // (fired synchronously inside controller.abort()) is never "unhandled".
+    const p = client.createChatSession("qwen3-max", "t2t");
+    const caught = p.catch((e: unknown) => e);
 
-    // Start consuming — this will trigger the fetch
-    const iter = completionPromise[Symbol.asyncIterator]();
-    const nextPromise = iter.next();
+    await vi.advanceTimersByTimeAsync(5_001); // fires the TTFB timer → abort → AbortError → NetworkError
 
-    // Advance past the timeout
-    await vi.advanceTimersByTimeAsync(6_000);
-
-    await expect(nextPromise).rejects.toThrow(NetworkError);
+    expect(await caught).toBeInstanceOf(NetworkError);
 
     vi.useRealTimers();
   });

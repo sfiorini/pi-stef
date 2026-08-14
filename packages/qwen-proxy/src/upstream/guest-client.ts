@@ -83,7 +83,7 @@ export class GuestUpstreamClient {
       return res;
     } catch (e) {
       clearTimeout(timer);
-      if (e instanceof DOMException && e.name === "AbortError") {
+      if (e instanceof Error && e.name === "AbortError") {
         throw new NetworkError("TTFB timeout: no headers within timeoutMs", { status: 599 });
       }
       throw e;
