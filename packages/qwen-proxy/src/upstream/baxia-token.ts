@@ -31,6 +31,7 @@ export interface BaxiaTokenManagerConfig {
   log: Logger;
   /** Optional bridge for proxy-affine token generation (S-M1-7). */
   bridge?: { getPort(): number; setUpstream(key: string): void };
+  readinessTimeoutMs?: number;
   now?: () => number;
   spawn?: typeof import("node:child_process").spawn;
   WebSocketCtor?: typeof WebSocket;
@@ -93,6 +94,7 @@ export class BaxiaTokenManager {
   private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private static readonly DIRECT_KEY = "";
+  private readonly readinessTimeoutMs: number;
   // Global spawn mutex — serializes all doRefresh calls
   private spawnChain: Promise<void> = Promise.resolve();
   // Optional bridge for proxy-affine token generation (S-M1-7)
@@ -105,6 +107,7 @@ export class BaxiaTokenManager {
     this._fetcher = config.fetcher ?? globalThis.fetch;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.bridge = config.bridge;
+    this.readinessTimeoutMs = Math.max(5_000, config.readinessTimeoutMs ?? 30_000);
   }
 
   /** Set the bridge for proxy-affine token generation (S-M1-7 / S-M2-2). */
@@ -370,7 +373,8 @@ export class BaxiaTokenManager {
           | { uid: string; fy: string; cookies: string }
           | null = null;
         let lastPageState = "";
-        for (let i = 0; i < 60; i++) {
+        const pollMax = Math.ceil(this.readinessTimeoutMs / 500);
+        for (let i = 0; i < pollMax; i++) {
           await this._sleep(500); // sleep first (qwen2api ordering — lets the SDK init)
           try {
             // Every 10th poll (~5s), capture the page state — reveals CAPTCHA
@@ -416,12 +420,13 @@ export class BaxiaTokenManager {
         }
 
         if (!baxiaData) {
-          this.config.log.error("[baxia-debug] readiness FAILED after 30s", {
+          this.config.log.error(`[baxia-debug] readiness FAILED after ${this.readinessTimeoutMs}ms`, {
             proxy: redactProxyKey(proxy),
             lastPage: lastPageState.slice(0, 300),
           });
-          throw new Error(
-            "window.__baxia__ tokens not available within 30s",
+          throw new TokenMintError(
+            "not-ready",
+            `window.__baxia__ not ready within ${this.readinessTimeoutMs}ms (page loaded, SDK uninitialized)`,
           );
         }
         this.config.log.info("[baxia-debug] token minted", {
