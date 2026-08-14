@@ -252,4 +252,132 @@ describe("createProxyPool", () => {
     });
     expect(pool.size).toBe(0);
   });
+
+  describe("discovery (NordVPN)", () => {
+    it("sorts by load ascending and takes N", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([
+        { hostname: "us1.example.com", load: 50, locations: [{ country: { code: "US" } }] },
+        { hostname: "de1.example.com", load: 10, locations: [{ country: { code: "DE" } }] },
+        { hostname: "us2.example.com", load: 30, locations: [{ country: { code: "US" } }] },
+      ]), { status: 200 }));
+
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 2,
+        proxyUser: "u",
+        proxyPass: "p",
+        fetcher,
+      });
+      expect(pool.size).toBe(2);
+      // Sorted by load: de1(10), us2(30), us1(50)
+      expect(pool.getKeys()).toEqual([
+        "socks5://u:p@de1.example.com:1080",
+        "socks5://u:p@us2.example.com:1080",
+      ]);
+    });
+
+    it("filters by country BEFORE sort (case-insensitive)", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([
+        { hostname: "us1.example.com", load: 10, locations: [{ country: { code: "US" } }] },
+        { hostname: "de1.example.com", load: 5, locations: [{ country: { code: "DE" } }] },
+        { hostname: "us2.example.com", load: 20, locations: [{ country: { code: "US" } }] },
+      ]), { status: 200 }));
+
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 10,
+        proxyUser: "u",
+        proxyPass: "p",
+        proxyCountriesRaw: "de",
+        fetcher,
+      });
+      expect(pool.size).toBe(1);
+      expect(pool.getKeys()).toEqual(["socks5://u:p@de1.example.com:1080"]);
+    });
+
+    it("graceful degrade: M<N usable → use M", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([
+        { hostname: "us1.example.com", load: 10, locations: [{ country: { code: "US" } }] },
+      ]), { status: 200 }));
+
+      const log = { warn: vi.fn() };
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 5,
+        proxyUser: "u",
+        proxyPass: "p",
+        log,
+        fetcher,
+      });
+      expect(pool.size).toBe(1);
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it("0 usable → size 0 + warn", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([]), { status: 200 }));
+
+      const log = { warn: vi.fn() };
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 5,
+        proxyUser: "u",
+        proxyPass: "p",
+        log,
+        fetcher,
+      });
+      expect(pool.size).toBe(0);
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it("non-OK response → size 0", async () => {
+      const fetcher = vi.fn(async () => new Response("error", { status: 500 }));
+
+      const log = { warn: vi.fn() };
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 5,
+        proxyUser: "u",
+        proxyPass: "p",
+        log,
+        fetcher,
+      });
+      expect(pool.size).toBe(0);
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it("missing creds short-circuits (fetch not called)", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([
+        { hostname: "us1.example.com", load: 10, locations: [{ country: { code: "US" } }] },
+      ]), { status: 200 }));
+
+      const log = { warn: vi.fn() };
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "",
+        proxyCount: 5,
+        // no creds
+        log,
+        fetcher,
+      });
+      expect(pool.size).toBe(0);
+      expect(fetcher).not.toHaveBeenCalled();
+      expect(log.warn).toHaveBeenCalled();
+    });
+
+    it("explicit URLs skip discovery entirely", async () => {
+      const fetcher = vi.fn(async () => new Response(JSON.stringify([
+        { hostname: "us1.example.com", load: 10, locations: [{ country: { code: "US" } }] },
+      ]), { status: 200 }));
+
+      const pool = await createProxyPool({
+        proxyUrlsRaw: "socks5://u:p@custom:1080",
+        proxyCount: 5,
+        proxyUser: "u",
+        proxyPass: "p",
+        fetcher,
+      });
+      expect(pool.size).toBe(1);
+      expect(pool.getKeys()).toEqual(["socks5://u:p@custom:1080"]);
+      expect(fetcher).not.toHaveBeenCalled();
+    });
+  });
 });

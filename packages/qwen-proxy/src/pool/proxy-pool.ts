@@ -130,6 +130,58 @@ export async function fetchWithProxy(
 
 // ── createProxyPool ──────────────────────────────────────────────────────────
 
+export interface NordServer {
+  hostname: string;
+  load: number;
+  locations: Array<{ country: { code: string } }>;
+}
+
+export async function discoverNordSocks(opts: {
+  count: number;
+  countriesRaw: string;
+  fetcher: (url: string, init: any) => Promise<Response>;
+  log?: { warn: (msg: string, ...args: unknown[]) => void };
+}): Promise<string[]> {
+  const { count, countriesRaw, fetcher, log } = opts;
+
+  try {
+    const res = await fetcher("https://api.nordvpn.com/v1/servers?filters[servers_technologies][identifier]=socks&limit=0", { method: "GET" });
+    if (!res.ok) {
+      log?.warn("NordVPN API returned non-OK status", { status: res.status });
+      return [];
+    }
+
+    const servers: NordServer[] = await res.json();
+
+    // Filter by country BEFORE sort
+    let filtered = servers;
+    if (countriesRaw.trim()) {
+      const allowed = new Set(
+        countriesRaw.split(/[\s,]+/).map(s => s.trim().toLowerCase()).filter(Boolean)
+      );
+      filtered = servers.filter(s =>
+        s.locations?.some(loc => allowed.has(loc.country?.code?.toLowerCase()))
+      );
+    }
+
+    // Sort by load ascending (missing load → bottom)
+    filtered.sort((a, b) => {
+      const la = a.load ?? Infinity;
+      const lb = b.load ?? Infinity;
+      return la - lb;
+    });
+
+    // Take N
+    const taken = filtered.slice(0, count);
+
+    // Map to hostnames
+    return taken.map(s => s.hostname);
+  } catch (err) {
+    log?.warn("NordVPN discovery failed", { error: err });
+    return [];
+  }
+}
+
 export interface CreateProxyPoolOpts {
   proxyUrlsRaw: string;
   proxyCount: number;
@@ -137,10 +189,11 @@ export interface CreateProxyPoolOpts {
   proxyPass?: string;
   proxyCountriesRaw?: string;
   log?: { warn: (msg: string, ...args: unknown[]) => void };
+  fetcher?: (url: string, init: any) => Promise<Response>;
 }
 
 export async function createProxyPool(opts: CreateProxyPoolOpts): Promise<ProxyPool> {
-  const { proxyUrlsRaw, proxyUser, proxyPass } = opts;
+  const { proxyUrlsRaw, proxyUser, proxyPass, proxyCountriesRaw = "", proxyCount, log, fetcher } = opts;
 
   // Explicit URLs win over discovery
   if (proxyUrlsRaw.trim()) {
@@ -148,6 +201,35 @@ export async function createProxyPool(opts: CreateProxyPoolOpts): Promise<ProxyP
     return new ProxyPool(keys);
   }
 
-  // Discovery stub (filled S-M1-4) — returns empty pool
-  return new ProxyPool([]);
+  // Discovery requires creds + fetcher
+  if (!proxyUser || !proxyPass) {
+    log?.warn("Proxy discovery requires SF_QWEN_PROXY_USER and SF_QWEN_PROXY_PASS");
+    return new ProxyPool([]);
+  }
+
+  if (!fetcher) {
+    log?.warn("Proxy discovery requires a fetcher");
+    return new ProxyPool([]);
+  }
+
+  // Discover NordVPN SOCKS5 servers
+  const hostnames = await discoverNordSocks({
+    count: proxyCount,
+    countriesRaw: proxyCountriesRaw,
+    fetcher,
+    log,
+  });
+
+  if (hostnames.length === 0) {
+    log?.warn("No usable SOCKS5 proxies discovered");
+    return new ProxyPool([]);
+  }
+
+  if (hostnames.length < proxyCount) {
+    log?.warn("Discovered fewer proxies than requested", { discovered: hostnames.length, requested: proxyCount });
+  }
+
+  // Build keys with creds
+  const keys = hostnames.map(h => `socks5://${proxyUser}:${proxyPass}@${h}:1080`);
+  return new ProxyPool(keys);
 }
