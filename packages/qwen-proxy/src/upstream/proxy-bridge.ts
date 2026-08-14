@@ -124,7 +124,7 @@ export class ProxyBridge {
 
   /**
    * Handle a new connection from Chromium.
-   * (Stub — will be implemented in S-M1-3/S-M1-4.)
+   * (SOCKS5 handshake + forwarding — implemented in S-M1-3/S-M1-4.)
    */
   private async handleConnection(socket: net.Socket): Promise<void> {
     const VER = 0x05, AUTH_NONE = 0x00, AUTH_NO_ACCEPTABLE = 0xFF;

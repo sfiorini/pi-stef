@@ -71,9 +71,11 @@ async function main() {
       }
     }
 
-    // Pre-warm: eagerly fetch the first token so the server starts ready
-    // (S-M2-2: after bridge setup so token-gen egresses through the bridge)
-    if (config.baxia.preWarm) {
+    // Pre-warm: eagerly fetch the first token so the server starts ready.
+    // In rotation mode (bridge set), skip pre-warm — the lazy on-demand refresh
+    // handles the first proxy's token when the first request arrives. Pre-warming
+    // with no proxy would mint a DIRECT_KEY token via direct Chromium (wasteful).
+    if (config.baxia.preWarm && !bridge) {
       try {
         await baxia.ensureToken();
         log.info("baxia pre-warm succeeded");
