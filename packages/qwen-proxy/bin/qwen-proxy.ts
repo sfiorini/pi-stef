@@ -11,7 +11,7 @@ import { ProxyBridge } from "../src/upstream/proxy-bridge";
 import { SingleAccountPool } from "../src/pool/single";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
-import { createProxyPool, ProxyDispatcherCache } from "../src/pool/proxy-pool";
+import { createProxyPool, ProxyDispatcherCache, ProxyPool } from "../src/pool/proxy-pool";
 import { RequestThrottle } from "../src/pool/throttle";
 import { Semaphore } from "../src/pool/semaphore";
 import type { AppDeps } from "../src/server/app";
@@ -44,7 +44,7 @@ async function main() {
     });
 
     // Proxy pool rotation (NordVPN SOCKS5)
-    let proxyPool;
+    let proxyPool: ProxyPool | undefined;
     let proxyDispatcherCache;
     let bridge: ProxyBridge | undefined;
     if (config.proxyCount > 1 || config.proxyUrlsRaw.trim()) {
@@ -106,7 +106,13 @@ async function main() {
       refreshOnDemand: async () => ({ bearer: "guest", expiresAt: null }),
       // Rotate the Baxia token on empty-exhaustion: in guest mode the token/session
       // can get flagged by Baxia, and a fresh Chromium spawn recovers it without a restart.
-      refreshBaxiaToken: async () => { await baxia.ensureToken({ forceRefresh: true }); },
+      // When a proxyPool exists, thread the active proxy so the refresh targets
+      // the proxy's cache entry (not DIRECT_KEY). Without this, size===1 proxy setups
+      // would refresh direct-Chromium's token instead of the proxy's → stale token.
+      refreshBaxiaToken: async () => {
+        const proxy = proxyPool?.getActive();
+        await baxia.ensureToken({ forceRefresh: true, ...(proxy ? { proxy } : {}) });
+      },
     };
 
     // Per-account request throttle (look-human): paces dispatches to reduce
