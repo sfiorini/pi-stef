@@ -169,3 +169,166 @@ describe("ProxyBridge SOCKS5 handshake", () => {
     finally { sock.destroy(); await bridge.stop(); }
   });
 });
+
+// ── S-M1-4: ProxyBridge forwarding tests ───────────────────────────────────
+
+describe("ProxyBridge forwarding", () => {
+  const PROXY_A = "socks5://alice:passA@proxy-a:1080";
+  const PROXY_B = "socks5://bob:passB@proxy-b:2080";
+
+  function readN(sock: net.Socket, n: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []; let total = 0;
+      const onData = (c: Buffer) => { chunks.push(c); total += c.length; if (total >= n) { sock.off("data", onData); resolve(Buffer.concat(chunks).subarray(0, n)); } };
+      const onEnd = () => { sock.off("data", onData); reject(new Error("closed")); };
+      sock.on("data", onData); sock.once("close", onEnd);
+      setTimeout(() => { sock.off("data", onData); sock.off("close", onEnd); reject(new Error("timeout")); }, 3000);
+    });
+  }
+
+  /** Complete the SOCKS5 handshake + CONNECT on a client socket */
+  async function socks5Connect(sock: net.Socket, destHost: string, destPort: number) {
+    sock.write(Buffer.from([0x05, 0x01, 0x00]));
+    await readN(sock, 2); // 05 00
+    const hostBuf = Buffer.from(destHost, "utf-8");
+    const connectReq = Buffer.alloc(7 + hostBuf.length);
+    connectReq[0] = 0x05;
+    connectReq[1] = 0x01;
+    connectReq[2] = 0x00;
+    connectReq[3] = 0x03; // ATYP domain
+    connectReq[4] = hostBuf.length;
+    hostBuf.copy(connectReq, 5);
+    connectReq.writeUInt16BE(destPort, 5 + hostBuf.length);
+    sock.write(connectReq);
+  }
+
+  function makeFakeSocksClient(rejectWith?: Error) {
+    const calls: any[] = [];
+    return {
+      createConnection: vi.fn(async (opts: any) => {
+        calls.push(opts);
+        if (rejectWith) throw rejectWith;
+        // Return {socket} to match socks library return shape
+        const echoServer = net.createServer((s) => s.pipe(s));
+        await new Promise<void>((res) => echoServer.listen(0, "127.0.0.1", res));
+        const echoPort = (echoServer.address() as net.AddressInfo).port;
+        const remote = net.createConnection({ host: "127.0.0.1", port: echoPort });
+        await new Promise<void>((res, rej) => { remote.on("connect", res); remote.on("error", rej); });
+        remote.once("close", () => echoServer.close());
+        return { socket: remote };
+      }),
+      calls,
+    };
+  }
+
+  it("CONNECT uses currentUpstream creds + destination domain", async () => {
+    const fake = makeFakeSocksClient();
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    bridge.setUpstream(PROXY_A);
+
+    const sock = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+    await socks5Connect(sock, "chat.qwen.ai", 443);
+    const reply = await readN(sock, 10);
+    expect(reply[0]).toBe(0x05);
+    expect(reply[1]).toBe(0x00); // success
+
+    expect(fake.createConnection).toHaveBeenCalledTimes(1);
+    const opts = fake.calls[0];
+    expect(opts.command).toBe("connect");
+    expect(opts.destination).toEqual({ host: "chat.qwen.ai", port: 443 });
+    expect(opts.proxy.host).toBe("proxy-a");
+    expect(opts.proxy.port).toBe(1080);
+    expect(opts.proxy.userId).toBe("alice");
+    expect(opts.proxy.password).toBe("passA");
+    expect(opts.proxy.type).toBe(5);
+
+    sock.destroy();
+    await bridge.stop();
+  });
+
+  it("setUpstream swap — sequential CONNECTs use different creds", async () => {
+    const fake = makeFakeSocksClient();
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+
+    bridge.setUpstream(PROXY_A);
+    const sock1 = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { sock1.on("connect", res); sock1.on("error", rej); });
+    await socks5Connect(sock1, "host1.com", 443);
+    await readN(sock1, 10);
+    expect(fake.calls[0].proxy.userId).toBe("alice");
+    sock1.destroy();
+
+    bridge.setUpstream(PROXY_B);
+    const sock2 = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { sock2.on("connect", res); sock2.on("error", rej); });
+    await socks5Connect(sock2, "host2.com", 443);
+    await readN(sock2, 10);
+    expect(fake.calls[1].proxy.userId).toBe("bob");
+    expect(fake.calls[1].proxy.host).toBe("proxy-b");
+    sock2.destroy();
+
+    await bridge.stop();
+  });
+
+  it("bidirectional pipe — data flows both directions", async () => {
+    const fake = makeFakeSocksClient();
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    bridge.setUpstream(PROXY_A);
+
+    const client = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { client.on("connect", res); client.on("error", rej); });
+    await socks5Connect(client, "echo.local", 7);
+    await readN(client, 10);
+
+    const testMsg = "hello-bridge";
+    client.write(testMsg);
+    const echoed = await new Promise<Buffer>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      const onData = (c: Buffer) => { chunks.push(c); if (Buffer.concat(chunks).length >= testMsg.length) { client.off("data", onData); resolve(Buffer.concat(chunks)); } };
+      client.on("data", onData);
+      setTimeout(() => reject(new Error("timeout")), 3000);
+    });
+    expect(echoed.toString()).toBe(testMsg);
+
+    client.destroy();
+    await bridge.stop();
+  });
+
+  it("upstream error → REP 0x01", async () => {
+    const fake = makeFakeSocksClient(new Error("connection refused"));
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    bridge.setUpstream(PROXY_A);
+
+    const sock = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+    await socks5Connect(sock, "unreachable.com", 443);
+    const reply = await readN(sock, 10);
+    expect(reply[0]).toBe(0x05);
+    expect(reply[1]).toBe(0x01); // general failure
+
+    sock.destroy();
+    await bridge.stop();
+  });
+
+  it("no upstream set → REP 0x01", async () => {
+    const fake = makeFakeSocksClient();
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    // No setUpstream call
+
+    const sock = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+    await socks5Connect(sock, "chat.qwen.ai", 443);
+    const reply = await readN(sock, 10);
+    expect(reply[0]).toBe(0x05);
+    expect(reply[1]).toBe(0x01); // general failure
+
+    sock.destroy();
+    await bridge.stop();
+  });
+});

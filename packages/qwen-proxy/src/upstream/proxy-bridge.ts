@@ -175,10 +175,60 @@ export class ProxyBridge {
       const port = (await readN(2)).readUInt16BE(0);
 
       // Phase 3: Forward via upstream (S-M1-4)
-      void host; void port; void this.socksClient; void this.log;
-      socket.destroy();
+      await this.handleConnect(socket, host, port);
     } catch {
       socket.destroy();
     }
+  }
+
+  private async handleConnect(client: net.Socket, host: string, port: number): Promise<void> {
+    const VER = 0x05, REP_GENERAL_FAILURE = 0x01;
+    const rep = (code: number) => client.write(Buffer.from([VER, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+
+    // Read upstream at CONNECT time (swap-safe)
+    const upstream = this.currentUpstream;
+    if (!upstream) {
+      this.log.warn("ProxyBridge: no upstream set, rejecting CONNECT");
+      rep(REP_GENERAL_FAILURE);
+      client.end();
+      return;
+    }
+
+    try {
+      const { socket: remote } = await this.socksClient.createConnection({
+        command: "connect",
+        destination: { host, port },
+        proxy: {
+          host: upstream.host,
+          port: upstream.port,
+          type: 5,
+          userId: upstream.user,
+          password: upstream.pass,
+        },
+        timeout: 10_000,
+      });
+
+      // Success reply: BND.ADDR = 127.0.0.1:0 (placeholder)
+      client.write(Buffer.from([VER, 0x00, 0x00, 0x01, 127, 0, 0, 1, 0, 0]));
+      this.pipeBoth(client, remote);
+    } catch (err) {
+      this.log.warn("ProxyBridge: upstream connect failed", { error: String(err), host, port });
+      rep(REP_GENERAL_FAILURE);
+      client.end();
+    }
+  }
+
+  private pipeBoth(a: net.Socket, b: net.Socket): void {
+    a.pipe(b);
+    b.pipe(a);
+    let done = false;
+    const onError = () => {
+      if (done) return;
+      done = true;
+      a.destroy();
+      b.destroy();
+    };
+    a.on("error", onError);
+    b.on("error", onError);
   }
 }
