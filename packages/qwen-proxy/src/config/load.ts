@@ -33,6 +33,8 @@ export async function loadQwenProxyConfig(
     proxyPass: env.SF_QWEN_PROXY_PASS || undefined,
     proxyCountriesRaw: env.SF_QWEN_PROXY_COUNTRIES || "",
     timeoutMs: parseIntEnv(env.SF_QWEN_TIMEOUT_MS, 60_000),
+    firstPayloadTimeoutMs: parseNonNegativeIntEnv(env.SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS, 30_000),
+    streamIdleTimeoutMs: parseNonNegativeIntEnv(env.SF_QWEN_STREAM_IDLE_TIMEOUT_MS, 30_000),
     apiKeyEnv: (env.SF_QWEN_API_KEY || "").split(",").map(s => s.trim()).filter(Boolean),
     modelAliasesRaw: env.SF_QWEN_MODEL_ALIASES || "",
     logLevel: env.SF_QWEN_LOG_LEVEL || "info",

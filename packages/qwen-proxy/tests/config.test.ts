@@ -203,6 +203,33 @@ describe("config", () => {
       expect(config.proxyCountriesRaw).toBe("US,DE");
     });
 
+    it("stall guard defaults: firstPayloadTimeoutMs/streamIdleTimeoutMs = 30000", async () => {
+      const config = await loadQwenProxyConfig({});
+      expect(config.firstPayloadTimeoutMs).toBe(30_000);
+      expect(config.streamIdleTimeoutMs).toBe(30_000);
+    });
+
+    it("SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS=0 disables (0 kept, not defaulted)", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS: "0" });
+      expect(config.firstPayloadTimeoutMs).toBe(0);
+    });
+
+    it("SF_QWEN_STREAM_IDLE_TIMEOUT_MS=0 disables (0 kept, not defaulted)", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_STREAM_IDLE_TIMEOUT_MS: "0" });
+      expect(config.streamIdleTimeoutMs).toBe(0);
+    });
+
+    it("SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS=5000 overrides", async () => {
+      const config = await loadQwenProxyConfig({ SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS: "5000" });
+      expect(config.firstPayloadTimeoutMs).toBe(5_000);
+    });
+
+    it("garbage/negative stall-guard values fall back to 30000", async () => {
+      const c1 = await loadQwenProxyConfig({ SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS: "abc", SF_QWEN_STREAM_IDLE_TIMEOUT_MS: "-5" });
+      expect(c1.firstPayloadTimeoutMs).toBe(30_000);
+      expect(c1.streamIdleTimeoutMs).toBe(30_000);
+    });
+
     it("overrides timeoutMs via SF_QWEN_TIMEOUT_MS", async () => {
       const config = await loadQwenProxyConfig({ SF_QWEN_TIMEOUT_MS: "30000" });
       expect(config.timeoutMs).toBe(30_000);
