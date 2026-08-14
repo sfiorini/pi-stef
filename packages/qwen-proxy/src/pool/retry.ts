@@ -76,12 +76,20 @@ export async function withPoolRetry<T>(
       // Rotation mode: rotate on rotatable errors (pre-first-content budget)
       if (rotationMode && isRotationTrigger(err)) {
         tried++;
+        deps.log.warn("[rotation-debug] attempt failed — rotating", {
+          tried,
+          size: deps.proxyPool!.size,
+          error: String(err).slice(0, 300),
+          errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
+          errorName: err instanceof Error ? err.constructor.name : typeof err,
+        });
         if (tried < deps.proxyPool!.size) {
           deps.proxyPool!.rotate();
           continue;
         }
         // All proxies burned — cooldown + 429
         const { emptyCooldownMs } = deps.config;
+        deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
         await sleep(emptyCooldownMs);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
@@ -195,12 +203,19 @@ export async function* withPoolRetryStream(
       // Rotation mode: rotate on rotatable errors (PRE-first-content ONLY)
       if (rotationMode && !seenContent && isRotationTrigger(err)) {
         tried++;
+        deps.log.warn("[rotation-debug] stream attempt failed — rotating", {
+          tried,
+          size: deps.proxyPool!.size,
+          error: String(err).slice(0, 300),
+          errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
+          errorName: err instanceof Error ? err.constructor.name : typeof err,
+        });
         if (tried < deps.proxyPool!.size) {
           deps.proxyPool!.rotate();
           continue;
         }
         // All proxies burned — sentinel (no refreshBaxiaToken)
-        deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size });
+        deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
         yield { done: true, extra: { rateLimited: true } };
         return;
       }
