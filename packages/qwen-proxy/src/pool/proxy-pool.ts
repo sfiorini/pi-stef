@@ -24,7 +24,11 @@ export function normalizeSocksUrl(
   // Default port to 1080
   if (!url.port) url.port = "1080";
 
-  // Determine creds: URL creds take priority, fall back to global
+  // Determine creds: URL creds take priority, fall back to global.
+  // url.username/password are already percent-encoded by WHATWG URL;
+  // globalUser/globalPass are plain strings that need encoding.
+  const userFromUrl = !!url.username;
+  const passFromUrl = !!url.password;
   const user = url.username || globalUser;
   const pass = url.password || globalPass;
 
@@ -32,7 +36,9 @@ export function normalizeSocksUrl(
   if (!user || !pass) return null;
 
   // Rebuild with creds and port
-  return `${url.protocol}//${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${url.hostname}:${url.port}`;
+  const encUser = userFromUrl ? user : encodeURIComponent(user);
+  const encPass = passFromUrl ? pass : encodeURIComponent(pass);
+  return `${url.protocol}//${encUser}:${encPass}@${url.hostname}:${url.port}`;
 }
 
 // ── parseProxyUrls ──────────────────────────────────────────────────────────

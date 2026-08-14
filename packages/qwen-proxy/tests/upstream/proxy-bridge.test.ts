@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import * as net from "node:net";
 import { ProxyBridge } from "../../src/upstream/proxy-bridge";
+import { normalizeSocksUrl } from "../../src/pool/proxy-pool";
 
 // S-M1-1: parseSocksUrl
 describe("parseSocksUrl", () => {
@@ -56,6 +57,18 @@ describe("parseSocksUrl", () => {
     const mod = await import("../../src/upstream/proxy-bridge");
     parseSocksUrl = mod.parseSocksUrl;
     expect(() => parseSocksUrl("socks5://proxy:1080")).toThrow(/cred/i);
+  });
+
+  it("round-trip: normalizeSocksUrl → parseSocksUrl preserves creds with special chars", async () => {
+    const mod = await import("../../src/upstream/proxy-bridge");
+    parseSocksUrl = mod.parseSocksUrl;
+    // User provides creds with special chars (e.g. @ encoded as %40)
+    const input = "socks5://us%40er:p%40ss@proxy:1080";
+    const normalized = normalizeSocksUrl(input, undefined, undefined);
+    expect(normalized).not.toBeNull();
+    const parsed = parseSocksUrl(normalized!);
+    expect(parsed.user).toBe("us@er");
+    expect(parsed.pass).toBe("p@ss");
   });
 });
 
