@@ -3,7 +3,8 @@ import { Hono } from "hono";
 import type Database from "better-sqlite3";
 import { openDb } from "../../../src/store/db";
 import { SingleAccountPool } from "../../../src/pool/single";
-import { withPoolRetry, withPoolRetryStream } from "../../../src/pool/retry";
+import { withPoolRetry, withPoolRetryStream, type ProxyPoolLike } from "../../../src/pool/retry";
+import { EmptyCompletionError } from "../../../src/upstream/errors";
 import { clientAuthGate } from "../../../src/server/auth";
 import { chatRoutes } from "../../../src/adapters/openai/chat";
 
@@ -30,6 +31,7 @@ interface ChatDeps {
   client: UpstreamClient;
   retry: typeof withPoolRetry;
   retryStream: typeof withPoolRetryStream;
+  proxyPool?: ProxyPoolLike;
 }
 
 function makeDeps(
@@ -85,6 +87,7 @@ function createTestApp(deps: ChatDeps) {
     log: deps.log,
     retry: deps.retry,
     retryStream: deps.retryStream,
+    ...(deps.proxyPool ? { proxyPool: deps.proxyPool } : {}),
   }));
   return app;
 }
@@ -1301,5 +1304,54 @@ describe("POST /v1/chat/completions", () => {
     // Wait for fire-and-forget
     await new Promise((r) => setTimeout(r, 50));
     expect(deleteChats).toHaveBeenCalled();
+  });
+
+  // ── S-M2-4: Proxy rotation e2e ───────────────────────────────────────────
+
+  it("non-stream: FakeProxyPool rotation — EmptyCompletion on A, success on B → 200", async () => {
+    class FakeProxyPool implements ProxyPoolLike {
+      private readonly keys: string[];
+      private head = 0;
+      rotateCalls = 0;
+      constructor(keys: string[]) { this.keys = keys; }
+      get size() { return this.keys.length; }
+      getActive() { return this.keys[this.head]; }
+      rotate() { this.rotateCalls++; this.head = (this.head + 1) % this.keys.length; return this.keys[this.head]; }
+    }
+
+    const pool = new FakeProxyPool(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+    let callCount = 0;
+    const seen: string[] = [];
+
+    const client = {
+      chatCompletions: async (_bearer: string, _body: Record<string, unknown>, proxy?: string) => {
+        callCount++;
+        seen.push(proxy!);
+        if (callCount === 1) throw new EmptyCompletionError("empty");
+        return {
+          id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+        };
+      },
+    } as unknown as UpstreamClient;
+
+    const db = setupDb();
+    const deps = makeDeps(db, { client });
+    // Inject proxyPool into deps (simulates bin wiring)
+    deps.proxyPool = pool;
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }] }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(seen).toEqual([
+      "socks5://u:p@a:1080",
+      "socks5://u:p@b:1080",
+    ]);
+    expect(pool.rotateCalls).toBe(1);
   });
 });
