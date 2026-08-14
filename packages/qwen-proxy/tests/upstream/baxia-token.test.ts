@@ -355,6 +355,125 @@ describe("BaxiaTokenManager", () => {
     });
   });
 
+  describe("mint fast-fail (chrome-error)", () => {
+    it("chrome-error:// → TokenMintError(egress), child kill called, ≤3 readiness evals", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const replyMap = new Map<string, (id: number, params: any) => any>();
+      replyMap.set("Page.enable", () => ({}));
+      replyMap.set("Runtime.enable", () => ({}));
+      replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("__baxia__")) {
+          return { result: { type: "object", value: { ready: false, href: "chrome-error://chromewebdata/" } } };
+        }
+        return { result: { type: "undefined" } };
+      });
+
+      let readinessEvals = 0;
+      const origReply = replyMap.get("Runtime.evaluate")!;
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("fyObj")) readinessEvals++;
+        return origReply(_id, params);
+      });
+
+      const childKill = vi.fn();
+      const child = { pid: 2, kill: childKill };
+
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: vi.fn(() => child) as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: vi.fn(async () => ({
+            ok: true,
+            json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }],
+          })) as any,
+          sleep: vi.fn(async () => {}),
+          now: () => 1000,
+        }),
+      );
+
+      const p = mgr.ensureToken();
+      await expect(p).rejects.toMatchObject({ cause: "egress" });
+      await expect(p).rejects.toThrow(/chrome-error/);
+      expect(readinessEvals).toBeLessThanOrEqual(3);
+      expect(childKill).toHaveBeenCalled();
+    });
+
+    it("qwen error page href → full timeout, not-ready", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const replyMap = new Map<string, (id: number, params: any) => any>();
+      replyMap.set("Page.enable", () => ({}));
+      replyMap.set("Runtime.enable", () => ({}));
+      replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("__baxia__")) {
+          return { result: { type: "object", value: { ready: false, href: "https://chat.qwen.ai/error-503" } } };
+        }
+        return { result: { type: "undefined" } };
+      });
+
+      let readinessEvals = 0;
+      const origReply = replyMap.get("Runtime.evaluate")!;
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("fyObj")) readinessEvals++;
+        return origReply(_id, params);
+      });
+
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: vi.fn(async () => ({
+            ok: true,
+            json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }],
+          })) as any,
+          sleep: () => Promise.resolve(),
+          now: () => 1000,
+          readinessTimeoutMs: 6000,
+        }),
+      );
+
+      const p = mgr.ensureToken();
+      await expect(p).rejects.toMatchObject({ cause: "not-ready" });
+      expect(readinessEvals).toBe(12); // full timeout (6000/500=12)
+    });
+
+    it("normal qwen.ai href → not-ready after full timeout", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const replyMap = new Map<string, (id: number, params: any) => any>();
+      replyMap.set("Page.enable", () => ({}));
+      replyMap.set("Runtime.enable", () => ({}));
+      replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("__baxia__")) {
+          return { result: { type: "object", value: { ready: false, href: "https://chat.qwen.ai/" } } };
+        }
+        return { result: { type: "undefined" } };
+      });
+
+      const mgr = new BaxiaTokenManager(
+        makeConfig({
+          spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+          WebSocketCtor: function (url: string) {
+            return new FakeWebSocket(url, replyMap) as any;
+          } as any,
+          fetcher: vi.fn(async () => ({
+            ok: true,
+            json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }],
+          })) as any,
+          sleep: () => Promise.resolve(),
+          now: () => 1000,
+        }),
+      );
+
+      await expect(mgr.ensureToken()).rejects.toMatchObject({ cause: "not-ready" });
+    });
+  });
+
   describe("getBaxiaTokens", () => {
     it("extracts bxUa=fy, bxUmidToken=uid, bxV=config version, gates /^T2gA/ len>20", async () => {
       const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");

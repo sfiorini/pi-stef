@@ -362,11 +362,11 @@ export class BaxiaTokenManager {
         // the page + SDK time to init). Cookies come from document.cookie.
         const baxiaExpr = `(function(){
   var fm = (window.__baxia__||{}).getFYModule;
-  if (!fm || !fm.fyObj) return { ready: false };
+  if (!fm || !fm.fyObj) return { ready: false, href: location.href };
   var uid='', fy='';
   try { uid = String(fm.getUidToken()); } catch(e) {}
   try { fy = String(fm.getFYToken()); } catch(e) {}
-  return { ready: true, uid: uid, fy: fy, cookie: document.cookie || '' };
+  return { ready: true, href: location.href, uid: uid, fy: fy, cookie: document.cookie || '' };
 })()`;
 
         let baxiaData:
@@ -396,11 +396,20 @@ export class BaxiaTokenManager {
             const val = result?.result?.value as
               | {
                   ready: boolean;
+                  href?: string;
                   uid?: string;
                   fy?: string;
                   cookie?: string;
                 }
               | undefined;
+            const href = typeof val?.href === "string" ? val.href : "";
+            if (href.startsWith("chrome-error://")) {
+              this.config.log.error("[baxia] mint fast-fail — chrome-error page", {
+                proxy: redactProxyKey(proxy),
+                href: href.slice(0, 120),
+              });
+              throw new TokenMintError("egress", "page load failed (chrome-error page) — egress unreachable");
+            }
             if (
               val?.ready &&
               typeof val.uid === "string" &&
@@ -414,7 +423,8 @@ export class BaxiaTokenManager {
               };
               break;
             }
-          } catch {
+          } catch (e) {
+            if (e instanceof TokenMintError) throw e;
             // evaluation failed, retry
           }
         }
