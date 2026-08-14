@@ -50,6 +50,8 @@ export async function withPoolRetry<T>(
 ): Promise<T> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
+  const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  let tried = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
@@ -71,6 +73,23 @@ export async function withPoolRetry<T>(
         throw err;
       }
 
+      // Rotation mode: rotate on rotatable errors (pre-first-content budget)
+      if (rotationMode && isRotationTrigger(err)) {
+        tried++;
+        if (tried < deps.proxyPool!.size) {
+          deps.proxyPool!.rotate();
+          continue;
+        }
+        // All proxies burned — cooldown + 429
+        const { emptyCooldownMs } = deps.config;
+        await sleep(emptyCooldownMs);
+        throw new RateLimitError(
+          "all proxies exhausted after rotation retries",
+          { status: 429, retryAfterMs: emptyCooldownMs },
+        );
+      }
+
+      // Legacy mode (no proxyPool or size≤1): EmptyCompletionError inline-retry
       if (err instanceof EmptyCompletionError) {
         const { emptyRetryMax, emptyRetryGapMs, emptyCooldownMs } = deps.config;
         if (emptyRetries < emptyRetryMax) {
