@@ -4,6 +4,7 @@
  */
 
 import * as net from "node:net";
+import { SocksClient } from "socks";
 import type { Logger } from "../server/logger";
 
 // ── parseSocksUrl ───────────────────────────────────────────────────────────
@@ -42,7 +43,7 @@ export function parseSocksUrl(key: string): ParsedSocksUrl {
 
 export interface ProxyBridgeConfig {
   log: Logger;
-  socksClient?: typeof import("socks").SocksClient;
+  socksClient?: typeof SocksClient;
 }
 
 /**
@@ -56,11 +57,11 @@ export class ProxyBridge {
   private port: number | null = null;
   private currentUpstream: ParsedSocksUrl | null = null;
   private readonly log: Logger;
-  private readonly socksClient: typeof import("socks").SocksClient;
+  private readonly socksClient: typeof SocksClient;
 
   constructor(config: ProxyBridgeConfig) {
     this.log = config.log;
-    this.socksClient = (config.socksClient ?? (require("socks") as typeof import("socks")).SocksClient) as typeof import("socks").SocksClient;
+    this.socksClient = config.socksClient ?? SocksClient;
   }
 
   /**
