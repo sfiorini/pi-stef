@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.2] - 2026-08-14
+### Changed
+- fix(qwen-proxy): append tool list to final turn on continuations (audit P2)
+- fix(qwen-proxy): buffer reasoning pre-visible-content (conformant single-finish streams on retry)
+- fix(qwen-proxy): stop silent empty answers after tool calls (qwen suppression + reasoning-only bypass)
+
+
 ## [0.6.1] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): reset mint strikes on successful inline re-mint
