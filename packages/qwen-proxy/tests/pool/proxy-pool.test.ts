@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { ProxyPool, ProxyDispatcherCache, fetchWithProxy } from "../../src/pool/proxy-pool";
+import { ProxyPool, ProxyDispatcherCache, fetchWithProxy, normalizeSocksUrl, parseProxyUrls, createProxyPool } from "../../src/pool/proxy-pool";
 
 // ── ProxyPool ────────────────────────────────────────────────────────────────
 
@@ -120,5 +120,136 @@ describe("fetchWithProxy", () => {
     await fetchWithProxy(fetcher, "https://example.com", { method: "GET" });
 
     expect(fetcher).toHaveBeenCalledWith("https://example.com", { method: "GET" });
+  });
+});
+
+// ── normalizeSocksUrl ───────────────────────────────────────────────────────
+
+describe("normalizeSocksUrl", () => {
+  it("accepts socks5:// and defaults port to 1080", () => {
+    expect(normalizeSocksUrl("socks5://myuser:mypass@host.example.com", undefined, undefined)).toBe("socks5://myuser:mypass@host.example.com:1080");
+  });
+
+  it("accepts socks5h:// protocol", () => {
+    expect(normalizeSocksUrl("socks5h://myuser:mypass@host.example.com", undefined, undefined)).toBe("socks5h://myuser:mypass@host.example.com:1080");
+  });
+
+  it("rejects non-socks5 protocol", () => {
+    expect(normalizeSocksUrl("http://host.example.com", undefined, undefined)).toBeNull();
+  });
+
+  it("rejects socks4:// protocol", () => {
+    expect(normalizeSocksUrl("socks4://host.example.com", undefined, undefined)).toBeNull();
+  });
+
+  it("merges global creds when URL lacks both user and pass", () => {
+    expect(normalizeSocksUrl("socks5://host.example.com", "globalUser", "globalPass")).toBe("socks5://globalUser:globalPass@host.example.com:1080");
+  });
+
+  it("keeps URL creds when both present, ignores global", () => {
+    expect(normalizeSocksUrl("socks5://urlUser:urlPass@host.example.com", "globalUser", "globalPass")).toBe("socks5://urlUser:urlPass@host.example.com:1080");
+  });
+
+  it("drops (null) when no creds at all (URL or global)", () => {
+    expect(normalizeSocksUrl("socks5://host.example.com", undefined, undefined)).toBeNull();
+  });
+
+  it("drops (null) when only partial creds (user xor pass)", () => {
+    expect(normalizeSocksUrl("socks5://host.example.com", "globalUser", undefined)).toBeNull();
+    expect(normalizeSocksUrl("socks5://host.example.com", undefined, "globalPass")).toBeNull();
+  });
+
+  it("preserves explicit port", () => {
+    expect(normalizeSocksUrl("socks5://myuser:mypass@host.example.com:9999", undefined, undefined)).toBe("socks5://myuser:mypass@host.example.com:9999");
+  });
+
+  it("rejects empty string", () => {
+    expect(normalizeSocksUrl("", undefined, undefined)).toBeNull();
+  });
+
+  it("rejects whitespace-only", () => {
+    expect(normalizeSocksUrl("   ", undefined, undefined)).toBeNull();
+  });
+});
+
+// ── parseProxyUrls ──────────────────────────────────────────────────────────
+
+describe("parseProxyUrls", () => {
+  it("splits comma-separated URLs", () => {
+    const result = parseProxyUrls("socks5://u:p@a:1080,socks5://u:p@b:1080", undefined, undefined);
+    expect(result).toEqual(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+  });
+
+  it("splits whitespace-separated URLs", () => {
+    const result = parseProxyUrls("socks5://u:p@a:1080  socks5://u:p@b:1080", undefined, undefined);
+    expect(result).toEqual(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+  });
+
+  it("deduplicates invalid/empty entries", () => {
+    const result = parseProxyUrls("socks5://u:p@a:1080,,  ,socks5://u:p@b:1080", undefined, undefined);
+    expect(result).toEqual(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+  });
+
+  it("returns empty array for empty string", () => {
+    expect(parseProxyUrls("", undefined, undefined)).toEqual([]);
+  });
+
+  it("filters out invalid protocol entries", () => {
+    const result = parseProxyUrls("socks5://u:p@a:1080,http://bad:8080,socks5://u:p@b:1080", undefined, undefined);
+    expect(result).toEqual(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+  });
+});
+
+// ── createProxyPool ──────────────────────────────────────────────────────────
+
+describe("createProxyPool", () => {
+  it("explicit URLs win over proxyCount (discovery skipped)", async () => {
+    const pool = await createProxyPool({
+      proxyUrlsRaw: "socks5://u:p@a:1080,socks5://u:p@b:1080",
+      proxyCount: 5,
+      proxyUser: "global",
+      proxyPass: "global",
+    });
+    expect(pool.size).toBe(2);
+    expect(pool.getKeys()).toEqual(["socks5://u:p@a:1080", "socks5://u:p@b:1080"]);
+  });
+
+  it("returns empty pool when no explicit URLs and no discovery stub", async () => {
+    const pool = await createProxyPool({
+      proxyUrlsRaw: "",
+      proxyCount: 0,
+    });
+    expect(pool.size).toBe(0);
+  });
+
+  it("returns empty pool when explicit URLs are all invalid", async () => {
+    const pool = await createProxyPool({
+      proxyUrlsRaw: "http://bad:8080,ftp://also-bad",
+      proxyCount: 0,
+    });
+    expect(pool.size).toBe(0);
+  });
+
+  it("merges global creds into URL entries", async () => {
+    const pool = await createProxyPool({
+      proxyUrlsRaw: "socks5://host-a:1080,socks5://host-b:1080",
+      proxyCount: 0,
+      proxyUser: "myuser",
+      proxyPass: "mypass",
+    });
+    expect(pool.size).toBe(2);
+    expect(pool.getKeys()).toEqual([
+      "socks5://myuser:mypass@host-a:1080",
+      "socks5://myuser:mypass@host-b:1080",
+    ]);
+  });
+
+  it("drops URLs with no creds after merge", async () => {
+    const pool = await createProxyPool({
+      proxyUrlsRaw: "socks5://host-a:1080,socks5://host-b:1080",
+      proxyCount: 0,
+      // no global creds → both dropped
+    });
+    expect(pool.size).toBe(0);
   });
 });

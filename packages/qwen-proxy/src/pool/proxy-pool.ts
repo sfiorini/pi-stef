@@ -1,5 +1,56 @@
 import { SocksProxyAgent } from "socks-proxy-agent";
 
+// ── normalizeSocksUrl ───────────────────────────────────────────────────────
+
+export function normalizeSocksUrl(
+  raw: string,
+  globalUser: string | undefined,
+  globalPass: string | undefined,
+): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed) return null;
+
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+
+  // Protocol must be socks5 or socks5h
+  if (url.protocol !== "socks5:" && url.protocol !== "socks5h:") return null;
+  if (!url.hostname) return null;
+
+  // Default port to 1080
+  if (!url.port) url.port = "1080";
+
+  // Determine creds: URL creds take priority, fall back to global
+  const user = url.username || globalUser;
+  const pass = url.password || globalPass;
+
+  // Need BOTH user and pass (SOCKS5 auth requires both)
+  if (!user || !pass) return null;
+
+  // Rebuild with creds and port
+  return `${url.protocol}//${user}:${pass}@${url.hostname}:${url.port}`;
+}
+
+// ── parseProxyUrls ──────────────────────────────────────────────────────────
+
+export function parseProxyUrls(
+  raw: string,
+  globalUser: string | undefined,
+  globalPass: string | undefined,
+): string[] {
+  if (!raw.trim()) return [];
+  return raw
+    .split(/[\s,]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => normalizeSocksUrl(s, globalUser, globalPass))
+    .filter((s): s is string => s !== null);
+}
+
 // ── ProxyPool ────────────────────────────────────────────────────────────────
 
 export class ProxyPool {
@@ -75,4 +126,28 @@ export async function fetchWithProxy(
     return fetcher(url, { ...init, dispatcher });
   }
   return fetcher(url, init);
+}
+
+// ── createProxyPool ──────────────────────────────────────────────────────────
+
+export interface CreateProxyPoolOpts {
+  proxyUrlsRaw: string;
+  proxyCount: number;
+  proxyUser?: string;
+  proxyPass?: string;
+  proxyCountriesRaw?: string;
+  log?: { warn: (msg: string, ...args: unknown[]) => void };
+}
+
+export async function createProxyPool(opts: CreateProxyPoolOpts): Promise<ProxyPool> {
+  const { proxyUrlsRaw, proxyUser, proxyPass } = opts;
+
+  // Explicit URLs win over discovery
+  if (proxyUrlsRaw.trim()) {
+    const keys = parseProxyUrls(proxyUrlsRaw, proxyUser, proxyPass);
+    return new ProxyPool(keys);
+  }
+
+  // Discovery stub (filled S-M1-4) — returns empty pool
+  return new ProxyPool([]);
 }
