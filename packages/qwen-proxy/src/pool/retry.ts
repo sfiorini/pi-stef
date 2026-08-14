@@ -66,15 +66,17 @@ async function bestEffortRefresh(
   }
 }
 
-/** Slot-aware proxy hand-off on rotation: advance the head, acquire the new
- *  head's slot (sticky-first, skips busy proxies), THEN release the old slot so
- *  the burned proxy is not handed to another request mid-flight. */
+/** Slot-aware proxy hand-off on rotation: release the current slot FIRST,
+ *  THEN acquire the new head's slot. Releasing first avoids a deadlock when all
+ *  slots are held by concurrently-rotating requests (release-before-acquire).
+ *  The momentary no-held-slot state is safe — slot bookkeeping only, no
+ *  invariant requires continuous holding. */
 async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Promise<string | undefined> {
   const pool = deps.proxyPool!;
   pool.rotate();
   if (typeof pool.acquire === "function" && typeof pool.release === "function") {
-    const next = await pool.acquire();
     if (current !== undefined) pool.release(current);
+    const next = await pool.acquire();
     return next;
   }
   return pool.getActive();

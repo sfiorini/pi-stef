@@ -1591,3 +1591,103 @@ describe("mint-failure budget (stream)", () => {
     expect(markCalls).toHaveLength(1); // exhaustion
   });
 });
+
+// ── [F1] rotateWithSlot deadlock (audit fix) ───────────────────────────────
+
+/** A slot-aware pool that BLOCKS on acquire when every key is busy,
+ *  mirroring real ProxyPool semaphore semantics (F1 deadlock repro). */
+class FakeBlockingSlotPool implements ProxyPoolLike {
+  readonly keys: string[];
+  private head = 0;
+  private readonly busy = new Map<string, number>();
+  private readonly waiters: Array<() => void> = [];
+  readonly acquired: string[] = [];
+  readonly released: string[] = [];
+  rotateCalls = 0;
+
+  constructor(keys: string[]) {
+    this.keys = keys;
+    for (const k of keys) this.busy.set(k, 0);
+  }
+
+  get size() { return this.keys.length; }
+  getActive() { return this.keys[this.head]; }
+  rotate() {
+    this.rotateCalls++;
+    this.head = (this.head + 1) % this.keys.length;
+    return this.keys[this.head];
+  }
+
+  private freeKey(): string | undefined {
+    for (let i = 0; i < this.keys.length; i++) {
+      const k = this.keys[(this.head + i) % this.keys.length];
+      if (this.busy.get(k) === 0) return k;
+    }
+    return undefined;
+  }
+
+  acquire(): Promise<string> {
+    let k = this.freeKey();
+    if (k !== undefined) {
+      this.busy.set(k, 1);
+      this.acquired.push(k);
+      return Promise.resolve(k);
+    }
+    return new Promise<string>((resolve) => {
+      this.waiters.push(() => {
+        const kk = this.freeKey()!;
+        this.busy.set(kk, 1);
+        this.acquired.push(kk);
+        resolve(kk);
+      });
+    });
+  }
+
+  release(key: string): void {
+    this.busy.set(key, 0);
+    this.released.push(key);
+    const w = this.waiters.shift();
+    if (w) w();
+  }
+}
+
+describe("[F1] rotateWithSlot deadlock fix", () => {
+  it("rotateWithSlot does not deadlock when all slots busy (pool=[A,B] conc=2, release-before-acquire)", async () => {
+    const pool = new FakeBlockingSlotPool(["A", "B"]);
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+      },
+    });
+
+    let call1 = 0;
+    let call2 = 0;
+    const op1 = async (_id: number, _bearer: string, proxy?: string) => {
+      call1++;
+      if (call1 === 1) throw new TokenMintError("egress", "x");
+      return `ok1-${proxy}`;
+    };
+    const op2 = async (_id: number, _bearer: string, proxy?: string) => {
+      call2++;
+      if (call2 === 1) throw new TokenMintError("egress", "x");
+      return `ok2-${proxy}`;
+    };
+
+    // Both requests start concurrently — previously this deadlocked because
+    // rotateWithSlot acquired the next slot before releasing the current one.
+    const [r1, r2] = await Promise.all([
+      withPoolRetry(deps, op1),
+      withPoolRetry(deps, op2),
+    ]);
+
+    expect(r1).toContain("ok1-");
+    expect(r2).toContain("ok2-");
+    // Each rotated once (A→B or B→A) after the first TokenMintError
+    expect(pool.rotateCalls).toBe(2);
+    // 4 releases: 2 from rotateWithSlot (old key released before acquire)
+    // + 2 from the finally block (final key released on exit)
+    expect(pool.released.length).toBe(4);
+  }, 5000);
+});
