@@ -298,6 +298,7 @@ export function isRotationTrigger(err: unknown): boolean {
   if (err instanceof ServerError) return true;
   if (err instanceof TypeError) return true;
   if (err instanceof Error && err.name === "AbortError") return true;
+  if (err instanceof AuthExpiredError) return false; // token refresh (same proxy) — never a rotation trigger
   if (err instanceof ClientError) return false;
   if (err instanceof RateLimitError) return false;
   if (err instanceof UnknownError) return false;

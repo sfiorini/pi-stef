@@ -48,7 +48,8 @@ export function parseProxyUrls(
     .map(s => s.trim())
     .filter(Boolean)
     .map(s => normalizeSocksUrl(s, globalUser, globalPass))
-    .filter((s): s is string => s !== null);
+    .filter((s): s is string => s !== null)
+    .filter((s, i, arr) => arr.indexOf(s) === i); // dedupe (normalize canonicalized)
 }
 
 // ── ProxyPool ────────────────────────────────────────────────────────────────
@@ -106,6 +107,9 @@ export class ProxyDispatcherCache {
     return agent;
   }
 
+  /** Drop + rebuild the cached agent for a key. Currently test-only / reserved —
+   *  not yet wired into the rotation path (rotation requeues without recreating).
+   *  Intended for future use: recreate a proxy's agent on persistent connect-fail. */
   recreate(key: string): DispatcherLike {
     this.cache.delete(key);
     const agent = this.agentFactory(key);
@@ -145,7 +149,16 @@ export async function discoverNordSocks(opts: {
   const { count, countriesRaw, fetcher, log } = opts;
 
   try {
-    const res = await fetcher("https://api.nordvpn.com/v1/servers?filters[servers_technologies][identifier]=socks&limit=0", { method: "GET" });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000); // bound startup — never hang on a stalled NordVPN API
+    let res: Response;
+    try {
+      res = await fetcher("https://api.nordvpn.com/v1/servers?filters[servers_technologies][identifier]=socks&limit=0", { method: "GET", signal: controller.signal });
+    } catch (e) {
+      clearTimeout(timer);
+      throw e;
+    }
+    clearTimeout(timer);
     if (!res.ok) {
       log?.warn("NordVPN API returned non-OK status", { status: res.status });
       return [];
