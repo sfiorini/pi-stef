@@ -1691,3 +1691,73 @@ describe("[F1] rotateWithSlot deadlock fix", () => {
     expect(pool.released.length).toBe(4);
   }, 5000);
 });
+
+// ── [F2] mixed-error walk exhaustion (audit fix) ──────────────────────────
+
+describe("[F2] mixed-error walk exhausts with mint strikes → mint-exhaustion cooldown", () => {
+  it("non-stream: walk-exhausted with 1 mint strike → cooldown + 429, no bestEffortRefresh", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const markCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshCalls.push(proxy ?? ""); },
+      },
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        if (callCount <= 2) throw new NetworkError("timeout");
+        throw new TokenMintError("egress", "x"); // 3rd proxy → mint strike, walk exhausted
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(3); // tried all 3 proxies
+    expect(markCalls).toHaveLength(1); // markEmptyAndSwitch called on mint exhaustion
+    expect(refreshCalls).toHaveLength(0); // NO bestEffortRefresh on mint exhaustion
+  });
+
+  it("stream: walk-exhausted with 1 mint strike → cooldown + sentinel, no bestEffortRefresh", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const markCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshCalls.push(proxy ?? ""); },
+      },
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    let callCount = 0;
+
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount <= 2) throw new NetworkError("timeout");
+      throw new TokenMintError("egress", "x");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(3);
+    expect(chunks).toHaveLength(1);
+    expect("done" in chunks[0] && (chunks[0] as any).done).toBe(true);
+    expect("done" in chunks[0] && (chunks[0] as any).extra?.rateLimited).toBe(true);
+    expect(markCalls).toHaveLength(1);
+    expect(refreshCalls).toHaveLength(0);
+  });
+});

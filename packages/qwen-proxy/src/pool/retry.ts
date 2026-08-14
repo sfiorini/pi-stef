@@ -82,6 +82,35 @@ async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Pro
   return pool.getActive();
 }
 
+/** Mint-exhaustion path for non-stream all-burned: markEmptyAndSwitch + cooldown + 429.
+ *  Used when the rotation walk was exhausted and mint failures participated. */
+function applyMintExhaustionNonStream(
+  deps: RetryDeps,
+  id: number,
+  mintStrikes: number,
+): never {
+  deps.log.warn("mint failures exhausted walk — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+  // markEmptyAndSwitch is synchronous fire-and-forget (returns a Promise we don't await)
+  deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs).catch(() => {});
+  throw new RateLimitError(
+    "token mint failed after rotation walk (global egress condition) — cooling down",
+    { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+  );
+}
+
+/** Mint-exhaustion path for stream all-burned: markEmptyAndSwitch(fire-and-forget)
+ *  + awaited cooldown sleep + sentinel. */
+async function applyMintExhaustionStream(
+  deps: RetryDeps,
+  id: number,
+  mintStrikes: number,
+): Promise<{ done: true; extra: { rateLimited: true } }> {
+  deps.log.warn("mint failures exhausted walk — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+  deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs).catch(() => {});
+  await sleep(deps.config.emptyCooldownMs);
+  return { done: true, extra: { rateLimited: true } };
+}
+
 /** Rotation-mode empty-completion burn recovery (Q1=B):
  *  1. log the walk attempt (redacted proxy, tried/size, token age)
  *  2. evict the proxy's burned token
@@ -199,9 +228,11 @@ export async function withPoolRetry<T>(
         }
         // All proxies burned — cooldown + refresh active token (change #2, Q3=A) + 429
         tried += 1;
+        if (mintStrikes > 0) {
+          applyMintExhaustionNonStream(deps, id, mintStrikes);
+        }
         const { emptyCooldownMs } = deps.config;
         deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
-        await sleep(emptyCooldownMs);
         await bestEffortRefresh(deps, proxy);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
@@ -239,9 +270,11 @@ export async function withPoolRetry<T>(
           continue;
         }
         // All proxies burned — cooldown + refresh active token (change #2) + 429
+        if (mintStrikes > 0) {
+          applyMintExhaustionNonStream(deps, id, mintStrikes);
+        }
         const { emptyCooldownMs } = deps.config;
         deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
-        await sleep(emptyCooldownMs);
         await bestEffortRefresh(deps, proxy);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
@@ -406,6 +439,10 @@ export async function* withPoolRetryStream(
           continue;
         }
         tried += 1;
+        if (mintStrikes > 0) {
+          yield await applyMintExhaustionStream(deps, id, mintStrikes);
+          return;
+        }
         deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
         await bestEffortRefresh(deps, proxy);
         yield { done: true, extra: { rateLimited: true } };
@@ -442,6 +479,10 @@ export async function* withPoolRetryStream(
           continue;
         }
         // All proxies burned — refresh the active proxy's token (change #2, Q3=A), then sentinel
+        if (mintStrikes > 0) {
+          yield await applyMintExhaustionStream(deps, id, mintStrikes);
+          return;
+        }
         deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
         await bestEffortRefresh(deps, proxy);
         yield { done: true, extra: { rateLimited: true } };
@@ -492,6 +533,10 @@ export async function* withPoolRetryStream(
       }
       // All proxies burned — refresh the active proxy's token, then sentinel (change #2, Q3=A)
       tried += 1;
+      if (mintStrikes > 0) {
+        yield await applyMintExhaustionStream(deps, id, mintStrikes);
+        return;
+      }
       deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
       await bestEffortRefresh(deps, proxy);
       yield { done: true, extra: { rateLimited: true } };
