@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-14
+### Changed
+- docs(qwen-proxy): correct emptyBurnStep action-object doc comment (audit polish)
+- fix(qwen-proxy): stream stalls trigger burn recovery and re-mint bound holds per attempt
+- feat(qwen-proxy): prewarm rotation active proxy at boot under existing prewarm flag
+- fix(qwen-proxy): recover from burned tokens via eviction, inline re-mint, and sentinel refresh
+- feat(qwen-proxy): add first-payload and idle stall guards releasing the concurrency slot
+- feat(qwen-proxy): evict burned tokens with requests-per-token counter and redacted logs
+
+
 ## [0.5.3] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): silence Chromium telemetry in bridge spawns (SOCKS auth throttle)
