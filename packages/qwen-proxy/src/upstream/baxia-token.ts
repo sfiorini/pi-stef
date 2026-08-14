@@ -85,7 +85,7 @@ export class BaxiaTokenManager {
   private _sleep: (ms: number) => Promise<void>;
 
   // Orchestration state
-  private proxyCache = new Map<string, { tokens: BaxiaTokens | null; cachedAt: number; lastSpawnDurationMs: number | null; consecutiveFailures: number }>();
+  private proxyCache = new Map<string, { tokens: BaxiaTokens | null; cachedAt: number | null; lastSpawnDurationMs: number | null; consecutiveFailures: number }>();
   private pendingByProxy = new Map<string, Promise<BaxiaTokens>>();
   private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -388,6 +388,7 @@ export class BaxiaTokenManager {
     if (
       !opts?.forceRefresh &&
       entry?.tokens &&
+      entry.cachedAt != null &&
       now - entry.cachedAt < this.config.cacheTtlMs
     ) {
       return entry.tokens;
@@ -437,7 +438,7 @@ export class BaxiaTokenManager {
       const prev = this.proxyCache.get(key);
       this.proxyCache.set(key, {
         tokens: prev?.tokens ?? null,
-        cachedAt: prev?.cachedAt ?? 0,
+        cachedAt: prev?.cachedAt ?? null,
         lastSpawnDurationMs: prev?.lastSpawnDurationMs ?? null,
         consecutiveFailures: (prev?.consecutiveFailures ?? 0) + 1,
       });
@@ -474,7 +475,7 @@ export class BaxiaTokenManager {
     return {
       cached: entry?.tokens != null,
       cachedAt: entry?.cachedAt ?? null,
-      ageMs: entry ? now - entry.cachedAt : null,
+      ageMs: entry?.cachedAt != null ? now - entry.cachedAt : null,
       ttlMs: this.config.cacheTtlMs,
       nextRefreshInMs: this.refreshTimer
         ? Math.max(60_000, this.config.cacheTtlMs - 120_000)
@@ -491,7 +492,7 @@ export class BaxiaTokenManager {
       result[key] = {
         cached: entry.tokens != null,
         cachedAt: entry.cachedAt,
-        ageMs: now - entry.cachedAt,
+        ageMs: entry.cachedAt != null ? now - entry.cachedAt : null,
         ttlMs: this.config.cacheTtlMs,
         nextRefreshInMs: this.refreshTimer
           ? Math.max(60_000, this.config.cacheTtlMs - 120_000)

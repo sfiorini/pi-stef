@@ -604,6 +604,30 @@ describe("BaxiaTokenManager", () => {
       await expect(mgr.ensureToken()).rejects.toThrow();
       expect(mgr.status().consecutiveFailures).toBe(2);
     });
+
+    it("cold failure (no prior entry) → cachedAt:null, ageMs:null, no epoch-0 leak", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const fetcherFn = vi.fn(async () => { throw new Error("network down"); });
+
+      const config = makeConfig({
+        spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+        WebSocketCtor: function (url: string) { return new FakeWebSocket(url, makeDefaultReplyMap()) as any; } as any,
+        fetcher: fetcherFn as any,
+        sleep: () => Promise.resolve(),
+        now: () => 1000,
+        fallback: false,
+      });
+
+      const mgr = new BaxiaTokenManager(config);
+
+      // Cold failure: no prior token exists
+      await expect(mgr.ensureToken()).rejects.toThrow();
+      const s = mgr.status();
+      expect(s.cached).toBe(false);
+      expect(s.cachedAt).toBeNull(); // no epoch-0 leak
+      expect(s.ageMs).toBeNull();    // no huge ageMs
+      expect(s.consecutiveFailures).toBe(1);
+    });
   });
 
   // ── S-M1-5: per-proxy cache tests ──────────────────────────────────────
