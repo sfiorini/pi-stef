@@ -1405,3 +1405,76 @@ describe("impl-review fixes", () => {
     expect((chunks[0] as any).done).toBe(true); // all burned → sentinel
   });
 });
+
+// ── mint-failure budget (stream) ────────────────────────────────────────────
+
+describe("mint-failure budget (stream)", () => {
+  function mintStreamDeps(overrides?: Partial<RetryDeps>) {
+    const markEmptyAndSwitchCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshCalls.push(proxy ?? ""); },
+      },
+      ...overrides,
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markEmptyAndSwitchCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    return { pool, deps, markEmptyAndSwitchCalls, refreshCalls };
+  }
+
+  it("1st TokenMintError rotates → success", async () => {
+    const { pool, deps, markEmptyAndSwitchCalls } = mintStreamDeps();
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount === 1) throw new TokenMintError("egress", "x");
+      yield contentChunk("ok");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toEqual([contentChunk("ok"), finishChunk("stop")]);
+    expect(callCount).toBe(2);
+    expect(pool.rotateCalls).toBe(1);
+    expect(markEmptyAndSwitchCalls).toHaveLength(0);
+  });
+
+  it("2 strikes → rateLimited sentinel, NO bestEffortRefresh, exactly 2 attempts", async () => {
+    const { pool, deps, markEmptyAndSwitchCalls, refreshCalls } = mintStreamDeps();
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      throw new TokenMintError("egress", "x");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(2);
+    // Last chunk is the rateLimited sentinel, and it's the ONLY chunk
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    expect("done" in sentinel && sentinel.done).toBe(true);
+    expect("done" in sentinel && (sentinel as any).extra?.rateLimited).toBe(true);
+    expect(markEmptyAndSwitchCalls).toHaveLength(1);
+    expect(refreshCalls).toHaveLength(0); // NO bestEffortRefresh on mint-exhaustion
+    // First strike rotates (A→B), second strike exhausts
+    expect(pool.rotateCalls).toBe(1);
+  });
+});

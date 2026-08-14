@@ -284,6 +284,7 @@ export async function* withPoolRetryStream(
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
   const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let mintStrikes = 0;
   let inlineReminted = false;
   let slotKey: string | undefined;
 
@@ -327,6 +328,7 @@ export async function* withPoolRetryStream(
       } else {
         // Clean end — flush remaining buffer
         deps.pool.markSuccess();
+        mintStrikes = 0;
         yield* buffer;
         return;
       }
@@ -372,7 +374,20 @@ export async function* withPoolRetryStream(
           error: String(err).slice(0, 300),
           errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
           errorName: err instanceof Error ? err.constructor.name : typeof err,
+          ...(err instanceof TokenMintError ? { mintCause: err.cause, mintStrikes } : {}),
         });
+        if (err instanceof TokenMintError) {
+          mintStrikes++;
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            deps.pool
+              .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+              .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+            await sleep(deps.config.emptyCooldownMs); // awaited — the in-process storm gate
+            yield { done: true, extra: { rateLimited: true } };
+            return;
+          }
+        }
         if (tried < deps.proxyPool!.size) {
           const next = await rotateWithSlot(deps, slotKey ?? proxy);
           slotKey = useSlots ? next : undefined;
