@@ -605,4 +605,109 @@ describe("BaxiaTokenManager", () => {
       expect(mgr.status().consecutiveFailures).toBe(2);
     });
   });
+
+  // ── S-M1-5: per-proxy cache tests ──────────────────────────────────────
+
+  describe("per-proxy cache", () => {
+    function makeProxySetup(overrides: Partial<BaxiaTokenManagerConfig> = {}) {
+      let evalCount = 0;
+      const replyMap = new Map<string, (id: number, params: any) => any>();
+      replyMap.set("Page.enable", () => ({}));
+      replyMap.set("Runtime.enable", () => ({}));
+      replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("__baxia__")) {
+          evalCount++;
+          const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+          return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } };
+        }
+        return { result: { type: "undefined" } };
+      });
+
+      let currentTime = 1000;
+      const nowFn = vi.fn(() => currentTime);
+      const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+      const fetcherFn = vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const config = makeConfig({
+        spawn: spawnFn as any,
+        WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+        fetcher: fetcherFn as any,
+        sleep: () => Promise.resolve(),
+        now: nowFn,
+        ...overrides,
+      });
+
+      return { spawnFn, config, evalCount: () => evalCount, advance: (ms: number) => { currentTime += ms; } };
+    }
+
+    it("per-proxy separates: A then B → 2 distinct tokens, 2 spawns; A within TTL → 0 spawns", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const tA = await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      const tB = await mgr.ensureToken({ proxy: "socks5://u:p@proxyB:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+      expect(tB.bxUmidToken).not.toBe(tA.bxUmidToken); // distinct tokens
+
+      advance(60_000);
+      const tA2 = await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2); // cache hit for A
+      expect(tA2.bxUmidToken).toBe(tA.bxUmidToken);
+    });
+
+    it("lazy spawn: TTL per proxy; DIRECT_KEY unaffected", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      // DIRECT_KEY (no proxy) should still be a separate cache
+      await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(2); // separate spawn for direct
+
+      // Proxy A cache hit
+      advance(60_000);
+      await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+    });
+
+    it("same-proxy piggyback: Promise.all same proxy → 1 spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const proxy = "socks5://u:p@proxyA:1080";
+      const [t1, t2] = await Promise.all([
+        mgr.ensureToken({ proxy }),
+        mgr.ensureToken({ proxy }),
+      ]);
+      expect(t1.bxUmidToken).toBe(t2.bxUmidToken);
+      expect(spawnFn).toHaveBeenCalledTimes(1); // piggybacked
+    });
+
+    it("legacy ≡ today: ensureToken() twice within TTL → 1 spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const t1 = await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      advance(60_000);
+      const t2 = await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+      expect(t2.bxUmidToken).toBe(t1.bxUmidToken);
+    });
+  });
 });
