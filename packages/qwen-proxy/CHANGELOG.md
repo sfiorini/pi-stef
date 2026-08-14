@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-08-14
+### Changed
+- fix(qwen-proxy): undici SOCKS dispatcher for proxied completions (rotation actually works)
+
+
 ## [0.5.1] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): lifetime error handlers on bridge sockets (ECONNRESET crash)
