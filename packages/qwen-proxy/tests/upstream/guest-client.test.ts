@@ -23,6 +23,7 @@ function makeBaxia(overrides?: Partial<BaxiaTokenManager>): BaxiaTokenManager {
     startRefreshLoop: vi.fn(),
     stop: vi.fn(),
     status: vi.fn(),
+    recordRequestServed: vi.fn(),
     ...overrides,
   } as unknown as BaxiaTokenManager;
 }
@@ -151,6 +152,7 @@ describe("createChatSession", () => {
       startRefreshLoop: vi.fn(),
       stop: vi.fn(),
       status: vi.fn(),
+    recordRequestServed: vi.fn(),
     } as unknown as BaxiaTokenManager;
 
     const fetcher = vi.fn()
@@ -1091,5 +1093,131 @@ describe("S-M1-6: TTFB timeout", () => {
     }
     expect(caught).toBeInstanceOf(NetworkError);
     expect((caught as NetworkError).message).toContain("TTFB");
+  });
+});
+
+// ── stall guard wiring + counter + redaction (S-M2-3) ───────────────────────
+
+describe("stall guard wiring (S-M2-3)", () => {
+  const CREDS_PROXY = "socks5://u9:p9@h9:1080";
+
+  function sessionOk() {
+    return { ok: true, json: async () => ({ data: { id: "sid-stall" } }) };
+  }
+  function silentSseResponse(): Response {
+    const body = new ReadableStream<Uint8Array>({ start() {} }); // headers, then silence
+    return { ok: true, body } as unknown as Response;
+  }
+  function stallAfterContentResponse(): Response {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "partial" } }] })}\n\n`));
+        // then silence forever
+      },
+    });
+    return { ok: true, body } as unknown as Response;
+  }
+
+  it("stream: silent body + firstPayloadTimeoutMs=50 → EmptyCompletionError, semaphore released", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sessionOk()).mockResolvedValueOnce(silentSseResponse());
+    const sem = { held: 0, async acquire() { this.held += 1; }, release() { this.held -= 1; } };
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      concurrency: sem,
+      stallGuard: { firstPayloadTimeoutMs: 50, idleTimeoutMs: 0 },
+    });
+    const stream = client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: true });
+    await expect(async () => {
+      for await (const _ of stream as AsyncIterable<any>) { /* drain */ }
+    }).rejects.toThrow(EmptyCompletionError);
+    expect(sem.held).toBe(0);
+  });
+
+  it("non-stream: silent body + firstPayloadTimeoutMs=50 → EmptyCompletionError, semaphore released", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sessionOk()).mockResolvedValueOnce(silentSseResponse());
+    const sem = { held: 0, async acquire() { this.held += 1; }, release() { this.held -= 1; } };
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      concurrency: sem,
+      stallGuard: { firstPayloadTimeoutMs: 50, idleTimeoutMs: 0 },
+    });
+    await expect(
+      client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: false }),
+    ).rejects.toThrow(EmptyCompletionError);
+    expect(sem.held).toBe(0);
+  });
+
+  it("stream: content then silence + idleTimeoutMs=40 → yields partial then ends gracefully", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sessionOk()).mockResolvedValueOnce(stallAfterContentResponse());
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      stallGuard: { firstPayloadTimeoutMs: 0, idleTimeoutMs: 40 },
+    });
+    const chunks: any[] = [];
+    for await (const c of client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: true }) as AsyncIterable<any>) {
+      chunks.push(c);
+    }
+    expect(chunks.length).toBe(1);
+    expect(chunks[0].choices[0].delta.content).toBe("partial");
+  });
+
+  it("non-stream: content then silence + idleTimeoutMs=40 → returns partial completion", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sessionOk()).mockResolvedValueOnce(stallAfterContentResponse());
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      stallGuard: { firstPayloadTimeoutMs: 0, idleTimeoutMs: 40 },
+    });
+    const completion = (await client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: false })) as any;
+    expect(completion.choices[0].message.content).toBe("partial");
+  });
+
+  it("createChatSession OK records the request against the proxy token", async () => {
+    const fetcher = vi.fn().mockResolvedValueOnce(sessionOk()).mockResolvedValueOnce(silentSseResponse());
+    const baxia = makeBaxia();
+    const client = new GuestUpstreamClient({
+      baxia, chatUrl: "https://chat.qwen.ai", fetcher: fetcher as unknown as typeof fetch, log: noopLog,
+      stallGuard: { firstPayloadTimeoutMs: 30, idleTimeoutMs: 0 },
+    });
+    // Drive one completion (session creation happens first).
+    const stream = client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: true }, CREDS_PROXY);
+    await expect(async () => { for await (const _ of stream as AsyncIterable<any>) {} }).rejects.toThrow();
+    expect(baxia.recordRequestServed).toHaveBeenCalledWith(CREDS_PROXY);
+  });
+
+  it("logs contain no proxy credentials; proxy fields are host:port", async () => {
+    const records: Array<{ msg: string; ctx: any }> = [];
+    const log = {
+      info: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      warn: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      error: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+    };
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(sessionOk())
+      .mockResolvedValueOnce(silentSseResponse());
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(), chatUrl: "https://chat.qwen.ai", fetcher: fetcher as unknown as typeof fetch, log,
+      stallGuard: { firstPayloadTimeoutMs: 30, idleTimeoutMs: 0 },
+    });
+    const stream = client.chatCompletions("b", { model: "m", messages: [{ role: "user", content: "x" }], stream: true }, CREDS_PROXY);
+    await expect(async () => { for await (const _ of stream as AsyncIterable<any>) {} }).rejects.toThrow();
+    const serialized = JSON.stringify(records);
+    expect(serialized).not.toContain("u9:");
+    expect(serialized).not.toContain("p9@");
+    const okLog = records.find((r) => r.msg.includes("createChatSession OK"));
+    expect(okLog).toBeDefined();
+    expect(okLog!.ctx.proxy).toBe("h9:1080");
   });
 });

@@ -17,6 +17,8 @@ import type {
 import type { Logger } from "../server/logger";
 import type { ProxyDispatcherCache, DispatcherLike } from "../pool/proxy-pool";
 import { fetchWithProxy } from "../pool/proxy-pool";
+import { withStallGuard } from "./stall-guard";
+import { redactProxyKey } from "./proxy-bridge";
 
 // ── Config ────────────────────────────────────────────────────────────────
 
@@ -35,6 +37,8 @@ export interface GuestUpstreamClientConfig {
   concurrency?: { acquire(): Promise<void>; release(): void };
   /** Proxy dispatcher cache for SOCKS5 proxy rotation. Absent = no proxy. */
   proxyDispatcherCache?: ProxyDispatcherCache;
+  /** Shared stall-guard knobs (stream + non-stream). Absent = defaults inside withStallGuard. */
+  stallGuard?: { firstPayloadTimeoutMs?: number; idleTimeoutMs?: number };
 }
 
 const DEFAULT_UA =
@@ -54,6 +58,7 @@ export class GuestUpstreamClient {
   private modelsCache: Model[] | null = null;
   private concurrency?: { acquire(): Promise<void>; release(): void };
   private proxyDispatcherCache?: ProxyDispatcherCache;
+  private readonly stallGuard: { firstPayloadTimeoutMs?: number; idleTimeoutMs?: number };
   private readonly timeoutMs: number;
 
   constructor(config: GuestUpstreamClientConfig) {
@@ -65,6 +70,7 @@ export class GuestUpstreamClient {
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.concurrency = config.concurrency;
     this.proxyDispatcherCache = config.proxyDispatcherCache;
+    this.stallGuard = config.stallGuard ?? {};
     this.timeoutMs = config.timeoutMs ?? 60_000;
   }
 
@@ -132,22 +138,24 @@ export class GuestUpstreamClient {
       if (!res.ok) {
         if (res.status >= 400 && res.status < 500) {
           const text = await res.text().catch(() => "");
-          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: proxy ?? "(direct)", body: text.slice(0, 200) });
+          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: redactProxyKey(proxy), body: text.slice(0, 200) });
           throw new ClientError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
         }
         if (res.status >= 500) {
           const text = await res.text().catch(() => "");
-          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: proxy ?? "(direct)", body: text.slice(0, 200) });
+          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: redactProxyKey(proxy), body: text.slice(0, 200) });
           throw new ServerError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
         }
       }
-      this.log.info("[guest-debug] createChatSession OK", { proxy: proxy ?? "(direct)" });
+      this.log.info("[guest-debug] createChatSession OK", { proxy: redactProxyKey(proxy) });
+      // Count the request against this proxy's token (change #7).
+      this.baxia.recordRequestServed(proxy);
 
       const data = await res.json();
 
       // Check for rgv587 (Baxia captcha rejection)
       if (RGV587_RE.test(JSON.stringify(data))) {
-        this.log.warn("createChatSession rgv587 detected, retrying", { attempt: attempt + 1, proxy: proxy ?? "(direct)" });
+        this.log.warn("createChatSession rgv587 detected, retrying", { attempt: attempt + 1, proxy: redactProxyKey(proxy) });
         if (attempt < maxRetries - 1) {
           await this._sleep(600);
           continue;
@@ -227,6 +235,15 @@ export class GuestUpstreamClient {
     };
   }
 
+  /** Translated SSE chunks wrapped in the shared stall guard (Q4: both paths). */
+  private async *guardedSse(res: Response): AsyncGenerator<OpenAiChatChunk> {
+    const body = res.body ?? undefined;
+    yield* withStallGuard(translateQwenSse(body!), body, {
+      firstPayloadTimeoutMs: this.stallGuard.firstPayloadTimeoutMs,
+      idleTimeoutMs: this.stallGuard.idleTimeoutMs,
+    });
+  }
+
   // ── chatCompletions ────────────────────────────────────────────────────
 
   chatCompletions(
@@ -250,7 +267,7 @@ export class GuestUpstreamClient {
       if (!res.body) {
         throw new Error("Response body is null (no stream)");
       }
-      yield* translateQwenSse(res.body);
+      yield* this.guardedSse(res);
     } finally {
       this.concurrency?.release();
     }
@@ -272,7 +289,7 @@ export class GuestUpstreamClient {
       let reasoning = "";
       let usage: any = undefined;
 
-      for await (const chunk of translateQwenSse(res.body)) {
+      for await (const chunk of this.guardedSse(res)) {
         const delta = chunk.choices?.[0]?.delta;
         if (delta?.content) content += delta.content;
         if (delta?.reasoning_content) reasoning += delta.reasoning_content;

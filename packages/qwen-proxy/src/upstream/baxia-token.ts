@@ -9,6 +9,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
 import { NetworkError } from "./errors";
+import { redactProxyKey } from "./proxy-bridge";
 import type { Logger } from "../server/logger";
 
 // ── Public types ────────────────────────────────────────────────────────────
@@ -45,6 +46,8 @@ export interface BaxiaStatus {
   nextRefreshInMs: number | null;
   lastSpawnDurationMs: number | null;
   consecutiveFailures: number;
+  /** Completed requests served through the currently-cached token (reset on each mint). */
+  requestsServed: number;
 }
 
 // ── CDP session ─────────────────────────────────────────────────────────────
@@ -85,7 +88,7 @@ export class BaxiaTokenManager {
   private _sleep: (ms: number) => Promise<void>;
 
   // Orchestration state
-  private proxyCache = new Map<string, { tokens: BaxiaTokens | null; cachedAt: number | null; lastSpawnDurationMs: number | null; consecutiveFailures: number }>();
+  private proxyCache = new Map<string, { tokens: BaxiaTokens | null; cachedAt: number | null; lastSpawnDurationMs: number | null; consecutiveFailures: number; requestsServed: number }>();
   private pendingByProxy = new Map<string, Promise<BaxiaTokens>>();
   private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
@@ -289,7 +292,7 @@ export class BaxiaTokenManager {
       : undefined;
     const { child, port } = this.startChrome(exe, proxyServerUrl);
     this.config.log.info("[baxia-debug] chromium spawn", {
-      proxy: proxy ?? "(direct)",
+      proxy: redactProxyKey(proxy),
       pid: child.pid,
       port,
       via: proxyServerUrl ?? "direct",
@@ -403,7 +406,7 @@ export class BaxiaTokenManager {
 
         if (!baxiaData) {
           this.config.log.error("[baxia-debug] readiness FAILED after 30s", {
-            proxy: proxy ?? "(direct)",
+            proxy: redactProxyKey(proxy),
             lastPage: lastPageState.slice(0, 300),
           });
           throw new Error(
@@ -411,7 +414,7 @@ export class BaxiaTokenManager {
           );
         }
         this.config.log.info("[baxia-debug] token minted", {
-          proxy: proxy ?? "(direct)",
+          proxy: redactProxyKey(proxy),
           uidPrefix: baxiaData.uid.slice(0, 8),
           uidLen: baxiaData.uid.length,
           fyLen: baxiaData.fy.length,
@@ -465,6 +468,34 @@ export class BaxiaTokenManager {
     }
   }
 
+  /** Count a completed request against the proxy's currently-cached token (change #7). No-op when no entry. */
+  recordRequestServed(proxy?: string): void {
+    const key = proxy ?? BaxiaTokenManager.DIRECT_KEY;
+    const entry = this.proxyCache.get(key);
+    if (entry) entry.requestsServed += 1;
+  }
+
+  /** Mark the proxy's cached token burned: drop it so the next ensureToken re-mints.
+   *  Logs the measured requests-served count (change #1 + #7). */
+  evictToken(proxy?: string): void {
+    const key = proxy ?? BaxiaTokenManager.DIRECT_KEY;
+    const entry = this.proxyCache.get(key);
+    if (!entry) return;
+    const now = this.config.now?.() ?? Date.now();
+    this.config.log.warn("[baxia] token burned — evicting", {
+      proxy: redactProxyKey(proxy),
+      requestsServed: entry.requestsServed,
+      ageMs: entry.cachedAt != null ? now - entry.cachedAt : null,
+    });
+    this.proxyCache.set(key, {
+      tokens: null,
+      cachedAt: null,
+      lastSpawnDurationMs: null,
+      consecutiveFailures: entry.consecutiveFailures,
+      requestsServed: 0,
+    });
+  }
+
   private async withSpawnLock<T>(fn: () => Promise<T>): Promise<T> {
     // Chain onto spawnChain so new spawns wait for the previous one to settle
     const chained = this.spawnChain.then(fn, fn);
@@ -488,6 +519,7 @@ export class BaxiaTokenManager {
         cachedAt: this.config.now?.() ?? Date.now(),
         lastSpawnDurationMs: (this.config.now?.() ?? Date.now()) - start,
         consecutiveFailures: 0,
+        requestsServed: 0,
       });
       this.lastUsedProxy = key; // SUCCESS only
       return tokens;
@@ -498,6 +530,7 @@ export class BaxiaTokenManager {
         cachedAt: prev?.cachedAt ?? null,
         lastSpawnDurationMs: prev?.lastSpawnDurationMs ?? null,
         consecutiveFailures: (prev?.consecutiveFailures ?? 0) + 1,
+        requestsServed: prev?.requestsServed ?? 0,
       });
       if (this.config.fallback && prev?.tokens) {
         return prev.tokens;
@@ -539,6 +572,7 @@ export class BaxiaTokenManager {
         : null,
       lastSpawnDurationMs: entry?.lastSpawnDurationMs ?? null,
       consecutiveFailures: entry?.consecutiveFailures ?? 0,
+      requestsServed: entry?.requestsServed ?? 0,
     };
   }
 
@@ -556,6 +590,7 @@ export class BaxiaTokenManager {
           : null,
         lastSpawnDurationMs: entry.lastSpawnDurationMs,
         consecutiveFailures: entry.consecutiveFailures,
+        requestsServed: entry.requestsServed,
       };
     }
     return result;

@@ -114,6 +114,8 @@ function makeStubDeps(adminKey?: string): AppDeps {
       emptyRetryGapMs: 1_000,
       minRequestGapMs: 0,
       maxConcurrency: 1,
+      firstPayloadTimeoutMs: 30_000,
+      streamIdleTimeoutMs: 30_000,
       apiKeyEnv: [],
       modelAliasesRaw: "",
       logLevel: "info",
@@ -182,6 +184,7 @@ describe("adminRoutes integration via createApp", () => {
       nextRefreshInMs: 1_380_000,
       lastSpawnDurationMs: 3_200,
       consecutiveFailures: 0,
+      requestsServed: 0,
     };
     deps.baxiaStatus = () => baxia;
     const app = createApp(deps);
@@ -211,6 +214,7 @@ describe("adminRoutes integration via createApp", () => {
       nextRefreshInMs: null,
       lastSpawnDurationMs: null,
       consecutiveFailures: 0,
+      requestsServed: 0,
     };
     deps.baxiaStatus = () => baxia;
     const app = createApp(deps);
@@ -231,6 +235,7 @@ describe("adminRoutes integration via createApp", () => {
       nextRefreshInMs: 1_500_000,
       lastSpawnDurationMs: 3_000,
       consecutiveFailures: 0,
+      requestsServed: 0,
     });
     const app = createApp(deps);
     const res = await app.request("/admin");

@@ -22,6 +22,8 @@ function makeStubDeps(): AppDeps {
       emptyRetryGapMs: 1_000,
       minRequestGapMs: 0,
       maxConcurrency: 1,
+      firstPayloadTimeoutMs: 30_000,
+      streamIdleTimeoutMs: 30_000,
       apiKeyEnv: ["test-key"],
       modelAliasesRaw: "",
       logLevel: "info",

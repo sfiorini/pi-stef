@@ -1348,10 +1348,11 @@ describe("POST /v1/chat/completions", () => {
     });
 
     expect(res.status).toBe(200);
+    // Q1=B: first empty evicts + inline re-mints and retries the SAME proxy
     expect(seen).toEqual([
       "socks5://u:p@a:1080",
-      "socks5://u:p@b:1080",
+      "socks5://u:p@a:1080",
     ]);
-    expect(pool.rotateCalls).toBe(1);
+    expect(pool.rotateCalls).toBe(0);
   });
 });

@@ -1,20 +1,31 @@
 import type { OpenAiChatChunk } from "../upstream/client";
 import { RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
+import { redactProxyKey } from "../upstream/proxy-bridge";
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
 
-/** Minimal proxy-pool contract for rotation mode (S-M2). */
+/** Minimal proxy-pool contract for rotation mode (S-M2 + burn-dynamics Q2=C).
+ *  acquire/release are OPTIONAL per-proxy serialization slots: when present the
+ *  retry layer holds one slot per request (sticky-first assignment, spread under
+ *  concurrency); when absent (legacy fakes / non-slot pools) retry falls back to
+ *  sticky getActive() + rotate(). */
 export interface ProxyPoolLike {
   readonly size: number;
   getActive(): string | undefined;
   rotate(): string | undefined;
+  acquire?(): Promise<string>;
+  release?(key: string): void;
 }
 
 /** Minimal scheduler contract retry needs: on-demand token refresh. */
 export interface RetryScheduler {
   refreshOnDemand(id: number): Promise<{ bearer: string; expiresAt: number | null }>;
-  /** Best-effort Baxia token rotation — called on empty-exhaustion so the next request gets a fresh, unflagged token. Optional (absent in tests). */
-  refreshBaxiaToken?(): Promise<void>;
+  /** Force-refresh a proxy's Baxia token (defaults to the active proxy). Optional (absent in tests). */
+  refreshBaxiaToken?(proxy?: string): Promise<void>;
+  /** Mark a proxy's Baxia token burned (evict + log requestsServed). Optional (absent in tests). */
+  evictBaxiaToken?(proxy?: string): void;
+  /** Age of the proxy's cached token in ms (for empty-walk logging). Optional (absent in tests). */
+  baxiaTokenAgeMs?(proxy?: string): number | null;
 }
 
 export interface RetryDeps {
@@ -40,6 +51,72 @@ export type StreamChunk =
   | OpenAiChatChunk
   | { done: true; extra?: { rateLimited?: boolean } };
 
+/** Best-effort sentinel refresh; never fatal. */
+async function bestEffortRefresh(
+  deps: RetryDeps,
+  proxy: string | undefined,
+): Promise<void> {
+  try {
+    await deps.scheduler.refreshBaxiaToken?.(proxy);
+  } catch (e) {
+    deps.log.error("baxia token refresh failed after all-burned", { error: String(e), proxy: redactProxyKey(proxy) });
+  }
+}
+
+/** Slot-aware proxy hand-off on rotation: advance the head, acquire the new
+ *  head's slot (sticky-first, skips busy proxies), THEN release the old slot so
+ *  the burned proxy is not handed to another request mid-flight. */
+async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Promise<string | undefined> {
+  const pool = deps.proxyPool!;
+  pool.rotate();
+  if (typeof pool.acquire === "function" && typeof pool.release === "function") {
+    const next = await pool.acquire();
+    if (current !== undefined) pool.release(current);
+    return next;
+  }
+  return pool.getActive();
+}
+
+/** Rotation-mode empty-completion burn recovery (Q1=B):
+ *  1. log the walk attempt (redacted proxy, tried/size, token age)
+ *  2. evict the proxy's burned token
+ *  3. if no inline re-mint happened yet for this request: force re-mint and
+ *     retry the SAME proxy (bounded: one per request)
+ *  4. else rotate (or signal all-burned when the walk budget is spent)
+ *  Returns the next action: remint (retry same proxy), rotate (next proxy),
+ *  or all-burned (sentinel/429 + refresh). */
+async function emptyBurnStep(
+  deps: RetryDeps,
+  opts: { proxy: string | undefined; tried: number; inlineReminted: boolean },
+): Promise<{ action: "remint" } | { action: "rotate"; proxy: string | undefined } | { action: "all-burned" }> {
+  const pool = deps.proxyPool!;
+  deps.log.warn("[rotation-debug] empty completion — walking", {
+    proxy: redactProxyKey(opts.proxy),
+    tried: opts.tried + 1,
+    size: pool.size,
+    tokenAgeMs: opts.proxy ? (deps.scheduler.baxiaTokenAgeMs?.(opts.proxy) ?? null) : null,
+  });
+  if (opts.proxy !== undefined) deps.scheduler.evictBaxiaToken?.(opts.proxy);
+  if (!opts.inlineReminted) {
+    // Inline re-mint on the SAME proxy (bounded once per request) — the egress
+    // IP is usually fine, only the token is burned.
+    try {
+      await deps.scheduler.refreshBaxiaToken?.(opts.proxy);
+    } catch (e) {
+      deps.log.error("baxia inline re-mint failed — rotating", { error: String(e), proxy: redactProxyKey(opts.proxy) });
+      if (opts.tried < pool.size - 1) {
+        return { action: "rotate", proxy: await rotateWithSlot(deps, opts.proxy) };
+      }
+      return { action: "all-burned" };
+    }
+    return { action: "remint" };
+  }
+  if (opts.tried < pool.size - 1) {
+    return { action: "rotate", proxy: await rotateWithSlot(deps, opts.proxy) };
+  }
+  return { action: "all-burned" };
+}
+
 /**
  * Non-stream retry: AuthExpiredError → refresh → retry same.
  * EmptyCompletionError → inline retry (up to emptyRetryMax) → exhaustion sentinel.
@@ -51,13 +128,19 @@ export async function withPoolRetry<T>(
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let inlineReminted = false;
+  let slotKey: string | undefined;
+
+  try {
+    if (useSlots) slotKey = await deps.proxyPool!.acquire!();
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
-    const proxy = deps.proxyPool?.getActive();
+    const proxy = slotKey ?? deps.proxyPool?.getActive();
 
     try {
       const result = await op(id, bearer, proxy);
@@ -73,10 +156,36 @@ export async function withPoolRetry<T>(
         throw err;
       }
 
+      // Rotation mode: empty completion → burn recovery (evict + inline re-mint, Q1=B)
+      if (rotationMode && err instanceof EmptyCompletionError) {
+        const allowRemint = !inlineReminted;
+        const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+        if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        if (step.action === "remint") {
+          continue; // retry the SAME proxy with the fresh token
+        }
+        if (step.action === "rotate") {
+          tried += 1;
+          slotKey = useSlots ? step.proxy : undefined;
+          continue;
+        }
+        // All proxies burned — cooldown + refresh active token (change #2, Q3=A) + 429
+        tried += 1;
+        const { emptyCooldownMs } = deps.config;
+        deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
+        await sleep(emptyCooldownMs);
+        await bestEffortRefresh(deps, proxy);
+        throw new RateLimitError(
+          "all proxies exhausted after rotation retries",
+          { status: 429, retryAfterMs: emptyCooldownMs },
+        );
+      }
+
       // Rotation mode: rotate on rotatable errors (pre-first-content budget)
       if (rotationMode && isRotationTrigger(err)) {
         tried++;
         deps.log.warn("[rotation-debug] attempt failed — rotating", {
+          proxy: redactProxyKey(proxy),
           tried,
           size: deps.proxyPool!.size,
           error: String(err).slice(0, 300),
@@ -84,13 +193,15 @@ export async function withPoolRetry<T>(
           errorName: err instanceof Error ? err.constructor.name : typeof err,
         });
         if (tried < deps.proxyPool!.size) {
-          deps.proxyPool!.rotate();
+          const next = await rotateWithSlot(deps, slotKey ?? proxy);
+          slotKey = useSlots ? next : undefined;
           continue;
         }
-        // All proxies burned — cooldown + 429
+        // All proxies burned — cooldown + refresh active token (change #2) + 429
         const { emptyCooldownMs } = deps.config;
         deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
         await sleep(emptyCooldownMs);
+        await bestEffortRefresh(deps, proxy);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
           { status: 429, retryAfterMs: emptyCooldownMs },
@@ -126,6 +237,11 @@ export async function withPoolRetry<T>(
       throw err;
     }
   }
+  } finally {
+    // Release the per-proxy serialization slot on EVERY exit path (success,
+    // throw, all-burned) — the request owned exactly one slot.
+    if (slotKey !== undefined && useSlots) deps.proxyPool!.release!(slotKey);
+  }
 }
 
 /**
@@ -148,13 +264,19 @@ export async function* withPoolRetryStream(
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let inlineReminted = false;
+  let slotKey: string | undefined;
+
+  try {
+    if (useSlots) slotKey = await deps.proxyPool!.acquire!();
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
-    const proxy = deps.proxyPool?.getActive();
+    const proxy = slotKey ?? deps.proxyPool?.getActive();
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
@@ -200,10 +322,33 @@ export async function* withPoolRetryStream(
         throw err;
       }
 
+      // Rotation mode: THROWN EmptyCompletionError pre-first-content (stall-guard
+      // first-payload timeout) → burn recovery (evict + inline re-mint), NOT plain
+      // rotation — otherwise the burned token stays cached (impl-review F1).
+      if (rotationMode && !seenContent && err instanceof EmptyCompletionError) {
+        const allowRemint = !inlineReminted;
+        const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+        if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        if (step.action === "remint") {
+          continue; // retry the SAME proxy with the fresh token
+        }
+        if (step.action === "rotate") {
+          tried += 1;
+          slotKey = useSlots ? step.proxy : undefined;
+          continue;
+        }
+        tried += 1;
+        deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
+        await bestEffortRefresh(deps, proxy);
+        yield { done: true, extra: { rateLimited: true } };
+        return;
+      }
+
       // Rotation mode: rotate on rotatable errors (PRE-first-content ONLY)
       if (rotationMode && !seenContent && isRotationTrigger(err)) {
         tried++;
         deps.log.warn("[rotation-debug] stream attempt failed — rotating", {
+          proxy: redactProxyKey(proxy),
           tried,
           size: deps.proxyPool!.size,
           error: String(err).slice(0, 300),
@@ -211,11 +356,13 @@ export async function* withPoolRetryStream(
           errorName: err instanceof Error ? err.constructor.name : typeof err,
         });
         if (tried < deps.proxyPool!.size) {
-          deps.proxyPool!.rotate();
+          const next = await rotateWithSlot(deps, slotKey ?? proxy);
+          slotKey = useSlots ? next : undefined;
           continue;
         }
-        // All proxies burned — sentinel (no refreshBaxiaToken)
+        // All proxies burned — refresh the active proxy's token (change #2, Q3=A), then sentinel
         deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
+        await bestEffortRefresh(deps, proxy);
         yield { done: true, extra: { rateLimited: true } };
         return;
       }
@@ -224,15 +371,23 @@ export async function* withPoolRetryStream(
       throw err;
     }
 
-    // Rotation mode: empty → rotate (PRE-first-content)
+    // Rotation mode: empty → burn recovery (evict + inline re-mint once → rotate → sentinel)
     if (emptyCompletion && rotationMode) {
-      tried++;
-      if (tried < deps.proxyPool!.size) {
-        deps.proxyPool!.rotate();
+      const allowRemint = !inlineReminted;
+      const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+      if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+      if (step.action === "remint") {
+        continue; // retry the SAME proxy with the fresh token
+      }
+      if (step.action === "rotate") {
+        tried += 1;
+        slotKey = useSlots ? step.proxy : undefined;
         continue;
       }
-      // All proxies burned — sentinel (no refreshBaxiaToken)
+      // All proxies burned — refresh the active proxy's token, then sentinel (change #2, Q3=A)
+      tried += 1;
       deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
+      await bestEffortRefresh(deps, proxy);
       yield { done: true, extra: { rateLimited: true } };
       return;
     }
@@ -266,6 +421,11 @@ export async function* withPoolRetryStream(
       yield { done: true, extra: { rateLimited: true } };
       return;
     }
+  }
+  } finally {
+    // Release the per-proxy serialization slot on EVERY exit path (clean end,
+    // sentinel, throw, consumer break — the generator's return() lands here).
+    if (slotKey !== undefined && useSlots) deps.proxyPool!.release!(slotKey);
   }
 }
 

@@ -185,9 +185,18 @@ class FakeProxyPool implements ProxyPoolLike {
 }
 
 describe("withPoolRetry — rotation mode", () => {
-  it("empty → rotate → success (op sees proxy A then B)", async () => {
+  it("empty → evict + inline re-mint → retry SAME proxy → success (Q1=B)", async () => {
     const proxyPool = new FakeProxyPool(["A", "B"]);
-    const deps = makeDeps({ proxyPool });
+    const evicted: Array<string | undefined> = [];
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool,
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); },
+        evictBaxiaToken: (proxy?: string) => { evicted.push(proxy); },
+      },
+    });
     const seen: string[] = [];
     let callCount = 0;
 
@@ -199,8 +208,10 @@ describe("withPoolRetry — rotation mode", () => {
     });
 
     expect(result).toBe("ok");
-    expect(seen).toEqual(["A", "B"]);
-    expect(proxyPool.rotateCalls).toBe(1);
+    expect(seen).toEqual(["A", "A"]); // re-mint retry stays on the same proxy
+    expect(evicted).toEqual(["A"]);
+    expect(refreshed).toEqual(["A"]);
+    expect(proxyPool.rotateCalls).toBe(0);
   });
 
   it("NetworkError → rotate → success", async () => {
@@ -232,13 +243,13 @@ describe("withPoolRetry — rotation mode", () => {
 
   it("budget=size (N=2): A→B exhausted → RateLimitError + cooldown", async () => {
     const proxyPool = new FakeProxyPool(["A", "B"]);
-    let refreshBaxiaCalled = 0;
+    const refreshProxies: Array<string | undefined> = [];
     const deps = makeDeps({
       proxyPool,
       config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
       scheduler: {
         refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
-        refreshBaxiaToken: async () => { refreshBaxiaCalled++; },
+        refreshBaxiaToken: async (proxy?: string) => { refreshProxies.push(proxy); },
       },
     });
 
@@ -249,7 +260,8 @@ describe("withPoolRetry — rotation mode", () => {
     ).rejects.toThrow(RateLimitError);
 
     expect(proxyPool.rotateCalls).toBe(1); // rotated once (A→B), then all burned
-    expect(refreshBaxiaCalled).toBe(0); // NO refreshBaxiaToken in rotation mode
+    // Q1=B inline re-mint on A, then change #2 sentinel refresh of the active proxy (B)
+    expect(refreshProxies).toEqual(["A", "B"]);
   });
 
   it("AuthExpired → refresh + retry SAME proxy (no rotate)", async () => {
@@ -367,8 +379,9 @@ describe("withPoolRetryStream — rotation mode", () => {
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    expect(seen).toEqual(["A", "B"]);
-    expect(proxyPool.rotateCalls).toBe(1);
+    // Q1=B: first empty evicts + inline re-mints, retrying the SAME proxy
+    expect(seen).toEqual(["A", "A"]);
+    expect(proxyPool.rotateCalls).toBe(0);
     expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
   });
 
@@ -392,8 +405,13 @@ describe("withPoolRetryStream — rotation mode", () => {
 
   it("budget=size N=2: both-empty → sentinel (no legacy retry)", async () => {
     const proxyPool = new FakeProxyPool(["A", "B"]);
+    const refreshedProxies: Array<string | undefined> = [];
     const deps = rotStreamDeps(proxyPool, {
       config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshedProxies.push(proxy); },
+      },
     });
     let callCount = 0;
 
@@ -407,8 +425,8 @@ describe("withPoolRetryStream — rotation mode", () => {
     }
 
     const chunks = await collectChunks(withPoolRetryStream(deps, op));
-    // N=2: try A (empty), rotate to B (empty), all burned → sentinel
-    expect(callCount).toBe(2);
+    // N=2, Q1=B: A empty → re-mint retry A → empty → rotate B → empty → all burned → sentinel
+    expect(callCount).toBe(3);
     expect(proxyPool.rotateCalls).toBe(1);
     expect(chunks).toHaveLength(1);
     const sentinel = chunks[0];
@@ -418,6 +436,9 @@ describe("withPoolRetryStream — rotation mode", () => {
     } else {
       throw new Error("Expected sentinel");
     }
+    // change #2: all-burned sentinel refreshed the active proxy's token (B)
+    // after the inline re-mint on A.
+    expect(refreshedProxies).toEqual(["A", "B"]);
   });
 });
 
@@ -926,5 +947,337 @@ describe("retry.ts branch dispatch (S-M5-78)", () => {
 
     await collectChunks(withPoolRetryStream(deps, op));
     expect(calls).toContain("markSuccess");
+  });
+});
+
+// ── retry contracts (S-M3-2): scheduler hooks + optional pool slots ─────────
+
+describe("RetryScheduler burn-recovery hooks (compile surface)", () => {
+  it("a scheduler with refreshBaxiaToken(proxy?)/evictBaxiaToken/baxiaTokenAgeMs satisfies the contract", async () => {
+    const calls: string[] = [];
+    const scheduler = {
+      refreshOnDemand: async () => ({ bearer: "b", expiresAt: null }),
+      refreshBaxiaToken: async (proxy?: string) => { calls.push("refresh:" + (proxy ?? "active")); },
+      evictBaxiaToken: (proxy?: string) => { calls.push("evict:" + (proxy ?? "active")); },
+      baxiaTokenAgeMs: (proxy?: string) => (proxy ? 1234 : null),
+    };
+    // Type-level check executed at runtime through the optional hooks.
+    await scheduler.refreshBaxiaToken?.("socks5://u:p@h:1080");
+    scheduler.evictBaxiaToken?.("socks5://u:p@h:1080");
+    expect(scheduler.baxiaTokenAgeMs?.("socks5://u:p@h:1080")).toBe(1234);
+    expect(calls).toEqual(["refresh:socks5://u:p@h:1080", "evict:socks5://u:p@h:1080"]);
+  });
+});
+
+// ── burn recovery: slots + inline re-mint + walk logging (S-M3-3) ───────────
+
+/** Fake slot-aware pool mirroring ProxyPool sticky-first semantics, with recording. */
+class FakeSlotPool implements ProxyPoolLike {
+  readonly keys: string[];
+  private head = 0;
+  private busy = new Set<string>();
+  readonly acquiredKeys: string[] = [];
+  readonly releasedKeys: string[] = [];
+  rotateCalls = 0;
+  constructor(keys: string[]) { this.keys = keys; }
+  get size(): number { return this.keys.length; }
+  getActive(): string | undefined { return this.keys[this.head]; }
+  rotate(): string | undefined {
+    this.rotateCalls++;
+    this.head = (this.head + 1) % this.keys.length;
+    return this.keys[this.head];
+  }
+  async acquire(): Promise<string> {
+    for (let i = 0; i < this.keys.length; i++) {
+      const k = this.keys[(this.head + i) % this.keys.length];
+      if (!this.busy.has(k)) {
+        this.head = (this.head + i) % this.keys.length;
+        this.busy.add(k);
+        this.acquiredKeys.push(k);
+        return k;
+      }
+    }
+    // all busy — wait for the next release (test pools never hit this)
+    await new Promise<void>(() => {});
+    return this.keys[this.head];
+  }
+  release(key: string): void {
+    this.busy.delete(key);
+    this.releasedKeys.push(key);
+  }
+}
+
+describe("withPoolRetry — burn recovery (S-M3-3)", () => {
+  const PA = "socks5://u:p@hA:1080";
+  const PB = "socks5://u:p@hB:1080";
+
+  function burnDeps(pool: ProxyPoolLike, opts?: { cooldownMs?: number }) {
+    const evicted: Array<string | undefined> = [];
+    const refreshed: Array<string | undefined> = [];
+    const warns: Array<{ msg: string; ctx: any }> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: opts?.cooldownMs ?? 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); },
+        evictBaxiaToken: (proxy?: string) => { evicted.push(proxy); },
+        baxiaTokenAgeMs: () => 4321,
+      },
+      log: {
+        info: () => {},
+        warn: (msg: string, ctx?: unknown) => warns.push({ msg, ctx }),
+        error: () => {},
+      },
+    });
+    return { deps, evicted, refreshed, warns };
+  }
+
+  it("slot lifecycle: acquire once per request, op sees the key, release exactly once on success", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps } = burnDeps(pool);
+    const seen: string[] = [];
+    const result = await withPoolRetry(deps, async (_id, _b, proxy?) => { seen.push(proxy!); return "ok"; });
+    expect(result).toBe("ok");
+    expect(pool.acquiredKeys.length).toBe(1);
+    expect(seen).toEqual([pool.acquiredKeys[0]]);
+    expect(pool.releasedKeys).toEqual([pool.acquiredKeys[0]]);
+  });
+
+  it("second empty on P → rotate away (inline re-mint bounded to one per request)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, evicted, refreshed } = burnDeps(pool);
+    const seen: string[] = [];
+    const result = await withPoolRetry(deps, async (_id, _b, proxy?) => {
+      seen.push(proxy!);
+      if (seen.length <= 2) throw new EmptyCompletionError("empty"); // A, re-minted A
+      return "ok-" + (proxy === PA ? "A" : "B");
+    });
+    expect(result).toBe("ok-B");
+    expect(seen).toEqual([PA, PA, PB]);
+    expect(evicted).toEqual([PA, PA]);
+    expect(refreshed).toEqual([PA]);
+    expect(pool.rotateCalls).toBe(1);
+  });
+
+  it("all burned (N=2, always empty): RateLimitError + evictions + sentinel refresh of the ACTIVE proxy", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, evicted, refreshed } = burnDeps(pool, { cooldownMs: 5 });
+    await expect(
+      withPoolRetry(deps, async () => { throw new EmptyCompletionError("empty"); }),
+    ).rejects.toThrow(RateLimitError);
+    expect(evicted).toEqual([PA, PA, PB]);
+    // re-mint on A, then the all-burned sentinel refreshes the last active proxy (B)
+    expect(refreshed).toEqual([PA, PB]);
+  });
+
+  it("empty-walk logging: per-attempt warn with redacted proxy, tried/size, tokenAgeMs; no creds", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, warns } = burnDeps(pool, { cooldownMs: 5 });
+    await expect(
+      withPoolRetry(deps, async () => { throw new EmptyCompletionError("empty"); }),
+    ).rejects.toThrow(RateLimitError);
+    const walks = warns.filter((w) => w.msg.includes("empty completion — walking"));
+    expect(walks.length).toBe(3); // A, re-minted A, B
+    for (const w of walks) {
+      expect(w.ctx.proxy).toMatch(/^h[AB]:1080$/); // redacted host:port
+      expect(w.ctx.size).toBe(2);
+      expect(w.ctx.tokenAgeMs).toBe(4321);
+    }
+    expect(JSON.stringify(warns)).not.toContain("u:p@");
+  });
+
+  it("slot release on throw (all-burned path frees the slot)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps } = burnDeps(pool, { cooldownMs: 5 });
+    await expect(
+      withPoolRetry(deps, async () => { throw new EmptyCompletionError("empty"); }),
+    ).rejects.toThrow(RateLimitError);
+    expect(pool.releasedKeys.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("non-empty error path all-burned also refreshes the active proxy's token (change #2)", async () => {
+    const pool = new FakeProxyPool(["A", "B"]);
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 5, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); },
+      },
+    });
+    await expect(
+      withPoolRetry(deps, async () => { throw new NetworkError("timeout"); }),
+    ).rejects.toThrow(RateLimitError);
+    expect(refreshed.length).toBe(1); // after cooldown, before the 429
+  });
+});
+
+// ── stream burn recovery: slots + re-mint + walk logging (S-M3-4) ───────────
+
+describe("withPoolRetryStream — burn recovery (S-M3-4)", () => {
+  const PA = "socks5://u:p@hA:1080";
+  const PB = "socks5://u:p@hB:1080";
+
+  function burnStreamDeps(pool: ProxyPoolLike) {
+    const evicted: Array<string | undefined> = [];
+    const refreshed: Array<string | undefined> = [];
+    const order: string[] = [];
+    const warns: Array<{ msg: string; ctx: any }> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); order.push("refresh"); },
+        evictBaxiaToken: (proxy?: string) => { evicted.push(proxy); order.push("evict"); },
+        baxiaTokenAgeMs: () => 4321,
+      },
+      log: {
+        info: () => {},
+        warn: (msg: string, ctx?: unknown) => warns.push({ msg, ctx }),
+        error: () => {},
+      },
+    });
+    return { deps, evicted, refreshed, order, warns };
+  }
+
+  it("slot lifecycle on stream: acquire once, release once on clean end", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps } = burnStreamDeps(pool);
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("hi");
+      yield finishChunk("stop");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks.length).toBe(2);
+    expect(pool.acquiredKeys.length).toBe(1);
+    expect(pool.releasedKeys).toEqual([pool.acquiredKeys[0]]);
+  });
+
+  it("second empty on P → rotate away (one inline re-mint per request)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, evicted, refreshed } = burnStreamDeps(pool);
+    const seen: string[] = [];
+    async function* op(_id: number, _b: string, proxy?: string): AsyncIterable<OpenAiChatChunk> {
+      seen.push(proxy!);
+      if (seen.length <= 2) {
+        yield finishChunk("stop"); // empty — no payload
+        return;
+      }
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual([PA, PA, PB]);
+    expect(evicted).toEqual([PA, PA]); // evict on empty only — PB served content
+    expect(refreshed).toEqual([PA]);
+    expect(pool.rotateCalls).toBe(1);
+    expect(chunks[0]).toEqual(contentChunk("recovered"));
+  });
+
+  it("all-burned error path: sentinel + refresh of the active proxy (new)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, refreshed, order } = burnStreamDeps(pool);
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      throw new NetworkError("connect fail");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(chunks).toHaveLength(1);
+    expect((chunks[0] as any).done).toBe(true);
+    expect((chunks[0] as any).extra?.rateLimited).toBe(true);
+    expect(refreshed.length).toBe(1); // change #2 on the error path too
+    expect(order[order.length - 1]).toBe("refresh"); // refresh completed before the sentinel
+  });
+
+  it("empty-walk logging: per-attempt warn with redacted proxy; no creds", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps, warns } = burnStreamDeps(pool);
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      yield finishChunk("stop"); // always empty
+    }
+    await collectChunks(withPoolRetryStream(deps, op));
+    const walks = warns.filter((w) => w.msg.includes("empty completion — walking"));
+    expect(walks.length).toBe(3); // A, re-minted A, B
+    expect(JSON.stringify(warns)).not.toContain("u:p@");
+  });
+
+  it("consumer break post-content: slot released (generator finally)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const { deps } = burnStreamDeps(pool);
+    let stalled: (() => void) | undefined;
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("partial");
+      await new Promise<void>((r) => { stalled = r; }); // never completes
+      yield contentChunk("never");
+    }
+    const iter = withPoolRetryStream(deps, op);
+    for await (const _ of iter) break; // abandon after first chunk
+    expect(pool.releasedKeys).toEqual([pool.acquiredKeys[0]]);
+    stalled?.();
+  });
+});
+
+// ── impl-review fixes: stream stall eviction + re-mint bound ────────────────
+
+describe("impl-review fixes", () => {
+  const PA = "socks5://u:p@hA:1080";
+  const PB = "socks5://u:p@hB:1080";
+
+  it("F1: stream EmptyCompletionError THROWN pre-content (stall guard) gets eviction + inline re-mint, not plain rotation", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const evicted: Array<string | undefined> = [];
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); },
+        evictBaxiaToken: (proxy?: string) => { evicted.push(proxy); },
+      },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    const seen: string[] = [];
+    async function* op(_id: number, _b: string, proxy?: string): AsyncIterable<OpenAiChatChunk> {
+      seen.push(proxy!);
+      if (seen.length === 1) throw new EmptyCompletionError("first payload timeout"); // stall-guard shape
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual([PA, PA]); // retried the SAME proxy after re-mint
+    expect(evicted).toEqual([PA]);
+    expect(refreshed).toEqual([PA]);
+    expect(pool.rotateCalls).toBe(0);
+    expect(chunks[0]).toEqual(contentChunk("recovered"));
+  });
+
+  it("F2: failed inline re-mint consumes the one-per-request allowance (no second mint on later proxies)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); throw new Error("chrome spawn failed"); },
+        evictBaxiaToken: () => {},
+      },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    const seen: string[] = [];
+    async function* op(_id: number, _b: string, proxy?: string): AsyncIterable<OpenAiChatChunk> {
+      seen.push(proxy!);
+      yield finishChunk("stop"); // always empty
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual([PA, PB]); // remint attempt failed on A → rotate to B directly
+    // Bound held: exactly ONE inline mint attempt on A (no re-attempt after rotation);
+    // the second refresh below is the all-burned SENTINEL refresh of B (change #2), not a re-mint.
+    expect(refreshed).toEqual([PA, PB]);
+    expect(refreshed.filter((p) => p === PA).length).toBe(1);
+    expect((chunks[0] as any).done).toBe(true); // all burned → sentinel
   });
 });

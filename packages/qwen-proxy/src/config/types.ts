@@ -21,6 +21,8 @@ export interface QwenProxyConfig {
   proxyPass?: string;         // SF_QWEN_PROXY_PASS           default undefined
   proxyCountriesRaw: string;  // SF_QWEN_PROXY_COUNTRIES      default "" (comma-separated country codes)
   timeoutMs: number;          // SF_QWEN_TIMEOUT_MS           default 60000  (TTFB timeout, ms)
+  firstPayloadTimeoutMs: number; // SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS default 30000 (abort with EmptyCompletionError if no payload chunk within this many ms after headers; 0 disables)
+  streamIdleTimeoutMs: number;  // SF_QWEN_STREAM_IDLE_TIMEOUT_MS default 30000 (end the stream gracefully if silent this many ms after content started; 0 disables)
   apiKeyEnv: string[];       // SF_QWEN_API_KEY           default []  (comma-split)
   modelAliasesRaw: string;   // SF_QWEN_MODEL_ALIASES     default ""  (JSON object)
   logLevel: string;           // SF_QWEN_LOG_LEVEL            default "info"

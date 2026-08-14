@@ -891,3 +891,232 @@ describe("bridge integration", () => {
     }
   });
 });
+
+// ── requests-per-token counter (S-M1-2) ─────────────────────────────────────
+
+describe("requests-per-token counter", () => {
+  function makeCounterSetup() {
+    let evalCount = 0;
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) {
+        evalCount++;
+        const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+        return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } };
+      }
+      return { result: { type: "undefined" } };
+    });
+    const fetcherFn = vi.fn(async (url: string) => {
+      if (url.includes("/json/list")) {
+        return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+      }
+      return { ok: false, json: async () => ({}) };
+    });
+    const config = makeConfig({
+      spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: fetcherFn as any,
+      sleep: () => Promise.resolve(),
+      now: vi.fn(() => 1000),
+    });
+    return { config, spawnCount: () => (config.spawn as ReturnType<typeof vi.fn>).mock.calls.length };
+  }
+
+  it("recordRequestServed increments per-proxy entry; proxyStatuses exposes it", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config } = makeCounterSetup();
+    const mgr = new BaxiaTokenManager(config);
+    const P = "socks5://u:p@counterA:1080";
+
+    await mgr.ensureToken({ proxy: P });
+    mgr.recordRequestServed(P);
+    mgr.recordRequestServed(P);
+    mgr.recordRequestServed(P);
+    expect(mgr.proxyStatuses()[P].requestsServed).toBe(3);
+  });
+
+  it("forceRefresh re-mint resets the counter to 0", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config } = makeCounterSetup();
+    const mgr = new BaxiaTokenManager(config);
+    const P = "socks5://u:p@counterB:1080";
+
+    await mgr.ensureToken({ proxy: P });
+    mgr.recordRequestServed(P);
+    mgr.recordRequestServed(P);
+    await mgr.ensureToken({ forceRefresh: true, proxy: P });
+    expect(mgr.proxyStatuses()[P].requestsServed).toBe(0);
+  });
+
+  it("recordRequestServed on unknown key is a no-op (no throw, no entry created)", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config } = makeCounterSetup();
+    const mgr = new BaxiaTokenManager(config);
+    expect(() => mgr.recordRequestServed("socks5://u:p@never-minted:1080")).not.toThrow();
+    expect(mgr.proxyStatuses()["socks5://u:p@never-minted:1080"]).toBeUndefined();
+  });
+
+  it("status() reports requestsServed for the last-used proxy", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config } = makeCounterSetup();
+    const mgr = new BaxiaTokenManager(config);
+    const P = "socks5://u:p@counterC:1080";
+    await mgr.ensureToken({ proxy: P });
+    mgr.recordRequestServed(P);
+    expect(mgr.status().requestsServed).toBe(1);
+  });
+});
+
+// ── evictToken (S-M1-3) ─────────────────────────────────────────────────────
+
+describe("evictToken", () => {
+  it("evicted token re-mints on next ensureToken even within TTL", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    let evalCount = 0;
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) {
+        evalCount++;
+        const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+        return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } };
+      }
+      return { result: { type: "undefined" } };
+    });
+    const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+    const config = makeConfig({
+      spawn: spawnFn as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }) as any,
+      sleep: () => Promise.resolve(),
+      now: vi.fn(() => 1000),
+    });
+    const mgr = new BaxiaTokenManager(config);
+    const P = "socks5://u:p@evictA:1080";
+
+    const t1 = await mgr.ensureToken({ proxy: P });
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+
+    mgr.evictToken(P);
+
+    // Within TTL — but the entry was evicted, so this MUST re-mint.
+    const t2 = await mgr.ensureToken({ proxy: P });
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(t2.bxUmidToken).not.toBe(t1.bxUmidToken);
+
+    // New generation's counter starts at 0.
+    expect(mgr.proxyStatuses()[P].requestsServed).toBe(0);
+  });
+
+  it("evictToken on unknown key is a no-op (no throw, no log)", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const warn = vi.fn();
+    const config = makeConfig({ log: { info: vi.fn(), warn, error: vi.fn() } });
+    const mgr = new BaxiaTokenManager(config);
+    expect(() => mgr.evictToken("socks5://u:p@unknown:1080")).not.toThrow();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("evictToken logs requestsServed + redacted proxy + ageMs", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const records: Array<{ msg: string; ctx: any }> = [];
+    const log = {
+      info: vi.fn(),
+      warn: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      error: vi.fn(),
+    };
+    let currentTime = 1000;
+    let evalCount = 0;
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) {
+        evalCount++;
+        const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+        return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } };
+      }
+      return { result: { type: "undefined" } };
+    });
+    const config = makeConfig({
+      spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }) as any,
+      sleep: () => Promise.resolve(),
+      now: () => currentTime,
+      log,
+    });
+    const mgr = new BaxiaTokenManager(config);
+    const P = "socks5://secretuser:secretpass@evictB:1080";
+
+    await mgr.ensureToken({ proxy: P });
+    mgr.recordRequestServed(P);
+    mgr.recordRequestServed(P);
+    mgr.recordRequestServed(P);
+    currentTime += 45_000;
+    mgr.evictToken(P);
+
+    const burn = records.find((r) => r.msg.includes("token burned"));
+    expect(burn).toBeDefined();
+    expect(burn!.ctx.proxy).toBe("evictB:1080");            // redacted — no creds
+    expect(burn!.ctx.requestsServed).toBe(3);
+    expect(burn!.ctx.ageMs).toBe(45_000);
+    expect(JSON.stringify(records)).not.toContain("secretuser");
+    expect(JSON.stringify(records)).not.toContain("secretpass");
+  });
+});
+
+// ── log redaction (S-M1-4) ──────────────────────────────────────────────────
+
+describe("baxia log redaction", () => {
+  it("no log record contains proxy credentials; proxy fields are host:port", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const records: Array<{ msg: string; ctx: any }> = [];
+    const log = {
+      info: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      warn: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+      error: (msg: string, ctx?: unknown) => records.push({ msg, ctx }),
+    };
+    const replyMap = makeDefaultReplyMap();
+    const config = makeConfig({
+      spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+      WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      }) as any,
+      sleep: () => Promise.resolve(),
+      now: vi.fn(() => 1000),
+      log,
+    });
+    const mgr = new BaxiaTokenManager(config);
+    const CREDS = "socks5://leakyuser:leakypass@redact-me:1080";
+
+    await mgr.ensureToken({ proxy: CREDS });
+
+    const serialized = JSON.stringify(records);
+    expect(serialized).not.toContain("leakyuser");
+    expect(serialized).not.toContain("leakypass");
+    const spawnLog = records.find((r) => r.msg.includes("chromium spawn"));
+    expect(spawnLog).toBeDefined();
+    expect(spawnLog!.ctx.proxy).toBe("redact-me:1080");
+  });
+});
