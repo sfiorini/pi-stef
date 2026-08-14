@@ -132,19 +132,22 @@ export class GuestUpstreamClient {
       if (!res.ok) {
         if (res.status >= 400 && res.status < 500) {
           const text = await res.text().catch(() => "");
+          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: proxy ?? "(direct)", body: text.slice(0, 200) });
           throw new ClientError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
         }
         if (res.status >= 500) {
           const text = await res.text().catch(() => "");
+          this.log.warn("[guest-debug] createChatSession NON-OK", { status: res.status, proxy: proxy ?? "(direct)", body: text.slice(0, 200) });
           throw new ServerError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
         }
       }
+      this.log.info("[guest-debug] createChatSession OK", { proxy: proxy ?? "(direct)" });
 
       const data = await res.json();
 
       // Check for rgv587 (Baxia captcha rejection)
       if (RGV587_RE.test(JSON.stringify(data))) {
-        this.log.warn("createChatSession rgv587 detected, retrying", { attempt: attempt + 1 });
+        this.log.warn("createChatSession rgv587 detected, retrying", { attempt: attempt + 1, proxy: proxy ?? "(direct)" });
         if (attempt < maxRetries - 1) {
           await this._sleep(600);
           continue;

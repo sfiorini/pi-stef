@@ -1,4 +1,36 @@
-import { SocksProxyAgent } from "socks-proxy-agent";
+import * as tls from "node:tls";
+import { Agent } from "undici";
+import { SocksClient } from "socks";
+import { parseSocksUrl } from "../upstream/proxy-bridge";
+
+/** Build a REAL undici Dispatcher for a SOCKS5 upstream (with creds + TLS).
+ *  socks-proxy-agent's SocksProxyAgent extends agent-base's http.Agent — it
+ *  works with node-fetch/https but NOT with undici's fetch({dispatcher})
+ *  ("TypeError: agent.dispatch is not a function"). This connector does the
+ *  SOCKS5 handshake via SocksClient, then wraps https in tls.connect so
+ *  undici gets a proper TLS socket. */
+function makeSocksDispatcher(proxyKey: string): Agent {
+  const upstream = parseSocksUrl(proxyKey);
+  return new Agent({
+    connect: ((opts: any, cb: (err: Error | null, socket?: any) => void) => {
+      const port = Number(opts.port) || (String(opts.protocol ?? "https:") === "https:" ? 443 : 80);
+      SocksClient.createConnection({
+        command: "connect",
+        proxy: { host: upstream.host, port: upstream.port, type: 5, userId: upstream.user, password: upstream.pass },
+        destination: { host: opts.hostname, port },
+        timeout: 10_000,
+      }).then(({ socket }: { socket: any }) => {
+        if (String(opts.protocol ?? "https:") === "https:") {
+          const tlsSock = tls.connect({ socket, servername: opts.hostname, ALPNProtocols: ["http/1.1"] });
+          tlsSock.once("secureConnect", () => cb(null, tlsSock));
+          tlsSock.once("error", (e: Error) => cb(e));
+        } else {
+          cb(null, socket);
+        }
+      }).catch((e: Error) => cb(e));
+    }) as any,
+  });
+}
 
 // ── normalizeSocksUrl ───────────────────────────────────────────────────────
 
@@ -91,7 +123,7 @@ export class ProxyPool {
 // ── ProxyDispatcherCache ─────────────────────────────────────────────────────
 
 export interface DispatcherLike {
-  // Minimal interface for undici Dispatcher — socks-proxy-agent returns SocksProxyAgent
+  // Minimal interface for an undici Dispatcher
   // which implements undici.Dispatcher. We type it loosely to avoid importing undici types.
   [key: string]: unknown;
 }
@@ -101,7 +133,7 @@ export class ProxyDispatcherCache {
   private readonly agentFactory: (key: string) => DispatcherLike;
 
   constructor(opts?: { agentFactory?: (key: string) => DispatcherLike }) {
-    this.agentFactory = opts?.agentFactory ?? ((key: string) => new SocksProxyAgent(key) as unknown as DispatcherLike);
+    this.agentFactory = opts?.agentFactory ?? ((key: string) => makeSocksDispatcher(key) as unknown as DispatcherLike);
   }
 
   get(key: string): DispatcherLike {

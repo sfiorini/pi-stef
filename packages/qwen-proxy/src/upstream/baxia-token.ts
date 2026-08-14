@@ -164,8 +164,24 @@ export class BaxiaTokenManager {
       args.unshift(`--proxy-server=${proxyServerUrl}`);
       args.unshift("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
     }
-    const child = this._spawn(exe, args, { stdio: "ignore" });
+    const child = this._spawn(exe, args, { stdio: "ignore", detached: true });
     return { child, port };
+  }
+
+  /** Kill the whole Chromium process TREE (not just the main pid). Spawned
+   *  with detached:true so the browser forms its own process group; killing
+   *  -pid takes down every subprocess. Without this, SIGKILLing only the main
+   *  pid orphans the renderer/gpu/pad children → zombie accumulation under
+   *  node-as-PID-1 (observed: 79-207 chrome procs after a few spawns). */
+  private killChromeTree(child: { pid?: number; kill?: (s?: string) => void }): void {
+    // Guard: never group-kill pid 1 (in unit tests the mocked spawn returns
+    // pid:1 — process.kill(-1) would kill the TEST process group itself).
+    try {
+      if (child.pid && child.pid > 1) process.kill(-child.pid, "SIGKILL"); // negative pid = process group
+      else child.kill?.("SIGKILL");
+    } catch {
+      try { child.kill?.("SIGKILL"); } catch { /* already dead */ }
+    }
   }
 
   // ── cdpConnect ──────────────────────────────────────────────────────────
@@ -257,6 +273,12 @@ export class BaxiaTokenManager {
       ? `socks5://127.0.0.1:${this.bridge.getPort()}`
       : undefined;
     const { child, port } = this.startChrome(exe, proxyServerUrl);
+    this.config.log.info("[baxia-debug] chromium spawn", {
+      proxy: proxy ?? "(direct)",
+      pid: child.pid,
+      port,
+      via: proxyServerUrl ?? "direct",
+    });
 
     try {
       // Wait for Chrome to start /json/list endpoint
@@ -318,9 +340,22 @@ export class BaxiaTokenManager {
         let baxiaData:
           | { uid: string; fy: string; cookies: string }
           | null = null;
+        let lastPageState = "";
         for (let i = 0; i < 60; i++) {
           await this._sleep(500); // sleep first (qwen2api ordering — lets the SDK init)
           try {
+            // Every 10th poll (~5s), capture the page state — reveals CAPTCHA
+            // interstitials / error pages / wrong-language redirects instantly.
+            if (i % 10 === 0) {
+              try {
+                const st = await cdp.send("Runtime.evaluate", {
+                  expression: "JSON.stringify({href: location.href, title: document.title, bodyLen: document.body ? document.body.innerHTML.length : 0, hasBaxia: !!(window.__baxia__ && window.__baxia__.getFYModule)})",
+                  returnByValue: true,
+                });
+                lastPageState = String((st?.result?.value as string) ?? "");
+                this.config.log.warn("[baxia-debug] readiness poll", { poll: i, page: lastPageState.slice(0, 300) });
+              } catch { /* page evaluating mid-nav */ }
+            }
             const result = await cdp.send("Runtime.evaluate", {
               expression: baxiaExpr,
               returnByValue: true,
@@ -352,10 +387,21 @@ export class BaxiaTokenManager {
         }
 
         if (!baxiaData) {
+          this.config.log.error("[baxia-debug] readiness FAILED after 30s", {
+            proxy: proxy ?? "(direct)",
+            lastPage: lastPageState.slice(0, 300),
+          });
           throw new Error(
             "window.__baxia__ tokens not available within 30s",
           );
         }
+        this.config.log.info("[baxia-debug] token minted", {
+          proxy: proxy ?? "(direct)",
+          uidPrefix: baxiaData.uid.slice(0, 8),
+          uidLen: baxiaData.uid.length,
+          fyLen: baxiaData.fy.length,
+          cookieLen: baxiaData.cookies.length,
+        });
 
         return {
           bxUa: baxiaData.fy || "231!" + baxiaData.uid,
@@ -367,11 +413,7 @@ export class BaxiaTokenManager {
         await cdp.close();
       }
     } finally {
-      try {
-        child.kill("SIGKILL");
-      } catch {
-        // best-effort
-      }
+      this.killChromeTree(child);
     }
   }
 
