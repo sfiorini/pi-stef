@@ -91,7 +91,7 @@ async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Pro
 async function emptyBurnStep(
   deps: RetryDeps,
   opts: { proxy: string | undefined; tried: number; inlineReminted: boolean },
-): Promise<{ action: "remint" } | { action: "rotate"; proxy: string | undefined } | { action: "all-burned" }> {
+): Promise<{ action: "remint" } | { action: "rotate"; proxy: string | undefined } | { action: "all-burned" } | { action: "mint-failed"; error: unknown }> {
   const pool = deps.proxyPool!;
   deps.log.warn("[rotation-debug] empty completion — walking", {
     proxy: redactProxyKey(opts.proxy),
@@ -106,11 +106,7 @@ async function emptyBurnStep(
     try {
       await deps.scheduler.refreshBaxiaToken?.(opts.proxy);
     } catch (e) {
-      deps.log.error("baxia inline re-mint failed — rotating", { error: String(e), proxy: redactProxyKey(opts.proxy) });
-      if (opts.tried < pool.size - 1) {
-        return { action: "rotate", proxy: await rotateWithSlot(deps, opts.proxy) };
-      }
-      return { action: "all-burned" };
+      return { action: "mint-failed", error: e };
     }
     return { action: "remint" };
   }
@@ -166,6 +162,31 @@ export async function withPoolRetry<T>(
         const allowRemint = !inlineReminted;
         const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
         if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+        if (step.action === "mint-failed") {
+          if (step.error instanceof TokenMintError) {
+            mintStrikes++;
+            deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+            if (mintStrikes >= MINT_STRIKE_MAX) {
+              deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+              await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
+              await sleep(deps.config.emptyCooldownMs);
+              throw new RateLimitError(
+                "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
+                { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+              );
+            }
+          } else {
+            deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+          }
+          if (tried < deps.proxyPool!.size - 1) {
+            tried += 1;
+            const next = await rotateWithSlot(deps, slotKey ?? proxy);
+            slotKey = useSlots ? next : undefined;
+            continue;
+          }
+          // else fall through to the existing all-burned path below
+        }
         if (step.action === "remint") {
           continue; // retry the SAME proxy with the fresh token
         }
@@ -349,6 +370,31 @@ export async function* withPoolRetryStream(
         const allowRemint = !inlineReminted;
         const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
         if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+        if (step.action === "mint-failed") {
+          if (step.error instanceof TokenMintError) {
+            mintStrikes++;
+            deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+            if (mintStrikes >= MINT_STRIKE_MAX) {
+              deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+              deps.pool
+                .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+                .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+              await sleep(deps.config.emptyCooldownMs);
+              yield { done: true, extra: { rateLimited: true } };
+              return;
+            }
+          } else {
+            deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+          }
+          if (tried < deps.proxyPool!.size - 1) {
+            tried += 1;
+            const next = await rotateWithSlot(deps, slotKey ?? proxy);
+            slotKey = useSlots ? next : undefined;
+            continue;
+          }
+          // else fall through to existing all-burned path below
+        }
         if (step.action === "remint") {
           continue; // retry the SAME proxy with the fresh token
         }
@@ -409,6 +455,31 @@ export async function* withPoolRetryStream(
       const allowRemint = !inlineReminted;
       const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
       if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+      // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+      if (step.action === "mint-failed") {
+        if (step.error instanceof TokenMintError) {
+          mintStrikes++;
+          deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            deps.pool
+              .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+              .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+            await sleep(deps.config.emptyCooldownMs);
+            yield { done: true, extra: { rateLimited: true } };
+            return;
+          }
+        } else {
+          deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+        }
+        if (tried < deps.proxyPool!.size - 1) {
+          tried += 1;
+          const next = await rotateWithSlot(deps, slotKey ?? proxy);
+          slotKey = useSlots ? next : undefined;
+          continue;
+        }
+        // else fall through to the existing all-burned path below
+      }
       if (step.action === "remint") {
         continue; // retry the SAME proxy with the fresh token
       }

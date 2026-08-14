@@ -443,6 +443,77 @@ describe("mint-failure budget (non-stream)", () => {
 
     expect(callCount).toBe(1);
   });
+
+  it("EmptyCompletion → inline re-mint TokenMintError (strike 1) → op TokenMintError (strike 2) → 429", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const markEmptyAndSwitchCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => {
+          refreshCalls.push(proxy ?? "");
+          throw new TokenMintError("egress", "inline mint boom");
+        },
+        evictBaxiaToken: () => {},
+      },
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markEmptyAndSwitchCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        if (callCount === 1) throw new EmptyCompletionError("empty");
+        throw new TokenMintError("egress", "mint boom");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(2); // 2 op calls total
+    expect(refreshCalls).toHaveLength(1); // one inline re-mint attempt
+    expect(markEmptyAndSwitchCalls).toHaveLength(1); // exhaustion
+  });
+
+  it("non-mint inline re-mint failure → rotate, no strike", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const markEmptyAndSwitchCalls: Array<{ id: number; ms: number }> = [];
+    const refreshed: string[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => {
+          refreshed.push(proxy ?? "");
+          throw new Error("chrome spawn failed"); // non-mint failure
+        },
+        evictBaxiaToken: () => {},
+      },
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markEmptyAndSwitchCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    let callCount = 0;
+    const seen: string[] = [];
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount <= 2) throw new EmptyCompletionError("empty"); // A empty → re-mint fail (non-mint) → rotate B → B empty → re-mint fail → rotate C
+      return `ok-${proxy}`;
+    });
+
+    expect(result).toContain("ok-");
+    expect(markEmptyAndSwitchCalls).toHaveLength(0); // no mint exhaustion
+  });
 });
 
 // ── withPoolRetryStream — rotation mode ─────────────────────────────────────
@@ -1476,5 +1547,47 @@ describe("mint-failure budget (stream)", () => {
     expect(refreshCalls).toHaveLength(0); // NO bestEffortRefresh on mint-exhaustion
     // First strike rotates (A→B), second strike exhausts
     expect(pool.rotateCalls).toBe(1);
+  });
+
+  it("EmptyCompletion → inline re-mint TokenMintError (strike 1) → op TokenMintError (strike 2) → sentinel (stream)", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const markCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => {
+          refreshCalls.push(proxy ?? "");
+          throw new TokenMintError("egress", "inline mint boom");
+        },
+        evictBaxiaToken: () => {},
+      },
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount === 1) throw new EmptyCompletionError("empty");
+      throw new TokenMintError("egress", "mint boom");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(2);
+    expect(chunks).toHaveLength(1);
+    expect("done" in chunks[0] && (chunks[0] as any).done).toBe(true);
+    expect("done" in chunks[0] && (chunks[0] as any).extra?.rateLimited).toBe(true);
+    expect(refreshCalls).toHaveLength(1); // one inline re-mint attempt
+    expect(markCalls).toHaveLength(1); // exhaustion
   });
 });
