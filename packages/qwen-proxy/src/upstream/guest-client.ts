@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { BaxiaTokenManager } from "./baxia-token";
-import { ClientError, ServerError, EmptyCompletionError } from "./errors";
+import { ClientError, ServerError, EmptyCompletionError, NetworkError } from "./errors";
 import { translateQwenSse, isDataInspectionFailed } from "./qwen-sse";
 import type {
   OpenAiChatChunk,
@@ -66,8 +66,6 @@ export class GuestUpstreamClient {
     this.concurrency = config.concurrency;
     this.proxyDispatcherCache = config.proxyDispatcherCache;
     this.timeoutMs = config.timeoutMs ?? 60_000;
-    // timeoutMs used in S-M1-6 (TTFB AbortController). Suppress noUnusedLocals.
-    void this.timeoutMs;
   }
 
   // ── doFetch (proxy-aware) ───────────────────────────────────────────────
@@ -77,7 +75,19 @@ export class GuestUpstreamClient {
       proxy && this.proxyDispatcherCache
         ? this.proxyDispatcherCache.get(proxy)
         : undefined;
-    return fetchWithProxy(this._fetch, url, init, dispatcher);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const res = await fetchWithProxy(this._fetch, url, { ...init, signal: controller.signal }, dispatcher);
+      clearTimeout(timer);
+      return res;
+    } catch (e) {
+      clearTimeout(timer);
+      if (e instanceof DOMException && e.name === "AbortError") {
+        throw new NetworkError("TTFB timeout: no headers within timeoutMs", { status: 599 });
+      }
+      throw e;
+    }
   }
 
   // ── createChatSession ──────────────────────────────────────────────────

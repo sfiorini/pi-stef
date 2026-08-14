@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { GuestUpstreamClient } from "../../src/upstream/guest-client";
-import { ClientError, ServerError, EmptyCompletionError } from "../../src/upstream/errors";
+import { ClientError, ServerError, EmptyCompletionError, NetworkError } from "../../src/upstream/errors";
 import type { BaxiaTokenManager, BaxiaTokens } from "../../src/upstream/baxia-token";
 import type { UpstreamClient } from "../../src/upstream/client";
 import type { OpenAiChatCompletion } from "../../src/upstream/types";
@@ -769,7 +769,7 @@ describe("S-M1-5: proxy threading", () => {
         ok: true,
         body: new ReadableStream({
           start(c) {
-            c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\ndata: [DONE]\n'));
+            c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
             c.close();
           },
         }),
@@ -948,5 +948,120 @@ describe("S-M1-5: typed non-OK errors", () => {
     });
 
     await expect(client.createChatSession("qwen3-max", "t2t")).rejects.toThrow(ClientError);
+  });
+});
+
+// ── S-M1-6: TTFB timeout (AbortController cleared on headers) ───────────────
+
+describe("S-M1-6: TTFB timeout", () => {
+  it("headers arrive in time → success (no abort)", async () => {
+    const fetcher = vi.fn()
+      // createChatSession — fast
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-ttfb-ok" } }),
+      })
+      // completion — slow but returns (headers arrive before timeout)
+      .mockImplementationOnce(async () => {
+        return {
+          ok: true,
+          body: new ReadableStream({
+            start(c) {
+              c.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'));
+              c.close();
+            },
+          }),
+        };
+      });
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      timeoutMs: 5_000,
+    });
+
+    // Should succeed — no abort since response arrives in time
+    const result = await client.chatCompletions("ignored", {
+      model: "qwen3-max",
+      messages: [{ role: "user", content: "Hello" }],
+      stream: false,
+    }) as OpenAiChatCompletion;
+
+    expect(result.choices[0].message.content).toBe("ok");
+  });
+
+  it("no headers within timeout → NetworkError", async () => {
+    vi.useFakeTimers();
+
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-ttfb-timeout" } }),
+      })
+      // This fetch hangs — but honors the abort signal (rejects AbortError when it fires)
+      .mockImplementationOnce((_u: string, init: any) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(Object.assign(new Error("aborted"), { name: "AbortError" })),
+          );
+        }),
+      );
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      timeoutMs: 5_000,
+    });
+
+    const completionPromise = client.chatCompletions("ignored", {
+      model: "qwen3-max",
+      messages: [{ role: "user", content: "Hello" }],
+      stream: true,
+    }) as AsyncIterable<any>;
+
+    // Start consuming — this will trigger the fetch
+    const iter = completionPromise[Symbol.asyncIterator]();
+    const nextPromise = iter.next();
+
+    // Advance past the timeout
+    await vi.advanceTimersByTimeAsync(6_000);
+
+    await expect(nextPromise).rejects.toThrow(NetworkError);
+
+    vi.useRealTimers();
+  });
+
+  it("AbortError from upstream fetch → NetworkError (TTFB timeout label)", async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-abort" } }),
+      })
+      .mockRejectedValueOnce(new DOMException("The operation was aborted", "AbortError"));
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+      timeoutMs: 60_000,
+    });
+
+    let caught: unknown;
+    try {
+      for await (const _ of client.chatCompletions("ignored", {
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "Hello" }],
+        stream: true,
+      }) as AsyncIterable<any>) { /* drain */ }
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(NetworkError);
+    expect((caught as NetworkError).message).toContain("TTFB");
   });
 });
