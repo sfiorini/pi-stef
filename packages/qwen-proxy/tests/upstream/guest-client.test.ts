@@ -648,7 +648,56 @@ describe("chatCompletions non-stream empty detection", () => {
     ).rejects.toThrow(EmptyCompletionError);
   });
 
-  it("reasoning-only SSE → success (empty content, non-empty reasoning_content)", async () => {
+  it("reasoning-only SSE (no content, no tool_calls) → EmptyCompletionError", async () => {
+    // Regression (live on mini 2026-08-14): reasoning_content alone must not
+    // rescue an empty completion — the client got nothing visible.
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-reasoning-only" } }),
+      })
+      .mockResolvedValueOnce(makeSseResponse("reasoning-only.txt"));
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    await expect(
+      client.chatCompletions("ignored", {
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "hi" }],
+      } as any),
+    ).rejects.toThrow(/no content and no tool_calls/);
+  });
+
+  it("tool_calls XML in content → NOT an empty completion", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid-toolcalls" } }),
+      })
+      .mockResolvedValueOnce(makeSseResponse("toolcalls-in-content.txt"));
+
+    const client = new GuestUpstreamClient({
+      baxia: makeBaxia(),
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    const completion = await client.chatCompletions("ignored", {
+      model: "qwen3-max",
+      messages: [{ role: "user", content: "hi" }],
+    } as any);
+    expect(JSON.stringify(completion)).toContain("tool_calls");
+  });
+
+  it("reasoning-only SSE (reasoning but no content) → EmptyCompletionError", async () => {
     const fetcher = vi
       .fn()
       // createChatSession
@@ -666,13 +715,12 @@ describe("chatCompletions non-stream empty detection", () => {
       log: noopLog,
     });
 
-    const result = await client.chatCompletions("ignored", {
-      model: "qwen3-max",
-      messages: [{ role: "user", content: "hi" }],
-    } as any) as OpenAiChatCompletion;
-
-    expect(result.choices[0].message.content).toBe("");
-    expect(result.choices[0].message.reasoning_content).toBe("Let me think...");
+    await expect(
+      client.chatCompletions("ignored", {
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "hi" }],
+      } as any),
+    ).rejects.toThrow(EmptyCompletionError);
   });
 });
 

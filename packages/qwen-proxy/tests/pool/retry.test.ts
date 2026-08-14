@@ -791,6 +791,62 @@ describe("withPoolRetry empty-completion (non-stream)", () => {
 
 // ── withPoolRetryStream (OpenAiChatChunk + StreamChunk) ─────────────────────
 
+// ── reasoning-only = empty (2026-08-14 live-debug) ──────────────────────────
+
+describe("withPoolRetryStream — reasoning-only completions are empty", () => {
+  it("reasoning-only stream end → empty path fires (retry machinery)", async () => {
+    // Regression (live on mini): qwen suppressed answers to ~47 thinking
+    // tokens with zero content deltas; counting reasoning as payload
+    // classified those as clean successes, bypassing empty-retry entirely.
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool, {
+      config: { emptyCooldownMs: 600_000, emptyRetryMax: 3, emptyRetryGapMs: 1 },
+    });
+    let opCalls = 0;
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      opCalls++;
+      if (opCalls === 1) {
+        // reasoning-only "success": role + reasoning + clean finish
+        yield { choices: [{ delta: { role: "assistant" } }] } as OpenAiChatChunk;
+        yield reasoningChunk("thinking about the answer...");
+        yield finishChunk("stop");
+      } else {
+        yield contentChunk("the answer");
+        yield finishChunk("stop");
+      }
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    // attempt 1 streams role+reasoning live (isContentChunk counts reasoning),
+    // is then classified empty at stream end → rotate; attempt 2 delivers content.
+    const texts = chunks
+      .map((c: any) => c.choices?.[0]?.delta?.content ?? "")
+      .join("");
+    expect(texts).toContain("the answer");
+    expect(chunks[chunks.length - 1]).toEqual(finishChunk("stop"));
+    expect(opCalls).toBe(2); // first attempt classified EMPTY → retried
+  });
+
+  it("reasoning + content stream end → clean success (no retry)", async () => {
+    const proxyPool = new FakeProxyPool(["A"]);
+    const deps = rotStreamDeps(proxyPool);
+    let opCalls = 0;
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      opCalls++;
+      yield reasoningChunk("thinking...");
+      yield contentChunk("visible answer");
+      yield finishChunk("stop");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    // reasoning streams live, then content, then finish — one op call only.
+    expect(chunks).toEqual([
+      reasoningChunk("thinking..."),
+      contentChunk("visible answer"),
+      finishChunk("stop"),
+    ]);
+    expect(opCalls).toBe(1);
+  });
+});
+
 async function collectChunks(
   iter: AsyncIterable<StreamChunk>,
 ): Promise<StreamChunk[]> {

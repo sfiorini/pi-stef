@@ -1,5 +1,10 @@
-data: {"choices":[{"delta":{"reasoning_content":"Let me think..."}}]}
+data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}
 
-data: {"usage":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}
+data: {"choices":[{"delta":{"reasoning_content":"thinking about the answer"},"finish_reason":null}]}
+
+data: {"choices":[{"delta":{"content":""},"finish_reason":null}],"usage":{"prompt_tokens":10,"completion_tokens":47,"total_tokens":57}}
+
+data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
 
 data: [DONE]
+

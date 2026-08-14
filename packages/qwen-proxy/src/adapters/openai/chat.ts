@@ -174,11 +174,31 @@ export function chatRoutes(deps: ChatRouteDeps) {
       if (functionTools.length > 0 && b.tool_choice !== "none") {
         // Function tools present → inject prompt-engineering, strip from upstream
         toolsInjected = true;
-        const toolPrompt = injectToolPrompt(b.tools as unknown[], b.tool_choice);
         const rewrittenMessages = injectToolResults(b.messages as any[]);
         flatMessages.length = 0;
         flatMessages.push(...rewrittenMessages);
-        prependToFirstSystemMessage(flatMessages, toolPrompt);
+        // Continuation turns (history already carries tool calls/results) skip
+        // the tool-prompt injection: live-debugged on mini (2026-08-14), qwen
+        // suppresses the answer server-side — streams zero content/reasoning
+        // deltas while consuming ~47 completion tokens — when the injected
+        // "# Available Tools" system block is present on a continuation. With
+        // no injection the same body answers normally. The <tool_calls>
+        // convention remains available in-context from the rewritten history
+        // (prior assistant tool_calls are rewritten as <tool_calls> text), so
+        // chained tool rounds still parse.
+        // Detect on the ORIGINAL request messages: the adapter flattens
+        // multi-turn history for guest mode (assistant turns fold into a
+        // synthesized user message), so rewrittenMessages may carry no
+        // assistant role at all.
+        const isContinuation = (b.messages as Array<Record<string, unknown>>).some(
+          (m) =>
+            (m.role === "assistant" && Array.isArray(m.tool_calls) && (m.tool_calls as unknown[]).length > 0) ||
+            m.role === "tool",
+        );
+        if (!isContinuation) {
+          const toolPrompt = injectToolPrompt(b.tools as unknown[], b.tool_choice);
+          prependToFirstSystemMessage(flatMessages, toolPrompt);
+        }
         upstreamBody.messages = flatMessages;
         // Strip function tools + tool_choice from upstream body
         const nonFunctionTools = (b.tools as Array<Record<string, unknown>>).filter(

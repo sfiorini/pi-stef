@@ -339,6 +339,48 @@ describe("POST /v1/chat/completions", () => {
     expect(msgs[0].content).toContain("<tool_calls>");
   });
 
+  it("continuation turn (history has tool_calls) → NO tool-prompt injection", async () => {
+    // Live-debugged on mini 2026-08-14: qwen suppresses the answer server-side
+    // (zero content/reasoning deltas) when the injected "# Available Tools"
+    // system block is present on a continuation turn. Skipping the injection
+    // there fixes silent-empty stops after tool results.
+    let chatCompletionsCalledWith: Record<string, unknown> | undefined;
+    const client = {
+      chatCompletions: async (_bearer: string, body: Record<string, unknown>) => {
+        chatCompletionsCalledWith = body;
+        return { id: "c", object: "chat.completion" as const, created: 0, model: "qwen3-max",
+          choices: [{ index: 0, message: { role: "assistant", content: "ok" }, finish_reason: "stop" }] };
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [
+          { role: "user", content: "Search the weather" },
+          { role: "assistant", content: null, tool_calls: [{ id: "c1", type: "function", function: { name: "web_search", arguments: "{}" } }] },
+          { role: "tool", tool_call_id: "c1", content: "NWS: sunny, 101F" },
+        ],
+        tools: [{ type: "function", function: { name: "web_search", description: "Search" } }],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(chatCompletionsCalledWith).not.toHaveProperty("tools");
+    const msgs = (chatCompletionsCalledWith as any).messages;
+    // tool result hoisted as system "Tool ... returned:"; assistant tool_calls
+    // folded into the flattened user turn as <tool_calls> text (guest-mode flattening)
+    expect(msgs.some((m: any) => m.role === "system" && m.content.includes("Tool `web_search` returned:"))).toBe(true);
+    expect(JSON.stringify(msgs)).toContain("<tool_calls>");
+    // NO "# Available Tools" injection anywhere
+    expect(JSON.stringify(msgs)).not.toContain("# Available Tools");
+  });
+
   it("non-function tools (web_search) still passthrough", async () => {
     let chatCompletionsCalledWith: Record<string, unknown> | undefined;
     const client = {

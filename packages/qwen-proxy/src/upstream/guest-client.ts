@@ -296,8 +296,13 @@ export class GuestUpstreamClient {
         if (chunk.usage) usage = chunk.usage;
       }
 
-      if (content === "" && reasoning === "") {
-        throw new EmptyCompletionError("upstream returned an empty completion (content and reasoning_content both empty — likely Baxia CAPTCHA flag)");
+      // Empty completion = no content. reasoning_content alone does NOT count
+      // — a reasoning-only response is empty to the client (see retry.ts
+      // hasPayload note). Tool-call responses are NOT empty: on this path
+      // tool calls arrive as <tool_calls> XML in content (parsed by the
+      // adapter), so any tool-bearing response has non-empty content.
+      if (content === "") {
+        throw new EmptyCompletionError("upstream returned an empty completion (no content and no tool_calls — likely Baxia CAPTCHA flag or qwen-side suppression)");
       }
 
       return {
