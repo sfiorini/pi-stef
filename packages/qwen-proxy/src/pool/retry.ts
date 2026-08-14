@@ -46,6 +46,9 @@ export interface RetryDeps {
 /** Module-level sleep helper for inline empty-retry gaps. */
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
 
+/** Per-request consecutive mint-failure budget. */
+const MINT_STRIKE_MAX = 2;
+
 /** The union of raw upstream chunks and the one synthetic sentinel chunk. */
 export type StreamChunk =
   | OpenAiChatChunk
@@ -130,6 +133,7 @@ export async function withPoolRetry<T>(
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
   const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let mintStrikes = 0;
   let inlineReminted = false;
   let slotKey: string | undefined;
 
@@ -145,6 +149,7 @@ export async function withPoolRetry<T>(
     try {
       const result = await op(id, bearer, proxy);
       deps.pool.markSuccess();
+      mintStrikes = 0;
       return result;
     } catch (err) {
       if (err instanceof AuthExpiredError) {
@@ -191,7 +196,20 @@ export async function withPoolRetry<T>(
           error: String(err).slice(0, 300),
           errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
           errorName: err instanceof Error ? err.constructor.name : typeof err,
+          ...(err instanceof TokenMintError ? { mintCause: err.cause, mintStrikes } : {}),
         });
+        if (err instanceof TokenMintError) {
+          mintStrikes++;
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
+            await sleep(deps.config.emptyCooldownMs);
+            throw new RateLimitError(
+              "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
+              { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+            );
+          }
+        }
         if (tried < deps.proxyPool!.size) {
           const next = await rotateWithSlot(deps, slotKey ?? proxy);
           slotKey = useSlots ? next : undefined;

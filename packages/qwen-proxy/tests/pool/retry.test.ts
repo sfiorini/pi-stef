@@ -331,6 +331,120 @@ describe("withPoolRetry — rotation mode", () => {
   });
 });
 
+// ── mint-failure budget (non-stream) ────────────────────────────────────────
+
+describe("mint-failure budget (non-stream)", () => {
+  function mintDeps(overrides?: Partial<RetryDeps>) {
+    const markEmptyAndSwitchCalls: Array<{ id: number; ms: number }> = [];
+    const refreshCalls: string[] = [];
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshCalls.push(proxy ?? ""); },
+      },
+      ...overrides,
+    });
+    const markSpy = deps.pool.markEmptyAndSwitch.bind(deps.pool);
+    deps.pool.markEmptyAndSwitch = async (id: number, ms: number) => {
+      markEmptyAndSwitchCalls.push({ id, ms });
+      return markSpy(id, ms);
+    };
+    return { pool, deps, markEmptyAndSwitchCalls, refreshCalls };
+  }
+
+  it("1st TokenMintError(egress) rotates → success", async () => {
+    const { pool, deps, markEmptyAndSwitchCalls } = mintDeps();
+    let callCount = 0;
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      if (callCount === 1) throw new TokenMintError("egress", "x");
+      return `ok-${proxy}`;
+    });
+
+    expect(result).toBe("ok-B");
+    expect(callCount).toBe(2);
+    expect(pool.rotateCalls).toBe(1);
+    expect(markEmptyAndSwitchCalls).toHaveLength(0);
+  });
+
+  it("1st TokenMintError(not-ready) rotates → success", async () => {
+    const { pool, deps, markEmptyAndSwitchCalls } = mintDeps();
+    let callCount = 0;
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      if (callCount === 1) throw new TokenMintError("not-ready", "x");
+      return `ok-${proxy}`;
+    });
+
+    expect(result).toBe("ok-B");
+    expect(callCount).toBe(2);
+    expect(pool.rotateCalls).toBe(1);
+    expect(markEmptyAndSwitchCalls).toHaveLength(0);
+  });
+
+  it("2 strikes → 429 + cooldown, NO bestEffortRefresh, exactly 2 attempts", async () => {
+    const { deps, markEmptyAndSwitchCalls, refreshCalls } = mintDeps();
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new TokenMintError("egress", "x");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(2);
+    expect(markEmptyAndSwitchCalls).toHaveLength(1);
+    expect(refreshCalls).toHaveLength(0); // NO bestEffortRefresh on mint-exhaustion
+  });
+
+  it("counter is per-request", async () => {
+    const { deps, markEmptyAndSwitchCalls } = mintDeps();
+    let callCount = 0;
+    let firstDone = false;
+
+    // Call 1: strike then success → ok
+    const result1 = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      if (!firstDone && callCount === 1) throw new TokenMintError("egress", "x");
+      firstDone = true;
+      return `ok-${proxy}`;
+    });
+    expect(result1).toMatch(/^ok-/);
+
+    // Call 2: two strikes → 429 after exactly 2 more op calls
+    let call2Count = 0;
+    await expect(
+      withPoolRetry(deps, async () => {
+        call2Count++;
+        throw new TokenMintError("egress", "x");
+      }),
+    ).rejects.toThrow(RateLimitError);
+    expect(call2Count).toBe(2);
+    expect(markEmptyAndSwitchCalls).toHaveLength(1);
+  });
+
+  it("legacy mode: TokenMintError surfaces unchanged", async () => {
+    const deps = makeDeps({ config: { emptyCooldownMs: 1, emptyRetryMax: 99, emptyRetryGapMs: 0 } });
+    // No proxyPool → legacy mode, no budget
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new TokenMintError("egress", "mint boom");
+      }),
+    ).rejects.toBeInstanceOf(TokenMintError);
+
+    expect(callCount).toBe(1);
+  });
+});
+
 // ── withPoolRetryStream — rotation mode ─────────────────────────────────────
 
 /** Helper to build rotation-mode stream deps, reusing FakeProxyPool. */
