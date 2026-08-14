@@ -28,6 +28,8 @@ export interface BaxiaTokenManagerConfig {
   fallback: boolean;
   userAgent: string;
   log: Logger;
+  /** Optional bridge for proxy-affine token generation (S-M1-7). */
+  bridge?: { getPort(): number; setUpstream(key: string): void };
   now?: () => number;
   spawn?: typeof import("node:child_process").spawn;
   WebSocketCtor?: typeof WebSocket;
@@ -83,12 +85,15 @@ export class BaxiaTokenManager {
   private _sleep: (ms: number) => Promise<void>;
 
   // Orchestration state
-  private cached: BaxiaTokens | null = null;
-  private cachedAt = 0;
-  private pending: Promise<BaxiaTokens> | null = null;
+  private proxyCache = new Map<string, { tokens: BaxiaTokens | null; cachedAt: number | null; lastSpawnDurationMs: number | null; consecutiveFailures: number }>();
+  private pendingByProxy = new Map<string, Promise<BaxiaTokens>>();
+  private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
-  private consecutiveFailures = 0;
-  private lastSpawnDurationMs: number | null = null;
+  private static readonly DIRECT_KEY = "";
+  // Global spawn mutex — serializes all doRefresh calls
+  private spawnChain: Promise<void> = Promise.resolve();
+  // Optional bridge for proxy-affine token generation (S-M1-7)
+  private bridge?: { getPort(): number; setUpstream(key: string): void };
 
   constructor(config: BaxiaTokenManagerConfig) {
     this.config = config;
@@ -96,6 +101,12 @@ export class BaxiaTokenManager {
     this._WebSocketCtor = config.WebSocketCtor ?? (globalThis as any).WebSocket;
     this._fetcher = config.fetcher ?? globalThis.fetch;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
+    this.bridge = config.bridge;
+  }
+
+  /** Set the bridge for proxy-affine token generation (S-M1-7 / S-M2-2). */
+  setBridge(bridge: { getPort(): number; setUpstream(key: string): void }): void {
+    this.bridge = bridge;
   }
 
   /** Expose resolved spawn fn for P0 regression testing. */
@@ -131,7 +142,7 @@ export class BaxiaTokenManager {
 
   // ── startChrome ─────────────────────────────────────────────────────────
 
-  private startChrome(exe: string): { child: any; port: number } {
+  private startChrome(exe: string, proxyServerUrl?: string): { child: any; port: number } {
     const port = randomPort(9400, 9999);
     const userDataDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "baxia-chrome-"),
@@ -148,6 +159,11 @@ export class BaxiaTokenManager {
       `--user-agent=${this.config.userAgent}`,
       "about:blank",
     ];
+    // S-M1-7: inject proxy-server + DNS pinning for proxy-affine token gen
+    if (proxyServerUrl) {
+      args.unshift(`--proxy-server=${proxyServerUrl}`);
+      args.unshift("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
+    }
     const child = this._spawn(exe, args, { stdio: "ignore" });
     return { child, port };
   }
@@ -234,9 +250,13 @@ export class BaxiaTokenManager {
 
   // ── getBaxiaTokens ──────────────────────────────────────────────────────
 
-  private async getBaxiaTokens(): Promise<BaxiaTokens> {
+  private async getBaxiaTokens(proxy?: string): Promise<BaxiaTokens> {
     const exe = this.findChrome();
-    const { child, port } = this.startChrome(exe);
+    // S-M1-7: compute loopback SOCKS5 URL for proxy-affine token gen
+    const proxyServerUrl = (proxy && this.bridge)
+      ? `socks5://127.0.0.1:${this.bridge.getPort()}`
+      : undefined;
+    const { child, port } = this.startChrome(exe, proxyServerUrl);
 
     try {
       // Wait for Chrome to start /json/list endpoint
@@ -355,55 +375,84 @@ export class BaxiaTokenManager {
     }
   }
 
-  // ── Orchestration (S-M1-4) ───────────────────────────────────────────
+  // ── Orchestration (S-M1-5 per-proxy cache) ──────────────────────────
 
   async ensureToken(
-    opts?: { forceRefresh?: boolean },
+    opts?: { forceRefresh?: boolean; proxy?: string },
   ): Promise<BaxiaTokens> {
+    const key = opts?.proxy ?? BaxiaTokenManager.DIRECT_KEY;
     const now = this.config.now?.() ?? Date.now();
+    const entry = this.proxyCache.get(key);
 
-    // Cache hit
+    // Cache hit (lazy TTL per key)
     if (
       !opts?.forceRefresh &&
-      this.cached &&
-      now - this.cachedAt < this.config.cacheTtlMs
+      entry?.tokens &&
+      entry.cachedAt != null &&
+      now - entry.cachedAt < this.config.cacheTtlMs
     ) {
-      return this.cached;
+      return entry.tokens;
     }
 
-    // Single-flight: if a refresh is already in-flight, piggyback on it
-    if (this.pending) return this.pending;
+    // Single-flight: if a refresh is already in-flight for this proxy, piggyback
+    const existing = this.pendingByProxy.get(key);
+    if (existing) return existing;
 
     // Start a new refresh (assigned synchronously before any await)
-    this.pending = this.doRefresh(now);
+    const p = this.doRefresh(key);
+    this.pendingByProxy.set(key, p);
     try {
-      return await this.pending;
+      return await p;
     } finally {
-      this.pending = null;
+      this.pendingByProxy.delete(key);
     }
   }
 
-  private async doRefresh(now: number): Promise<BaxiaTokens> {
-    const start = now;
+  private async withSpawnLock<T>(fn: () => Promise<T>): Promise<T> {
+    // Chain onto spawnChain so new spawns wait for the previous one to settle
+    const chained = this.spawnChain.then(fn, fn);
+    // Re-chain the settled promise (never rejects — fn is called for both resolve/reject)
+    this.spawnChain = chained.then(() => {}, () => {});
+    return chained;
+  }
+
+  private async doRefresh(key: string): Promise<BaxiaTokens> {
+    const proxy = key !== BaxiaTokenManager.DIRECT_KEY ? key : undefined;
+    return this.withSpawnLock(async () => {
+    const start = this.config.now?.() ?? Date.now();
     try {
-      const tokens = await this.getBaxiaTokens();
-      this.cached = tokens;
-      this.cachedAt = this.config.now?.() ?? Date.now(); // P3: set after token obtained
-      this.consecutiveFailures = 0;
-      this.lastSpawnDurationMs =
-        (this.config.now?.() ?? Date.now()) - start;
+      // S-M1-7: set upstream proxy on bridge before spawning Chrome
+      if (proxy && this.bridge) {
+        this.bridge.setUpstream(proxy);
+      }
+      const tokens = await this.getBaxiaTokens(proxy);
+      this.proxyCache.set(key, {
+        tokens,
+        cachedAt: this.config.now?.() ?? Date.now(),
+        lastSpawnDurationMs: (this.config.now?.() ?? Date.now()) - start,
+        consecutiveFailures: 0,
+      });
+      this.lastUsedProxy = key; // SUCCESS only
       return tokens;
     } catch (e) {
-      this.consecutiveFailures++;
-      if (this.config.fallback) {
-        // Return stale cache if available, otherwise rethrow
-        if (this.cached) return this.cached;
+      const prev = this.proxyCache.get(key);
+      this.proxyCache.set(key, {
+        tokens: prev?.tokens ?? null,
+        cachedAt: prev?.cachedAt ?? null,
+        lastSpawnDurationMs: prev?.lastSpawnDurationMs ?? null,
+        consecutiveFailures: (prev?.consecutiveFailures ?? 0) + 1,
+      });
+      if (this.config.fallback && prev?.tokens) {
+        return prev.tokens;
       }
       throw e;
     }
+    });
   }
 
   startRefreshLoop(): void {
+    // S-M1-7: bridge mode uses lazy per-proxy refresh (no periodic loop)
+    if (this.bridge) return;
     if (this.refreshTimer) return; // idempotent
     const interval = Math.max(60_000, this.config.cacheTtlMs - 120_000);
     this.refreshTimer = setInterval(() => {
@@ -420,18 +469,39 @@ export class BaxiaTokenManager {
   }
 
   status(): BaxiaStatus {
+    const key = this.lastUsedProxy ?? BaxiaTokenManager.DIRECT_KEY;
+    const entry = this.proxyCache.get(key);
     const now = this.config.now?.() ?? Date.now();
     return {
-      cached: this.cached !== null,
-      cachedAt: this.cached ? this.cachedAt : null,
-      ageMs: this.cached ? now - this.cachedAt : null,
+      cached: entry?.tokens != null,
+      cachedAt: entry?.cachedAt ?? null,
+      ageMs: entry?.cachedAt != null ? now - entry.cachedAt : null,
       ttlMs: this.config.cacheTtlMs,
       nextRefreshInMs: this.refreshTimer
         ? Math.max(60_000, this.config.cacheTtlMs - 120_000)
         : null,
-      lastSpawnDurationMs: this.lastSpawnDurationMs,
-      consecutiveFailures: this.consecutiveFailures,
+      lastSpawnDurationMs: entry?.lastSpawnDurationMs ?? null,
+      consecutiveFailures: entry?.consecutiveFailures ?? 0,
     };
+  }
+
+  proxyStatuses(): Record<string, BaxiaStatus> {
+    const now = this.config.now?.() ?? Date.now();
+    const result: Record<string, BaxiaStatus> = {};
+    for (const [key, entry] of this.proxyCache) {
+      result[key] = {
+        cached: entry.tokens != null,
+        cachedAt: entry.cachedAt,
+        ageMs: entry.cachedAt != null ? now - entry.cachedAt : null,
+        ttlMs: this.config.cacheTtlMs,
+        nextRefreshInMs: this.refreshTimer
+          ? Math.max(60_000, this.config.cacheTtlMs - 120_000)
+          : null,
+        lastSpawnDurationMs: entry.lastSpawnDurationMs,
+        consecutiveFailures: entry.consecutiveFailures,
+      };
+    }
+    return result;
   }
 }
 

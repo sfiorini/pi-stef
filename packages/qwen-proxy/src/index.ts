@@ -18,3 +18,4 @@ export { translateQwenSse, mapUsageToOpenAI, isDataInspectionFailed } from "./up
 export { SingleAccountPool, type SingleAccountPoolDeps } from "./pool/single";
 export { type PoolLike } from "./pool/types";
 export * from "./pool";
+export { parseSocksUrl, type ParsedSocksUrl, ProxyBridge, type ProxyBridgeConfig } from "./upstream/proxy-bridge";

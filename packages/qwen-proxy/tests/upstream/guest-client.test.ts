@@ -121,7 +121,9 @@ describe("createChatSession", () => {
 
     expect(result).toBe("session-retry");
     expect(fetcher).toHaveBeenCalledTimes(2);
-    expect(baxia.ensureToken).toHaveBeenCalledWith({ forceRefresh: true });
+    expect(baxia.ensureToken).toHaveBeenCalledTimes(2);
+    expect(baxia.ensureToken).toHaveBeenNthCalledWith(1, { proxy: undefined });
+    expect(baxia.ensureToken).toHaveBeenNthCalledWith(2, { forceRefresh: true, proxy: undefined });
   });
 
   it("P1: rgv587 retry uses FRESH (not stale) bx-* headers after forceRefresh", async () => {
@@ -178,8 +180,8 @@ describe("createChatSession", () => {
 
     // (a) ensureToken was called with forceRefresh after the rgv587
     expect(ensureTokenMock).toHaveBeenCalledTimes(2);
-    expect(ensureTokenMock).toHaveBeenNthCalledWith(1, undefined);
-    expect(ensureTokenMock).toHaveBeenNthCalledWith(2, { forceRefresh: true });
+    expect(ensureTokenMock).toHaveBeenNthCalledWith(1, { proxy: undefined });
+    expect(ensureTokenMock).toHaveBeenNthCalledWith(2, { forceRefresh: true, proxy: undefined });
 
     // (b) The 2nd POST must carry FRESH headers, not STALE
     const [, retryInit] = fetcher.mock.calls[1];
@@ -797,7 +799,7 @@ describe("S-M1-5: proxy threading", () => {
     }
   });
 
-  it("ensureToken receives NO proxy arg (token-gen is direct)", async () => {
+  it("ensureToken receives {proxy} for proxy-affine token gen (S-M2-1)", async () => {
     const baxia = makeBaxia();
     const fetcher = vi.fn()
       .mockResolvedValueOnce({
@@ -825,22 +827,59 @@ describe("S-M1-5: proxy threading", () => {
       proxyDispatcherCache: cache,
     });
 
+    const proxyKey = "socks5://u:p@proxy:1080";
     const result = client.chatCompletions("ignored", {
       model: "qwen3-max",
       messages: [{ role: "user", content: "Hello" }],
       stream: true,
-    }, "socks5://u:p@proxy:1080");
+    }, proxyKey);
 
     for await (const _ of result as AsyncIterable<any>) { /* drain */ }
 
-    // ensureToken should be called without any proxy argument
-    for (const call of (baxia.ensureToken as any).mock.calls) {
-      // The only arg allowed is { forceRefresh } or undefined — never a proxy key
-      expect(call.length <= 1).toBe(true);
-      if (call[0]) {
-        expect(call[0]).toHaveProperty("forceRefresh");
-      }
-    }
+    // S-M2-1: ensureToken receives {proxy} in both call sites
+    const calls = (baxia.ensureToken as any).mock.calls;
+    // First call: createChatSession → ensureToken({proxy})
+    expect(calls[0][0]).toEqual({ proxy: proxyKey });
+    // Second call: doChatCompletionsRequest → ensureToken({proxy})
+    expect(calls[1][0]).toEqual({ proxy: proxyKey });
+  });
+
+  it("ensureToken receives {proxy:undefined} in legacy mode (no proxy arg)", async () => {
+    const baxia = makeBaxia();
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ data: { id: "sid" } }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: new ReadableStream({
+          start(c) {
+            c.enqueue(new TextEncoder().encode('data: [DONE]\n'));
+            c.close();
+          },
+        }),
+      });
+
+    const client = new GuestUpstreamClient({
+      baxia,
+      chatUrl: "https://chat.qwen.ai",
+      fetcher: fetcher as unknown as typeof fetch,
+      log: noopLog,
+    });
+
+    const result = client.chatCompletions("ignored", {
+      model: "qwen3-max",
+      messages: [{ role: "user", content: "Hello" }],
+      stream: true,
+    });
+
+    for await (const _ of result as AsyncIterable<any>) { /* drain */ }
+
+    // S-M2-1: ensureToken({proxy:undefined}) in legacy mode
+    const calls = (baxia.ensureToken as any).mock.calls;
+    expect(calls[0][0]).toEqual({ proxy: undefined });
+    expect(calls[1][0]).toEqual({ proxy: undefined });
   });
 
   it("timeoutMs defaults to 60_000 when not provided", () => {

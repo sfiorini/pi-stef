@@ -163,6 +163,14 @@ describe("normalizeSocksUrl", () => {
     expect(normalizeSocksUrl("socks5://myuser:mypass@host.example.com:9999", undefined, undefined)).toBe("socks5://myuser:mypass@host.example.com:9999");
   });
 
+  it("does not double-encode percent-encoded URL creds (round-trip safe)", () => {
+    // Input has percent-encoded creds (@ → %40). normalizeSocksUrl must NOT
+    // re-encodeURIComponent them (WHATWG URL already stores them encoded).
+    const input = "socks5://us%40er:p%40ss@proxy:1080";
+    const normalized = normalizeSocksUrl(input, undefined, undefined);
+    expect(normalized).toBe("socks5://us%40er:p%40ss@proxy:1080");
+  });
+
   it("rejects empty string", () => {
     expect(normalizeSocksUrl("", undefined, undefined)).toBeNull();
   });

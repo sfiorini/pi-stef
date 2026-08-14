@@ -94,7 +94,7 @@ By default the proxy uses a single IP for all upstream requests. When Qwen's Bax
 
 - **Rotate triggers:** `EmptyCompletionError`, `NetworkError` (TTFB timeout, connection reset), `ServerError` (5xx), `TypeError` (fetch internals), raw `Error` (e.g. SOCKS connect failure).
 - **Terminal (no rotate):** `ClientError` (4xx, incl. `data_inspection_failed`), `RateLimitError` (429), `UnknownError`.
-- **Token generation stays direct** — Baxia tokens are fetched without a proxy (affinity with the browser fingerprint). Only `createChatSession` + the completion fetch route through SOCKS5.
+- **Token generation is proxy-affine** — in rotation mode, a local loopback SOCKS5 bridge injects NordVPN credentials for Chromium; Baxia tokens are cached per-proxy so the token's issuing IP matches the completion's egress IP. Legacy (N≤1) still generates tokens directly.
 - **Stream rotation is pre-first-content only** — once the first content token has been yielded to the client, no rotation occurs (would duplicate already-sent chunks). A post-content error surfaces directly.
 - **No `refreshBaxiaToken`** on rotation exhaustion — the token is fine; the IP ceiling is the bottleneck.
 
@@ -111,9 +111,9 @@ By default the proxy uses a single IP for all upstream requests. When Qwen's Bax
 - If discovery returns 0 usable servers (or credentials are missing), the proxy falls back to legacy mode silently.
 - If `SF_QWEN_PROXY_COUNT ≤ 1` and no explicit URLs, legacy mode applies (byte-for-byte backward-compatible).
 
-### Token/IP-mismatch empirical limitation
+### Per-proxy token affinity (resolved)
 
-Qwen may correlate the Baxia token's originating IP with the completion request IP. If the token was generated on IP A but the completion egresses through SOCKS5 IP B, upstream may reject the request. This is an empirical observation, not confirmed behavior. If it becomes a problem, the auth-bridge follow-up (token generation through the same SOCKS5 proxy) would be needed.
+Token generation now egresses through the same SOCKS5 proxy as completion requests. A pure-Node loopback SOCKS5 bridge (`net.Server` + `socks`) binds `127.0.0.1`, injects NordVPN credentials, and routes Chromium through it. Tokens are cached per-proxy key. Legacy mode (no proxy pool) remains byte-for-byte unchanged.
 
 ---
 

@@ -604,5 +604,290 @@ describe("BaxiaTokenManager", () => {
       await expect(mgr.ensureToken()).rejects.toThrow();
       expect(mgr.status().consecutiveFailures).toBe(2);
     });
+
+    it("cold failure (no prior entry) → cachedAt:null, ageMs:null, no epoch-0 leak", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const fetcherFn = vi.fn(async () => { throw new Error("network down"); });
+
+      const config = makeConfig({
+        spawn: vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any,
+        WebSocketCtor: function (url: string) { return new FakeWebSocket(url, makeDefaultReplyMap()) as any; } as any,
+        fetcher: fetcherFn as any,
+        sleep: () => Promise.resolve(),
+        now: () => 1000,
+        fallback: false,
+      });
+
+      const mgr = new BaxiaTokenManager(config);
+
+      // Cold failure: no prior token exists
+      await expect(mgr.ensureToken()).rejects.toThrow();
+      const s = mgr.status();
+      expect(s.cached).toBe(false);
+      expect(s.cachedAt).toBeNull(); // no epoch-0 leak
+      expect(s.ageMs).toBeNull();    // no huge ageMs
+      expect(s.consecutiveFailures).toBe(1);
+    });
+  });
+
+  // ── S-M1-5: per-proxy cache tests ──────────────────────────────────────
+
+  describe("per-proxy cache", () => {
+    function makeProxySetup(overrides: Partial<BaxiaTokenManagerConfig> = {}) {
+      let evalCount = 0;
+      const replyMap = new Map<string, (id: number, params: any) => any>();
+      replyMap.set("Page.enable", () => ({}));
+      replyMap.set("Runtime.enable", () => ({}));
+      replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+      replyMap.set("Runtime.evaluate", (_id, params) => {
+        if (params?.expression?.includes("__baxia__")) {
+          evalCount++;
+          const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+          return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } };
+        }
+        return { result: { type: "undefined" } };
+      });
+
+      let currentTime = 1000;
+      const nowFn = vi.fn(() => currentTime);
+      const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+      const fetcherFn = vi.fn(async (url: string) => {
+        if (url.includes("/json/list")) {
+          return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+        }
+        return { ok: false, json: async () => ({}) };
+      });
+
+      const config = makeConfig({
+        spawn: spawnFn as any,
+        WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+        fetcher: fetcherFn as any,
+        sleep: () => Promise.resolve(),
+        now: nowFn,
+        ...overrides,
+      });
+
+      return { spawnFn, config, evalCount: () => evalCount, advance: (ms: number) => { currentTime += ms; } };
+    }
+
+    it("per-proxy separates: A then B → 2 distinct tokens, 2 spawns; A within TTL → 0 spawns", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const tA = await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      const tB = await mgr.ensureToken({ proxy: "socks5://u:p@proxyB:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+      expect(tB.bxUmidToken).not.toBe(tA.bxUmidToken); // distinct tokens
+
+      advance(60_000);
+      const tA2 = await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2); // cache hit for A
+      expect(tA2.bxUmidToken).toBe(tA.bxUmidToken);
+    });
+
+    it("lazy spawn: TTL per proxy; DIRECT_KEY unaffected", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      // DIRECT_KEY (no proxy) should still be a separate cache
+      await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(2); // separate spawn for direct
+
+      // Proxy A cache hit
+      advance(60_000);
+      await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+      expect(spawnFn).toHaveBeenCalledTimes(2);
+    });
+
+    it("same-proxy piggyback: Promise.all same proxy → 1 spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const proxy = "socks5://u:p@proxyA:1080";
+      const [t1, t2] = await Promise.all([
+        mgr.ensureToken({ proxy }),
+        mgr.ensureToken({ proxy }),
+      ]);
+      expect(t1.bxUmidToken).toBe(t2.bxUmidToken);
+      expect(spawnFn).toHaveBeenCalledTimes(1); // piggybacked
+    });
+
+    it("legacy ≡ today: ensureToken() twice within TTL → 1 spawn", async () => {
+      const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+      const { spawnFn, config, advance } = makeProxySetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      const t1 = await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+
+      advance(60_000);
+      const t2 = await mgr.ensureToken();
+      expect(spawnFn).toHaveBeenCalledTimes(1);
+      expect(t2.bxUmidToken).toBe(t1.bxUmidToken);
+    });
+  });
+});
+
+// ── S-M1-6: global serialization + fallback + status (simplified) ─────────
+describe("global serialization + fallback + status", () => {
+  function makeProxySetup(overrides: Partial<BaxiaTokenManagerConfig> = {}) {
+    let evalCount = 0;
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) { evalCount++;
+        const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+        return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } }; }
+      return { result: { type: "undefined" } }; });
+    let currentTime = 1000; const nowFn = vi.fn(() => currentTime);
+    const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+    const fetcherFn = vi.fn(async (url: string) => {
+      if (url.includes("/json/list")) return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+      return { ok: false, json: async () => ({}) }; });
+    const config = makeConfig({ spawn: spawnFn as any, WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: fetcherFn as any, sleep: () => Promise.resolve(), now: nowFn, ...overrides });
+    return { spawnFn, config, evalCount: () => evalCount, advance: (ms: number) => { currentTime += ms; } };
+  }
+
+  it("concurrent A+B → 2 spawns, distinct tokens (serialized via withSpawnLock)", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { spawnFn, config } = makeProxySetup();
+    const mgr = new BaxiaTokenManager(config);
+    const [tA, tB] = await Promise.all([
+      mgr.ensureToken({ proxy: "socks5://u:p@A:1080" }),
+      mgr.ensureToken({ proxy: "socks5://u:p@B:1080" }),
+    ]);
+    expect(spawnFn).toHaveBeenCalledTimes(2);
+    expect(tA.bxUmidToken).not.toBe(tB.bxUmidToken);
+  });
+
+  it("fallback:true on fail → returns same-proxy stale token", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config, advance } = makeProxySetup({ fallback: true });
+    const mgr = new BaxiaTokenManager(config);
+    const proxy = "socks5://u:p@A:1080";
+    const t1 = await mgr.ensureToken({ proxy });
+    advance(999_999); // past TTL
+    // Make fetcher fail → getBaxiaTokens throws → stale fallback
+    (config.fetcher as any).mockImplementation(async () => ({ ok: false, json: async () => ({}) }));
+    const t2 = await mgr.ensureToken({ proxy, forceRefresh: true });
+    expect(t2.bxUmidToken).toBe(t1.bxUmidToken); // stale token returned
+  });
+
+  it("status after seeding proxy X: cached + proxyStatuses has X", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { config, advance } = makeProxySetup();
+    const mgr = new BaxiaTokenManager(config);
+    await mgr.ensureToken({ proxy: "socks5://u:p@X:1080" });
+    advance(5000);
+    expect(mgr.status().cached).toBe(true);
+    expect(mgr.status().ageMs).toBe(5000);
+    const ps = mgr.proxyStatuses();
+    expect(ps["socks5://u:p@X:1080"]).toBeDefined();
+    expect(ps["socks5://u:p@X:1080"].cached).toBe(true);
+  });
+});
+
+// ── S-M1-7: bridge integration ─────────────────────────────────────────────
+describe("bridge integration", () => {
+  function makeBridgeSetup(bridgePort = 12345) {
+    const setUpstreamFn = vi.fn();
+    const fakeBridge = {
+      getPort: () => bridgePort,
+      setUpstream: setUpstreamFn,
+    };
+
+    let evalCount = 0;
+    const replyMap = new Map<string, (id: number, params: any) => any>();
+    replyMap.set("Page.enable", () => ({}));
+    replyMap.set("Runtime.enable", () => ({}));
+    replyMap.set("Page.navigate", () => ({ frameId: "f1" }));
+    replyMap.set("Runtime.evaluate", (_id, params) => {
+      if (params?.expression?.includes("__baxia__")) { evalCount++;
+        const uid = "T2gA" + String.fromCharCode(65 + evalCount - 1).repeat(24);
+        return { result: { type: "object", value: { ready: true, fy: "FY" + evalCount, uid, cookie: "ck" + evalCount } } }; }
+      return { result: { type: "undefined" } }; });
+    let currentTime = 1000; const nowFn = vi.fn(() => currentTime);
+    const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+    const fetcherFn = vi.fn(async (url: string) => {
+      if (url.includes("/json/list")) return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+      return { ok: false, json: async () => ({}) }; });
+
+    const config = makeConfig({ spawn: spawnFn as any, WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: fetcherFn as any, sleep: () => Promise.resolve(), now: nowFn, bridge: fakeBridge as any });
+    return { spawnFn, setUpstreamFn, config, fakeBridge, advance: (ms: number) => { currentTime += ms; } };
+  }
+
+  it("rotation: spawn gets --proxy-server + --host-resolver-rules args", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { spawnFn, config } = makeBridgeSetup(9999);
+    const mgr = new BaxiaTokenManager(config);
+
+    await mgr.ensureToken({ proxy: "socks5://u:p@proxyA:1080" });
+
+    expect(spawnFn).toHaveBeenCalledTimes(1);
+    const args = (spawnFn.mock.calls[0] as any)[1] as string[];
+    expect(args).toContain("--proxy-server=socks5://127.0.0.1:9999");
+    expect(args).toContain("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
+  });
+
+  it("rotation: bridge.setUpstream called with proxy key before getBaxiaTokens", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const { spawnFn, setUpstreamFn, config } = makeBridgeSetup();
+    const mgr = new BaxiaTokenManager(config);
+
+    const proxy = "socks5://u:p@proxyA:1080";
+    await mgr.ensureToken({ proxy });
+
+    expect(setUpstreamFn).toHaveBeenCalledWith(proxy);
+    // setUpstream must be called BEFORE spawn (which calls getBaxiaTokens)
+    expect(setUpstreamFn.mock.invocationCallOrder[0]).toBeLessThan(
+      spawnFn.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("legacy (no bridge): spawn gets NEITHER --proxy-server NOR --host-resolver-rules", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const replyMap = makeDefaultReplyMap();
+    const spawnFn = vi.fn(() => ({ pid: 1, kill: vi.fn() }));
+    const fetcherFn = vi.fn(async (url: string) => {
+      if (url.includes("/json/list")) return { ok: true, json: async () => [{ type: "page", webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/abc" }] };
+      return { ok: false, json: async () => ({}) }; });
+
+    const config = makeConfig({ spawn: spawnFn as any, WebSocketCtor: function (url: string) { return new FakeWebSocket(url, replyMap) as any; } as any,
+      fetcher: fetcherFn as any, sleep: () => Promise.resolve(), now: () => 1000 });
+    const mgr = new BaxiaTokenManager(config);
+
+    await mgr.ensureToken();
+
+    const args = (spawnFn.mock.calls[0] as any)[1] as string[];
+    expect(args).not.toContain(expect.stringMatching(/--proxy-server/));
+    expect(args).not.toContain(expect.stringMatching(/--host-resolver-rules/));
+  });
+
+  it("lazy refresh: startRefreshLoop is no-op when bridge set, no setInterval", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const setIntervalSpy = vi.spyOn(global, "setInterval");
+    try {
+      const { config } = makeBridgeSetup();
+      const mgr = new BaxiaTokenManager(config);
+
+      mgr.startRefreshLoop();
+
+      expect(setIntervalSpy).not.toHaveBeenCalled();
+      expect(mgr.status().nextRefreshInMs).toBeNull();
+    } finally {
+      setIntervalSpy.mockRestore();
+    }
   });
 });
