@@ -125,10 +125,60 @@ export class ProxyBridge {
    * Handle a new connection from Chromium.
    * (Stub — will be implemented in S-M1-3/S-M1-4.)
    */
-  private handleConnection(socket: net.Socket): void {
-    // Stub: destroy immediately until handshake logic is added in S-M1-3
-    void this.socksClient; // will be used in S-M1-4 forwarding
-    void this.log; // will be used in S-M1-3 handshake
-    socket.destroy();
+  private async handleConnection(socket: net.Socket): Promise<void> {
+    const VER = 0x05, AUTH_NONE = 0x00, AUTH_NO_ACCEPTABLE = 0xFF;
+    const CMD_CONNECT = 0x01, REP_CMD_NOT_SUPPORTED = 0x07, REP_ATYP_NOT_SUPPORTED = 0x08;
+    const ATYP_IPV4 = 0x01, ATYP_DOMAIN = 0x03, ATYP_IPV6 = 0x04;
+
+    let excess = Buffer.alloc(0);
+    const readN = async (n: number): Promise<Buffer> => {
+      if (excess.length >= n) { const r = excess.subarray(0, n); excess = excess.subarray(n); return r; }
+      return new Promise((resolve, reject) => {
+        let buf = excess; excess = Buffer.alloc(0);
+        const onData = (chunk: Buffer) => {
+          buf = Buffer.concat([buf, chunk]);
+          if (buf.length >= n) { off(); excess = buf.subarray(n); resolve(buf.subarray(0, n)); }
+        };
+        const off = () => { socket.off("data", onData); socket.off("close", onEnd); socket.off("error", onEnd); };
+        const onEnd = (e?: Error) => { off(); reject(e ?? new Error("socket closed during readN")); };
+        socket.on("data", onData); socket.once("close", onEnd); socket.once("error", onEnd);
+      });
+    };
+
+    const rep = (code: number) => socket.write(Buffer.from([VER, code, 0x00, 0x01, 0, 0, 0, 0, 0, 0]));
+
+    try {
+      // Phase 1: Method negotiation
+      const head = await readN(2);
+      if (head[0] !== VER) { socket.destroy(); return; }
+      const methods = await readN(head[1]);
+      if (!methods.includes(AUTH_NONE)) { rep(AUTH_NO_ACCEPTABLE); socket.end(); return; }
+      socket.write(Buffer.from([VER, AUTH_NONE]));
+
+      // Phase 2: CONNECT request
+      const req = await readN(4);
+      if (req[0] !== VER) { socket.destroy(); return; }
+      if (req[1] !== CMD_CONNECT) { rep(REP_CMD_NOT_SUPPORTED); socket.end(); return; }
+      let host: string;
+      const atyp = req[3];
+      if (atyp === ATYP_IPV4) {
+        host = Array.from(await readN(4)).join(".");
+      } else if (atyp === ATYP_DOMAIN) {
+        const len = await readN(1);
+        host = (await readN(len[0])).toString("utf-8");
+      } else if (atyp === ATYP_IPV6) {
+        const b = await readN(16);
+        host = Array.from({ length: 8 }, (_, i) => b.readUInt16BE(i * 2).toString(16)).join(":");
+      } else {
+        rep(REP_ATYP_NOT_SUPPORTED); socket.end(); return;
+      }
+      const port = (await readN(2)).readUInt16BE(0);
+
+      // Phase 3: Forward via upstream (S-M1-4)
+      void host; void port; void this.socksClient; void this.log;
+      socket.destroy();
+    } catch {
+      socket.destroy();
+    }
   }
 }

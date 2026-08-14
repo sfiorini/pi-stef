@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import * as net from "node:net";
+import { ProxyBridge } from "../../src/upstream/proxy-bridge";
 
 // S-M1-1: parseSocksUrl
 describe("parseSocksUrl", () => {
@@ -124,5 +125,47 @@ describe("ProxyBridge", () => {
     const cur = bridge.getCurrentUpstream();
     expect(cur).toEqual({ host: "proxy.example.com", port: 1080, user: "alice", pass: "s3cret" });
     await bridge.stop();
+  });
+});
+
+// ── S-M1-3: SOCKS5 handshake tests ────────────────────────────────────────
+
+describe("ProxyBridge SOCKS5 handshake", () => {
+  async function bridgeAndConnect() {
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } });
+    const port = await bridge.start();
+    const sock = net.createConnection({ host: "127.0.0.1", port });
+    await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+    return { bridge, sock };
+  }
+  function readN(sock: net.Socket, n: number): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = []; let total = 0;
+      const onData = (c: Buffer) => { chunks.push(c); total += c.length; if (total >= n) { sock.off("data", onData); resolve(Buffer.concat(chunks).subarray(0, n)); } };
+      const onEnd = () => { sock.off("data", onData); reject(new Error("closed")); };
+      sock.on("data", onData); sock.once("close", onEnd);
+      setTimeout(() => { sock.off("data", onData); sock.off("close", onEnd); reject(new Error("timeout")); }, 2000);
+    });
+  }
+
+  it("no-auth accept: 05 01 00 → reply 05 00", async () => {
+    const { bridge, sock } = await bridgeAndConnect();
+    try { sock.write(Buffer.from([0x05, 0x01, 0x00])); const r = await readN(sock, 2); expect(r[0]).toBe(0x05); expect(r[1]).toBe(0x00); }
+    finally { sock.destroy(); await bridge.stop(); }
+  });
+  it("no-acceptable-auth: 05 01 02 → reply 05 FF", async () => {
+    const { bridge, sock } = await bridgeAndConnect();
+    try { sock.write(Buffer.from([0x05, 0x01, 0x02])); const r = await readN(sock, 2); expect(r[1]).toBe(0xFF); }
+    finally { sock.destroy(); await bridge.stop(); }
+  });
+  it("CMD≠CONNECT → REP 0x07", async () => {
+    const { bridge, sock } = await bridgeAndConnect();
+    try { sock.write(Buffer.from([0x05, 0x01, 0x00])); await readN(sock, 2); sock.write(Buffer.from([0x05, 0x02, 0x00, 0x01, 1, 2, 3, 4, 0, 80])); const r = await readN(sock, 2); expect(r[1]).toBe(0x07); }
+    finally { sock.destroy(); await bridge.stop(); }
+  });
+  it("unrecognized ATYP → REP 0x08", async () => {
+    const { bridge, sock } = await bridgeAndConnect();
+    try { sock.write(Buffer.from([0x05, 0x01, 0x00])); await readN(sock, 2); sock.write(Buffer.from([0x05, 0x01, 0x00, 0x09])); const r = await readN(sock, 2); expect(r[1]).toBe(0x08); }
+    finally { sock.destroy(); await bridge.stop(); }
   });
 });
