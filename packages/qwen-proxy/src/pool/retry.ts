@@ -1,7 +1,14 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError, EmptyCompletionError } from "../upstream/errors";
+import { RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
+
+/** Minimal proxy-pool contract for rotation mode (S-M2). */
+export interface ProxyPoolLike {
+  readonly size: number;
+  getActive(): string | undefined;
+  rotate(): string | undefined;
+}
 
 /** Minimal scheduler contract retry needs: on-demand token refresh. */
 export interface RetryScheduler {
@@ -16,6 +23,8 @@ export interface RetryDeps {
   config: { emptyCooldownMs: number; emptyRetryMax: number; emptyRetryGapMs: number };
   /** Per-account request pacer ("look human"). Optional — absent in tests. */
   throttle?: RequestThrottle;
+  /** Optional proxy pool for SOCKS5 rotation mode (S-M2). */
+  proxyPool?: ProxyPoolLike;
   log: {
     info: (msg: string, ctx?: unknown) => void;
     warn: (msg: string, ctx?: unknown) => void;
@@ -37,18 +46,21 @@ export type StreamChunk =
  */
 export async function withPoolRetry<T>(
   deps: RetryDeps,
-  op: (accountId: number, bearer: string) => Promise<T>,
+  op: (accountId: number, bearer: string, proxy?: string) => Promise<T>,
 ): Promise<T> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
+  const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  let tried = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
+    const proxy = deps.proxyPool?.getActive();
 
     try {
-      const result = await op(id, bearer);
+      const result = await op(id, bearer, proxy);
       deps.pool.markSuccess();
       return result;
     } catch (err) {
@@ -61,6 +73,23 @@ export async function withPoolRetry<T>(
         throw err;
       }
 
+      // Rotation mode: rotate on rotatable errors (pre-first-content budget)
+      if (rotationMode && isRotationTrigger(err)) {
+        tried++;
+        if (tried < deps.proxyPool!.size) {
+          deps.proxyPool!.rotate();
+          continue;
+        }
+        // All proxies burned — cooldown + 429
+        const { emptyCooldownMs } = deps.config;
+        await sleep(emptyCooldownMs);
+        throw new RateLimitError(
+          "all proxies exhausted after rotation retries",
+          { status: 429, retryAfterMs: emptyCooldownMs },
+        );
+      }
+
+      // Legacy mode (no proxyPool or size≤1): EmptyCompletionError inline-retry
       if (err instanceof EmptyCompletionError) {
         const { emptyRetryMax, emptyRetryGapMs, emptyCooldownMs } = deps.config;
         if (emptyRetries < emptyRetryMax) {
@@ -106,15 +135,18 @@ export async function withPoolRetry<T>(
  */
 export async function* withPoolRetryStream(
   deps: RetryDeps,
-  op: (accountId: number, bearer: string) => AsyncIterable<OpenAiChatChunk>,
+  op: (accountId: number, bearer: string, proxy?: string) => AsyncIterable<OpenAiChatChunk>,
 ): AsyncIterable<StreamChunk> {
   let authRefreshedFor: number | null = null;
   let emptyRetries = 0;
+  const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
+  let tried = 0;
 
   while (true) {
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
+    const proxy = deps.proxyPool?.getActive();
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;
@@ -122,7 +154,7 @@ export async function* withPoolRetryStream(
     let emptyCompletion = false;
 
     try {
-      const iter = op(id, bearer);
+      const iter = op(id, bearer, proxy);
       for await (const chunk of iter) {
         if (!seenPayload && hasPayload(chunk)) seenPayload = true;
         if (!seenContent && isContentChunk(chunk)) {
@@ -160,8 +192,34 @@ export async function* withPoolRetryStream(
         throw err;
       }
 
+      // Rotation mode: rotate on rotatable errors (PRE-first-content ONLY)
+      if (rotationMode && !seenContent && isRotationTrigger(err)) {
+        tried++;
+        if (tried < deps.proxyPool!.size) {
+          deps.proxyPool!.rotate();
+          continue;
+        }
+        // All proxies burned — sentinel (no refreshBaxiaToken)
+        deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size });
+        yield { done: true, extra: { rateLimited: true } };
+        return;
+      }
+
       // All other errors surface
       throw err;
+    }
+
+    // Rotation mode: empty → rotate (PRE-first-content)
+    if (emptyCompletion && rotationMode) {
+      tried++;
+      if (tried < deps.proxyPool!.size) {
+        deps.proxyPool!.rotate();
+        continue;
+      }
+      // All proxies burned — sentinel (no refreshBaxiaToken)
+      deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
+      yield { done: true, extra: { rateLimited: true } };
+      return;
     }
 
     // Inline retry on empty completion — same account, up to emptyRetryMax.
@@ -214,4 +272,36 @@ function hasPayload(chunk: OpenAiChatChunk): boolean {
   return Boolean(
     delta && (delta.content || delta.reasoning_content || delta.tool_calls),
   );
+}
+
+/**
+ * Classify whether an error should trigger proxy rotation (vs being terminal).
+ *
+ * Rotatable (rotate to next proxy):
+ *   - EmptyCompletionError (likely Baxia CAPTCHA flag)
+ *   - NetworkError (TTFB timeout, connection reset)
+ *   - ServerError (5xx upstream failure)
+ *   - TypeError (fetch internals failure)
+ *   - AbortError (name-based, e.g. undici abort)
+ *   - Residual generic Error (e.g. raw SOCKS connect failure)
+ *
+ * Terminal (do NOT rotate — surface immediately):
+ *   - ClientError (4xx, incl data_inspection_failed)
+ *   - RateLimitError (429)
+ *   - UnknownError
+ *
+ * Non-Error → false (not rotatable).
+ */
+export function isRotationTrigger(err: unknown): boolean {
+  if (err instanceof EmptyCompletionError) return true;
+  if (err instanceof NetworkError) return true;
+  if (err instanceof ServerError) return true;
+  if (err instanceof TypeError) return true;
+  if (err instanceof Error && err.name === "AbortError") return true;
+  if (err instanceof AuthExpiredError) return false; // token refresh (same proxy) — never a rotation trigger
+  if (err instanceof ClientError) return false;
+  if (err instanceof RateLimitError) return false;
+  if (err instanceof UnknownError) return false;
+  if (err instanceof Error) return true; // residual generic Error → rotate
+  return false; // non-Error → not rotatable
 }

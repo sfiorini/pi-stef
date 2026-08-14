@@ -15,7 +15,7 @@ import { OpenAPIHono } from "@hono/zod-openapi";
 import type Database from "better-sqlite3";
 import type { PoolLike } from "../pool/types";
 import type { UpstreamClient } from "../upstream/client";
-import type { RetryScheduler } from "../pool/retry";
+import type { RetryScheduler, ProxyPoolLike } from "../pool/retry";
 import type { QwenProxyConfig } from "../config/types";
 import type { BaxiaStatus } from "../upstream/baxia-token";
 import type { Logger } from "./logger";
@@ -49,6 +49,7 @@ export interface AppDeps {
   throttle: RequestThrottle;
   log: Logger;
   baxiaStatus?: () => BaxiaStatus;
+  proxyPool?: ProxyPoolLike;
 }
 
 export function createApp(deps: AppDeps): OpenAPIHono {
@@ -131,6 +132,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     retry: deps.retry,
     retryStream: deps.retryStream,
     throttle: deps.throttle,
+    ...(deps.proxyPool ? { proxyPool: deps.proxyPool } : {}),
   };
 
   app.route("/v1", openaiRoutes(openaiDeps));
@@ -145,6 +147,7 @@ export function createApp(deps: AppDeps): OpenAPIHono {
     retry: deps.retry,
     retryStream: deps.retryStream,
     throttle: deps.throttle,
+    ...(deps.proxyPool ? { proxyPool: deps.proxyPool } : {}),
   };
   app.route("/v1", anthropicRoutes(anthropicDeps));
 

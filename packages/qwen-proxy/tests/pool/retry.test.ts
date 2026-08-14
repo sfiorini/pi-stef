@@ -3,14 +3,19 @@ import {
   withPoolRetry,
   withPoolRetryStream,
   isContentChunk,
+  isRotationTrigger,
   type RetryDeps,
   type StreamChunk,
+  type ProxyPoolLike,
 } from "../../src/pool/retry";
 import type { RequestThrottle as RequestThrottleType } from "../../src/pool/throttle";
 import {
   RateLimitError,
   AuthExpiredError,
   ClientError,
+  ServerError,
+  NetworkError,
+  UnknownError,
   EmptyCompletionError,
 } from "../../src/upstream/errors";
 import type { OpenAiChatChunk } from "../../src/upstream/client";
@@ -98,6 +103,321 @@ describe("isContentChunk", () => {
 
   it("returns false for finish_reason-only chunk", () => {
     expect(isContentChunk(finishChunk("stop"))).toBe(false);
+  });
+});
+
+// ── isRotationTrigger ──────────────────────────────────────────────────────
+
+describe("isRotationTrigger", () => {
+  // Rotatable errors — should return true
+  it("EmptyCompletionError → true (rotatable)", () => {
+    expect(isRotationTrigger(new EmptyCompletionError("empty"))).toBe(true);
+  });
+
+  it("NetworkError → true (rotatable)", () => {
+    expect(isRotationTrigger(new NetworkError("timeout"))).toBe(true);
+  });
+
+  it("ServerError 5xx → true (rotatable)", () => {
+    expect(isRotationTrigger(new ServerError("bad gateway", { status: 502 }))).toBe(true);
+  });
+
+  it("TypeError → true (rotatable)", () => {
+    expect(isRotationTrigger(new TypeError("fetch failed"))).toBe(true);
+  });
+
+  it("AbortError (name-based) → true (rotatable)", () => {
+    const err = new Error("aborted");
+    err.name = "AbortError";
+    expect(isRotationTrigger(err)).toBe(true);
+  });
+
+  it("generic Error (residual) → true (rotatable)", () => {
+    expect(isRotationTrigger(new Error("SOCKS connect ECONNREFUSED"))).toBe(true);
+  });
+
+  // Terminal errors — should return false
+  it("ClientError 4xx → false (terminal)", () => {
+    expect(isRotationTrigger(new ClientError("bad request", { status: 400 }))).toBe(false);
+  });
+
+  it("ClientError data_inspection 400 → false (terminal)", () => {
+    expect(isRotationTrigger(new ClientError("data_inspection_failed", { status: 400 }))).toBe(false);
+  });
+
+  it("RateLimitError → false (terminal)", () => {
+    expect(isRotationTrigger(new RateLimitError("rate limited", { status: 429 }))).toBe(false);
+  });
+
+  it("UnknownError → false (terminal)", () => {
+    expect(isRotationTrigger(new UnknownError("unknown"))).toBe(false);
+  });
+
+  // Non-Error → false
+  it("non-Error value → false", () => {
+    expect(isRotationTrigger("string error")).toBe(false);
+    expect(isRotationTrigger(null)).toBe(false);
+    expect(isRotationTrigger(undefined)).toBe(false);
+    expect(isRotationTrigger(42)).toBe(false);
+  });
+});
+
+// ── withPoolRetry — rotation mode ──────────────────────────────────────────
+
+/** Fake ProxyPoolLike for rotation-mode tests. */
+class FakeProxyPool implements ProxyPoolLike {
+  private readonly keys: string[];
+  private head: number;
+  rotateCalls = 0;
+
+  constructor(keys: string[]) {
+    this.keys = keys;
+    this.head = 0;
+  }
+
+  get size() { return this.keys.length; }
+  getActive() { return this.keys[this.head]; }
+  rotate() {
+    this.rotateCalls++;
+    this.head = (this.head + 1) % this.keys.length;
+    return this.keys[this.head];
+  }
+}
+
+describe("withPoolRetry — rotation mode", () => {
+  it("empty → rotate → success (op sees proxy A then B)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = makeDeps({ proxyPool });
+    const seen: string[] = [];
+    let callCount = 0;
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) throw new EmptyCompletionError("empty");
+      return "ok";
+    });
+
+    expect(result).toBe("ok");
+    expect(seen).toEqual(["A", "B"]);
+    expect(proxyPool.rotateCalls).toBe(1);
+  });
+
+  it("NetworkError → rotate → success", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = makeDeps({ proxyPool });
+    let callCount = 0;
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      if (callCount === 1) throw new NetworkError("timeout");
+      return `ok-${proxy}`;
+    });
+
+    expect(result).toBe("ok-B");
+    expect(proxyPool.rotateCalls).toBe(1);
+  });
+
+  it("ClientError → terminal (no rotate)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = makeDeps({ proxyPool });
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        throw new ClientError("bad request", { status: 400 });
+      }),
+    ).rejects.toThrow(ClientError);
+    expect(proxyPool.rotateCalls).toBe(0);
+  });
+
+  it("budget=size (N=2): A→B exhausted → RateLimitError + cooldown", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    let refreshBaxiaCalled = 0;
+    const deps = makeDeps({
+      proxyPool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => { refreshBaxiaCalled++; },
+      },
+    });
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        throw new EmptyCompletionError("empty");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(proxyPool.rotateCalls).toBe(1); // rotated once (A→B), then all burned
+    expect(refreshBaxiaCalled).toBe(0); // NO refreshBaxiaToken in rotation mode
+  });
+
+  it("AuthExpired → refresh + retry SAME proxy (no rotate)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    let refreshCalled = false;
+    const deps = makeDeps({
+      proxyPool,
+      scheduler: {
+        refreshOnDemand: async () => {
+          refreshCalled = true;
+          return { bearer: "new-bearer", expiresAt: 999999 };
+        },
+      },
+    });
+    let callCount = 0;
+    const seen: string[] = [];
+
+    const result = await withPoolRetry(deps, async (_id, _bearer, proxy?) => {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) throw new AuthExpiredError("expired");
+      return `ok-${proxy}`;
+    });
+
+    expect(result).toBe("ok-A");
+    expect(refreshCalled).toBe(true);
+    expect(proxyPool.rotateCalls).toBe(0); // no rotate on AuthExpired
+    expect(seen).toEqual(["A", "A"]); // same proxy
+  });
+
+  it("emptyRetryMax ignored in rotation mode (N=3, calls=3)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B", "C"]);
+    const deps = makeDeps({ proxyPool, config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 } });
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        throw new EmptyCompletionError("empty");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    // With N=3, should try all3 proxies then fail (not 1+99 retries)
+    expect(proxyPool.rotateCalls).toBe(2); // rotated twice: A→B→C
+  });
+
+  it("no proxyPool → legacy (emptyRetryMax applies)", async () => {
+    const deps = makeDeps({ config: { emptyCooldownMs: 10_000, emptyRetryMax: 2, emptyRetryGapMs: 0 } });
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        throw new EmptyCompletionError("empty");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    expect(callCount).toBe(3); // 1 initial +2 retries (emptyRetryMax=2)
+  });
+});
+
+// ── withPoolRetryStream — rotation mode ─────────────────────────────────────
+
+/** Helper to build rotation-mode stream deps, reusing FakeProxyPool. */
+function rotStreamDeps(
+  proxyPool: FakeProxyPool,
+  overrides?: Partial<RetryDeps>,
+): RetryDeps {
+  return makeDeps({ proxyPool, ...overrides });
+}
+
+describe("withPoolRetryStream — rotation mode", () => {
+  it("pre-first-content error → rotate → success (buffer discarded, no dup)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+    let callCount = 0;
+    const seen: string[] = [];
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) throw new NetworkError("timeout");
+      yield contentChunk("ok");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual(["A", "B"]);
+    expect(proxyPool.rotateCalls).toBe(1);
+    // Buffer discarded (pre-content control chunks from the error attempt are gone)
+    expect(chunks).toEqual([contentChunk("ok"), finishChunk("stop")]);
+  });
+
+  it("pre-first-content empty → rotate → success", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+    let callCount = 0;
+    const seen: string[] = [];
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      seen.push(proxy!);
+      if (callCount === 1) {
+        yield finishChunk("stop"); // empty — no payload
+        return;
+      }
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual(["A", "B"]);
+    expect(proxyPool.rotateCalls).toBe(1);
+    expect(chunks).toEqual([contentChunk("recovered"), finishChunk("stop")]);
+  });
+
+  it("post-first-content error → NO rotate (surfaces as today)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool);
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      yield contentChunk("partial");
+      throw new NetworkError("mid-stream disconnect");
+    }
+
+    // Post-first-content error surfaces (no rotation, no duplicate)
+    await expect(collectChunks(withPoolRetryStream(deps, op))).rejects.toThrow(NetworkError);
+    expect(proxyPool.rotateCalls).toBe(0); // no rotation after content seen
+  });
+
+  it("budget=size N=2: both-empty → sentinel (no legacy retry)", async () => {
+    const proxyPool = new FakeProxyPool(["A", "B"]);
+    const deps = rotStreamDeps(proxyPool, {
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+    });
+    let callCount = 0;
+
+    async function* op(
+      _id: number,
+      _bearer: string,
+      _proxy?: string,
+    ): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      yield finishChunk("stop"); // always empty
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    // N=2: try A (empty), rotate to B (empty), all burned → sentinel
+    expect(callCount).toBe(2);
+    expect(proxyPool.rotateCalls).toBe(1);
+    expect(chunks).toHaveLength(1);
+    const sentinel = chunks[0];
+    if ("done" in sentinel) {
+      expect(sentinel.done).toBe(true);
+      expect(sentinel.extra?.rateLimited).toBe(true);
+    } else {
+      throw new Error("Expected sentinel");
+    }
   });
 });
 

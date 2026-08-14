@@ -10,6 +10,7 @@ import { GuestUpstreamClient } from "../src/upstream/guest-client";
 import { SingleAccountPool } from "../src/pool/single";
 import { withPoolRetry } from "../src/pool/retry";
 import { withPoolRetryStream } from "../src/pool/retry";
+import { createProxyPool, ProxyDispatcherCache } from "../src/pool/proxy-pool";
 import { RequestThrottle } from "../src/pool/throttle";
 import { Semaphore } from "../src/pool/semaphore";
 import type { AppDeps } from "../src/server/app";
@@ -58,7 +59,34 @@ async function main() {
     // Cap concurrent chat.qwen.ai calls — Baxia flags the IP on concurrent
     // upstream connections. Default 1 (serialize, like the web chat); tune with SF_QWEN_MAX_CONCURRENCY.
     const concurrency = new Semaphore(config.maxConcurrency);
-    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log });
+    const client = new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache: undefined, timeoutMs: config.timeoutMs });
+
+    // Proxy pool rotation (NordVPN SOCKS5)
+    let proxyPool;
+    let proxyDispatcherCache;
+    if (config.proxyCount > 1 || config.proxyUrlsRaw.trim()) {
+      proxyPool = await createProxyPool({
+        proxyCount: config.proxyCount,
+        proxyUrlsRaw: config.proxyUrlsRaw,
+        proxyUser: config.proxyUser,
+        proxyPass: config.proxyPass,
+        proxyCountriesRaw: config.proxyCountriesRaw,
+        fetcher: globalThis.fetch,
+        log,
+      });
+      if (proxyPool.size > 0) {
+        proxyDispatcherCache = new ProxyDispatcherCache();
+        log.info("proxy rotation enabled", { size: proxyPool.size });
+      } else {
+        proxyPool = undefined;
+        log.warn("proxy pool empty — legacy");
+      }
+    }
+
+    // Re-create client with proxy dispatcher cache + timeout if rotation enabled
+    const finalClient = proxyDispatcherCache
+      ? new GuestUpstreamClient({ baxia, chatUrl: CHAT_URL, concurrency, log, proxyDispatcherCache, timeoutMs: config.timeoutMs })
+      : client;
 
     // Single-account pool shim (guest mode: one virtual account, no failover)
     const pool = new SingleAccountPool({ log });
@@ -79,7 +107,7 @@ async function main() {
     const deps: AppDeps = {
       db,
       pool,
-      client,
+      client: finalClient,
       scheduler,
       config,
       retry: withPoolRetry,
@@ -87,6 +115,7 @@ async function main() {
       throttle,
       log,
       baxiaStatus: () => baxia.status(),
+      ...(proxyPool ? { proxyPool } : {}),
     };
 
     // Start HTTP server

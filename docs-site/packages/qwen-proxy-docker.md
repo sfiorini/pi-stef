@@ -185,6 +185,12 @@ All configuration is via environment variables (prefix `SF_QWEN_`). Set them in 
 | `SF_QWEN_EMPTY_RETRY_GAP_MS` | `1000` (1s) | Sleep between inline empty-retry attempts |
 | `SF_QWEN_MIN_REQUEST_GAP_MS` | `4000` (4s) | Global look-human throttle (±50% jitter); `0` disables |
 | `SF_QWEN_MAX_CONCURRENCY` | `1` | Max in-flight chat.qwen.ai calls (1 = serialize, like the web chat). Baxia flags the IP on concurrent upstream connections; raise only if you accept that risk |
+| `SF_QWEN_PROXY_COUNT` | `0` | Proxy pool size for NordVPN SOCKS5 rotation. `0` = legacy (single-IP, no rotation); `>1` = enable rotation across N proxies |
+| `SF_QWEN_PROXY_URLS` | *(unset)* | Comma-separated SOCKS5 proxy URLs (overrides auto-discovery; e.g. `socks5://user:pass@host:1080,...`) |
+| `SF_QWEN_PROXY_USER` | *(unset)* | NordVPN service username (used for auto-discovery; ignored if `SF_QWEN_PROXY_URLS` is set) |
+| `SF_QWEN_PROXY_PASS` | *(unset)* | NordVPN service password |
+| `SF_QWEN_PROXY_COUNTRIES` | *(unset)* | Comma-separated country codes for auto-discovery (e.g. `us,de,gb`) |
+| `SF_QWEN_TIMEOUT_MS` | `60000` | TTFB timeout in ms — aborts if no response headers arrive within this window (cleared on headers, never aborts mid-stream) |
 | `SF_QWEN_MODEL_ALIASES` | *(unset)* | JSON object mapping alias → upstream model |
 | `SF_QWEN_LOG_LEVEL` | `info` | Log level |
 | `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
