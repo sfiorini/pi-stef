@@ -39,6 +39,18 @@ export function parseSocksUrl(key: string): ParsedSocksUrl {
   };
 }
 
+/** Log-safe form of a proxy key: host:port only (never credentials). */
+export function redactProxyKey(key: string | undefined): string {
+  if (key === undefined || key === "") return "(direct)";
+  try {
+    const u = new URL(key);
+    if (!u.hostname) return "(unparsed)";
+    return `${u.hostname}:${u.port || "1080"}`;
+  } catch {
+    return "(unparsed)";
+  }
+}
+
 // ── ProxyBridge ─────────────────────────────────────────────────────────────
 
 export interface ProxyBridgeConfig {

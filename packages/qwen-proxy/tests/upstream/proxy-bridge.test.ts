@@ -475,3 +475,30 @@ describe("ProxyBridge socket error resilience (ECONNRESET regression)", () => {
     }
   });
 });
+
+// ── redactProxyKey (S-M1-1) ─────────────────────────────────────────────────
+
+describe("redactProxyKey", () => {
+  it("strips scheme + creds, keeps host:port (percent-encoded creds)", async () => {
+    const { redactProxyKey } = await import("../../src/upstream/proxy-bridge");
+    expect(redactProxyKey("socks5://user%40x:p%40ss@socks-nl5.nordvpn.com:1080"))
+      .toBe("socks-nl5.nordvpn.com:1080");
+  });
+
+  it("handles socks5h scheme and default port", async () => {
+    const { redactProxyKey } = await import("../../src/upstream/proxy-bridge");
+    expect(redactProxyKey("socks5h://u:p@h.example")).toBe("h.example:1080");
+    expect(redactProxyKey("socks5h://u:p@h.example:1080")).toBe("h.example:1080");
+  });
+
+  it("undefined/empty → (direct)", async () => {
+    const { redactProxyKey } = await import("../../src/upstream/proxy-bridge");
+    expect(redactProxyKey(undefined)).toBe("(direct)");
+    expect(redactProxyKey("")).toBe("(direct)");
+  });
+
+  it("garbage input → (unparsed), never throws", async () => {
+    const { redactProxyKey } = await import("../../src/upstream/proxy-bridge");
+    expect(redactProxyKey("not a url")).toBe("(unparsed)");
+  });
+});
