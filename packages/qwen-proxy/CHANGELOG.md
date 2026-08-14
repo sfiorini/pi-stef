@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-14
+### Changed
+- fix(qwen-proxy): thread active proxy in refreshBaxiaToken (P2)
+- fix(qwen-proxy): pipeBoth destroys peer on 'close' event (P3)
+- fix(qwen-proxy): skip pre-warm in rotation mode (P2 #2) + stale docstring (P3 #3)
+- fix(qwen-proxy): cold-failure cachedAt:null instead of epoch-0 (P3 #2)
+- fix(qwen-proxy): replace require('socks') with static ESM import (P2 #1)
+- fix(qwen-proxy): prevent double-encoding in normalizeSocksUrl (P3 #1)
+- docs(qwen-proxy): resolve token/IP-mismatch limitation (proxy-affine tokens)
+- feat(qwen-proxy): bin wiring for proxy-affine bridge (start/stop/setBridge)
+- feat(qwen-proxy): thread {proxy} into both ensureToken call sites
+- feat(qwen-proxy): bridge integration (setBridge + proxy-server args + lazy refresh)
+- feat(qwen-proxy): global spawn mutex + stale fallback + status/proxyStatuses
+- feat(qwen-proxy): baxia-token per-proxy cache (ensureToken({proxy}) + piggyback)
+- feat(qwen-proxy): ProxyBridge forwarding (creds injection + pipe + upstream swap)
+- feat(qwen-proxy): ProxyBridge SOCKS5 handshake (method-negotiation + CONNECT parse)
+- feat(qwen-proxy): add ProxyBridge lifecycle (start/stop/setUpstream)
+- feat(qwen-proxy): add socks dep + parseSocksUrl for SOCKS5 bridge
+
+
 ## [0.4.0] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): audit fixes (discovery timeout, dedup, isRotationTrigger, recreate doc)
