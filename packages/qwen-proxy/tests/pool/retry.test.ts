@@ -1817,3 +1817,57 @@ describe("[F4] cooldownSleep injected via RetryDeps", () => {
     expect(sleepCalls[0]).toBe(42); // emptyCooldownMs
   });
 });
+
+// ── [F5] mint strikes reset on successful inline re-mint (audit fix) ─────
+
+describe("[F5] mintStrikes resets on successful inline re-mint", () => {
+  it("non-stream: EmptyCompletionError → remint succeeds → 2 TokenMintErrors → 429 (3 calls, not 2)", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => {}, // succeeds — triggers reset
+      },
+    });
+    let callCount = 0;
+
+    await expect(
+      withPoolRetry(deps, async () => {
+        callCount++;
+        if (callCount === 1) throw new EmptyCompletionError("empty");
+        throw new TokenMintError("egress", "x");
+      }),
+    ).rejects.toThrow(RateLimitError);
+
+    // With reset: EmptyCompletion→remint(reset), TME(strikes=1), TME(strikes=2→429) = 3 calls.
+    // Without reset: TME(strikes=1), TME(strikes=2→429) = 2 calls.
+    expect(callCount).toBe(3);
+  });
+
+  it("stream: EmptyCompletionError → remint succeeds → 2 TokenMintErrors → 429/sentinel (3 calls, not 2)", async () => {
+    const pool = new FakeProxyPool(["A", "B", "C"]);
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async () => {}, // succeeds — triggers reset
+      },
+    });
+    let callCount = 0;
+
+    async function* op(): AsyncIterable<OpenAiChatChunk> {
+      callCount++;
+      if (callCount === 1) throw new EmptyCompletionError("empty");
+      throw new TokenMintError("egress", "x");
+    }
+
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(callCount).toBe(3);
+    expect(chunks).toHaveLength(1);
+    expect("done" in chunks[0] && (chunks[0] as any).done).toBe(true);
+    expect("done" in chunks[0] && (chunks[0] as any).extra?.rateLimited).toBe(true);
+  });
+});

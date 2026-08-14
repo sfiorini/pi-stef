@@ -221,6 +221,7 @@ export async function withPoolRetry<T>(
           // else fall through to the existing all-burned path below
         }
         if (step.action === "remint") {
+          mintStrikes = 0; // successful inline re-mint resets the strike counter
           continue; // retry the SAME proxy with the fresh token
         }
         if (step.action === "rotate") {
@@ -433,6 +434,7 @@ export async function* withPoolRetryStream(
           // else fall through to existing all-burned path below
         }
         if (step.action === "remint") {
+          mintStrikes = 0; // successful inline re-mint resets the strike counter
           continue; // retry the SAME proxy with the fresh token
         }
         if (step.action === "rotate") {
@@ -526,6 +528,7 @@ export async function* withPoolRetryStream(
         // else fall through to the existing all-burned path below
       }
       if (step.action === "remint") {
+        mintStrikes = 0; // successful inline re-mint resets the strike counter
         continue; // retry the SAME proxy with the fresh token
       }
       if (step.action === "rotate") {
