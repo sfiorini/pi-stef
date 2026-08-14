@@ -9,6 +9,6 @@ export type { OpenAiChatChunk, OpenAiChatCompletion, Model, ChatCompletionsBody 
 
 export interface UpstreamClient {
   listModels(bearer: string): Promise<Model[]>;
-  chatCompletions(bearer: string, body: ChatCompletionsBody): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk>;
+  chatCompletions(bearer: string, body: ChatCompletionsBody, proxy?: string): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk>;
   deleteChats(bearer: string): Promise<void>;
 }

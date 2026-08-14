@@ -6,7 +6,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { BaxiaTokenManager } from "./baxia-token";
-import { ClientError, EmptyCompletionError } from "./errors";
+import { ClientError, ServerError, EmptyCompletionError } from "./errors";
 import { translateQwenSse, isDataInspectionFailed } from "./qwen-sse";
 import type {
   OpenAiChatChunk,
@@ -15,6 +15,8 @@ import type {
   Model,
 } from "./types";
 import type { Logger } from "../server/logger";
+import type { ProxyDispatcherCache, DispatcherLike } from "../pool/proxy-pool";
+import { fetchWithProxy } from "../pool/proxy-pool";
 
 // ── Config ────────────────────────────────────────────────────────────────
 
@@ -31,6 +33,8 @@ export interface GuestUpstreamClientConfig {
    *  Semaphore(SF_QWEN_MAX_CONCURRENCY, default 1) to serialize — like the web
    *  chat (you can't send the next until the previous completes). */
   concurrency?: { acquire(): Promise<void>; release(): void };
+  /** Proxy dispatcher cache for SOCKS5 proxy rotation. Absent = no proxy. */
+  proxyDispatcherCache?: ProxyDispatcherCache;
 }
 
 const DEFAULT_UA =
@@ -49,6 +53,8 @@ export class GuestUpstreamClient {
   private _sleep: (ms: number) => Promise<void>;
   private modelsCache: Model[] | null = null;
   private concurrency?: { acquire(): Promise<void>; release(): void };
+  private proxyDispatcherCache?: ProxyDispatcherCache;
+  private readonly timeoutMs: number;
 
   constructor(config: GuestUpstreamClientConfig) {
     this.baxia = config.baxia;
@@ -58,11 +64,25 @@ export class GuestUpstreamClient {
     this.log = config.log;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.concurrency = config.concurrency;
+    this.proxyDispatcherCache = config.proxyDispatcherCache;
+    this.timeoutMs = config.timeoutMs ?? 60_000;
+    // timeoutMs used in S-M1-6 (TTFB AbortController). Suppress noUnusedLocals.
+    void this.timeoutMs;
+  }
+
+  // ── doFetch (proxy-aware) ───────────────────────────────────────────────
+
+  private async doFetch(url: string, init: any, proxy?: string): Promise<Response> {
+    const dispatcher: DispatcherLike | undefined =
+      proxy && this.proxyDispatcherCache
+        ? this.proxyDispatcherCache.get(proxy)
+        : undefined;
+    return fetchWithProxy(this._fetch, url, init, dispatcher);
   }
 
   // ── createChatSession ──────────────────────────────────────────────────
 
-  async createChatSession(model: string, chatType: "t2t" | "search"): Promise<string> {
+  async createChatSession(model: string, chatType: "t2t" | "search", proxy?: string): Promise<string> {
     const referer = `${this.chatUrl}/c/guest`;
 
     const body = {
@@ -93,11 +113,22 @@ export class GuestUpstreamClient {
         "x-request-id": randomUUID(),
       };
 
-      const res = await this._fetch(`${this.chatUrl}/api/v2/chats/new`, {
+      const res = await this.doFetch(`${this.chatUrl}/api/v2/chats/new`, {
         method: "POST",
         headers,
         body: JSON.stringify(body),
-      });
+      }, proxy);
+
+      if (!res.ok) {
+        if (res.status >= 400 && res.status < 500) {
+          const text = await res.text().catch(() => "");
+          throw new ClientError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
+        }
+        if (res.status >= 500) {
+          const text = await res.text().catch(() => "");
+          throw new ServerError(`createChatSession upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
+        }
+      }
 
       const data = await res.json();
 
@@ -188,19 +219,21 @@ export class GuestUpstreamClient {
   chatCompletions(
     _bearer: string,
     body: ChatCompletionsBody,
+    proxy?: string,
   ): Promise<OpenAiChatCompletion> | AsyncIterable<OpenAiChatChunk> {
     if (body.stream) {
-      return this.chatCompletionsStream(body);
+      return this.chatCompletionsStream(body, proxy);
     }
-    return this.chatCompletionsNonStream(body);
+    return this.chatCompletionsNonStream(body, proxy);
   }
 
   private async *chatCompletionsStream(
     body: ChatCompletionsBody,
+    proxy?: string,
   ): AsyncGenerator<OpenAiChatChunk> {
     await this.concurrency?.acquire();
     try {
-      const res = await this.doChatCompletionsRequest(body);
+      const res = await this.doChatCompletionsRequest(body, proxy);
       if (!res.body) {
         throw new Error("Response body is null (no stream)");
       }
@@ -212,10 +245,11 @@ export class GuestUpstreamClient {
 
   private async chatCompletionsNonStream(
     body: ChatCompletionsBody,
+    proxy?: string,
   ): Promise<OpenAiChatCompletion> {
     await this.concurrency?.acquire();
     try {
-      const res = await this.doChatCompletionsRequest(body);
+      const res = await this.doChatCompletionsRequest(body, proxy);
       if (!res.body) {
         throw new Error("Response body is null (no stream)");
       }
@@ -259,14 +293,14 @@ export class GuestUpstreamClient {
     }
   }
 
-  private async doChatCompletionsRequest(body: ChatCompletionsBody): Promise<Response> {
+  private async doChatCompletionsRequest(body: ChatCompletionsBody, proxy?: string): Promise<Response> {
     const enableThinking = body.enable_thinking === true;
     const wantsSearch =
       Array.isArray(body.tools) &&
       body.tools.some((t: any) => t?.type === "web_search");
     const chatType: "t2t" | "search" = wantsSearch ? "search" : "t2t";
 
-    const chatId = await this.createChatSession(body.model, chatType);
+    const chatId = await this.createChatSession(body.model, chatType, proxy);
     const tokens = await this.baxia.ensureToken();
 
     const qwenMsg = this.normalizeMessages(
@@ -306,13 +340,14 @@ export class GuestUpstreamClient {
       "x-request-id": randomUUID(),
     };
 
-    const res = await this._fetch(
+    const res = await this.doFetch(
       `${this.chatUrl}/api/v2/chat/completions?chat_id=${chatId}`,
       {
         method: "POST",
         headers,
         body: JSON.stringify(upstreamBody),
       },
+      proxy,
     );
 
     if (!res.ok) {
@@ -325,6 +360,13 @@ export class GuestUpstreamClient {
         }
       } catch (e) {
         if (e instanceof ClientError) throw e;
+      }
+      // Surface typed errors: 4xx → ClientError, 5xx → ServerError
+      if (res.status >= 400 && res.status < 500) {
+        throw new ClientError(`chatCompletions upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
+      }
+      if (res.status >= 500) {
+        throw new ServerError(`chatCompletions upstream error ${res.status}: ${text.slice(0, 300)}`, { status: res.status });
       }
       throw new Error(`chatCompletions upstream error ${res.status}: ${text.slice(0, 300)}`);
     }
