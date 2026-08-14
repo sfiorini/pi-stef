@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-08-14
+### Changed
+- fix(qwen-proxy): lifetime error handlers on bridge sockets (ECONNRESET crash)
+
+
 ## [0.5.0] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): thread active proxy in refreshBaxiaToken (P2)
