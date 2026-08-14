@@ -71,6 +71,7 @@ async function main() {
         proxyUser: config.proxyUser,
         proxyPass: config.proxyPass,
         proxyCountriesRaw: config.proxyCountriesRaw,
+        fetcher: globalThis.fetch,
         log,
       });
       if (proxyPool.size > 0) {

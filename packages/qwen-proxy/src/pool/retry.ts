@@ -146,7 +146,7 @@ export async function* withPoolRetryStream(
     const acct = deps.pool.getActiveAccount();
     const { id, bearer } = acct;
     await deps.throttle?.waitFor(id);
-    const proxy = rotationMode ? deps.proxyPool!.getActive() : undefined;
+    const proxy = deps.proxyPool?.getActive();
 
     const buffer: StreamChunk[] = [];
     let seenContent = false;

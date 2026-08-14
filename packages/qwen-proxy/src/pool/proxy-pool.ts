@@ -32,7 +32,7 @@ export function normalizeSocksUrl(
   if (!user || !pass) return null;
 
   // Rebuild with creds and port
-  return `${url.protocol}//${user}:${pass}@${url.hostname}:${url.port}`;
+  return `${url.protocol}//${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${url.hostname}:${url.port}`;
 }
 
 // ── parseProxyUrls ──────────────────────────────────────────────────────────
@@ -230,6 +230,6 @@ export async function createProxyPool(opts: CreateProxyPoolOpts): Promise<ProxyP
   }
 
   // Build keys with creds
-  const keys = hostnames.map(h => `socks5://${proxyUser}:${proxyPass}@${h}:1080`);
+  const keys = hostnames.map(h => `socks5://${encodeURIComponent(opts.proxyUser!)}:${encodeURIComponent(opts.proxyPass!)}@${h}:1080`);
   return new ProxyPool(keys);
 }
