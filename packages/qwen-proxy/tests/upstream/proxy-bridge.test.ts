@@ -344,4 +344,77 @@ describe("ProxyBridge forwarding", () => {
     sock.destroy();
     await bridge.stop();
   });
+
+  // P3: pipeBoth should destroy peer on 'close' (not just 'error')
+  it("client close → destroys remote socket (no FD leak)", async () => {
+    let remoteSocket: net.Socket | undefined;
+    const fake = {
+      createConnection: vi.fn(async () => {
+        const echoServer = net.createServer((s) => s.pipe(s));
+        await new Promise<void>((res) => echoServer.listen(0, "127.0.0.1", res));
+        const echoPort = (echoServer.address() as net.AddressInfo).port;
+        const remote = net.createConnection({ host: "127.0.0.1", port: echoPort });
+        await new Promise<void>((res, rej) => { remote.on("connect", res); remote.on("error", rej); });
+        remote.once("close", () => echoServer.close());
+        remoteSocket = remote;
+        return { socket: remote };
+      }),
+    };
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    bridge.setUpstream(PROXY_A);
+
+    const client = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { client.on("connect", res); client.on("error", rej); });
+    await socks5Connect(client, "echo.local", 7);
+    await readN(client, 10);
+    // Bidirectional pipe is now active.
+
+    // Simulate Chromium SIGKILL: destroy the client socket (emits 'close', not 'error')
+    const remoteClosed = new Promise<void>((resolve) => {
+      remoteSocket!.once("close", () => resolve());
+    });
+    client.destroy(); // emits 'close' on client
+
+    // Remote should be destroyed within a short timeout
+    await expect(remoteClosed).resolves.toBeUndefined();
+    expect(remoteSocket!.destroyed).toBe(true);
+
+    await bridge.stop();
+  });
+
+  it("remote close → destroys client socket (reverse direction)", async () => {
+    let remoteSocket: net.Socket | undefined;
+    const fake = {
+      createConnection: vi.fn(async () => {
+        const echoServer = net.createServer((s) => s.pipe(s));
+        await new Promise<void>((res) => echoServer.listen(0, "127.0.0.1", res));
+        const echoPort = (echoServer.address() as net.AddressInfo).port;
+        const remote = net.createConnection({ host: "127.0.0.1", port: echoPort });
+        await new Promise<void>((res, rej) => { remote.on("connect", res); remote.on("error", rej); });
+        remote.once("close", () => echoServer.close());
+        remoteSocket = remote;
+        return { socket: remote };
+      }),
+    };
+    const bridge = new ProxyBridge({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() }, socksClient: fake as any });
+    await bridge.start();
+    bridge.setUpstream(PROXY_A);
+
+    const client = net.createConnection({ host: "127.0.0.1", port: bridge.getPort() });
+    await new Promise<void>((res, rej) => { client.on("connect", res); client.on("error", rej); });
+    await socks5Connect(client, "echo.local", 7);
+    await readN(client, 10);
+
+    // Simulate upstream disconnect: destroy remote socket
+    const clientClosed = new Promise<void>((resolve) => {
+      client.once("close", () => resolve());
+    });
+    remoteSocket!.destroy();
+
+    await expect(clientClosed).resolves.toBeUndefined();
+    expect(client.destroyed).toBe(true);
+
+    await bridge.stop();
+  });
 });

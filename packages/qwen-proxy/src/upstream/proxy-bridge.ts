@@ -223,13 +223,17 @@ export class ProxyBridge {
     a.pipe(b);
     b.pipe(a);
     let done = false;
-    const onError = () => {
+    const onDone = () => {
       if (done) return;
       done = true;
       a.destroy();
       b.destroy();
     };
-    a.on("error", onError);
-    b.on("error", onError);
+    a.on("error", onDone);
+    b.on("error", onDone);
+    // Also handle 'close' — e.g. Chromium SIGKILL emits 'close' not 'error'.
+    // Without this, the upstream 'remote' socket lingers until SOCKS5 keep-alive timeout.
+    a.once("close", () => b.destroy());
+    b.once("close", () => a.destroy());
   }
 }
