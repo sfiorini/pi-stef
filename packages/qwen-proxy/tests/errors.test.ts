@@ -8,6 +8,7 @@ import {
   UnknownError,
   QwenUpstreamError,
   EmptyCompletionError,
+  TokenMintError,
 } from "../src/upstream/errors";
 
 describe("error classes", () => {
@@ -52,5 +53,27 @@ describe("EmptyCompletionError", () => {
   it("has status undefined (semantic, not HTTP-classified)", () => {
     const err = new EmptyCompletionError("empty");
     expect(err.status).toBeUndefined();
+  });
+});
+
+describe("TokenMintError", () => {
+  it("cause=\"egress\" — retryable, extends NetworkError, name set", () => {
+    const err = new TokenMintError("egress", "boom");
+    expect(err.name).toBe("TokenMintError");
+    expect(err.message).toBe("boom");
+    expect(err.cause).toBe("egress");
+    expect(err.retryable).toBe(true);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err).toBeInstanceOf(QwenUpstreamError);
+  });
+
+  it("cause=\"not-ready\" — retryable, extends NetworkError, name set", () => {
+    const err = new TokenMintError("not-ready", "not ready msg");
+    expect(err.name).toBe("TokenMintError");
+    expect(err.message).toBe("not ready msg");
+    expect(err.cause).toBe("not-ready");
+    expect(err.retryable).toBe(true);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect(err).toBeInstanceOf(QwenUpstreamError);
   });
 });

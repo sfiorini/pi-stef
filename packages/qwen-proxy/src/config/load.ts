@@ -45,6 +45,7 @@ export async function loadQwenProxyConfig(
       baxiaVersion: env.SF_QWEN_BAXIA_VERSION || "2.5.37",
       preWarm: env.SF_QWEN_BAXIA_PRE_WARM !== "false",
       fallback: env.SF_QWEN_BAXIA_FALLBACK === "true",
+      readinessTimeoutMs: Math.max(5_000, parseIntEnv(env.SF_QWEN_BAXIA_READINESS_TIMEOUT_MS, 30_000)),
     },
   };
 }

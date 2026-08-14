@@ -8,7 +8,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { spawn as nodeSpawn } from "node:child_process";
-import { NetworkError } from "./errors";
+import { TokenMintError } from "./errors";
 import { redactProxyKey } from "./proxy-bridge";
 import type { Logger } from "../server/logger";
 
@@ -31,6 +31,7 @@ export interface BaxiaTokenManagerConfig {
   log: Logger;
   /** Optional bridge for proxy-affine token generation (S-M1-7). */
   bridge?: { getPort(): number; setUpstream(key: string): void };
+  readinessTimeoutMs?: number;
   now?: () => number;
   spawn?: typeof import("node:child_process").spawn;
   WebSocketCtor?: typeof WebSocket;
@@ -93,6 +94,7 @@ export class BaxiaTokenManager {
   private lastUsedProxy: string = "";
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
   private static readonly DIRECT_KEY = "";
+  private readonly readinessTimeoutMs: number;
   // Global spawn mutex — serializes all doRefresh calls
   private spawnChain: Promise<void> = Promise.resolve();
   // Optional bridge for proxy-affine token generation (S-M1-7)
@@ -105,6 +107,7 @@ export class BaxiaTokenManager {
     this._fetcher = config.fetcher ?? globalThis.fetch;
     this._sleep = config.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
     this.bridge = config.bridge;
+    this.readinessTimeoutMs = Math.max(5_000, config.readinessTimeoutMs ?? 30_000);
   }
 
   /** Set the bridge for proxy-affine token generation (S-M1-7 / S-M2-2). */
@@ -138,7 +141,8 @@ export class BaxiaTokenManager {
       if (fs.existsSync(c)) return c;
     }
 
-    throw new Error(
+    throw new TokenMintError(
+      "egress",
       "Chrome not found — set config.chromePath or CHROME_PATH env",
     );
   }
@@ -182,7 +186,16 @@ export class BaxiaTokenManager {
       args.unshift(`--proxy-server=${proxyServerUrl}`);
       args.unshift("--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1");
     }
-    const child = this._spawn(exe, args, { stdio: "ignore", detached: true });
+    const child = (() => {
+      try {
+        return this._spawn(exe, args, { stdio: "ignore", detached: true });
+      } catch (e) {
+        throw new TokenMintError(
+          "egress",
+          `chromium spawn failed: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    })();
     return { child, port };
   }
 
@@ -236,10 +249,10 @@ export class BaxiaTokenManager {
       openResolve();
     });
     ws.addEventListener("error", () =>
-      rejectAll(new NetworkError("cdp ws error")),
+      rejectAll(new TokenMintError("egress", "cdp ws error")),
     );
     ws.addEventListener("close", () =>
-      rejectAll(new Error("cdp ws closed")),
+      rejectAll(new TokenMintError("egress", "cdp ws closed")),
     );
 
     ws.addEventListener("message", (ev: any) => {
@@ -324,7 +337,8 @@ export class BaxiaTokenManager {
       }
 
       if (!wsUrl) {
-        throw new NetworkError(
+        throw new TokenMintError(
+          "egress",
           "Chrome /json/list never returned a page (40×250ms)",
         );
       }
@@ -340,7 +354,7 @@ export class BaxiaTokenManager {
         // Navigate to chat.qwen.ai
         await cdp.send("Page.navigate", { url: this.config.chatUrl });
 
-        // Poll for window.__baxia__.getFYModule to be READY (60 × 500ms = 30s max).
+        // Poll for window.__baxia__.getFYModule to be READY (ceil(readinessTimeoutMs/500) polls, default 30s → 60 polls).
         // Mirrors qwen2api scripts/baxia-token.js: getFYModule is a function-OBJECT
         // whose methods (getUidToken/getFYToken) + fyObj property are attached by the
         // SDK once ready — so DO NOT call getFYModule(); read fm.fyObj/fm.getUidToken()
@@ -348,18 +362,19 @@ export class BaxiaTokenManager {
         // the page + SDK time to init). Cookies come from document.cookie.
         const baxiaExpr = `(function(){
   var fm = (window.__baxia__||{}).getFYModule;
-  if (!fm || !fm.fyObj) return { ready: false };
+  if (!fm || !fm.fyObj) return { ready: false, href: location.href };
   var uid='', fy='';
   try { uid = String(fm.getUidToken()); } catch(e) {}
   try { fy = String(fm.getFYToken()); } catch(e) {}
-  return { ready: true, uid: uid, fy: fy, cookie: document.cookie || '' };
+  return { ready: true, href: location.href, uid: uid, fy: fy, cookie: document.cookie || '' };
 })()`;
 
         let baxiaData:
           | { uid: string; fy: string; cookies: string }
           | null = null;
         let lastPageState = "";
-        for (let i = 0; i < 60; i++) {
+        const pollMax = Math.ceil(this.readinessTimeoutMs / 500);
+        for (let i = 0; i < pollMax; i++) {
           await this._sleep(500); // sleep first (qwen2api ordering — lets the SDK init)
           try {
             // Every 10th poll (~5s), capture the page state — reveals CAPTCHA
@@ -371,7 +386,7 @@ export class BaxiaTokenManager {
                   returnByValue: true,
                 });
                 lastPageState = String((st?.result?.value as string) ?? "");
-                this.config.log.warn("[baxia-debug] readiness poll", { poll: i, page: lastPageState.slice(0, 300) });
+                this.config.log.info("[baxia-debug] readiness poll", { poll: i, page: lastPageState.slice(0, 300) });
               } catch { /* page evaluating mid-nav */ }
             }
             const result = await cdp.send("Runtime.evaluate", {
@@ -381,11 +396,20 @@ export class BaxiaTokenManager {
             const val = result?.result?.value as
               | {
                   ready: boolean;
+                  href?: string;
                   uid?: string;
                   fy?: string;
                   cookie?: string;
                 }
               | undefined;
+            const href = typeof val?.href === "string" ? val.href : "";
+            if (href.startsWith("chrome-error://")) {
+              this.config.log.error("[baxia] mint fast-fail — chrome-error page", {
+                proxy: redactProxyKey(proxy),
+                href: href.slice(0, 120),
+              });
+              throw new TokenMintError("egress", "page load failed (chrome-error page) — egress unreachable");
+            }
             if (
               val?.ready &&
               typeof val.uid === "string" &&
@@ -399,18 +423,21 @@ export class BaxiaTokenManager {
               };
               break;
             }
-          } catch {
+          } catch (e) {
+            if (e instanceof TokenMintError) throw e;
             // evaluation failed, retry
           }
         }
 
         if (!baxiaData) {
-          this.config.log.error("[baxia-debug] readiness FAILED after 30s", {
+          this.config.log.error(`[baxia-debug] readiness FAILED after ${this.readinessTimeoutMs}ms`, {
+            cause: "not-ready",
             proxy: redactProxyKey(proxy),
             lastPage: lastPageState.slice(0, 300),
           });
-          throw new Error(
-            "window.__baxia__ tokens not available within 30s",
+          throw new TokenMintError(
+            "not-ready",
+            `window.__baxia__ not ready within ${this.readinessTimeoutMs}ms (page loaded, SDK uninitialized)`,
           );
         }
         this.config.log.info("[baxia-debug] token minted", {
@@ -524,6 +551,9 @@ export class BaxiaTokenManager {
       this.lastUsedProxy = key; // SUCCESS only
       return tokens;
     } catch (e) {
+      if (e instanceof TokenMintError) {
+        this.config.log.error("[baxia] token mint failed", { cause: e.cause, proxy: redactProxyKey(proxy), message: e.message });
+      }
       const prev = this.proxyCache.get(key);
       this.proxyCache.set(key, {
         tokens: prev?.tokens ?? null,

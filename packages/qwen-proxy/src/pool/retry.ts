@@ -1,5 +1,5 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
+import { TokenMintError, RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
 import { redactProxyKey } from "../upstream/proxy-bridge";
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
@@ -36,6 +36,8 @@ export interface RetryDeps {
   throttle?: RequestThrottle;
   /** Optional proxy pool for SOCKS5 rotation mode (S-M2). */
   proxyPool?: ProxyPoolLike;
+  /** Injectable cooldown sleep for mint-exhaustion paths (default: module sleep). */
+  cooldownSleep?: (ms: number) => Promise<void>;
   log: {
     info: (msg: string, ctx?: unknown) => void;
     warn: (msg: string, ctx?: unknown) => void;
@@ -45,6 +47,9 @@ export interface RetryDeps {
 
 /** Module-level sleep helper for inline empty-retry gaps. */
 function sleep(ms: number): Promise<void> { return new Promise((r) => setTimeout(r, ms)); }
+
+/** Per-request consecutive mint-failure budget. */
+const MINT_STRIKE_MAX = 2;
 
 /** The union of raw upstream chunks and the one synthetic sentinel chunk. */
 export type StreamChunk =
@@ -63,18 +68,49 @@ async function bestEffortRefresh(
   }
 }
 
-/** Slot-aware proxy hand-off on rotation: advance the head, acquire the new
- *  head's slot (sticky-first, skips busy proxies), THEN release the old slot so
- *  the burned proxy is not handed to another request mid-flight. */
+/** Slot-aware proxy hand-off on rotation: release the current slot FIRST,
+ *  THEN acquire the new head's slot. Releasing first avoids a deadlock when all
+ *  slots are held by concurrently-rotating requests (release-before-acquire).
+ *  The momentary no-held-slot state is safe — slot bookkeeping only, no
+ *  invariant requires continuous holding. */
 async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Promise<string | undefined> {
   const pool = deps.proxyPool!;
   pool.rotate();
   if (typeof pool.acquire === "function" && typeof pool.release === "function") {
-    const next = await pool.acquire();
     if (current !== undefined) pool.release(current);
+    const next = await pool.acquire();
     return next;
   }
   return pool.getActive();
+}
+
+/** Mint-exhaustion path for non-stream all-burned: markEmptyAndSwitch + cooldown + 429.
+ *  Used when the rotation walk was exhausted and mint failures participated. */
+function applyMintExhaustionNonStream(
+  deps: RetryDeps,
+  id: number,
+  mintStrikes: number,
+): never {
+  deps.log.warn("mint failures exhausted walk — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+  // markEmptyAndSwitch is synchronous fire-and-forget (returns a Promise we don't await)
+  deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs).catch(() => {});
+  throw new RateLimitError(
+    "token mint failed after rotation walk (global egress condition) — cooling down",
+    { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+  );
+}
+
+/** Mint-exhaustion path for stream all-burned: markEmptyAndSwitch(fire-and-forget)
+ *  + awaited cooldown sleep + sentinel. */
+async function applyMintExhaustionStream(
+  deps: RetryDeps,
+  id: number,
+  mintStrikes: number,
+): Promise<{ done: true; extra: { rateLimited: true } }> {
+  deps.log.warn("mint failures exhausted walk — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+  deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs).catch(() => {});
+  await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
+  return { done: true, extra: { rateLimited: true } };
 }
 
 /** Rotation-mode empty-completion burn recovery (Q1=B):
@@ -88,7 +124,7 @@ async function rotateWithSlot(deps: RetryDeps, current: string | undefined): Pro
 async function emptyBurnStep(
   deps: RetryDeps,
   opts: { proxy: string | undefined; tried: number; inlineReminted: boolean },
-): Promise<{ action: "remint" } | { action: "rotate"; proxy: string | undefined } | { action: "all-burned" }> {
+): Promise<{ action: "remint" } | { action: "rotate"; proxy: string | undefined } | { action: "all-burned" } | { action: "mint-failed"; error: unknown }> {
   const pool = deps.proxyPool!;
   deps.log.warn("[rotation-debug] empty completion — walking", {
     proxy: redactProxyKey(opts.proxy),
@@ -103,11 +139,7 @@ async function emptyBurnStep(
     try {
       await deps.scheduler.refreshBaxiaToken?.(opts.proxy);
     } catch (e) {
-      deps.log.error("baxia inline re-mint failed — rotating", { error: String(e), proxy: redactProxyKey(opts.proxy) });
-      if (opts.tried < pool.size - 1) {
-        return { action: "rotate", proxy: await rotateWithSlot(deps, opts.proxy) };
-      }
-      return { action: "all-burned" };
+      return { action: "mint-failed", error: e };
     }
     return { action: "remint" };
   }
@@ -130,6 +162,7 @@ export async function withPoolRetry<T>(
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
   const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let mintStrikes = 0;
   let inlineReminted = false;
   let slotKey: string | undefined;
 
@@ -145,6 +178,7 @@ export async function withPoolRetry<T>(
     try {
       const result = await op(id, bearer, proxy);
       deps.pool.markSuccess();
+      mintStrikes = 0;
       return result;
     } catch (err) {
       if (err instanceof AuthExpiredError) {
@@ -161,7 +195,33 @@ export async function withPoolRetry<T>(
         const allowRemint = !inlineReminted;
         const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
         if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+        if (step.action === "mint-failed") {
+          if (step.error instanceof TokenMintError) {
+            mintStrikes++;
+            deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+            if (mintStrikes >= MINT_STRIKE_MAX) {
+              deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+              await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
+              await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
+              throw new RateLimitError(
+                "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
+                { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+              );
+            }
+          } else {
+            deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+          }
+          if (tried < deps.proxyPool!.size - 1) {
+            tried += 1;
+            const next = await rotateWithSlot(deps, slotKey ?? proxy);
+            slotKey = useSlots ? next : undefined;
+            continue;
+          }
+          // else fall through to the existing all-burned path below
+        }
         if (step.action === "remint") {
+          mintStrikes = 0; // successful inline re-mint resets the strike counter
           continue; // retry the SAME proxy with the fresh token
         }
         if (step.action === "rotate") {
@@ -171,9 +231,11 @@ export async function withPoolRetry<T>(
         }
         // All proxies burned — cooldown + refresh active token (change #2, Q3=A) + 429
         tried += 1;
+        if (mintStrikes > 0) {
+          applyMintExhaustionNonStream(deps, id, mintStrikes);
+        }
         const { emptyCooldownMs } = deps.config;
         deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
-        await sleep(emptyCooldownMs);
         await bestEffortRefresh(deps, proxy);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
@@ -191,16 +253,31 @@ export async function withPoolRetry<T>(
           error: String(err).slice(0, 300),
           errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
           errorName: err instanceof Error ? err.constructor.name : typeof err,
+          ...(err instanceof TokenMintError ? { mintCause: err.cause, mintStrikes } : {}),
         });
+        if (err instanceof TokenMintError) {
+          mintStrikes++;
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + 429", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            await deps.pool.markEmptyAndSwitch(id, deps.config.emptyCooldownMs);
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
+            throw new RateLimitError(
+              "token mint failed after 2 consecutive attempts (global egress condition) — cooling down",
+              { status: 429, retryAfterMs: deps.config.emptyCooldownMs },
+            );
+          }
+        }
         if (tried < deps.proxyPool!.size) {
           const next = await rotateWithSlot(deps, slotKey ?? proxy);
           slotKey = useSlots ? next : undefined;
           continue;
         }
         // All proxies burned — cooldown + refresh active token (change #2) + 429
+        if (mintStrikes > 0) {
+          applyMintExhaustionNonStream(deps, id, mintStrikes);
+        }
         const { emptyCooldownMs } = deps.config;
         deps.log.warn("[rotation-debug] ALL burned (non-stream)", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
-        await sleep(emptyCooldownMs);
         await bestEffortRefresh(deps, proxy);
         throw new RateLimitError(
           "all proxies exhausted after rotation retries",
@@ -266,6 +343,7 @@ export async function* withPoolRetryStream(
   const rotationMode = !!(deps.proxyPool && deps.proxyPool.size > 1);
   const useSlots = !!(deps.proxyPool?.acquire && deps.proxyPool?.release);
   let tried = 0;
+  let mintStrikes = 0;
   let inlineReminted = false;
   let slotKey: string | undefined;
 
@@ -309,6 +387,7 @@ export async function* withPoolRetryStream(
       } else {
         // Clean end — flush remaining buffer
         deps.pool.markSuccess();
+        mintStrikes = 0;
         yield* buffer;
         return;
       }
@@ -329,7 +408,33 @@ export async function* withPoolRetryStream(
         const allowRemint = !inlineReminted;
         const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
         if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+        if (step.action === "mint-failed") {
+          if (step.error instanceof TokenMintError) {
+            mintStrikes++;
+            deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+            if (mintStrikes >= MINT_STRIKE_MAX) {
+              deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+              deps.pool
+                .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+                .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+              await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
+              yield { done: true, extra: { rateLimited: true } };
+              return;
+            }
+          } else {
+            deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+          }
+          if (tried < deps.proxyPool!.size - 1) {
+            tried += 1;
+            const next = await rotateWithSlot(deps, slotKey ?? proxy);
+            slotKey = useSlots ? next : undefined;
+            continue;
+          }
+          // else fall through to existing all-burned path below
+        }
         if (step.action === "remint") {
+          mintStrikes = 0; // successful inline re-mint resets the strike counter
           continue; // retry the SAME proxy with the fresh token
         }
         if (step.action === "rotate") {
@@ -338,6 +443,10 @@ export async function* withPoolRetryStream(
           continue;
         }
         tried += 1;
+        if (mintStrikes > 0) {
+          yield await applyMintExhaustionStream(deps, id, mintStrikes);
+          return;
+        }
         deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
         await bestEffortRefresh(deps, proxy);
         yield { done: true, extra: { rateLimited: true } };
@@ -354,13 +463,30 @@ export async function* withPoolRetryStream(
           error: String(err).slice(0, 300),
           errorCause: err instanceof Error && err.cause ? String(err.cause).slice(0, 300) : undefined,
           errorName: err instanceof Error ? err.constructor.name : typeof err,
+          ...(err instanceof TokenMintError ? { mintCause: err.cause, mintStrikes } : {}),
         });
+        if (err instanceof TokenMintError) {
+          mintStrikes++;
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            deps.pool
+              .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+              .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs); // awaited — the in-process storm gate
+            yield { done: true, extra: { rateLimited: true } };
+            return;
+          }
+        }
         if (tried < deps.proxyPool!.size) {
           const next = await rotateWithSlot(deps, slotKey ?? proxy);
           slotKey = useSlots ? next : undefined;
           continue;
         }
         // All proxies burned — refresh the active proxy's token (change #2, Q3=A), then sentinel
+        if (mintStrikes > 0) {
+          yield await applyMintExhaustionStream(deps, id, mintStrikes);
+          return;
+        }
         deps.log.warn("rotation: all proxies burned (error) — sentinel", { size: deps.proxyPool!.size, lastError: String(err).slice(0, 300) });
         await bestEffortRefresh(deps, proxy);
         yield { done: true, extra: { rateLimited: true } };
@@ -376,7 +502,33 @@ export async function* withPoolRetryStream(
       const allowRemint = !inlineReminted;
       const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
       if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+      // Handle inline re-mint failure (resolution #3 — every mint failure counts)
+      if (step.action === "mint-failed") {
+        if (step.error instanceof TokenMintError) {
+          mintStrikes++;
+          deps.log.warn("baxia inline re-mint failed (mint)", { cause: step.error.cause, mintStrikes, proxy: redactProxyKey(proxy) });
+          if (mintStrikes >= MINT_STRIKE_MAX) {
+            deps.log.warn("mint failures exhausted — flat cooldown + sentinel", { strikes: mintStrikes, size: deps.proxyPool!.size });
+            deps.pool
+              .markEmptyAndSwitch(id, deps.config.emptyCooldownMs)
+              .catch(() => deps.log.error("background markEmptyAndSwitch failed"));
+            await (deps.cooldownSleep ?? sleep)(deps.config.emptyCooldownMs);
+            yield { done: true, extra: { rateLimited: true } };
+            return;
+          }
+        } else {
+          deps.log.error("baxia inline re-mint failed — rotating", { error: String(step.error), proxy: redactProxyKey(proxy) });
+        }
+        if (tried < deps.proxyPool!.size - 1) {
+          tried += 1;
+          const next = await rotateWithSlot(deps, slotKey ?? proxy);
+          slotKey = useSlots ? next : undefined;
+          continue;
+        }
+        // else fall through to the existing all-burned path below
+      }
       if (step.action === "remint") {
+        mintStrikes = 0; // successful inline re-mint resets the strike counter
         continue; // retry the SAME proxy with the fresh token
       }
       if (step.action === "rotate") {
@@ -386,6 +538,10 @@ export async function* withPoolRetryStream(
       }
       // All proxies burned — refresh the active proxy's token, then sentinel (change #2, Q3=A)
       tried += 1;
+      if (mintStrikes > 0) {
+        yield await applyMintExhaustionStream(deps, id, mintStrikes);
+        return;
+      }
       deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
       await bestEffortRefresh(deps, proxy);
       yield { done: true, extra: { rateLimited: true } };
@@ -468,6 +624,7 @@ function hasPayload(chunk: OpenAiChatChunk): boolean {
  * Non-Error → false (not rotatable).
  */
 export function isRotationTrigger(err: unknown): boolean {
+  if (err instanceof TokenMintError) return true; // rotatable (single bad proxy skipped) — but budgeted ≤2/request by the wrappers
   if (err instanceof EmptyCompletionError) return true;
   if (err instanceof NetworkError) return true;
   if (err instanceof ServerError) return true;
