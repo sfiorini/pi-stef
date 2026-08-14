@@ -36,6 +36,7 @@ import {
   ServerError,
   NetworkError,
   UnknownError,
+  TokenMintError,
 } from "../upstream/errors";
 
 export interface AppDeps {
@@ -89,6 +90,11 @@ export function createApp(deps: AppDeps): OpenAPIHono {
       return isAnthropic
         ? anthropicError(c, 502, undefined, err.message)
         : openaiError(c, 502, err.message);
+    }
+    if (err instanceof TokenMintError) {
+      return isAnthropic
+        ? anthropicError(c, 503, undefined, err.message)
+        : openaiError(c, 503, err.message);
     }
     if (err instanceof NetworkError) {
       return isAnthropic
