@@ -157,9 +157,10 @@ export async function withPoolRetry<T>(
 
       // Rotation mode: empty completion → burn recovery (evict + inline re-mint, Q1=B)
       if (rotationMode && err instanceof EmptyCompletionError) {
+        const allowRemint = !inlineReminted;
         const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+        if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
         if (step.action === "remint") {
-          inlineReminted = true;
           continue; // retry the SAME proxy with the fresh token
         }
         if (step.action === "rotate") {
@@ -320,6 +321,28 @@ export async function* withPoolRetryStream(
         throw err;
       }
 
+      // Rotation mode: THROWN EmptyCompletionError pre-first-content (stall-guard
+      // first-payload timeout) → burn recovery (evict + inline re-mint), NOT plain
+      // rotation — otherwise the burned token stays cached (impl-review F1).
+      if (rotationMode && !seenContent && err instanceof EmptyCompletionError) {
+        const allowRemint = !inlineReminted;
+        const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+        if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
+        if (step.action === "remint") {
+          continue; // retry the SAME proxy with the fresh token
+        }
+        if (step.action === "rotate") {
+          tried += 1;
+          slotKey = useSlots ? step.proxy : undefined;
+          continue;
+        }
+        tried += 1;
+        deps.log.warn("rotation: all proxies burned (empty) — sentinel", { size: deps.proxyPool!.size });
+        await bestEffortRefresh(deps, proxy);
+        yield { done: true, extra: { rateLimited: true } };
+        return;
+      }
+
       // Rotation mode: rotate on rotatable errors (PRE-first-content ONLY)
       if (rotationMode && !seenContent && isRotationTrigger(err)) {
         tried++;
@@ -349,9 +372,10 @@ export async function* withPoolRetryStream(
 
     // Rotation mode: empty → burn recovery (evict + inline re-mint once → rotate → sentinel)
     if (emptyCompletion && rotationMode) {
+      const allowRemint = !inlineReminted;
       const step = await emptyBurnStep(deps, { proxy, tried, inlineReminted });
+      if (allowRemint) inlineReminted = true; // an ATTEMPT consumes the one-per-request allowance
       if (step.action === "remint") {
-        inlineReminted = true;
         continue; // retry the SAME proxy with the fresh token
       }
       if (step.action === "rotate") {

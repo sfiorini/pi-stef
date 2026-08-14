@@ -1218,3 +1218,66 @@ describe("withPoolRetryStream — burn recovery (S-M3-4)", () => {
     stalled?.();
   });
 });
+
+// ── impl-review fixes: stream stall eviction + re-mint bound ────────────────
+
+describe("impl-review fixes", () => {
+  const PA = "socks5://u:p@hA:1080";
+  const PB = "socks5://u:p@hB:1080";
+
+  it("F1: stream EmptyCompletionError THROWN pre-content (stall guard) gets eviction + inline re-mint, not plain rotation", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const evicted: Array<string | undefined> = [];
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); },
+        evictBaxiaToken: (proxy?: string) => { evicted.push(proxy); },
+      },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    const seen: string[] = [];
+    async function* op(_id: number, _b: string, proxy?: string): AsyncIterable<OpenAiChatChunk> {
+      seen.push(proxy!);
+      if (seen.length === 1) throw new EmptyCompletionError("first payload timeout"); // stall-guard shape
+      yield contentChunk("recovered");
+      yield finishChunk("stop");
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual([PA, PA]); // retried the SAME proxy after re-mint
+    expect(evicted).toEqual([PA]);
+    expect(refreshed).toEqual([PA]);
+    expect(pool.rotateCalls).toBe(0);
+    expect(chunks[0]).toEqual(contentChunk("recovered"));
+  });
+
+  it("F2: failed inline re-mint consumes the one-per-request allowance (no second mint on later proxies)", async () => {
+    const pool = new FakeSlotPool([PA, PB]);
+    const refreshed: Array<string | undefined> = [];
+    const deps = makeDeps({
+      proxyPool: pool,
+      config: { emptyCooldownMs: 10, emptyRetryMax: 99, emptyRetryGapMs: 0 },
+      scheduler: {
+        refreshOnDemand: async () => ({ bearer: "", expiresAt: null }),
+        refreshBaxiaToken: async (proxy?: string) => { refreshed.push(proxy); throw new Error("chrome spawn failed"); },
+        evictBaxiaToken: () => {},
+      },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    const seen: string[] = [];
+    async function* op(_id: number, _b: string, proxy?: string): AsyncIterable<OpenAiChatChunk> {
+      seen.push(proxy!);
+      yield finishChunk("stop"); // always empty
+    }
+    const chunks = await collectChunks(withPoolRetryStream(deps, op));
+    expect(seen).toEqual([PA, PB]); // remint attempt failed on A → rotate to B directly
+    // Bound held: exactly ONE inline mint attempt on A (no re-attempt after rotation);
+    // the second refresh below is the all-burned SENTINEL refresh of B (change #2), not a re-mint.
+    expect(refreshed).toEqual([PA, PB]);
+    expect(refreshed.filter((p) => p === PA).length).toBe(1);
+    expect((chunks[0] as any).done).toBe(true); // all burned → sentinel
+  });
+});

@@ -145,6 +145,8 @@ services:
       # - SF_QWEN_ADMIN_KEY=${SF_QWEN_ADMIN_KEY}
       # - SF_QWEN_BAXIA_CACHE_TTL_MS=1500000
       # - SF_QWEN_BAXIA_PRE_WARM=true
+      # - SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS=30000
+      # - SF_QWEN_STREAM_IDLE_TIMEOUT_MS=30000
     restart: unless-stopped
     # healthcheck lives in the Dockerfile
 
