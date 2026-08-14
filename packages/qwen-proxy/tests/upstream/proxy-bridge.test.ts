@@ -418,3 +418,60 @@ describe("ProxyBridge forwarding", () => {
     await bridge.stop();
   });
 });
+
+// ── P0 regression: mid-lifecycle socket errors must never crash the process ─
+describe("ProxyBridge socket error resilience (ECONNRESET regression)", () => {
+  it("client socket destroyed mid-handshake → no unhandled error, bridge survives", async () => {
+    const { ProxyBridge: PB } = await import("../../src/upstream/proxy-bridge");
+    const bridge = new PB({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } });
+    const port = await bridge.start();
+    try {
+      const sock = net.createConnection({ host: "127.0.0.1", port });
+      await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+      // Send a partial greeting then abruptly destroy (RST-like) — the bridge's
+      // readN is pending when the socket dies; without the lifetime error
+      // handler this becomes an unhandled 'error' event and crashes the process.
+      sock.write(Buffer.from([0x05, 0x01]));
+      sock.destroy();
+      await new Promise((r) => setTimeout(r, 100));
+      // Bridge still accepts new connections (did not crash):
+      const sock2 = net.createConnection({ host: "127.0.0.1", port });
+      await new Promise<void>((res, rej) => { sock2.on("connect", res); sock2.on("error", rej); });
+      sock2.write(Buffer.from([0x05, 0x01, 0x00]));
+      const reply = await new Promise<Buffer>((res, rej) => {
+        sock2.once("data", (d: Buffer) => res(d));
+        setTimeout(() => rej(new Error("no reply")), 2000);
+      });
+      expect(reply[0]).toBe(0x05); // handshake still works
+      sock2.destroy();
+    } finally {
+      await bridge.stop();
+    }
+  });
+
+  it("error emitted on client socket post-accept → destroyed, no unhandled throw", async () => {
+    const { ProxyBridge: PB } = await import("../../src/upstream/proxy-bridge");
+    const log = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const bridge = new PB({ log });
+    const port = await bridge.start();
+    // Capture the SERVER-side socket (the bridge's end) via a connection spy
+    const serverSockets: net.Socket[] = [];
+    (bridge as any)["server"]?.on?.("connection", (s: net.Socket) => serverSockets.push(s));
+    try {
+      const sock = net.createConnection({ host: "127.0.0.1", port });
+      await new Promise<void>((res, rej) => { sock.on("connect", res); sock.on("error", rej); });
+      await new Promise((r) => setTimeout(r, 50)); // let the server accept + attach the lifetime handler
+      const serverSide = serverSockets[serverSockets.length - 1];
+      expect(serverSide).toBeDefined();
+      // Simulate an ECONNRESET-shaped error on the SERVER-side socket (the one
+      // the bridge owns). Without the lifetime handler this is an unhandled
+      // 'error' event → process crash. Vitest fails on unhandled throws, so
+      // reaching the assertion below proves the handler swallowed it.
+      (serverSide as any).emit("error", Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" }));
+      await new Promise((r) => setTimeout(r, 50));
+      expect(serverSide.destroyed).toBe(true);
+    } finally {
+      await bridge.stop();
+    }
+  });
+});
