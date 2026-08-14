@@ -1,5 +1,5 @@
 import type { OpenAiChatChunk } from "../upstream/client";
-import { RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
+import { TokenMintError, RateLimitError, AuthExpiredError, EmptyCompletionError, NetworkError, ServerError, ClientError, UnknownError } from "../upstream/errors";
 import { redactProxyKey } from "../upstream/proxy-bridge";
 import type { PoolLike } from "./types";
 import type { RequestThrottle } from "./throttle";
@@ -468,6 +468,7 @@ function hasPayload(chunk: OpenAiChatChunk): boolean {
  * Non-Error → false (not rotatable).
  */
 export function isRotationTrigger(err: unknown): boolean {
+  if (err instanceof TokenMintError) return true; // rotatable (single bad proxy skipped) — but budgeted ≤2/request by the wrappers
   if (err instanceof EmptyCompletionError) return true;
   if (err instanceof NetworkError) return true;
   if (err instanceof ServerError) return true;

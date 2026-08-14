@@ -17,6 +17,7 @@ import {
   NetworkError,
   UnknownError,
   EmptyCompletionError,
+  TokenMintError,
 } from "../../src/upstream/errors";
 import type { OpenAiChatChunk } from "../../src/upstream/client";
 import type { Logger } from "../../src/server/logger";
@@ -151,6 +152,15 @@ describe("isRotationTrigger", () => {
 
   it("UnknownError → false (terminal)", () => {
     expect(isRotationTrigger(new UnknownError("unknown"))).toBe(false);
+  });
+
+  // TokenMintError — rotatable (both causes)
+  it("TokenMintError(egress) → true (rotatable)", () => {
+    expect(isRotationTrigger(new TokenMintError("egress", "x"))).toBe(true);
+  });
+
+  it("TokenMintError(not-ready) → true (rotatable)", () => {
+    expect(isRotationTrigger(new TokenMintError("not-ready", "x"))).toBe(true);
   });
 
   // Non-Error → false
