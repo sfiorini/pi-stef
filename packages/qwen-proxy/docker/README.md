@@ -144,6 +144,7 @@ services:
       - SF_QWEN_CHROME_PATH=/usr/bin/chromium
       # - SF_QWEN_ADMIN_KEY=${SF_QWEN_ADMIN_KEY}
       # - SF_QWEN_BAXIA_CACHE_TTL_MS=1500000
+      # - SF_QWEN_BAXIA_READINESS_TIMEOUT_MS=30000
       # - SF_QWEN_BAXIA_PRE_WARM=true
       # - SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS=30000
       # - SF_QWEN_STREAM_IDLE_TIMEOUT_MS=30000
@@ -182,6 +183,7 @@ All configuration is via environment variables (prefix `SF_QWEN_`), set automati
 | `SF_QWEN_LOG_LEVEL` | `info` | Log level |
 | `SF_QWEN_CHROME_PATH` | *(unset)* | Path to Chrome/Chromium; unset → autodetect (`/usr/bin/chromium` in Docker) |
 | `SF_QWEN_BAXIA_CACHE_TTL_MS` | `1500000` (25min) | Baxia token cache TTL |
+| `SF_QWEN_BAXIA_READINESS_TIMEOUT_MS` | `30000` (30s) | Max wait for Baxia SDK readiness per token mint (`chrome-error://` pages abort instantly); clamped ≥5000 |
 | `SF_QWEN_BAXIA_VERSION` | `2.5.37` | Baxia `bx-v` version |
 | `SF_QWEN_BAXIA_PRE_WARM` | `true` | Eagerly fetch the first token at startup (exit 1 on failure) |
 | `SF_QWEN_BAXIA_FALLBACK` | `false` | Return last-known token on fetch failure |

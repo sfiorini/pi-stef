@@ -32,6 +32,7 @@ services:
       # - SF_QWEN_BAXIA_CACHE_TTL_MS=1500000
       # Optional — eagerly warm the first Baxia token at startup (default true):
       # - SF_QWEN_BAXIA_PRE_WARM=true
+      # - SF_QWEN_BAXIA_READINESS_TIMEOUT_MS=30000
     restart: unless-stopped
     # healthcheck lives in the Dockerfile
 
