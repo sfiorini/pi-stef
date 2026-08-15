@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.3] - 2026-08-15
+### Changed
+- feat(qwen-proxy): stable per-proxy CloakBrowser fingerprint seeds
+
+
 ## [0.6.2] - 2026-08-14
 ### Changed
 - fix(qwen-proxy): append tool list to final turn on continuations (audit P2)
