@@ -97,6 +97,21 @@ docker run --rm --user root -it qwen-proxy:dev /bin/bash
 The Docker image bundles Chromium for Baxia token generation. The compose file and Dockerfile are tuned for this:
 
 - **`shm_size: 2g` + `mem_limit: 2g`** — Chromium needs >64 MB `/dev/shm`; the 2 GB limits cover Chromium (~250 MB) + Node + SQLite with headroom.
+- **`init: true`** — the bundled compose runs tini as PID 1 so orphaned Chromium subprocess trees are reaped (without it, zombies accumulate — observed 99/day before the fix).
+
+### Optional: CloakBrowser (stealth Chromium)
+
+The bundled stock Chromium works, but [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) v146 is a validated drop-in for the Baxia mint (58 source-level fingerprint patches; A/B-tested at parity, kept as insurance against Baxia tightening). Download the free linux-x64 build on the **host** (its license forbids redistribution, so it is not baked into the image), mount the full extracted tree, and point `SF_QWEN_CHROME_PATH` at it:
+
+```yaml
+    volumes:
+      - ./data:/data
+      - ./cloak:/cloak   # extracted cloakbrowser-linux-x64.tar.gz (icudtl.dat/.paks included)
+    environment:
+      - SF_QWEN_CHROME_PATH=/cloak/chrome
+```
+
+Per-proxy stable fingerprint seeds (`--fingerprint=<crc32(host)>`, returning-visitor device identity) are applied automatically — no configuration.
 - **`--no-sandbox`** — required under Docker's default seccomp profile because a non-root user (uid 1000) cannot use the user-namespace sandbox. Mitigated by: non-root uid 1000, localhost-only CDP, ephemeral browser dir, single trusted URL (chat.qwen.ai), and short-lived Chrome processes. The flag is already set in `BaxiaTokenManager.startChrome`.
 - **`fonts-liberation` + `fonts-noto-color-emoji`** — CJK and emoji rendering for Baxia page content.
 - **`XDG_CACHE_HOME=/home/node/.cache`** — writable fontconfig cache directory (pre-created and chowned to uid 1000 in the Dockerfile).
@@ -132,6 +147,8 @@ services:
     # mem_limit covers Chromium ~250MB + Node + SQLite (~2GB total headroom).
     shm_size: 2g
     mem_limit: 2g
+    # tini as PID 1 — reaps orphaned Chromium subprocess trees (zombie prevention)
+    init: true
     ports:
       - "${SF_QWEN_BIND:-127.0.0.1}:${SF_QWEN_HOST_PORT:-7790}:7790"
     volumes:

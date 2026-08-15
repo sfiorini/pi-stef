@@ -1,5 +1,10 @@
 services:
   qwen-proxy:
+    # init: tini as PID 1 — reaps orphaned Chromium subprocess trees (Baxia
+    # spawns are killed as process groups, but orphans re-parent to PID 1;
+    # without an init they accumulate as zombies. Observed live: 99 defunct
+    # chrome processes in one day before this line).
+    init: true
     # Pull the published image from GHCR (default):
     image: ghcr.io/sfiorini/pi-stef/qwen-proxy:latest
     # To build from local source instead, comment out `image:` above and run:
@@ -33,6 +38,10 @@ services:
       # Optional — eagerly warm the first Baxia token at startup (default true):
       # - SF_QWEN_BAXIA_PRE_WARM=true
       # - SF_QWEN_BAXIA_READINESS_TIMEOUT_MS=30000
+      # Optional — manual SOCKS5 proxy list (overrides auto-discovery; hosts
+      # without creds inherit SF_QWEN_PROXY_USER/PASS). Useful to pin only
+      # verified-healthy servers when NordVPN throttles some of them:
+      # - SF_QWEN_PROXY_URLS=socks5://socks-nl5.nordvpn.com:1080,socks5://socks-us53.nordvpn.com:1080
     restart: unless-stopped
     # healthcheck lives in the Dockerfile
 

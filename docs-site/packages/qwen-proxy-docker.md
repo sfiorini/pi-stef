@@ -101,6 +101,11 @@ docker run --rm --user root -it qwen-proxy:dev /bin/bash
 The Docker image bundles Chromium for Baxia token generation. The compose file and Dockerfile are tuned for this:
 
 - **`shm_size: 2g` + `mem_limit: 2g`** — Chromium needs >64 MB `/dev/shm`; the 2 GB limits cover Chromium (~250 MB) + Node + SQLite with headroom.
+- **`init: true`** — tini as PID 1 reaps orphaned Chromium subprocess trees (zombie prevention; observed 99/day without it)
+
+### Optional: CloakBrowser (stealth Chromium)
+
+Validated drop-in for the Baxia mint — download the free v146 linux-x64 build **on the host** (license forbids redistribution), mount the full extracted tree (the bare binary needs `icudtl.dat` + `.pak`s), and set `SF_QWEN_CHROME_PATH=/cloak/chrome`. Per-proxy stable fingerprint seeds are applied automatically. See the [main package page](/packages/qwen-proxy) for details.
 - **`--no-sandbox`** — required under Docker's default seccomp profile because a non-root user (uid 1000) cannot use the user-namespace sandbox. Mitigated by: non-root uid 1000, localhost-only CDP, ephemeral browser dir, single trusted URL (chat.qwen.ai), and short-lived Chrome processes. The flag is already set in `BaxiaTokenManager.startChrome`.
 - **`fonts-liberation` + `fonts-noto-color-emoji`** — CJK and emoji rendering for Baxia page content.
 - **`XDG_CACHE_HOME=/home/node/.cache`** — writable fontconfig cache directory (pre-created and chowned to uid 1000 in the Dockerfile).

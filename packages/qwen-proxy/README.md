@@ -95,11 +95,30 @@ By default the proxy uses a single IP for all upstream requests. When Qwen's Bax
 | **Legacy** (N ≤ 1) | — | Single IP; `SF_QWEN_EMPTY_RETRY_MAX` inline retries + `SF_QWEN_EMPTY_COOLDOWN_MS` cooldown |
 | **Rotation** (N > 1) | `emptyRetryMax` ignored | Rotate on empty/network/5xx; budget = N attempts; all-burned → 429 + cooldown |
 
+**Burn recovery (0.6.0+):** the unit Baxia flags is the guest **token** (~10-15 requests each), not the IP. On empty: the burned token is evicted, re-minted in-place once (inline re-mint, bounded per request), and only then does rotation walk. Concurrency spreads across proxies via per-proxy serialization slots (first free proxy, bounded by `SF_QWEN_MAX_CONCURRENCY`).
+
+**Mint-failure budget (0.6.1+):** token-mint failures are typed (`TokenMintError`, cause `egress` = page never loaded / spawn infra — including `chrome-error://` pages which abort in ~1-2 polls instead of the readiness timeout; `not-ready` = SDK withheld). First mint failure rotates (skip the bad proxy); a second consecutive one stops the walk and applies a flat cooldown (429 / sentinel) — no third spawn. A sustained bad-pool condition is bounded to ≤2 spawns per request per cooldown window.
+
 - **Rotate triggers:** `EmptyCompletionError`, `NetworkError` (TTFB timeout, connection reset), `ServerError` (5xx), `TypeError` (fetch internals), raw `Error` (e.g. SOCKS connect failure).
 - **Terminal (no rotate):** `ClientError` (4xx, incl. `data_inspection_failed`), `RateLimitError` (429), `UnknownError`.
 - **Token generation is proxy-affine** — in rotation mode, a local loopback SOCKS5 bridge injects NordVPN credentials for Chromium; Baxia tokens are cached per-proxy so the token's issuing IP matches the completion's egress IP. Legacy (N≤1) still generates tokens directly.
 - **Stream rotation is pre-first-content only** — once the first content token has been yielded to the client, no rotation occurs (would duplicate already-sent chunks). A post-content error surfaces directly.
-- **No `refreshBaxiaToken`** on rotation exhaustion — the token is fine; the IP ceiling is the bottleneck.
+- **No `refreshBaxiaToken` on all-burned-by-error** — when the walk exhausts on network/5xx errors the tokens are fine (the egress is the problem); the mint-budget path (above) handles the token-side failures.
+
+### Hardened headless browser (CloakBrowser, optional)
+
+The bundled Chromium works, but [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) — a stealth-patched Chromium (58 source-level fingerprint patches) — is a validated drop-in for the Baxia token mint: set `SF_QWEN_CHROME_PATH` to its `chrome` binary. Same CDP protocol, same flags; vanilla-Chromium deployments are unaffected.
+
+- **Stable per-proxy fingerprint seeds (0.6.3+):** every spawn passes `--fingerprint=<crc32(proxyHost)>` so each exit IP presents a *consistent device* (returning-visitor profile — CloakBrowser's recommended pattern) instead of a new machine per mint. Automatic, no knob; vanilla Chromium ignores the flag.
+- **Licensing:** the free v146 binary is keyless but **not redistributable** — download it on the host and mount it (the public image keeps stock Chromium). v148+ requires a CloakBrowser Pro key.
+- **Docker:** mount the full extracted runtime (the bare binary dies with an ICU error — `icudtl.dat`, `.pak` files, and friends are required):
+
+  ```yaml
+  volumes:
+    - ./cloak:/cloak          # extracted cloakbrowser-linux-x64.tar.gz
+  environment:
+    - SF_QWEN_CHROME_PATH=/cloak/chrome
+  ```
 
 ### Setup
 

@@ -120,6 +120,8 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_BAXIA_PRE_WARM` | `true` | Eagerly fetch the first token at startup (exit 1 on failure) |
 | `SF_QWEN_BAXIA_FALLBACK` | `false` | Return last-known token on fetch failure |
 
+**Hardened browser (optional):** [CloakBrowser](https://github.com/CloakHQ/CloakBrowser) v146 — a stealth-patched Chromium (58 source-level fingerprint patches) — is a validated drop-in for the Baxia mint: point `SF_QWEN_CHROME_PATH` at its binary. Every spawn automatically passes `--fingerprint=<crc32(proxyHost)>` (stable per-proxy device identity, returning-visitor profile); vanilla Chromium ignores the flag. See the [Docker guide](/packages/qwen-proxy-docker) for mounting (its license forbids bundling in the image).
+
 ### Timing & cooldown
 
 | Variable | Default | Description |
@@ -142,6 +144,10 @@ All configuration is via environment variables (prefix `SF_QWEN_`).
 | `SF_QWEN_TIMEOUT_MS` | `60000` | TTFB timeout in ms (cleared on headers, never aborts mid-stream) |
 | `SF_QWEN_FIRST_PAYLOAD_TIMEOUT_MS` | `30000` | Abort an upstream completion that produces no payload chunk within this many ms after headers (`0` disables). The abort throws EmptyCompletionError → token eviction + proxy rotation, and always releases the concurrency slot |
 | `SF_QWEN_STREAM_IDLE_TIMEOUT_MS` | `30000` | Abort an upstream stream that goes silent for this many ms after content started flowing (`0` disables). Ends the response gracefully with the partial content — no token eviction |
+
+**Burn recovery (0.6.0+):** Baxia flags the guest *token* (~10-15 requests each), not the IP. On empty: the burned token is evicted and re-minted in-place once (inline, bounded per request) before rotation walks. Concurrency spreads across proxies via per-proxy serialization slots (bounded by `SF_QWEN_MAX_CONCURRENCY`).
+
+**Mint-failure budget (0.6.1+):** mint failures are typed (`egress` — page never loaded, `chrome-error://` aborts in ~1-2 polls; `not-ready` — SDK withheld). First failure rotates past the bad proxy; a second consecutive one stops the walk with a flat cooldown (429 / end-of-stream marker) — a bad pool costs ≤2 spawns per request per cooldown window, never N × readiness-timeout.
 
 ### Model aliases
 
