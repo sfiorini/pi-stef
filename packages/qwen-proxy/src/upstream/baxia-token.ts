@@ -60,6 +60,22 @@ interface CdpSession {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+/** Deterministic 5-digit fingerprint seed (CloakBrowser --fingerprint range
+ *  10000–99999) from a stable string — see startChrome for the rationale. */
+export function stableFingerprintSeed(host: string): number {
+  // crc32 (IEEE) — tiny table-less implementation, no dependency.
+  // Math.imul/>>>0 keep the accumulator unsigned (a naive JS crc32 goes
+  // negative on the sign bit, producing out-of-range seeds).
+  let crc = 0xffffffff;
+  for (let i = 0; i < host.length; i++) {
+    crc ^= host.charCodeAt(i);
+    for (let k = 0; k < 8; k++) {
+      crc = (Math.imul(crc >>> 1, 1) ^ (crc & 1 ? 0xedb88320 : 0)) >>> 0;
+    }
+  }
+  return ((crc ^ 0xffffffff) >>> 0) % 90000 + 10000;
+}
+
 function randomPort(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -149,11 +165,40 @@ export class BaxiaTokenManager {
 
   // ── startChrome ─────────────────────────────────────────────────────────
 
-  private startChrome(exe: string, proxyServerUrl?: string): { child: any; port: number } {
+  /** Stable fingerprint seed per proxy (CloakBrowser --fingerprint=<seed>).
+   *
+   *  CloakBrowser's default is a RANDOM seed per launch — every mint from a
+   *  given exit IP presents a brand-new device (fresh canvas/WebGL/GPU), the
+   *  classic detect-farm signature. A seed derived stably from the proxy host
+   *  makes each proxy look like a RETURNING visitor on their usual device —
+   *  the exact profile of a real user whose guest token expired (CloakBrowser
+   *  docs recommend fixed seeds for scoring systems). Cross-proxy separation
+   *  falls out for free (nl5 ≠ nl4), burns stay identity-level (fresh
+   *  uid/fy/cookie every mint regardless), and vanilla Chromium ignores the
+   *  unknown flag (stdio:ignore swallows the warning) so it is passed
+   *  unconditionally — no config branch needed.
+   *
+   *  Deterministic crc32(host) — survives restarts/redeploys, zero state.
+   */
+  private startChrome(exe: string, proxyServerUrl?: string, upstreamProxy?: string): { child: any; port: number } {
     const port = randomPort(9400, 9999);
     const userDataDir = fs.mkdtempSync(
       path.join(os.tmpdir(), "baxia-chrome-"),
     );
+    // Deterministic seed in CloakBrowser's recommended 5-digit range
+    // (10000–99999). Derive from the UPSTREAM proxy host — NOT the
+    // --proxy-server URL, which in bridge/rotation mode is the LOOPBACK
+    // (socks5://127.0.0.1:<port>) shared by every proxy; hashing it would
+    // give the whole pool one identical device fingerprint. upstreamProxy
+    // carries creds — hash the HOST only. Undefined → "direct" (stable
+    // direct-path identity).
+    const fpHost = (() => {
+      try {
+        return upstreamProxy ? new URL(upstreamProxy).hostname : "direct";
+      } catch {
+        return "direct";
+      }
+    })();
     const args = [
       "--headless=new",
       "--no-sandbox",
@@ -177,6 +222,7 @@ export class BaxiaTokenManager {
       "--disable-features=OptimizationGuideModelDownloading,OptimizationHintsFetching,OptimizationTargetPrediction,MediaRouter",
       `--remote-debugging-port=${port}`,
       `--user-data-dir=${userDataDir}`,
+      `--fingerprint=${stableFingerprintSeed(fpHost)}`,
       "--window-size=1280,800",
       `--user-agent=${this.config.userAgent}`,
       "about:blank",
@@ -303,7 +349,7 @@ export class BaxiaTokenManager {
     const proxyServerUrl = (proxy && this.bridge)
       ? `socks5://127.0.0.1:${this.bridge.getPort()}`
       : undefined;
-    const { child, port } = this.startChrome(exe, proxyServerUrl);
+    const { child, port } = this.startChrome(exe, proxyServerUrl, proxy);
     this.config.log.info("[baxia-debug] chromium spawn", {
       proxy: redactProxyKey(proxy),
       pid: child.pid,

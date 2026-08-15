@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import * as fs from "node:fs";
 import type { BaxiaTokenManagerConfig } from "../../src/upstream/baxia-token";
+import { stableFingerprintSeed } from "../../src/upstream/baxia-token";
 import { TokenMintError } from "../../src/upstream/errors";
 
 // Auto-mock node:fs so vi.spyOn/vi.mocked works with ESM namespace imports
@@ -255,6 +256,82 @@ describe("BaxiaTokenManager", () => {
       expect(typeof spawnFn).toBe("function");
     });
   });
+
+
+// ── stableFingerprintSeed (CloakBrowser --fingerprint per proxy) ────────────
+
+describe("stableFingerprintSeed", () => {
+  it("is deterministic for the same host", () => {
+    expect(stableFingerprintSeed("socks-nl5.nordvpn.com")).toBe(
+      stableFingerprintSeed("socks-nl5.nordvpn.com"),
+    );
+  });
+
+  it("matches the known CRC-32 vector (123456789 → 0xCBF43926)", () => {
+    // Lock the hash implementation: a poly/bit-loop typo must not pass.
+    // stableFingerprintSeed returns the mapped 5-digit seed, so re-derive
+    // the raw crc32 from it is not possible — instead pin the SEED for the
+    // vector input against the same formula computed here independently.
+    const raw = 0xcbf43926; // crc32("123456789")
+    const expected = (raw >>> 0) % 90000 + 10000;
+    expect(stableFingerprintSeed("123456789")).toBe(expected);
+  });
+
+  it("differs across proxies (cross-proxy device separation)", () => {
+    const seeds = [
+      "socks-nl4.nordvpn.com",
+      "socks-nl5.nordvpn.com",
+      "socks-us53.nordvpn.com",
+    ].map(stableFingerprintSeed);
+    expect(new Set(seeds).size).toBe(seeds.length);
+  });
+
+  it("lands in CloakBrowser's 5-digit range", () => {
+    for (const h of ["a", "direct", "socks-nl5.nordvpn.com", "x".repeat(200)]) {
+      const seed = stableFingerprintSeed(h);
+      expect(seed).toBeGreaterThanOrEqual(10000);
+      expect(seed).toBeLessThanOrEqual(99999);
+    }
+  });
+});
+
+describe("startChrome fingerprint seed wiring", () => {
+  it("bridge mode: loopback --proxy-server must NOT drive the seed — upstream host does (P0 regression)", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const spawn = vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any;
+    const mgr = new BaxiaTokenManager(makeConfig({ spawn }));
+    // bridge-mode shape: proxy-server URL is LOOPBACK; upstream carries creds
+    (mgr as any).startChrome(
+      "/usr/bin/fake-chrome",
+      "socks5://127.0.0.1:38169",
+      "socks5://user:secret@socks-nl5.nordvpn.com:1080",
+    );
+    const args: string[] = spawn.mock.calls[0][1];
+    const fp = args.find((a: string) => a.startsWith("--fingerprint="));
+    expect(fp).toBe(`--fingerprint=${stableFingerprintSeed("socks-nl5.nordvpn.com")}`);
+    expect(fp).not.toBe(`--fingerprint=${stableFingerprintSeed("127.0.0.1")}`);
+  });
+
+  it("startChrome derives --fingerprint from the proxy HOST (deterministic, creds-free)", async () => {
+    const { BaxiaTokenManager } = await import("../../src/upstream/baxia-token");
+    const credsUrl = "socks5://user:secret@socks-nl5.nordvpn.com:1080";
+    const spawn = vi.fn(() => ({ pid: 1, kill: vi.fn() })) as any;
+    const mgr2 = new BaxiaTokenManager(makeConfig({ spawn }));
+    // no-bridge shape: proxy-server arg is unused for the seed (arg3 drives it)
+    const r = (mgr2 as any).startChrome("/usr/bin/fake-chrome", undefined, credsUrl);
+    expect(r.child).toBeTruthy();
+    const args: string[] = spawn.mock.calls[0][1];
+    const fp = args.find((a: string) => a.startsWith("--fingerprint="));
+    expect(fp).toBe(`--fingerprint=${stableFingerprintSeed("socks-nl5.nordvpn.com")}`);
+    expect(fp).not.toContain("secret");
+    // direct path (no proxy) also gets a stable seed
+    (mgr2 as any).startChrome("/usr/bin/fake-chrome", undefined);
+    const args2: string[] = spawn.mock.calls[1][1];
+    expect(args2.find((a: string) => a.startsWith("--fingerprint="))).toBe(
+      `--fingerprint=${stableFingerprintSeed("direct")}`,
+    );
+  });
+});
 
   describe("cdpConnect", () => {
     it("rejects pending on ws error (GAP-FIX)", async () => {
