@@ -3,7 +3,7 @@ import { createApp } from "../../src/server/app";
 import { openDb } from "../../src/store/db";
 import { SingleAccountPool } from "../../src/pool/single";
 import { RequestThrottle } from "../../src/pool/throttle";
-import { TokenMintError } from "../../src/upstream/errors";
+import { NetworkError, TokenMintError } from "../../src/upstream/errors";
 import type { AppDeps } from "../../src/server/app";
 
 const noopLog = { info: () => {}, warn: () => {}, error: () => {} };
@@ -44,7 +44,7 @@ function makeStubDeps(): AppDeps {
   };
 }
 
-describe("app.onError — TokenMintError → 503", () => {
+describe("app.onError — TokenMintError → 429 (retryable)", () => {
   it("OpenAI envelope", async () => {
     const app = createApp(makeStubDeps());
     const res = await app.request("/v1/chat/completions", {
@@ -59,11 +59,11 @@ describe("app.onError — TokenMintError → 503", () => {
       }),
     });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(429);
     const body = await res.json();
     expect(JSON.stringify(body)).toContain("mint boom");
     expect(body.error).toBeDefined();
-    expect(body.error.type).toBe("server_error");
+    expect(body.error.type).toBe("rate_limit_error");
   });
 
   it("Anthropic envelope", async () => {
@@ -82,9 +82,36 @@ describe("app.onError — TokenMintError → 503", () => {
       }),
     });
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.type).toBe("error");
     expect(JSON.stringify(body)).toContain("mint boom");
   });
 });
+
+describe("app.onError — NetworkError → 429 (retryable)", () => {
+  it("OpenAI envelope", async () => {
+    const deps = makeStubDeps();
+    deps.retry = (async () => {
+      throw new NetworkError("egress unreachable");
+    }) as any;
+    const app = createApp(deps);
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer test-key",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "qwen3-max",
+        messages: [{ role: "user", content: "hi" }],
+      }),
+    });
+
+    expect(res.status).toBe(429);
+    const body = await res.json();
+    expect(body.error.type).toBe("rate_limit_error");
+    expect(JSON.stringify(body)).toContain("egress unreachable");
+  });
+});
+
