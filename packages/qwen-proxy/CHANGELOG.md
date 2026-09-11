@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.4] - 2026-09-11
+### Changed
+- fix(qwen-proxy): TokenMintError/NetworkError → 429 rate_limit_error (retryable for clients)
+- docs(qwen-proxy): document CloakBrowser opt-in, burn recovery, mint budget, init, PROXY_URLS
+
+
 ## [0.6.3] - 2026-08-15
 ### Changed
 - feat(qwen-proxy): stable per-proxy CloakBrowser fingerprint seeds
