@@ -20,6 +20,7 @@ import { openaiError } from "./errors";
 import { stripDetails } from "../../upstream/details-strip";
 import { DetailsStreamStripper } from "../../upstream/details-strip";
 import { firstChunk, mapOpenAiChunk, TERMINATOR } from "./chunks";
+import type { StreamChunk } from "../../pool/retry";
 import { injectToolPrompt, injectToolResults, prependToFirstSystemMessage, appendToolListToLastMessage } from "../../upstream/tool-prompt";
 import { parseToolCalls } from "../../upstream/tool-parse";
 import { ToolStreamDetector } from "../../upstream/tool-stream";
@@ -355,11 +356,29 @@ export function chatRoutes(deps: ChatRouteDeps) {
 
     const encoder = new TextEncoder();
 
+    // Prime the upstream BEFORE constructing the 200 SSE response: resolve
+    // (or fail on) the first upstream chunk up front, so pre-first-chunk
+    // failures (token mint, egress, pool exhaustion) throw out of the route
+    // handler and surface via app.onError as a proper HTTP error envelope
+    // (429 rate_limit_error for mint/network per the retryable mapping) —
+    // instead of a committed 200 followed by a truncated SSE body that
+    // clients cannot classify. Mid-stream failures (after the first chunk)
+    // still take the in-stream sentinel/error path below.
+    const streamIterator = streamIter[Symbol.asyncIterator]() as AsyncGenerator<StreamChunk>;
+    const primed = await streamIterator.next();
+
     const sseStream = new ReadableStream({
       async start(controller) {
         const write = (data: string) => {
           controller.enqueue(encoder.encode(`data: ${data}\n\n`));
         };
+
+        async function* primedRest(): AsyncIterable<StreamChunk> {
+          if (!primed.done) {
+            yield primed.value;
+          }
+          yield* streamIterator;
+        }
 
         try {
           // First chunk: delta.role = "assistant"
@@ -370,7 +389,7 @@ export function chatRoutes(deps: ChatRouteDeps) {
           let streamGotToolCalls = false;
           let sentFinishReason = false;
 
-          for await (const chunk of streamIter) {
+          for await (const chunk of primedRest()) {
             // D14: Check for sentinel ("done" in chunk, but not a real OpenAiChatChunk which always has "choices")
             const isSentinel = ("done" in chunk) && !("choices" in chunk);
             if (isSentinel) {
