@@ -91,15 +91,19 @@ export function createApp(deps: AppDeps): OpenAPIHono {
         ? anthropicError(c, 502, undefined, err.message)
         : openaiError(c, 502, err.message);
     }
+    // Transient upstream failures (token mint / egress): surface as 429 so
+    // clients treat them as retryable rate limits (a retry after the mint
+    // completes or rotation picks a healthy egress succeeds). 503 made
+    // clients classify them as provider-unavailable and give up.
     if (err instanceof TokenMintError) {
       return isAnthropic
-        ? anthropicError(c, 503, undefined, err.message)
-        : openaiError(c, 503, err.message);
+        ? anthropicError(c, 429, undefined, err.message)
+        : openaiError(c, 429, err.message);
     }
     if (err instanceof NetworkError) {
       return isAnthropic
-        ? anthropicError(c, 503, undefined, err.message)
-        : openaiError(c, 503, err.message);
+        ? anthropicError(c, 429, undefined, err.message)
+        : openaiError(c, 429, err.message);
     }
     if (err instanceof UnknownError) {
       return isAnthropic
