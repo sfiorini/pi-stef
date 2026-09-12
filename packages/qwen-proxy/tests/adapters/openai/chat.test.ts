@@ -4,7 +4,8 @@ import type Database from "better-sqlite3";
 import { openDb } from "../../../src/store/db";
 import { SingleAccountPool } from "../../../src/pool/single";
 import { withPoolRetry, withPoolRetryStream, type ProxyPoolLike } from "../../../src/pool/retry";
-import { EmptyCompletionError } from "../../../src/upstream/errors";
+import { EmptyCompletionError, NetworkError, RateLimitError, TokenMintError } from "../../../src/upstream/errors";
+import { openaiError } from "../../../src/adapters/openai/errors";
 import { clientAuthGate } from "../../../src/server/auth";
 import { chatRoutes } from "../../../src/adapters/openai/chat";
 
@@ -74,6 +75,17 @@ function makeDeps(
 
 function createTestApp(deps: ChatDeps) {
   const app = new Hono();
+  // Mirror the production app-level error mapping (server/app.ts) for the
+  // error classes the stream tests exercise.
+  app.onError((err, c) => {
+    if (err instanceof TokenMintError || err instanceof NetworkError) {
+      return openaiError(c, 429, err.message);
+    }
+    if (err instanceof RateLimitError) {
+      return openaiError(c, 429, err.message);
+    }
+    throw err;
+  });
   app.use("/v1/*", clientAuthGate({
     db: deps.db,
     envKeys: ["test-key"],
@@ -748,6 +760,38 @@ describe("POST /v1/chat/completions", () => {
 
     // [DONE]
     expect(lines[lines.length - 1]).toBe("data: [DONE]");
+  });
+
+  it("stream returns 429 envelope when upstream fails before the first chunk (no truncated 200)", async () => {
+    // Upstream generator throws a TokenMintError at its first next() — the
+    // streaming handler must surface it as an HTTP error envelope (429 via
+    // app.onError) instead of committing 200/SSE and dying after the role
+    // chunk.
+    const client = {
+      chatCompletions: (_bearer: string, body: Record<string, unknown>) => {
+        if (body.stream) {
+          return (async function* () {
+            throw new TokenMintError("egress", "mint boom");
+          })();
+        }
+        return Promise.resolve({} as OpenAiChatCompletion);
+      },
+    } as unknown as UpstreamClient;
+
+    const deps = makeDeps(db, { client });
+    const app = createTestApp(deps);
+
+    const res = await app.request("/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: "Bearer test-key", "Content-Type": "application/json" },
+      body: JSON.stringify({ model: "qwen3-max", messages: [{ role: "user", content: "Hi" }], stream: true }),
+    });
+
+    expect(res.status).toBe(429);
+    expect(res.headers.get("content-type")).toContain("application/json");
+    const body = await res.json();
+    expect(body.error.type).toBe("rate_limit_error");
+    expect(JSON.stringify(body)).toContain("mint boom");
   });
 
   it("stream strips <details> from delta.content", async () => {

@@ -259,10 +259,24 @@ export function anthropicRoutes(deps: AnthropicRouteDeps) {
     });
 
     const encoder = new TextEncoder();
+
+    // Prime the upstream BEFORE constructing the 200 SSE response (same fix
+    // as the OpenAI adapter): pre-first-event failures (token mint, egress)
+    // throw out of the route handler and surface via app.onError as a proper
+    // HTTP error envelope instead of a truncated 200 stream.
+    const eventsIterator = anthropicEvents[Symbol.asyncIterator]() as AsyncGenerator<string>;
+    const primed = await eventsIterator.next();
+
     const sseStream = new ReadableStream({
       async start(controller) {
+        async function* primedRest(): AsyncIterable<string> {
+          if (!primed.done) {
+            yield primed.value as string;
+          }
+          yield* eventsIterator;
+        }
         try {
-          for await (const event of anthropicEvents) {
+          for await (const event of primedRest()) {
             controller.enqueue(encoder.encode(event));
           }
           controller.close();
