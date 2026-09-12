@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.6.5] - 2026-09-12
+### Changed
+- fix(qwen-proxy): prime stream upstream before committing 200/SSE — pre-first-chunk failures return proper 429 envelopes (OpenAI + Anthropic adapters)
+
+
 ## [0.6.4] - 2026-09-11
 ### Changed
 - fix(qwen-proxy): TokenMintError/NetworkError → 429 rate_limit_error (retryable for clients)
