@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-10-02
+### Changed
+- fix(deps): declare host-provided @sinclair/typebox in peerDependencies, not dependencies
+- fix(flow): planner agent gets write/edit tools to persist plan artifacts
+
+
 ## [0.11.3] - 2026-08-04
 ### Changed
 - fix(flow): AI-generated ≤4-word slugs via orchestrator slug param
