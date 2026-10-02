@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-02
+### Changed
+- fix(deps): declare host-provided @sinclair/typebox in peerDependencies, not dependencies
+- docs(finance): cross-link Coinbase provider guide from finance client docs
+
+
 ## [0.3.1] - 2026-07-20
 ### Changed
 - fix(finance): address reviewer P3s on slash commands
