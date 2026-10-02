@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-02
+### Changed
+- Version bump
+
+
 ## [0.3.5] - 2026-08-04
 ### Changed
 - chore(deps): remove @pi-stef/pair and @pi-stef/team from root deps, tsconfig, and 7 package.json files
