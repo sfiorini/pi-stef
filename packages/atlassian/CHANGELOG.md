@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-10-02
+### Changed
+- fix(deps): declare host-provided @sinclair/typebox in peerDependencies, not dependencies
+
+
 ## [0.4.3] - 2026-08-04
 ### Changed
 - chore(deps): remove @pi-stef/pair and @pi-stef/team from root deps, tsconfig, and 7 package.json files
