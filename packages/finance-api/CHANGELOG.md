@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-02
+### Changed
+- fix(deps): declare host-provided @sinclair/typebox in peerDependencies, not dependencies
+
+
 ## [0.5.1] - 2026-07-27
 ### Changed
 - docs(finance-api): remove Teller references from README, docs-site, and CHANGELOG (S-M21/S-M22/S-M23)
