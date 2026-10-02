@@ -42,7 +42,6 @@
     "@pi-stef/figma": "^0.3.0",
     "@pi-stef/paths": "^0.3.0",
     "@pi-stef/web": "^0.3.0",
-    "@sinclair/typebox": "*",
     "cloakbrowser": "^0.3.31",
     "defuddle": "^0.18.1",
     "jsdom": "^29.1.0",
@@ -55,7 +54,8 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
   },
   "pi": {
     "extensions": [

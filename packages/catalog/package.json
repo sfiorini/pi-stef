@@ -35,12 +35,12 @@
     "@pi-stef/figma": "^0.3.0",
     "@pi-stef/paths": "^0.3.0",
     "@pi-stef/web": "^0.3.0",
-    "@sinclair/typebox": "*",
     "js-yaml": "^4.1.0",
     "zod": "^3.25.62"
   },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*"
+    "@earendil-works/pi-coding-agent": "*",
+    "@sinclair/typebox": "*"
   },
   "pi": {
     "extensions": [

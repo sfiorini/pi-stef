@@ -36,7 +36,6 @@
     "@hono/swagger-ui": "^0.5.0",
     "@hono/zod-openapi": "^0.18.0",
     "@pi-stef/paths": "^0.3.0",
-    "@sinclair/typebox": "*",
     "better-sqlite3": "^12.11.1",
     "hono": "^4.6.0",
     "jose": "^5.9.6",

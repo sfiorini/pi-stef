@@ -31,8 +31,7 @@
   },
   "dependencies": {
     "@pi-stef/paths": "^0.3.0",
-    "@pi-stef/finance-api": "workspace:^0.1.0",
-    "@sinclair/typebox": "*"
+    "@pi-stef/finance-api": "workspace:^0.1.0"
   },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",

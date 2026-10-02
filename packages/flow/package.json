@@ -15,12 +15,12 @@
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
     "@earendil-works/pi-tui": "*",
-    "@tintinweb/pi-subagents": "*",
-    "@quintinshaw/pi-dynamic-workflows": "*"
+    "@quintinshaw/pi-dynamic-workflows": "*",
+    "@sinclair/typebox": "*",
+    "@tintinweb/pi-subagents": "*"
   },
   "dependencies": {
     "@pi-stef/paths": "workspace:*",
-    "@sinclair/typebox": "*",
     "js-yaml": "^4.1.0"
   },
   "devDependencies": {
