@@ -30,6 +30,7 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 **Where the model comes from:**
 
 - **Every agent, in every tier** — its `.md` frontmatter `model:` (project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`); a `.md` with no `model:` inherits the orchestrator. Flow passes no model at dispatch.
+
 ---
 
 ## Quickstart
@@ -339,7 +340,7 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 - **Wizard** — `/sf-flow-create-workflow` (adaptive: suggests building blocks from local examples, validates sections incrementally, writes YAML + agent stubs, registers `/<name>`).
 - **By hand** — create `.pi/sf/flow/workflows/<name>.yaml` (project) or `~/.pi/sf/flow/workflows/<name>.yaml` (global), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
 
-### Upgrading from the old format (≤ v0.11)
+### Upgrading from the old format (pre-0.12)
 
 Workflow YAMLs written before the agents-as-definitions change **fail validation** at registration with a warning explaining the new shape. Migrate by hand:
 

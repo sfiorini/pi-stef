@@ -37,7 +37,7 @@ The last three rows are the key insight: an isolated agent **can still shell out
 
 ## Agents in the deep-research workflow
 
-Of these, only `researcher` is a shipped agent file (`~/.pi/agent/agents/researcher.md`, seeded by `/sf-flow-seed`); `explorer` and `analyst` are spawned inline by the `deep-research` workflow and have no shipped `.md`.
+All three research agents ship as `.md` files (seeded by `/sf-flow-seed` into the global agents dir — `researcher.md`, `explorer.md`, `analyst.md`); the workflow binds them by name/`agentType` and carries no agent properties itself.
 
 | Agent | `isolated` | `extensions` | Reaches private sources? |
 |-------|-----------|--------------|--------------------------|
@@ -46,6 +46,8 @@ Of these, only `researcher` is a shipped agent file (`~/.pi/agent/agents/researc
 | `analyst` | `true` | — | synthesis/write only |
 
 `researcher` is the only un-isolated agent — by design (decision: "researcher researches everywhere"). It is shared across `sf_flow_plan` (Phase 1 parallel research), the `research-report` flow, and the `deep-research` flow, so relaxing it once benefits all of them.
+
+> **Tier note:** `isolated:` and `thinking:` in an agent's `.md` are honored by pi-subagents (the tier-1 `Agent` tool, used by the plan/implement/audit skills). pi-dynamic-workflows — the engine behind tier-2 YAML workflow `agent()` calls — binds only the `.md`'s tools + model + role prompt, and does **not** enforce `thinking:`/`isolated:`. In practice the shipped definitions are consistent across both engines (e.g. `explorer` is isolated in both its `.md` and its fresh-context role), so no workflow needs to change — but when authoring a `.md`, set `thinking:`/`isolated:` for the tier-1 dispatches, not as a tier-2 enforcement lever.
 
 ---
 
