@@ -235,14 +235,14 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const repoRoot = ctx.cwd ?? process.cwd();
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
       await ensureExampleWorkflows(homedir());
-      // Report-only: where each tier-1 role agent is defined + which model it pins.
+      // Report-only: where each tier-1 role agent is defined + which model it carries.
       const info = await resolveAgentInfoMap(["reviewer", "researcher", "designer"], repoRoot);
       const roleLine = (role: string): string => {
         const r = info.get(role);
         if (!r) return `${role}: no .md found (built-in/general-purpose fallback) — inherits the orchestrator`;
         if (r.frontmatter.enabled === false) return `${role}: ${r.path} — DISABLED (enabled: false)`;
         return r.frontmatter.model
-          ? `${role}: ${r.frontmatter.model} (pinned in ${r.path})`
+          ? `${role}: ${r.frontmatter.model} (set in ${r.path})`
           : `${role}: inherits the orchestrator (no model: in ${r.path})`;
       };
       const warnText = agentWarnings.length
@@ -281,7 +281,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
-      // Report-only: reviewer/developer .md paths + pinned models.
+      // Report-only: reviewer/developer .md paths + carried models.
       const info = await resolveAgentInfoMap(["reviewer", "developer"], repoRoot);
       let worktree: { worktreePath: string; branchName: string; baseSha: string };
       try {

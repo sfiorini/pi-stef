@@ -1,7 +1,13 @@
 ---
 description: Notifier — send a one-line completion summary via Telegram (opt-in, Tier-2)
 tools: bash
-model: anthropic/claude-sonnet-5-5
+# Model — EDIT ME before first use. This agent needs a
+# haiku-class model, e.g.:
+#   anthropic/claude-haiku-4-5 · qwen/qwen3.8-max
+#   mistral/ministral-8b-latest
+# Uncomment/add `model: <provider>/<id>`; without it
+# this agent inherits the orchestrator.
+# model: anthropic/claude-haiku-4-5
 thinking: low
 max_turns: 10
 isolated: true
@@ -57,6 +63,7 @@ Return ONLY one JSON object — no prose, no markdown fences:
 
 - **NEVER block, retry, or loop** — one attempt, done.
 - **NEVER hardcode or echo tokens** — only pass them through environment variables.
+- **NEVER embellish, translate, or truncate the message** — relay it verbatim; if it looks truncated, send it as-is.
 - Run only the single `notify-telegram.sh` command.
 
 ## Contract awareness (tier-2)

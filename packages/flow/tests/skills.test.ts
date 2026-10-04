@@ -69,7 +69,7 @@ describe("flow skills", () => {
     expect(planSkill).toContain("completeness self-check");
     expect(planSkill).toContain("ZERO remaining design decisions");
 
-    // planner agent mandates the exhaustive 7-field format
+    // planner agent mandates the exhaustive 8-field format (incl. the Interfaces block)
     expect(planner).toContain("exhaustive");
     expect(planner).toContain("ZERO remaining design decisions");
     expect(planner).toContain("completeness self-check");
@@ -158,16 +158,16 @@ describe("flow skills", () => {
     }
   });
 
-  it("create-workflow wizard is .md-first: names-only interview, sonnet-5-5 stubs, gate-PHASE rules (M5)", () => {
+  it("create-workflow wizard is .md-first: names-only interview, tier-hint stubs, gate-PHASE rules (M5)", () => {
     const raw = readFileSync(join(skillsDir, "sf-flow-create-workflow", "SKILL.md"), "utf8");
     // Agents are NAMES; the .md carries the definition
     expect(raw).toContain("just the NAMES this flow uses");
     expect(raw).toContain("agents are DEFINED in their `.md` files");
     // agents_yaml documented as a list
     expect(raw).toContain("LIST of names");
-    // stubs pin the uniform editable default
-    expect(raw).toContain("model: anthropic/claude-sonnet-5-5");
-    expect(raw).toContain("CHANGE the model");
+    // stubs carry the commented tier hint (opus/sonnet/haiku) — no active pin
+    expect(raw).toContain("commented model hint naming the tier");
+    expect(raw).toContain("inherits the orchestrator");
     // schemas are phase contracts (gate-phase rule)
     expect(raw).toContain("GATE PHASE to declare a `schema.verdict`");
     // never overwrite (write-once)

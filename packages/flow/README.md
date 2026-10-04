@@ -61,25 +61,25 @@ Or in natural language:
 
 Twelve write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
-| Agent | Role | `tools` | `thinking` |
-|-------|------|---------|-----------|
-| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls, write, edit | medium |
-| `designer` | Workflow Designer — design via brainstorming (2–3 approaches → recommend 1) | read, grep, find, ls | high |
-| `developer` | TDD Developer — red/green/refactor | read, grep, find, ls, write, bash | medium |
-| `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high |
-| `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high |
-| `synth` | Synthesis / Report Writer | read, write | medium |
-| `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low |
-| `elicitor` | Requirements Elicitor — clarifying questions | read, grep, find, ls | high |
-| `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium |
-| `notifier` | Notifier — Telegram completion summary (opt-in, Tier-2) | bash | low |
-| `explorer` | Explorer — fast read-only codebase/document scout, cited findings | read, grep, find, ls | low |
-| `analyst` | Analyst — deep-research intake coordinator + synthesis report writer | read, write, bash | high |
+| Agent | Role | `tools` | `thinking` | Tier |
+|-------|------|---------|-----------|------|
+| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls, write, edit | medium | opus |
+| `designer` | Workflow Designer — design via brainstorming (2–3 approaches → recommend 1) | read, grep, find, ls | high | opus |
+| `developer` | TDD Developer — red/green/refactor | read, grep, find, ls, write, edit, bash | medium | opus |
+| `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high | sonnet |
+| `auditor` | Code Auditor (CodeRabbit-style) | read, grep, find, ls | high | sonnet |
+| `synth` | Synthesis / Report Writer | read, write | medium | opus |
+| `scanner` | Route/File Scanner — enumerate files for fan-out | read, grep, find, ls | low | haiku |
+| `elicitor` | Requirements Elicitor — clarifying questions | read, grep, find, ls | high | sonnet |
+| `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium | opus |
+| `notifier` | Notifier — Telegram completion summary (opt-in, Tier-2) | bash | low | haiku |
+| `explorer` | Explorer — fast read-only codebase/document scout, cited findings | read, grep, find, ls | low | sonnet |
+| `analyst` | Analyst — deep-research intake coordinator + synthesis report writer | read, write, bash | high | opus |
 
 - **Write-once:** flow *never* overwrites an existing agent file — edit any of them freely.
 - **Model resolution:** each agent's model comes from its `.md` frontmatter — project `.pi/agents/<name>.md` overrides the global one; a `.md` with no `model:` inherits the orchestrator. Never pass a model at dispatch.
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
-- **Every shipped `.md` pins `model: anthropic/claude-sonnet-5-5`** — an explicit, **user-editable default** (full `provider/modelId`; never a bare alias, which one pi-subagents spawn path silently drops). Change it to your preferred model before your first run; flow never passes a model at dispatch (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — name it in a workflow's `agents:` block and run it from a final `notify` phase. `explorer` + `analyst` power the `deep-research` flow (bound via `agentType`).
+- **Every shipped `.md` carries a commented model hint** naming the tier the agent needs — opus-class (frontier reasoning: planner, designer, developer, researcher, analyst, synth), sonnet-class (review/scout: reviewer, auditor, elicitor, explorer), or haiku-class (super-light: scanner, notifier) — with cross-provider example IDs. Uncomment `model: <provider>/<modelId>` and set your preferred model before your first run (full `provider/modelId`; never a bare alias, which one pi-subagents spawn path silently drops). With no `model:` the agent **inherits the orchestrator**; flow never passes a model at dispatch (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — name it in a workflow's `agents:` block and run it from a final `notify` phase. `explorer` + `analyst` power the `deep-research` flow (bound via `agentType`).
 
 **Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. The `/sf-flow-create-workflow` interview also emits a write-once stub for any named agent that doesn't yet exist (the interview writes it; the tool itself only writes the YAML + registers).
 
@@ -473,7 +473,7 @@ Flow passes no model at dispatch — pi-subagents applies the `.md` model native
 
 ## Architecture
 
-- **Skill-driven design** — the tools are thin: each ensures agents exist + reports each agent's `.md` (path + pinned model, read-only), then hands off to a `SKILL.md` with the step sequence. The extension provides only config loading (runtime settings), write-once agent templates, agent-type resolution, and worktree helpers.
+- **Skill-driven design** — the tools are thin: each ensures agents exist + reports each agent's `.md` (path + carried model, read-only), then hands off to a `SKILL.md` with the step sequence. The extension provides only config loading (runtime settings), write-once agent templates, agent-type resolution, and worktree helpers.
 - **Model resolution** — each agent's model lives in its `.md` frontmatter (project `.pi/agents` overrides global); flow passes no model at dispatch. Agent types resolve by `.md` filename match (see [Agent resolution](#agent-resolution)).
 - **Orchestrator-only implement** — `/sf-flow-implement` writes no code: it delegates each milestone to the `developer` agent (TDD), runs the per-milestone reviewer gate, then the audit gate.
 - **Worktree lifecycle (implement)** — create one `flow/<slug>` worktree → per-milestone developer delegation + reviewer loop + commit → audit gate (loop back to the failing story on `REVISE`) → `sf_flow_finalize` preserves the branch.

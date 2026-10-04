@@ -18,9 +18,11 @@ export interface EnsureAgentFilesResult {
  * helper reads): reviewer, designer, auditor, planner, developer, synth,
  * scanner, researcher, elicitor, notifier, explorer, analyst.
  *
- * Every shipped file pins `model: anthropic/claude-sonnet-5-5` — an explicit,
- * user-editable default the user is expected to change to their preferred
- * model; flow never passes a model at dispatch (the .md is authoritative).
+ * Every shipped file carries a COMMENTED model hint naming the tier the agent
+ * needs (opus/sonnet/haiku class) with cross-provider example IDs — the user
+ * uncomments and sets their preferred model before first use; without it the
+ * agent inherits the orchestrator. flow never passes a model at dispatch (the
+ * .md is authoritative).
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
  * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be

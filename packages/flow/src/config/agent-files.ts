@@ -5,7 +5,7 @@ import { join } from "node:path";
 /**
  * Read-only agent-`.md` discovery + frontmatter reporting.
  *
- * Flow REPORTS where each agent is defined (and which model it pins) but never
+ * Flow REPORTS where each agent is defined (and which model it carries) but never
  * RESOLVES or passes a model at dispatch: the agent `.md` files are the single
  * source of truth for agent definitions, and pi-subagents / pi-dynamic-workflows
  * apply them natively (frontmatter is authoritative). This module exists so

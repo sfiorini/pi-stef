@@ -107,7 +107,7 @@ function agentModelLine(role: string, info: AgentFileInfo | null | undefined): s
   if (!info) return `${role}: no .md found (built-in/general-purpose fallback) — inherits the orchestrator`;
   if (info.frontmatter.enabled === false) return `${role}: ${info.path} — DISABLED (enabled: false)`;
   return info.frontmatter.model
-    ? `${role}: ${info.frontmatter.model} (pinned in ${info.path})`
+    ? `${role}: ${info.frontmatter.model} (set in ${info.path})`
     : `${role}: inherits the orchestrator (no model: in ${info.path})`;
 }
 

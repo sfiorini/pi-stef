@@ -103,7 +103,7 @@ Assemble the collected parameters — `agents_yaml` as a YAML list of names — 
 
 For each agent NAMED in the flow **without** an existing `.md` file (check the project `<cwd>/.pi/agents/<name>.md` first — it overrides — then the global `getAgentDir()/agents/<name>.md`, default `~/.pi/agent/agents/`), write the stub to the **project** dir `<cwd>/.pi/agents/<name>.md` (project definitions are the natural home for a flow-specific agent; the user can move it to the global dir later to share it):
 
-- **Frontmatter:** `description` (the role), `tools`, `thinking`, `isolated` per the interview, and `model: anthropic/claude-sonnet-5-5` — flow's uniform default. Tell the user to CHANGE the model to their preferred one (full `provider/modelId`) — it is an explicit starting point, not a recommendation.
+- **Frontmatter:** `description` (the role), `tools`, `thinking`, `isolated` per the interview, plus a commented model hint naming the tier the agent needs (from the interview: opus-class for reasoning-heavy roles, sonnet-class for review/scout roles, haiku-class for super-light roles) with example IDs. Tell the user to uncomment `model:` and set their preferred one (full `provider/modelId`) — with no `model:` the agent inherits the orchestrator.
 - **Body:** the agent's system prompt, derived from the interview (what it does) + the phase prompts that reference it.
 
 **Never overwrite** an existing agent file. This is write-once — the user edits these freely. The workflow references the agent by NAME only; all definition lives in the `.md`.

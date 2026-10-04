@@ -174,13 +174,34 @@ describe("researcher agent definition", () => {
   });
 });
 
-describe("shipped agent model pins (M4: the .md is the model source)", () => {
-  it("ALL 12 shipped .md files pin the full provider/modelId spec as an editable default", () => {
-    // Full spec (never a bare alias — pi-subagents' resolveDefaultModel drops
-    // those), uniform across the fleet so the user edits one field per agent.
+describe("shipped agent model hints (the .md is the model source)", () => {
+  const TIER: Record<string, string> = {
+    "planner.md": "opus-class",
+    "designer.md": "opus-class",
+    "developer.md": "opus-class",
+    "researcher.md": "opus-class",
+    "analyst.md": "opus-class",
+    "synth.md": "opus-class",
+    "reviewer.md": "sonnet-class",
+    "auditor.md": "sonnet-class",
+    "elicitor.md": "sonnet-class",
+    "explorer.md": "sonnet-class",
+    "scanner.md": "haiku-class",
+    "notifier.md": "haiku-class",
+  };
+
+  it("ALL 12 shipped .md files carry a commented tier hint and NO active model pin", () => {
+    // The hint names the tier (opus/sonnet/haiku class) + example full specs
+    // (never a bare alias — pi-subagents' resolveDefaultModel drops those),
+    // commented out so a fresh install inherits the orchestrator until the
+    // user uncomments/edits `model:`. An ACTIVE pin is a bug: it would bind
+    // a provider the user may not have.
     for (const f of FLOW_AGENTS) {
       const content = readFileSync(join(pkgRoot, "agents", f), "utf8");
-      expect(content, `${f} lacks the model pin`).toMatch(/^model:\s*anthropic\/claude-sonnet-5-5$/m);
+      expect(content, `${f} lacks the tier hint`).toMatch(new RegExp(`^# .*${TIER[f]}`, "m"));
+      expect(content, `${f} hint must show example specs`).toMatch(/^#\s+(?:model|.*provider\/modelId)/m);
+      expect(content, `${f} must not ship an active model pin`).not.toMatch(/^model:/m);
+      expect(content, `${f} ships a ready-to-uncomment model line`).toMatch(/^#\s*model:\s*\S+\/\S+/m);
     }
   });
 

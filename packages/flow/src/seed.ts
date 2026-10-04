@@ -4,10 +4,11 @@ import { fileURLToPath } from "node:url";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The twelve flow agent definitions (shipped under `<pkg>/agents/`). Each pins
- *  `model: anthropic/claude-sonnet-5-5` as an explicit, user-editable default —
- *  the user changes it to their preferred model before first use; flow never
- *  passes a model at dispatch. */
+/** The twelve flow agent definitions (shipped under `<pkg>/agents/`). Each ships
+ *  a COMMENTED model hint naming the tier the agent needs (opus/sonnet/haiku
+ *  class) with cross-provider example IDs — the user uncomments and sets their
+ *  preferred `model: <provider>/<modelId>` before first use; without it the
+ *  agent inherits the orchestrator. flow never passes a model at dispatch. */
 export const AGENT_FILES = [
   "reviewer.md",
   "designer.md",

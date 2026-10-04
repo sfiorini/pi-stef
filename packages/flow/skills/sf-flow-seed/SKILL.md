@@ -10,7 +10,7 @@ Copy flow's bundled defaults to their GLOBAL locations so they're available in e
 - 12 agents → the global agents dir (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`, honoring `PI_CODING_AGENT_DIR`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor, notifier, explorer, analyst
 - 5 example workflows → `~/.pi/sf/flow/workflows/` (code-review, ship-feature, auth-audit, research-report, deep-research)
 
-Every shipped agent `.md` pins `model: anthropic/claude-sonnet-5-5` as an explicit, user-editable default — edit each file to your preferred model (full `provider/modelId`); flow never passes a model at dispatch.
+Every shipped agent `.md` carries a commented model hint naming the tier it needs (opus/sonnet/haiku class) with example IDs — uncomment `model:` and set your preferred model (full `provider/modelId`); until then the agent inherits the orchestrator. flow never passes a model at dispatch.
 
 ## Behavior (per file)
 - missing → write the bundled default
