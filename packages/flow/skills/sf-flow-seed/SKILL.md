@@ -7,8 +7,10 @@ description: Use when flow's default agents and example workflows must be copied
 
 ## Purpose
 Copy flow's bundled defaults to their GLOBAL locations so they're available in every project:
-- 10 agents → `~/.pi/agent/agents/` (reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor, notifier)
+- 12 agents → the global agents dir (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`, honoring `PI_CODING_AGENT_DIR`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor, notifier, explorer, analyst
 - 5 example workflows → `~/.pi/sf/flow/workflows/` (code-review, ship-feature, auth-audit, research-report, deep-research)
+
+Every shipped agent `.md` pins `model: anthropic/claude-sonnet-5-5` as an explicit, user-editable default — edit each file to your preferred model (full `provider/modelId`); flow never passes a model at dispatch.
 
 ## Behavior (per file)
 - missing → write the bundled default
@@ -23,5 +25,6 @@ Idempotent: a repeat run reports everything up-to-date (and refreshes any stale 
 - To review a changed default: `diff reviewer.md reviewer.md.new`, merge what you want, then delete the `.new`.
 
 ## Notes
-- Agent `reviewer.md` is shared with earlier workflow packages; whichever was written first wins. If flow's version differs, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare. Flow no longer ships `explorer.md` (consolidated into `researcher.md`, non-isolated, web-capable); earlier packages shipped their own `explorer.md`. To adopt flow's researcher, delete any old seeded `explorer.md` and re-seed.
-- This is GLOBAL seeding. A project can override a global default by placing `<repo>/.pi/sf/flow/workflows/<name>.yaml`.
+- Agent `reviewer.md` is shared with earlier workflow packages; whichever was written first wins. If flow's version differs, `/sf-flow-seed` surfaces flow's version as `<name>.new` so you can compare.
+- `explorer.md` and `analyst.md` ship with flow again (the deep-research flow's agents; explorer is the fast read-only scout, analyst the intake/synthesis writer). An old seeded `explorer.md` from an earlier package may shadow flow's — re-seed and compare the `.new` to adopt flow's definition.
+- This is GLOBAL seeding. A project can override a global default by placing `<repo>/.pi/sf/flow/workflows/<name>.yaml` (workflows) or `<repo>/.pi/agents/<name>.md` (agents).

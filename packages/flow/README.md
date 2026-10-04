@@ -20,12 +20,12 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`model:`, `tools`, `thinking`, `isolated`, …). The `.md` is the agent's single definition, model included; flow passes no model at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **10 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`model:`, `tools`, `thinking`, `isolated`, …). The `.md` is the agent's single definition, model included; flow passes no model at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **12 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **5 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
 | **Config** | *Runtime settings* — audit thresholds + worktree (models live in the agents' `.md` files). | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
 > ### ⚠️ Agents are defined in exactly one place: their `.md` file
-> Each agent (reviewer, researcher, developer, planner, auditor, synth, designer, elicitor, notifier, scanner) is **defined as a `.md` file** — frontmatter (`model:`, `tools`, `thinking`, `isolated`, …) plus the body (its system prompt). Discovery: project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`. Neither `config.json` nor workflow YAMLs define agents or their models: config carries only runtime settings (`audit`, `worktree`), and a workflow only *names* the agents its phases use. Set an agent's model by editing its `.md`.
+> Each agent (reviewer, researcher, developer, planner, auditor, synth, designer, elicitor, notifier, scanner, explorer, analyst) is **defined as a `.md` file** — frontmatter (`model:`, `tools`, `thinking`, `isolated`, …) plus the body (its system prompt). Discovery: project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`. Neither `config.json` nor workflow YAMLs define agents or their models: config carries only runtime settings (`audit`, `worktree`), and a workflow only *names* the agents its phases use. Set an agent's model by editing its `.md`.
 
 **Where the model comes from:**
 
@@ -58,11 +58,11 @@ Or in natural language:
 
 ## Built-in agents
 
-Ten write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
+Twelve write-once agent definitions ship in `packages/flow/agents/` and are copied to your **global** discovery dir (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`) by `/sf-flow-seed` (or lazily on first use of a Tier 1 skill):
 
 | Agent | Role | `tools` | `thinking` |
 |-------|------|---------|-----------|
-| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls | medium |
+| `planner` | Workflow Planner — milestones + stories | read, grep, find, ls, write, edit | medium |
 | `designer` | Workflow Designer — design via brainstorming (2–3 approaches → recommend 1) | read, grep, find, ls | high |
 | `developer` | TDD Developer — red/green/refactor | read, grep, find, ls, write, bash | medium |
 | `reviewer` | Plan/Implementation Reviewer | read, grep, find, ls | high |
@@ -72,11 +72,13 @@ Ten write-once agent definitions ship in `packages/flow/agents/` and are copied 
 | `elicitor` | Requirements Elicitor — clarifying questions | read, grep, find, ls | high |
 | `researcher` | Researcher — codebase + web + private-source research, cited claims | read, grep, find, ls, bash, `ext:web/*` + `ext:atlassian/*` | medium |
 | `notifier` | Notifier — Telegram completion summary (opt-in, Tier-2) | bash | low |
+| `explorer` | Explorer — fast read-only codebase/document scout, cited findings | read, grep, find, ls | low |
+| `analyst` | Analyst — deep-research intake coordinator + synthesis report writer | read, write, bash | high |
 
 - **Write-once:** flow *never* overwrites an existing agent file — edit any of them freely.
 - **Model resolution:** each agent's model comes from its `.md` frontmatter — project `.pi/agents/<name>.md` overrides the global one; a `.md` with no `model:` inherits the orchestrator. Never pass a model at dispatch.
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
-- **Each agent's model is pinned in its `.md` frontmatter.** All ten agents (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`) ship write-once with no `model:` — an unset model inherits the orchestrator; edit the `.md` to pin one (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
+- **Every shipped `.md` pins `model: anthropic/claude-sonnet-5-5`** — an explicit, **user-editable default** (full `provider/modelId`; never a bare alias, which one pi-subagents spawn path silently drops). Change it to your preferred model before your first run; flow never passes a model at dispatch (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — name it in a workflow's `agents:` block and run it from a final `notify` phase. `explorer` + `analyst` power the `deep-research` flow (bound via `agentType`).
 
 **Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` also writes a write-once stub for any declared agent that doesn't yet exist.
 

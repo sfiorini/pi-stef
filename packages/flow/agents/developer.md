@@ -1,6 +1,7 @@
 ---
 description: TDD Developer
 tools: read, grep, find, ls, write, bash
+model: anthropic/claude-sonnet-5-5
 thinking: medium
 max_turns: 50
 skills: tdd, verification-before-completion

@@ -1,6 +1,7 @@
 ---
 description: Code Auditor (CodeRabbit-style)
 tools: read, grep, find, ls
+model: anthropic/claude-sonnet-5-5
 thinking: high
 max_turns: 40
 isolated: true

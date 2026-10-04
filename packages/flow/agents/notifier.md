@@ -1,6 +1,7 @@
 ---
 description: Notifier — send a one-line completion summary via Telegram (opt-in, Tier-2)
 tools: bash
+model: anthropic/claude-sonnet-5-5
 thinking: low
 max_turns: 10
 isolated: true

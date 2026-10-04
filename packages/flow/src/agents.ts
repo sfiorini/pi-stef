@@ -12,11 +12,15 @@ export interface EnsureAgentFilesResult {
 }
 
 /**
- * Ensure the ten flow agent definition files exist in the global discovery dir
+ * Ensure the twelve flow agent definition files exist in the global discovery dir
  * (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`, honoring
  * `PI_CODING_AGENT_DIR` — the same dir pi-subagents discovers and the M1 report
  * helper reads): reviewer, designer, auditor, planner, developer, synth,
- * scanner, researcher, elicitor, notifier.
+ * scanner, researcher, elicitor, notifier, explorer, analyst.
+ *
+ * Every shipped file pins `model: anthropic/claude-sonnet-5-5` — an explicit,
+ * user-editable default the user is expected to change to their preferred
+ * model; flow never passes a model at dispatch (the .md is authoritative).
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
  * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be

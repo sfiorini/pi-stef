@@ -1,6 +1,7 @@
 ---
 description: Route/File Scanner
 tools: read, grep, find, ls
+model: anthropic/claude-sonnet-5-5
 thinking: low
 max_turns: 20
 isolated: true

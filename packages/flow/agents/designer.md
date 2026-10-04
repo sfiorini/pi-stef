@@ -1,6 +1,7 @@
 ---
 description: Workflow Designer
 tools: read, grep, find, ls
+model: anthropic/claude-sonnet-5-5
 thinking: high
 max_turns: 30
 skills: brainstorming

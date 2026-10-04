@@ -4,7 +4,10 @@ import { fileURLToPath } from "node:url";
 
 const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The ten flow agent definitions (shipped under `<pkg>/agents/`). */
+/** The twelve flow agent definitions (shipped under `<pkg>/agents/`). Each pins
+ *  `model: anthropic/claude-sonnet-5-5` as an explicit, user-editable default —
+ *  the user changes it to their preferred model before first use; flow never
+ *  passes a model at dispatch. */
 export const AGENT_FILES = [
   "reviewer.md",
   "designer.md",
@@ -16,6 +19,8 @@ export const AGENT_FILES = [
   "researcher.md",
   "elicitor.md",
   "notifier.md",
+  "explorer.md",
+  "analyst.md",
 ] as const;
 
 /** The five bundled example workflows (shipped under `<pkg>/workflows/`). */
@@ -127,7 +132,7 @@ async function seedAll(
   return results;
 }
 
-/** Seed the ten agents into a directory (the global discovery dir). */
+/** Seed the twelve agents into a directory (the global discovery dir). */
 export function seedAgents(agentsDir: string, mode: SeedMode): Promise<SeedResult[]> {
   return seedAll(agentsDir, "agents", AGENT_FILES, mode);
 }

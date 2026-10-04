@@ -1,6 +1,7 @@
 ---
 description: Synthesis / Report Writer
 tools: read, write
+model: anthropic/claude-sonnet-5-5
 thinking: medium
 max_turns: 20
 ---

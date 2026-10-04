@@ -44,4 +44,20 @@ describe("bundled example workflows", () => {
     expect(s).toContain("sf_flow_gate(");
     expect(s).toContain('"canonical-round"');
   });
+
+  it("deep-research binds agents via agentType only — NO inline model/tools/thinking/isolated (M4)", () => {
+    const raw = readFileSync(join(pkgRoot, "workflows", "deep-research.yaml"), "utf8");
+    // The raw phase's agent() calls carry only {label, phase, agentType} (+ schema
+    // where the result is consumed); the .md files supply everything else.
+    // The regexes match ANY value form (quoted, unquoted, array, scalar) — as broad
+    // as the manual sweep — so a future regression in any form is caught.
+    expect(raw).not.toMatch(/\bmodel:\s*\S/);
+    expect(raw).not.toMatch(/\btools:\s*\S/);
+    expect(raw).not.toMatch(/\bthinking:\s*\S/);
+    expect(raw).not.toMatch(/\bisolated:\s*\S/);
+    expect(raw).toContain('agentType: "explorer"');
+    expect(raw).toContain('agentType: "analyst"');
+    expect(raw).toContain('agentType: "researcher"');
+    expect(raw).toContain('agentType: "notifier"');
+  });
 });

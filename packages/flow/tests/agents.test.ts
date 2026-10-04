@@ -18,6 +18,8 @@ const FLOW_AGENTS = [
   "researcher.md",
   "elicitor.md",
   "notifier.md",
+  "explorer.md",
+  "analyst.md",
 ];
 
 describe("ensureAgentFiles", () => {
@@ -169,5 +171,32 @@ describe("researcher agent definition", () => {
     expect(content).toContain("sf_web_login");
     expect(content).toContain("jira_issue");
     expect(content).toContain("story_context");
+  });
+});
+
+describe("shipped agent model pins (M4: the .md is the model source)", () => {
+  it("ALL 12 shipped .md files pin the full provider/modelId spec as an editable default", () => {
+    // Full spec (never a bare alias — pi-subagents' resolveDefaultModel drops
+    // those), uniform across the fleet so the user edits one field per agent.
+    for (const f of FLOW_AGENTS) {
+      const content = readFileSync(join(pkgRoot, "agents", f), "utf8");
+      expect(content, `${f} lacks the model pin`).toMatch(/^model:\s*anthropic\/claude-sonnet-5-5$/m);
+    }
+  });
+
+  it("explorer.md: read-only tools, thinking low, isolated, read-only rule", () => {
+    const content = readFileSync(join(pkgRoot, "agents", "explorer.md"), "utf8");
+    expect(content).toMatch(/^tools:\s*read, grep, find, ls$/m);
+    expect(content).toMatch(/^thinking:\s*low$/m);
+    expect(content).toMatch(/^isolated:\s*true$/m);
+    expect(content).toMatch(/read-only/i);
+  });
+
+  it("analyst.md: read/write/bash, thinking high, isolated, ai_plan-only writes", () => {
+    const content = readFileSync(join(pkgRoot, "agents", "analyst.md"), "utf8");
+    expect(content).toMatch(/^tools:\s*read, write, bash$/m);
+    expect(content).toMatch(/^thinking:\s*high$/m);
+    expect(content).toMatch(/^isolated:\s*true$/m);
+    expect(content).toContain("ai_plan/<slug>/");
   });
 });

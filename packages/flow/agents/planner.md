@@ -1,6 +1,7 @@
 ---
 description: Workflow Planner
 tools: read, grep, find, ls, write, edit
+model: anthropic/claude-sonnet-5-5
 thinking: medium
 max_turns: 30
 skills: writing-plans

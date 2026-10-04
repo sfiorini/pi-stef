@@ -68,6 +68,13 @@ describe("seedFile — with-new", () => {
 });
 
 describe("seedAgents / seedWorkflows", () => {
+  it("ships 12 agents (M4: + explorer.md, analyst.md) and 5 workflows", () => {
+    expect(AGENT_FILES).toHaveLength(12);
+    expect(AGENT_FILES).toContain("explorer.md");
+    expect(AGENT_FILES).toContain("analyst.md");
+    expect(WORKFLOW_FILES).toHaveLength(5);
+  });
+
   it("write-once: seeds all bundled agents, content matches templates", async () => {
     const dir = mkdtempSync(join(tmpdir(), "seed-"));
     const results = await seedAgents(dir, "write-once");

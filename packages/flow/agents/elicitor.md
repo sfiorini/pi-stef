@@ -1,6 +1,7 @@
 ---
 description: Requirements Elicitor — clarifying questions
 tools: read, grep, find, ls
+model: anthropic/claude-sonnet-5-5
 thinking: high
 max_turns: 20
 isolated: true
