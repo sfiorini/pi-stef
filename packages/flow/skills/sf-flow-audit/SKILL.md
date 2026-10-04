@@ -6,14 +6,14 @@ description: Use when a diff or codebase must receive a CodeRabbit-style audit �
 # sf-flow-audit
 
 ## Prerequisites
-The `auditor` agent is at `~/.pi/agent/agents/auditor.md` (write-once). Auditor model resolved via config (`.pi/sf/flow/config.json` → `SF_FLOW_AUDITOR_MODEL` → inherit orchestrator). Threshold default `0.94`, `max_rounds` `5` (config: `audit.threshold` / `audit.max_rounds`).
+The `auditor` agent is at the global agents dir (`getAgentDir()/agents/auditor.md`, default `~/.pi/agent/agents/auditor.md`; write-once). The auditor model is pinned in `auditor.md`. Threshold default `0.94`, `max_rounds` `5` (config: `audit.threshold` / `audit.max_rounds`).
 
 ## Agent resolution
 Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `auditor`→`auditor`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
 
-For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools). If no researcher model is configured, omit `model` so it inherits the orchestrator.
+For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools).
 
-**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver.
+**Models (from the agent .md):** each agent's model is pinned in its `.md` frontmatter — project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`; a `.md` with no `model:` inherits the orchestrator. **NEVER pass `model` at dispatch** — pi-subagents applies the `.md` model natively (frontmatter is authoritative), and passing one would override it. The tool echo's per-agent report is informational only.
 
 ## Process
 
@@ -27,7 +27,7 @@ Dispatch the code-review builtin with `buildCodeReviewPrompt(diff, repoRoot)`. I
 Run the 10-section checklist (`CHECKLIST_SECTIONS`) against the changed files (churn-ranked first). In `--gate` mode: `gateExitCode` returns 1 on ANY failure, 0 only if all pass. Write the full report to `specs/verifications/AUDIT-<slug>.md`.
 
 ### Phase 4: request-review (dual-blind AND-gate, delta-review, max 5 rounds)
-**Round 1 (comprehensive, dual-blind):** dispatch TWO independent `auditor` agents (A, B) (`subagent_type: "auditor"`; model from config or inherit orchestrator), with NO shared context (neither sees the other's report). Each returns `{ findings, verdict }`; capture `canonicalA` and `canonicalB` with `[Fn]` IDs via `assignFindingIds` (`src/audit/verification.ts`). Compute each score via `qualityScore`; both must pass (`andGatePasses`: `mustFix == 0 && score >= threshold`). If both pass → `APPROVED`.
+**Round 1 (comprehensive, dual-blind):** dispatch TWO independent `auditor` agents (A, B) (`subagent_type: "auditor"`; never pass `model` — `auditor.md` pins it), with NO shared context (neither sees the other's report). Each returns `{ findings, verdict }`; capture `canonicalA` and `canonicalB` with `[Fn]` IDs via `assignFindingIds` (`src/audit/verification.ts`). Compute each score via `qualityScore`; both must pass (`andGatePasses`: `mustFix == 0 && score >= threshold`). If both pass → `APPROVED`.
 
 **Round N ≥ 2 (verification, dual-blind):** run Phase 5 (respond-review) to apply fixes, then re-dispatch BOTH auditors in **verification mode**. Each auditor gets ITS OWN prior canonical list (`canonicalA` / `canonicalB` — they remain blind to each other), the round number, and the new diff; each classifies its prior findings as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED and reports only regressions traceable to a fix. Evolve each canonical list independently with `evolveCanonical` (NEVER merge the two). **APPROVED iff** (1) auditor A: `verificationApproved` (all prior blocking FIXED/NEW-ISSUE + no new blocking regression), (2) auditor B: same, AND (3) both `qualityScore`s ≥ threshold. Dual-blind preservation: same round + same diff, but each auditor receives only its own canonical list.
 

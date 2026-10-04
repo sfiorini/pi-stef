@@ -3,8 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { homedir } from "node:os";
 import { finalizeWorktree } from "./worktree/finalize.js";
 import { createWorktree } from "./worktree/create.js";
-import { loadAndResolveDefaults } from "./config/load.js";
-import type { ResolvedModels } from "./config/schema.js";
+import { loadFlowSettingsOrDefaults } from "./config/load.js";
 import { loadFlowYaml } from "./yaml/load.js";
 import { generateScript } from "./yaml/generate.js";
 import { registerGeneratedFlow } from "./yaml/register.js";
@@ -13,7 +12,16 @@ import { validateFlowYaml, validateSection, type FlowSection } from "./yaml/vali
 import type { FlowYaml } from "./yaml/schema.js";
 import { ensureAgentFiles } from "./agents.js";
 import { ensureExampleWorkflows } from "./ensure-workflows.js";
-import { buildImplementReadyMessage, buildAutoReadyMessage, summarizePhaseModels, skillDocPath } from "./messages.js";
+import { buildImplementReadyMessage, buildAutoReadyMessage, skillDocPath } from "./messages.js";
+import { summarizePhaseModels } from "./messages.js";
+import { resolveAgentInfoMap, globalAgentsDir } from "./config/agent-files.js";
+
+/** Tier-1 skills and their representative role agents (report-only discovery). */
+const TIER1_ROLE_MAP: Record<string, string> = {
+  "sf-flow-plan": "researcher",
+  "sf-flow-implement": "developer",
+  "sf-flow-audit": "reviewer",
+};
 import { classifyInput, slugSourceFor } from "./auto/input.js";
 import { resolveWorkflowPath, globalWorkflowsDir, projectWorkflowsDir } from "./paths.js";
 import { deriveSlug, resolveRunSlug, materializeArtifacts, assertArtifacts, writeRunPrompt } from "./contract/ops.js";
@@ -43,64 +51,6 @@ export const FLOW_TOOL_NAMES = [
   "sf_flow_finalize",
   "sf_flow_seed",
 ] as const;
-
-const MODEL_ALIASES = new Set([
-  "sonnet", "haiku", "opus", "mini", "flash", "pro", "nano", "air", "turbo",
-  "claude", "gpt", "gemini", "llama", "mistral", "deepseek", "grok",
-]);
-/**
- * A token looks like a plausible model name/alias if it is a known alias OR
- * contains a digit / version punctuation (`.`, `/`, `-`). Rejects short/common
- * English words that regex capture groups can mis-extract (e.g. "and", "or").
- */
-export function isValidModelToken(token: string | undefined): token is string {
-  if (!token || token.length < 2) return false;
-  if (MODEL_ALIASES.has(token.toLowerCase())) return true;
-  return /[\d/.-]/.test(token);
-}
-
-/** Extract reviewer model from a prompt string (e.g. "use opus as reviewer"). Ported from pair. */
-export function extractReviewerModelFromPrompt(prompt: string): string | undefined {
-  const patterns = [
-    /use\s+([\w/.-]+)\s+as\s+reviewer/i,
-    /reviewer[:\s]+([\w/.-]+)/i,
-    /review\s+with\s+([\w/.-]+)/i,
-  ];
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern);
-    if (match && isValidModelToken(match[1])) return match[1];
-  }
-  return undefined;
-}
-
-/** Extract researcher model from a prompt string (e.g. "use sonnet as researcher"). */
-export function extractResearcherModelFromPrompt(prompt: string): string | undefined {
-  const patterns = [
-    /use\s+([\w/.-]+)\s+as\s+researcher/i,
-    /researcher[:\s]+([\w/.-]+)/i,
-    /research\s+with\s+([\w/.-]+)/i,
-  ];
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern);
-    if (match && isValidModelToken(match[1])) return match[1];
-  }
-  return undefined;
-}
-
-
-/** Extract designer model from a prompt string (e.g. "use opus as designer"). */
-export function extractDesignerModelFromPrompt(prompt: string): string | undefined {
-  const patterns = [
-    /use\s+([\w/.-]+)\s+as\s+designer/i,
-    /designer[:\s]+([\w/.-]+)/i,
-    /design\s+with\s+([\w/.-]+)/i,
-  ];
-  for (const pattern of patterns) {
-    const match = prompt.match(pattern);
-    if (match && isValidModelToken(match[1])) return match[1];
-  }
-  return undefined;
-}
 
 export function registerSfFlow(pi: ExtensionAPI): void {
   // sf_flow_create_workflow — interview -> write .pi/sf/flow/workflows/<name>.yaml -> register /<name>.
@@ -255,7 +205,6 @@ export function registerSfFlow(pi: ExtensionAPI): void {
             description: "Diff target: a git ref range, file path, or 'workdir'. Defaults to staged+unstaged diff.",
           }),
         ),
-        reviewer_model: Type.Optional(Type.String()),
         apply_fixes: Type.Optional(
           Type.Boolean({ description: "If true, run respond-review to apply must-fix/should-fix." }),
         ),
@@ -279,35 +228,31 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     parameters: Type.Object(
       {
         prompt: Type.Optional(Type.String()),
-        reviewer_model: Type.Optional(Type.String()),
-        researcher_model: Type.Optional(Type.String()),
-        designer_model: Type.Optional(Type.String()),
       },
       { additionalProperties: false },
     ) as any,
-    execute: async (_id, params, _signal, _onUpdate, ctx) => {
+    execute: async (_id, _params, _signal, _onUpdate, ctx) => {
       const repoRoot = ctx.cwd ?? process.cwd();
-      const prompt = (params as any).prompt ?? "";
-      const defaults = await loadAndResolveDefaults(repoRoot, {
-        overrides: {
-          reviewer: (params as any).reviewer_model ?? extractReviewerModelFromPrompt(prompt),
-          researcher: (params as any).researcher_model ?? extractResearcherModelFromPrompt(prompt),
-          designer: (params as any).designer_model ?? extractDesignerModelFromPrompt(prompt),
-        },
-      });
-      const reviewerModel = defaults.reviewerModel;
-      const researcherModel = defaults.researcherModel;
-      const designerModel = defaults.designerModel;
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
       await ensureExampleWorkflows(homedir());
+      // Report-only: where each tier-1 role agent is defined + which model it pins.
+      const info = await resolveAgentInfoMap(["reviewer", "researcher", "designer"], repoRoot);
+      const roleLine = (role: string): string => {
+        const r = info.get(role);
+        if (!r) return `${role}: no .md found (built-in/general-purpose fallback) — inherits the orchestrator`;
+        if (r.frontmatter.enabled === false) return `${role}: ${r.path} — DISABLED (enabled: false)`;
+        return r.frontmatter.model
+          ? `${role}: ${r.frontmatter.model} (pinned in ${r.path})`
+          : `${role}: inherits the orchestrator (no model: in ${r.path})`;
+      };
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
       return {
         content: [
-          { type: "text" as const, text: `Reviewer model: ${reviewerModel ?? "inherits from parent (not configured)"}\nResearcher model: ${researcherModel ?? "inherits from parent (not configured)"}\nDesigner model: ${designerModel ?? "inherits from parent (not configured)"}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
+          { type: "text" as const, text: `Agents resolve from their .md files (project .pi/agents overrides global ~/.pi/agent/agents); do NOT pass a model at dispatch.\n${roleLine("reviewer")}\n${roleLine("researcher")}\n${roleLine("designer")}\nNow read the skill file at ${skillDocPath("sf-flow-plan")}.${warnText}` },
         ],
-        details: { configured: true, reviewerModel, researcherModel, designerModel },
+        details: { configured: true },
       };
     },
   });
@@ -319,15 +264,16 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     description:
       "Execute a plan: ONE worktree at start (flow/<slug>, git-only), TDD per story, audit triad as a non-optional gate before commit.",
     parameters: Type.Object(
-      { path: Type.String({ description: "Plan folder slug or path under ai_plan/." }), reviewer_model: Type.Optional(Type.String()) },
+      { path: Type.String({ description: "Plan folder slug or path under ai_plan/." }) },
       { additionalProperties: false },
     ) as any,
     execute: async (_id, params, _signal, _onUpdate, ctx) => {
       const repoRoot = ctx.cwd ?? process.cwd();
-      const defaults = await loadAndResolveDefaults(repoRoot, {
-        overrides: { reviewer: (params as any).reviewer_model },
+      // notify surfaces the one-time removed-channel warnings (legacy config
+      // model groups / SF_FLOW_*_MODEL env vars) to the user, not just tests.
+      const settings = await loadFlowSettingsOrDefaults(repoRoot, {
+        notify: (msg) => ctx.ui?.notify?.(msg, "warning"),
       });
-      const reviewerModel = defaults.reviewerModel;
       const rawPath = String((params as any).path);
       const slug = rawPath.replace(/^[\s\S]*\//, "") || "flow";
       const agentWarnings = (await ensureAgentFiles(homedir(), repoRoot)).warnings;
@@ -335,14 +281,16 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const warnText = agentWarnings.length
         ? `\n\n⚠️ ${agentWarnings.map((w) => `- ${w}`).join("\n")}`
         : "";
+      // Report-only: reviewer/developer .md paths + pinned models.
+      const info = await resolveAgentInfoMap(["reviewer", "developer"], repoRoot);
       let worktree: { worktreePath: string; branchName: string; baseSha: string };
       try {
-        worktree = await createWorktree({ slug, branchPrefix: defaults.worktree.branch_prefix });
+        worktree = await createWorktree({ slug, branchPrefix: settings.worktree.branch_prefix });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         return {
           content: [{ type: "text" as const, text: `Failed to create worktree: ${msg}` }],
-          details: { configured: true, reviewerModel, path: rawPath },
+          details: { configured: true, path: rawPath },
         };
       }
       return {
@@ -353,13 +301,13 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               buildImplementReadyMessage({
                 slug,
                 worktreePath: worktree.worktreePath,
-                reviewerModel,
-                developerModel: defaults.developerModel,
+                reviewerInfo: info.get("reviewer") ?? null,
+                developerInfo: info.get("developer") ?? null,
                 planPath: `ai_plan/${slug}`,
               }) + warnText,
           },
         ],
-        details: { configured: true, reviewerModel, developerModel: defaults.developerModel, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
+        details: { configured: true, path: rawPath, worktreePath: worktree.worktreePath, branchName: worktree.branchName },
       };
     },
   });
@@ -388,6 +336,12 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       const repoRoot = ctx.cwd ?? process.cwd();
       await ensureAgentFiles(homedir(), repoRoot);
       await ensureExampleWorkflows(homedir());
+      // Removed-channel warnings (legacy config model groups / SF_FLOW_*_MODEL
+      // env vars) — the auto path doesn't load config for settings, so surface
+      // them via the tolerant loader's warning pass (read-only here).
+      await loadFlowSettingsOrDefaults(repoRoot, {
+        notify: (msg) => ctx.ui?.notify?.(msg, "warning"),
+      });
       const classified = classifyInput(input);
       const resolved = await resolveWorkflowPath(workflow, repoRoot, homedir());
       if (!resolved) {
@@ -401,12 +355,13 @@ export function registerSfFlow(pi: ExtensionAPI): void {
           details: { workflow, found: false },
         };
       }
-      // Load + validate the YAML, resolve models, and pre-generate the pi-dw
-      // script so the orchestrator runs skill phases INLINE (one orchestrator,
-      // no nested general-purpose twin).
+      // Load + validate the YAML and pre-generate the pi-dw script so the
+      // orchestrator runs skill phases INLINE (one orchestrator, no nested
+      // general-purpose twin). Models come from the agents' .md files — flow
+      // passes none; the per-phase table below is report-only.
       let script: string | null = null;
-      let models: ResolvedModels | null = null;
       let phaseModels: ReturnType<typeof summarizePhaseModels> = [];
+      let missingAgents: string[] = [];
       let hasConditionalGates = false;
       let slug = "";
       let slugTruncated = false;
@@ -414,10 +369,24 @@ export function registerSfFlow(pi: ExtensionAPI): void {
       let promptPath: string | null = null;
       try {
         const flow = await loadFlowYaml(resolved);
-        const defaults = await loadAndResolveDefaults(repoRoot, { homeDir: homedir() });
-        script = generateScript(flow, { models: defaults });
-        models = defaults;
-        phaseModels = summarizePhaseModels(flow, defaults);
+        script = generateScript(flow);
+        // Report-only: discover each declared agent's .md (post-seed, so fresh
+        // installs find what ensureAgentFiles just wrote). Tier-1 skill phases
+        // dispatch their representative role agents — include those roles so
+        // their rows report real .md paths/models (not "no .md").
+        const declared = [
+          ...new Set([
+            ...flow.phases.flatMap((p) => [p.agent, p.questions].filter(Boolean) as string[]),
+            ...flow.phases.flatMap((p) => (p.skill && (p.skill in TIER1_ROLE_MAP) ? [TIER1_ROLE_MAP[p.skill]] : [])),
+          ]),
+        ];
+        const info = await resolveAgentInfoMap(declared, repoRoot);
+        // The typo guard warns only about phase-referenced agents (tier-1 roles
+        // have built-in fallbacks by design and are always seeded).
+        missingAgents = flow.phases
+          .flatMap((p) => [p.agent, p.questions].filter(Boolean) as string[])
+          .filter((n) => info.get(n) === null);
+        phaseModels = summarizePhaseModels(flow, info);
         hasConditionalGates = flow.phases.some((p) => !!p.questions);
 
         // Derive the run-level slug ONCE (args.slug) from a SHORT per-kind source
@@ -486,8 +455,8 @@ export function registerSfFlow(pi: ExtensionAPI): void {
               inputSummary: `${classified.kind}: ${classified.value}`,
               resolvedWorkflowPath: resolved,
               script,
-              models,
               phaseModels,
+              missingAgents,
               hasConditionalGates,
               slug,
             }),
@@ -539,11 +508,11 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     name: "sf_flow_seed",
     label: "sf_flow_seed",
     description:
-      "Copy flow's default agents and example workflows to their global locations (~/.pi/agent/agents and ~/.pi/sf/flow/workflows). Existing files are left untouched; if a file differs from the bundled default, the new default is written as <name>.new beside it. Idempotent.",
+      "Copy flow's default agents and example workflows to their global locations (the global agents dir — getAgentDir()/agents, honoring PI_CODING_AGENT_DIR, default ~/.pi/agent/agents — and ~/.pi/sf/flow/workflows). Existing files are left untouched; if a file differs from the bundled default, the new default is written as <name>.new beside it. Idempotent.",
     parameters: Type.Object({}, { additionalProperties: false }) as any,
     execute: async () => {
       const home = homedir();
-      const agents = await seedAgents(join(home, ".pi", "agent", "agents"), "with-new");
+      const agents = await seedAgents(await globalAgentsDir(), "with-new");
       const workflows = await seedWorkflows(globalWorkflowsDir(home), "with-new");
       return {
         content: [{ type: "text" as const, text: renderSeedReport({ agents, workflows }) }],
@@ -727,11 +696,13 @@ export function registerSfFlow(pi: ExtensionAPI): void {
     parameters: Type.Object({ slug: Type.String() }, { additionalProperties: false }) as any,
     execute: async (_id, params, _signal, _onUpdate, ctx): Promise<{ content: { type: "text"; text: string }[]; details: any }> => {
       const repoRoot = ctx?.cwd ?? process.cwd();
-      const defaults = await loadAndResolveDefaults(repoRoot);
+      const settings = await loadFlowSettingsOrDefaults(repoRoot, {
+        notify: (msg) => ctx?.ui?.notify?.(msg, "warning"),
+      });
       try {
         const w = await createWorktree({
           slug: (params as any).slug,
-          branchPrefix: defaults.worktree.branch_prefix,
+          branchPrefix: settings.worktree.branch_prefix,
         });
         return { content: [{ type: "text" as const, text: JSON.stringify(w) }], details: w };
       } catch (err) {

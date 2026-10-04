@@ -3,14 +3,14 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 // Mock the two collaborators so we test sf_flow_prepare's wiring without git.
 vi.mock("../src/worktree/create.js", () => ({ createWorktree: vi.fn() }));
-vi.mock("../src/config/load.js", () => ({ loadAndResolveDefaults: vi.fn() }));
+vi.mock("../src/config/load.js", () => ({ loadFlowSettingsOrDefaults: vi.fn() }));
 
 import { registerSfFlow } from "../src/register.js";
 import { createWorktree } from "../src/worktree/create.js";
-import { loadAndResolveDefaults } from "../src/config/load.js";
+import { loadFlowSettingsOrDefaults } from "../src/config/load.js";
 
 const mockCreate = vi.mocked(createWorktree);
-const mockDefaults = vi.mocked(loadAndResolveDefaults);
+const mockSettings = vi.mocked(loadFlowSettingsOrDefaults);
 
 function captureTool(name: string) {
   const tools = new Map<string, any>();
@@ -25,7 +25,7 @@ function captureTool(name: string) {
 describe("sf_flow_prepare tool", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDefaults.mockResolvedValue({ worktree: { branch_prefix: "flow/" } } as any);
+    mockSettings.mockResolvedValue({ worktree: { branch_prefix: "flow/" } } as any);
   });
 
   it("returns the worktree handle (worktreePath/branchName/baseSha) on success", async () => {
@@ -41,8 +41,8 @@ describe("sf_flow_prepare tool", () => {
       branchName: "flow/x",
       baseSha: "abc123",
     });
-    // ctx.cwd flows through to loadAndResolveDefaults + createWorktree with the configured prefix
-    expect(mockDefaults).toHaveBeenCalledWith("/repo");
+    // ctx.cwd flows through to loadFlowSettingsOrDefaults + createWorktree with the configured prefix
+    expect(mockSettings).toHaveBeenCalledWith("/repo", { notify: expect.any(Function) });
     expect(mockCreate).toHaveBeenCalledWith({ slug: "x", branchPrefix: "flow/" });
   });
 

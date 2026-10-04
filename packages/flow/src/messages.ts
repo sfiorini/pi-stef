@@ -4,11 +4,16 @@
  * The implement/auto tools return directive-first messages that make the
  * agent CONTINUE in the same turn (cd into the worktree / read the skill file),
  * with factual context demoted to a Context block.
+ *
+ * Models are REPORT-ONLY here: each agent's model lives in its `.md`
+ * frontmatter (project .pi/agents overrides global ~/.pi/agent/agents;
+ * pi-subagents applies it natively). The orchestrator is told NOT to pass a
+ * model at dispatch — passing one would override the `.md` pin.
  */
 
 import { fileURLToPath } from "node:url";
 import { join, dirname } from "node:path";
-import { configModelFor, type ResolvedModels } from "./config/schema.js";
+import type { AgentFileInfo } from "./config/agent-files.js";
 import type { FlowYaml } from "./yaml/schema.js";
 
 export type PhaseModelInfo = {
@@ -22,34 +27,48 @@ export type PhaseModelInfo = {
   source: string;
 };
 
+/** Discovered agent `.md` info by agent name (null = no .md found). */
+export type AgentInfoMap = Map<string, AgentFileInfo | null>;
+
 /**
- * Summarize the model EACH phase will actually use, per the documented precedence:
- *  - tier-1 skill phase (sf-flow-plan/implement/audit): a REPRESENTATIVE config-chain
- *    model (the skill's primary role) — indicative only; tier-1 skills self-resolve
- *    ALL their role agents (researcher/designer/planner/reviewer/developer) from the
- *    full config chain per the documented Model resolution chain.
- *  - tier-2 agent phase: YAML agents.<name>.model (baked by generate.ts agentOpts),
- *    else config <group>.model (when the agent name matches a group),
- *    else .md model:, else inherit orchestrator (inline wins).
- *  - questions-phase elicitor: same chain via configModelFor.
+ * Summarize the model EACH phase will actually use:
+ *  - tier-1 skill phase (sf-flow-plan/implement/audit): the skill dispatches
+ *    its role agents per their `.md` files — reported from the info map
+ *    (representative role per skill), else inherit the orchestrator.
+ *  - tier-2 agent phase: the agent's `.md` `model:` frontmatter (read from the
+ *    info map), else inherit the orchestrator.
+ *  - raw phase: opaque user JS — no resolution, reported as such.
  */
-export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | null): PhaseModelInfo[] {
-  const TIER1 = new Set(["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]);
-  const tier1ModelFor = (skill: string): string | null => {
-    if (skill === "sf-flow-plan") return models?.researcherModel ?? null;
-    if (skill === "sf-flow-implement") return models?.developerModel ?? null;
-    if (skill === "sf-flow-audit") return models?.reviewerModel ?? null;
-    return null;
+export function summarizePhaseModels(flow: FlowYaml, agentInfo: AgentInfoMap): PhaseModelInfo[] {
+  const TIER1_ROLE: Record<string, string> = {
+    "sf-flow-plan": "researcher",
+    "sf-flow-implement": "developer",
+    "sf-flow-audit": "reviewer",
   };
+  const mdModelFor = (name: string): { model: string | null; source: string } => {
+    const info = agentInfo.get(name);
+    if (!info) return { model: null, source: "no .md — built-in/general-purpose fallback" };
+    if (info.frontmatter.enabled === false) return { model: null, source: `.md (${info.source}) — DISABLED (enabled: false)` };
+    if (info.frontmatter.model) return { model: info.frontmatter.model, source: `.md (${info.source})` };
+    return { model: null, source: `.md (${info.source}) — no model, inherits orchestrator` };
+  };
+  // Until M3 removes the YAML model field, an inline YAML model: still wins at
+  // codegen (agentOpts bakes def?.model) — the report must reflect that.
+  const yamlModelFor = (name: string | undefined): string | null =>
+    (name ? (flow.agents as Record<string, { model?: string } | undefined>)[name]?.model : undefined) ?? null;
   return flow.phases.map((ph) => {
     if (ph.skill) {
-      const isTier1 = TIER1.has(ph.skill);
+      const role = TIER1_ROLE[ph.skill];
+      const isTier1 = role !== undefined;
+      const md = isTier1 ? mdModelFor(role!) : null;
       return {
         phase: ph.id,
         kind: isTier1 ? "tier1-skill" : "other",
         skill: ph.skill,
-        model: isTier1 ? tier1ModelFor(ph.skill) : null,
-        source: isTier1 ? (tier1ModelFor(ph.skill) ? "config (representative role)" : "inherit orchestrator") : "inherit orchestrator",
+        model: md?.model ?? null,
+        source: isTier1
+          ? md?.source ?? "role agents per their .md — inherit orchestrator"
+          : "role agents per their .md",
       };
     }
     if (ph.raw) {
@@ -60,24 +79,24 @@ export function summarizePhaseModels(flow: FlowYaml, models: ResolvedModels | nu
         source: "raw phase (no model resolution)",
       };
     }
-    if (ph.questions) {
-      const def = flow.agents[ph.questions];
-      const yamlModel = def?.model ?? null;
-      const configModel = configModelFor(ph.questions, models);
-      const resolved = yamlModel ?? configModel;
-      const source = yamlModel ? "YAML agents.<name>.model" : configModel ? `config ${ph.questions}.model` : "inherit orchestrator (.md model: / orchestrator)";
-      return { phase: ph.id, kind: "tier2-elicitor" as const, agent: ph.questions, model: resolved, source };
+    const agentName = ph.questions ?? ph.agent;
+    const yamlModel = yamlModelFor(agentName);
+    if (yamlModel) {
+      return {
+        phase: ph.id,
+        kind: ph.questions ? ("tier2-elicitor" as const) : ("tier2-agent" as const),
+        agent: agentName,
+        model: yamlModel,
+        source: "YAML agents.<name>.model (moves to the .md in the next release)",
+      };
     }
-    const def = ph.agent ? flow.agents[ph.agent] : undefined;
-    const yamlModel = def?.model ?? null;
-    const configModel = configModelFor(ph.agent ?? "", models);
-    const resolved = yamlModel ?? configModel;
+    const md = agentName ? mdModelFor(agentName) : null;
     return {
       phase: ph.id,
-      kind: "tier2-agent",
-      agent: ph.agent,
-      model: resolved,
-      source: yamlModel ? "YAML agents.<name>.model" : configModel ? `config ${ph.agent}.model` : "inherit orchestrator (.md model: / orchestrator)",
+      kind: ph.questions ? ("tier2-elicitor" as const) : ("tier2-agent" as const),
+      agent: agentName,
+      model: md?.model ?? null,
+      source: md?.source ?? "no .md — built-in/general-purpose fallback",
     };
   });
 }
@@ -92,18 +111,21 @@ export function skillDocPath(name: string): string {
 export interface ImplementReadyInput {
   slug: string;
   worktreePath: string;
-  reviewerModel: string | null;
-  developerModel: string | null;
   planPath: string;
+  /** Discovered agent info for the reviewer/developer roles (report-only). */
+  reviewerInfo?: AgentFileInfo | null;
+  developerInfo?: AgentFileInfo | null;
+}
+
+function agentModelLine(role: string, info: AgentFileInfo | null | undefined): string {
+  if (!info) return `${role}: no .md found (built-in/general-purpose fallback) — inherits the orchestrator`;
+  if (info.frontmatter.enabled === false) return `${role}: ${info.path} — DISABLED (enabled: false)`;
+  return info.frontmatter.model
+    ? `${role}: ${info.frontmatter.model} (pinned in ${info.path})`
+    : `${role}: inherits the orchestrator (no model: in ${info.path})`;
 }
 
 export function buildImplementReadyMessage(opts: ImplementReadyInput): string {
-  const reviewerLine = opts.reviewerModel
-    ? `Reviewer model: ${opts.reviewerModel}`
-    : "Reviewer model: inherits from parent (not configured)";
-  const developerLine = opts.developerModel
-    ? `Developer model: ${opts.developerModel}`
-    : "Developer model: inherits from parent (not configured)";
   return [
     `Continue executing now — do not stop after this tool returns.`,
     ``,
@@ -114,8 +136,8 @@ export function buildImplementReadyMessage(opts: ImplementReadyInput): string {
     `   Do not stop between milestones or ask for confirmation.`,
     ``,
     `Context:`,
-    `- ${reviewerLine}`,
-    `- ${developerLine}`,
+    `- ${agentModelLine("Reviewer", opts.reviewerInfo)}`,
+    `- ${agentModelLine("Developer", opts.developerInfo)}`,
     `- Plan path: ${opts.planPath}`,
   ]
     .join("\n")
@@ -129,15 +151,15 @@ export interface AutoReadyInput {
   resolvedWorkflowPath: string;
   /** Pre-generated pi-dw script (skill phases run INLINE — no general-purpose twin). Optional so legacy callers/tests omit it. */
   script?: string;
-  /** Resolved models, rendered as a reference table for the orchestrator. Optional. */
-  models?: ResolvedModels | null;
-  /** Optional per-phase model summary (accurate per precedence). */
+  /** Optional per-phase model summary (report-only, from the agents' .md files). */
   phaseModels?: PhaseModelInfo[];
   /** Whether any phase uses `questions:` (conditional gates). */
   hasConditionalGates?: boolean;
   /** Run-level slug sf_flow_auto derived once at start (args.slug); the generated
    *  script's checkpoint dir is `ai_plan/<slug>`. Optional for legacy callers. */
   slug?: string;
+  /** Agents declared by the workflow with no discoverable .md (typo guard — surfaced as a warning). */
+  missingAgents?: string[];
 }
 
 export function buildAutoReadyMessage(opts: AutoReadyInput): string {
@@ -161,30 +183,20 @@ export function buildAutoReadyMessage(opts: AutoReadyInput): string {
     lines.push(opts.script);
     lines.push("```");
   }
-  if (opts.models) {
-    lines.push(``);
-    lines.push(`Config model groups (tier-1 skills + tier-2 agents with a matching group; inline YAML wins; inherit the orchestrator when null):`);
-    lines.push(`- reviewer: ${opts.models.reviewerModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- researcher: ${opts.models.researcherModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- developer: ${opts.models.developerModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- planner: ${opts.models.plannerModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- auditor: ${opts.models.auditorModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- synth: ${opts.models.synthModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- designer: ${opts.models.designerModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- notifier: ${opts.models.notifierModel ?? "(inherit orchestrator)"}`);
-    lines.push(`- scanner: ${opts.models.scannerModel ?? "(inherit orchestrator)"}`);
-    if (opts.phaseModels && opts.phaseModels.length) {
-      lines.push(``);
-      lines.push(`Per-phase models (what each phase ACTUALLY uses):`);
-      for (const p of opts.phaseModels) {
-        const who = p.skill ? `skill ${p.skill}` : p.agent ? `agent ${p.agent}` : "(no agent)";
-        lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}`);
-      }
+  lines.push(``);
+  lines.push(`Models: agents resolve from their .md files (project .pi/agents overrides global ~/.pi/agent/agents).`);
+  lines.push(`Do NOT pass a model at dispatch — pi-subagents applies the agent .md model, else inherits the orchestrator.`);
+  if (opts.phaseModels && opts.phaseModels.length) {
+    lines.push(`Per-phase effective models (informational):`);
+    for (const p of opts.phaseModels) {
+      const who = p.skill ? `skill ${p.skill}` : p.agent ? `agent ${p.agent}` : "(no agent)";
+      lines.push(`- ${p.phase} (${p.kind}, ${who}): ${p.model ?? "(inherit orchestrator)"} — ${p.source}`);
     }
   }
-  lines.push(``);
-  lines.push(`Models — dispatch each agent with the EXACT model in the Per-phase table above. Precedence:`);
-  lines.push(`YAML agents.<name>.model wins, then config, then inherit the orchestrator. Do NOT substitute or invent a model.`);
+  if (opts.missingAgents?.length) {
+    lines.push(``);
+    lines.push(`⚠ No .md found for: ${opts.missingAgents.join(", ")} — they fall back to the built-in/general-purpose agent. If this is a typo, create or rename the agent .md.`);
+  }
   lines.push(``);
   lines.push(`Contract enforcement: the generated script calls helper tools around each phase —`);
   lines.push(`sf_flow_contract (derive-slug/materialize/assert), sf_flow_checkpoint (load-required/complete/load-all),`);

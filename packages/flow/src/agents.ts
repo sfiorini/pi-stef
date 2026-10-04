@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { seedAgents } from "./seed.js";
+import { globalAgentsDir } from "./config/agent-files.js";
 
-const GLOBAL_AGENTS_SUBPATH = [".pi", "agent", "agents"] as const;
 const PROJECT_AGENTS_SUBPATH = [".pi", "agents"] as const;
 const STALE_PLACEHOLDER = "{{REVIEWER_MODEL}}";
 
@@ -13,27 +13,30 @@ export interface EnsureAgentFilesResult {
 
 /**
  * Ensure the ten flow agent definition files exist in the global discovery dir
- * (`~/.pi/agent/agents/`): reviewer, designer, auditor, planner, developer, synth, scanner, researcher, elicitor, notifier.
+ * (`getAgentDir()/agents/`, default `~/.pi/agent/agents/`, honoring
+ * `PI_CODING_AGENT_DIR` — the same dir pi-subagents discovers and the M1 report
+ * helper reads): reviewer, designer, auditor, planner, developer, synth,
+ * scanner, researcher, elicitor, notifier.
  *
  * WRITE-ONCE: if a file already exists it is left untouched so the user can
  * edit it. Uses an exclusive (`wx`) create so a concurrent writer can't be
- * silently clobbered. No file carries a `model:` frontmatter field — the model
- * is resolved by flow and passed at dispatch time.
+ * silently clobbered.
  *
  * Also detects a STALE adapter-era project `<cwd>/.pi/agents/reviewer.md` still
  * containing the `{{REVIEWER_MODEL}}` placeholder — such a file would shadow the
  * new global reviewer. It is NOT deleted (user-owned); a warning is returned so
  * the caller can surface it.
  *
- * @param homeDir The user home directory.
+ * @param homeDir Legacy home-dir arg (unused for the seed target, which is now
+ *   getAgentDir()-based); kept for call-site compatibility.
  * @param cwd The current working directory (project root). Defaults to process.cwd().
  */
 export async function ensureAgentFiles(
-  homeDir: string,
+  _homeDir: string,
   cwd: string = process.cwd(),
 ): Promise<EnsureAgentFilesResult> {
   const warnings: string[] = [];
-  const agentsDir = join(homeDir, ...GLOBAL_AGENTS_SUBPATH);
+  const agentsDir = await globalAgentsDir();
   await seedAgents(agentsDir, "write-once");
 
   // Detect stale adapter-era project reviewer file (project overrides global).

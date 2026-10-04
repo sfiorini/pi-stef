@@ -8,9 +8,7 @@ import {
   type FlowConfig,
   type LoadedFlowConfig,
   type ResolvedFlowConfig,
-  type ResolvedModels,
 } from "./schema.js";
-import { normalizeModelSpec } from "./model-spec.js";
 
 export class ConfigValidationError extends Error {
   constructor(
@@ -23,25 +21,58 @@ export class ConfigValidationError extends Error {
   }
 }
 
-async function loadFile(filePath: string): Promise<FlowConfig> {
+/**
+ * Model groups removed from the config schema. A config file carrying any of
+ * these keys is stripped of them (never a hard failure) and the caller warns
+ * once — models now live in each agent's `.md` frontmatter.
+ */
+const LEGACY_MODEL_GROUPS = [
+  "reviewer",
+  "researcher",
+  "developer",
+  "planner",
+  "auditor",
+  "synth",
+  "designer",
+  "elicitor",
+  "notifier",
+  "scanner",
+  "explorer",
+] as const;
+
+export interface LoadedFileConfig extends FlowConfig {
+  /** Legacy model-group keys found in this file (stripped, with a warning). */
+  legacyModelKeys: string[];
+}
+
+/**
+ * Read + validate one config file. Legacy model-group keys (reviewer…scanner,
+ * plus the pre-0.4 `explorer`) are stripped BEFORE validation so a config
+ * carrying them keeps loading — they surface as `legacyModelKeys` so the
+ * caller can warn exactly once about what was ignored.
+ */
+async function loadFile(filePath: string): Promise<LoadedFileConfig> {
   const raw = await readFile(filePath, "utf8");
-  const parsed = JSON.parse(raw);
-  // Pre-validation migration: rename a legacy "explorer" group to "researcher".
-  // JSON.parse returns `any`, so this compiles; the typeof guard defends against
-  // a non-object config (null/array/primitive) by skipping to Value.Errors.
-  if (typeof parsed === "object" && parsed !== null && parsed.explorer) {
-    if (!parsed.researcher) parsed.researcher = parsed.explorer;
-    delete parsed.explorer;
+  const parsed: unknown = JSON.parse(raw);
+  const legacyModelKeys: string[] = [];
+  if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    const obj = parsed as Record<string, unknown>;
+    for (const key of LEGACY_MODEL_GROUPS) {
+      if (key in obj) {
+        delete obj[key];
+        legacyModelKeys.push(key);
+      }
+    }
   }
   const errors = [...Value.Errors(ConfigSchema, parsed)];
   if (errors.length > 0) {
     const first = errors[0];
     throw new ConfigValidationError(filePath, first.path, first.message);
   }
-  return parsed as FlowConfig;
+  return { ...(parsed as FlowConfig), legacyModelKeys };
 }
 
-async function loadFileOrNull(filePath: string): Promise<FlowConfig | null> {
+async function loadFileOrNull(filePath: string): Promise<LoadedFileConfig | null> {
   try {
     return await loadFile(filePath);
   } catch (err: unknown) {
@@ -60,111 +91,86 @@ async function loadFileOrNull(filePath: string): Promise<FlowConfig | null> {
 function merge(base: LoadedFlowConfig, over: FlowConfig | null): LoadedFlowConfig {
   if (!over) return base;
   return {
-    reviewer: { ...base.reviewer, ...over.reviewer },
-    researcher: { ...base.researcher, ...over.researcher },
-    developer: { ...base.developer, ...over.developer },
-    planner: { ...base.planner, ...over.planner },
-    auditor: { ...base.auditor, ...over.auditor },
-    synth: { ...base.synth, ...over.synth },
-    designer: { ...base.designer, ...over.designer },
-    elicitor: { ...base.elicitor, ...over.elicitor },
-    notifier: { ...base.notifier, ...over.notifier },
-    scanner: { ...base.scanner, ...over.scanner },
     audit: { ...base.audit, ...over.audit },
     worktree: { ...base.worktree, ...over.worktree },
     freshReviewResetThreshold: over.freshReviewResetThreshold ?? base.freshReviewResetThreshold,
   };
 }
 
-export async function loadConfig(
-  repoRoot: string,
-  opts: { homeDir?: string } = {},
-): Promise<LoadedFlowConfig> {
-  const homeDir = opts.homeDir ?? homedir();
-  const globalPath = globalConfig("flow", homeDir);
-  const projectPath = projectConfig("flow", repoRoot);
-  let cfg: LoadedFlowConfig = DEFAULT_CONFIG;
-  cfg = merge(cfg, await loadFileOrNull(globalPath));
-  cfg = merge(cfg, await loadFileOrNull(projectPath));
-  return cfg;
-}
-
-/** The seven flow agent roles that carry a configurable model. */
-export type AgentRole = "reviewer" | "researcher" | "developer" | "planner" | "auditor" | "synth" | "designer";
-
-/** Per-agent model overrides (e.g. from a tool param or prompt extraction). */
-export type ModelOverrides = Partial<Record<AgentRole, string | undefined>>;
-
-const AGENT_ROLES: readonly AgentRole[] = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"];
-
-function cfgModel(cfg: FlowConfig, role: AgentRole): string | undefined {
-  switch (role) {
-    case "reviewer":
-      return cfg.reviewer?.model;
-    case "researcher":
-      return cfg.researcher?.model;
-    case "developer":
-      return cfg.developer?.model;
-    case "planner":
-      return cfg.planner?.model;
-    case "auditor":
-      return cfg.auditor?.model;
-    case "synth":
-      return cfg.synth?.model;
-    case "designer":
-      return cfg.designer?.model;
-  }
+export interface LoadConfigResult extends LoadedFlowConfig {
+  /** Legacy model-group keys stripped from each file, by basename, for the caller's one-time warning. */
+  legacyModelKeysByFile: Record<string, string[]>;
 }
 
 /**
- * Resolve all agent models (7 roles + elicitor + notifier + scanner) from the deterministic front-end chain:
- * 1. Override (tool param / prompt extraction) — if truthy
- * 2. Config group `.model` (project beats global via the loadConfig merge)
- * 3. Environment variable `SF_FLOW_<ROLE>_MODEL`
- * 4. null ⇒ caller inherits the orchestrator model (uniform fallback, no fail-fast)
- *
- * notifier/scanner are config-only (no override, no env var).
- *
- * Pure + synchronous (no I/O): takes a loaded config. The `.md` frontmatter →
- * orchestrator-inherit step is pi-subagents' concern at dispatch, NOT resolved here.
+ * Load the layered flow settings (project beats global). Legacy model-group
+ * keys are stripped per file and reported in `legacyModelKeysByFile` so the
+ * caller can surface exactly one warning per file.
  */
-export function resolveFlowModels(cfg: FlowConfig, overrides: ModelOverrides = {}): ResolvedModels {
-  const out = {} as ResolvedModels;
-  for (const role of AGENT_ROLES) {
-    const key = `${role}Model` as keyof ResolvedModels;
-    const ov = overrides[role];
-    if (ov) {
-      out[key] = normalizeModelSpec(ov);
-      continue;
-    }
-    const cfgM = cfgModel(cfg, role);
-    if (cfgM) {
-      out[key] = normalizeModelSpec(cfgM);
-      continue;
-    }
-    const envName = `SF_FLOW_${role.toUpperCase()}_MODEL`;
-    // normalizeModelSpec(undefined) returns null, so the previous `?? null` is preserved.
-    out[key] = normalizeModelSpec(process.env[envName]);
+export async function loadConfig(
+  repoRoot: string,
+  opts: { homeDir?: string } = {},
+): Promise<LoadConfigResult> {
+  const homeDir = opts.homeDir ?? homedir();
+  const globalPath = globalConfig("flow", homeDir);
+  const projectPath = projectConfig("flow", repoRoot);
+  const legacyModelKeysByFile: Record<string, string[]> = {};
+  // Fresh copy of the defaults — never share nested refs with DEFAULT_CONFIG.
+  let cfg: LoadedFlowConfig = {
+    audit: { ...DEFAULT_CONFIG.audit },
+    worktree: { ...DEFAULT_CONFIG.worktree },
+    freshReviewResetThreshold: DEFAULT_CONFIG.freshReviewResetThreshold,
+  };
+  const sources: Array<{ path: string; label: string }> = [
+    { path: globalPath, label: "global config.json" },
+    { path: projectPath, label: "project config.json" },
+  ];
+  for (const { path, label } of sources) {
+    const loaded = await loadFileOrNull(path);
+    if (!loaded) continue;
+    if (loaded.legacyModelKeys.length) legacyModelKeysByFile[label] = loaded.legacyModelKeys;
+    cfg = merge(cfg, loaded);
   }
-  // elicitor is NOT an AgentRole — resolve standalone
-  const elCfgM = cfg.elicitor?.model;
-  out.elicitorModel = elCfgM ? normalizeModelSpec(elCfgM) : normalizeModelSpec(process.env.SF_FLOW_ELICITOR_MODEL);
-  // notifier + scanner are config-only (no override, no env var).
-  out.notifierModel = normalizeModelSpec(cfg.notifier?.model);
-  out.scannerModel = normalizeModelSpec(cfg.scanner?.model);
-  return out;
+  return { ...cfg, legacyModelKeysByFile };
 }
 
-export async function loadAndResolveDefaults(
+/** The `SF_FLOW_<ROLE>_MODEL` env vars currently set (removed channel → warn once). Sorted. */
+export function hasLegacyModelEnvVars(): string[] {
+  return Object.keys(process.env)
+    .filter((k) => k.startsWith("SF_FLOW_") && k.endsWith("_MODEL"))
+    .sort();
+}
+
+/**
+ * Tolerant loader: any config error degrades to built-in defaults (with a
+ * warning via `notify`) instead of failing the tool call. Also surfaces the
+ * one-time warnings for removed model channels (legacy config groups,
+ * SF_FLOW_*_MODEL env vars).
+ */
+export async function loadFlowSettingsOrDefaults(
   repoRoot: string,
-  opts: { homeDir?: string; notify?: (msg: string, level: string) => void; overrides?: ModelOverrides } = {},
+  opts: { homeDir?: string; notify?: (msg: string, level: string) => void } = {},
 ): Promise<ResolvedFlowConfig> {
   try {
-    const cfg = await loadConfig(repoRoot, { homeDir: opts.homeDir });
-    return { ...cfg, ...resolveFlowModels(cfg, opts.overrides) };
-  } catch (err) {
+    const { legacyModelKeysByFile, ...settings } = await loadConfig(repoRoot, { homeDir: opts.homeDir });
+    for (const [file, keys] of Object.entries(legacyModelKeysByFile)) {
+      opts.notify?.(
+        `${file}: model groups (${keys.join(", ")}) are no longer read — each agent's model lives in its .md file. Remove the keys to silence this warning.`,
+        "warning",
+      );
+    }
+    const legacyEnv = hasLegacyModelEnvVars();
+    if (legacyEnv.length) {
+      opts.notify?.(
+        `SF_FLOW_*_MODEL env vars (${legacyEnv.join(", ")}) are no longer read — set the model in the agent's .md file instead.`,
+        "warning",
+      );
+    }
+    return settings;
+  } catch (err: unknown) {
     const detail = err instanceof Error ? err.message : String(err);
     opts.notify?.(`sf-flow config: ${detail} — falling back to built-in defaults.`, "warning");
-    return { ...DEFAULT_CONFIG, ...resolveFlowModels(DEFAULT_CONFIG, opts.overrides) };
+    // Fresh copy — never hand out the shared DEFAULT_CONFIG reference.
+    return { ...DEFAULT_CONFIG, audit: { ...DEFAULT_CONFIG.audit }, worktree: { ...DEFAULT_CONFIG.worktree } };
   }
 }

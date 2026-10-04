@@ -61,8 +61,8 @@ Return a single markdown document whose FIRST line is exactly one of:
 - NEVER write code, edit files, or produce a milestone plan — that is the
   planner's job. You produce a DESIGN only.
 - NEVER address the user in prose outside the `NEEDS_INFO` payload.
-- Resolve your own model via the flow config chain (`.pi/sf/flow/config.json`
-  → `SF_FLOW_DESIGNER_MODEL` → inherit orchestrator). Do not hardcode a model.
+- Your model is pinned in this `.md` frontmatter (`model:`); if absent you
+  inherit the orchestrator. Never resolve or pass a model at dispatch.
 - Be comprehensive but concrete — no placeholders, no "TBD".
 
 ## Tier-2 auto-finalize (non-relay context)

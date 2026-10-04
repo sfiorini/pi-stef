@@ -6,14 +6,14 @@ description: Use when a user asks to create a structured multi-milestone impleme
 # sf-flow-plan
 
 ## Prerequisites
-Reviewer + researcher agents ensured at `~/.pi/agent/agents/`. Reviewer model resolved by the tool. `ai_plan/` is gitignored.
+Reviewer + researcher agents ensured at the global agents dir (`getAgentDir()/agents`, default `~/.pi/agent/agents/`). `ai_plan/` is gitignored.
 
 ## Agent resolution
 Spawn the agent whose `.md` filename matches the role (`reviewer`→`reviewer`, `developer`→`developer`, …). `planner`/`reviewer` fall back to the built-in `Plan`/`Reviewer` only if no `.md` exists. Anything else with no `.md` → `general-purpose`. The orchestrator NEVER implements — it always delegates.
 
-For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools). If no researcher model is configured, omit `model` so it inherits the orchestrator.
+For research, use the `researcher` agent (matches `researcher.md`). Do NOT use the built-in `Explore` agent (it forces Haiku and cannot access web tools).
 
-**Models (self-resolve):** resolve each agent's model from `.pi/sf/flow/config.json` (project) then `~/.pi/sf/flow/config.json` (global), then the `SF_FLOW_<ROLE>_MODEL` env var (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`); if still unset, omit `model` at dispatch so pi-subagents applies the agent `.md` `model:` or inherits the orchestrator. If a model was passed to you in your invocation context (the `sf_flow_*` tool echo on the direct path, or a workflow hint on the delegated path), use that — it wins. The tool's echo is visibility-only; you are the resolver. If a resolved spec is malformed or unresolvable, **omit `model:`** (inherit orchestrator) — never fabricate a hybrid `provider/id`.
+**Models (from the agent .md):** each agent's model is pinned in its `.md` frontmatter — project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`; a `.md` with no `model:` inherits the orchestrator. **NEVER pass `model` at dispatch** — pi-subagents applies the `.md` model natively (frontmatter is authoritative), and passing one would override it. The tool echo's per-agent report is informational only.
 
 ## Plan standard (exhaustive milestone plans)
 Plans are consumed by an implementer that may be a weaker model, so every milestone plan MUST be exhaustive: each story must specify enough that a less-intelligent model can implement it with **ZERO remaining design decisions**. Vague verbs ("refactor", "improve", "handle", "update", "clean up") are FORBIDDEN unless accompanied by a concrete, unambiguous definition of the resulting change.
@@ -35,7 +35,7 @@ For every story, score it against the 7 fields above. If ANY field is missing or
 ## Process
 
 ### Phase 1: Analyze (parallel research)
-Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "researcher"`; model from the tool echo, or inherit the orchestrator if unset). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single research agent into a fleet.)
+Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per subsystem, each read-only (`subagent_type: "researcher"`; do NOT pass `model` — it comes from `researcher.md`). Synthesize a codebase map. **Do NOT use the built-in `Explore` agent — it forces Haiku.** (Extends pair/plan's single research agent into a fleet.)
 
 ### Phase 2: Gather Requirements
 Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says ready.
@@ -46,7 +46,7 @@ Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says rea
 ### Phase 4: Design (designer agent)
 Dispatch the **designer** agent to produce the design via an interactive loop that YOU (the orchestrator) relay to the user. The designer is a subagent and cannot talk to the user directly.
 
-Self-resolve the designer model (the `designer_model` tool param / prompt extraction → `.pi/sf/flow/config.json` → `SF_FLOW_DESIGNER_MODEL` → inherit orchestrator) and spawn it with `Agent({ subagent_type: "designer", model: "<designerModel>" })`. Seed it with: the original task, the Phase 1 research synthesis, and the Phase 2 clarifying answers.
+Spawn the designer with `Agent({ subagent_type: "designer" })` — do NOT pass `model`; `designer.md` pins it (project `.pi/agents` overriding global). Seed it with: the original task, the Phase 1 research synthesis, and the Phase 2 clarifying answers.
 
 The designer returns one of three payloads (a leading `STATUS:` line). Drive this loop:
 
@@ -60,14 +60,14 @@ Rules:
 - On a delegated/auto path with no human gates, answer NEEDS_INFO with sensible defaults and auto-pick the recommended approach.
 
 ### Phase 5: Plan (planner agent)
-Dispatch the **planner** agent to turn the approved design into an exhaustive milestone plan. Self-resolve the planner model (`.pi/sf/flow/config.json` → `SF_FLOW_PLANNER_MODEL` → inherit orchestrator) and spawn it with `Agent({ subagent_type: "planner", model: "<plannerModel>" })`, passing the FINAL_DESIGN from Phase 4 + the research synthesis.
+Dispatch the **planner** agent to turn the approved design into an exhaustive milestone plan. Spawn it with `Agent({ subagent_type: "planner" })` — do NOT pass `model`; `planner.md` pins it. Pass the FINAL_DESIGN from Phase 4 + the research synthesis.
 
 The planner returns milestones + 2–5 min stories (`S-MN{seq}`), each meeting the Plan standard (all 7 fields, no vague verbs) and having run its **completeness self-check**. The orchestrator does NOT write the plan inline — it delegates entirely to the planner agent.
 
 ### Phase 6: Iterative Plan Review (delta-review, max 10 rounds)
-**Round 1 (comprehensive):** Spawn the reviewer agent (`Agent({ subagent_type: "reviewer", model: "<reviewer_model>" })`) in comprehensive mode (full from-scratch review). Capture the reviewer's `## Findings` as the **canonical list**, assigning sequential IDs `F1`,`F2`,… via `assignFindingIds` (`src/audit/verification.ts`), sorted by severity (P0→P3) then file then line; render it with `renderCanonicalList`. The reviewer returns **REVISE** for ANY story missing required Plan-standard detail — **independent of correctness** — so under-detailed stories are caught even when the plan is technically right. If `APPROVED` on round 1 → Phase 7.
+**Round 1 (comprehensive):** Spawn the reviewer agent (`Agent({ subagent_type: "reviewer" })` — no `model`; `reviewer.md` pins it) in comprehensive mode (full from-scratch review). Capture the reviewer's `## Findings` as the **canonical list**, assigning sequential IDs `F1`,`F2`,… via `assignFindingIds` (`src/audit/verification.ts`), sorted by severity (P0→P3) then file then line; render it with `renderCanonicalList`. The reviewer returns **REVISE** for ANY story missing required Plan-standard detail — **independent of correctness** — so under-detailed stories are caught even when the plan is technically right. If `APPROVED` on round 1 → Phase 7.
 
-**Round N ≥ 2 (verification):** Re-spawn the **planner** (`Agent({ subagent_type: "planner", model: "<planner_model>" })`) with the canonical list, instructing it to address EACH `[Fn]` finding precisely (no regressions, minimal changes, report per-finding what changed). Then re-spawn the **reviewer** in **verification mode**: pass it the canonical `[Fn]` list + the round number + the revised plan. The reviewer classifies each prior finding as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED and reports only regressions traceable to a specific `[Fn]` fix in `## Findings`. The orchestrator NEVER edits the plan directly — it always re-spawns the planner. Parse the reviewer's verification with `parseVerification` and evolve the canonical list with `evolveCanonical` (drop FIXED, keep PARTIALLY-FIXED/NOT-FIXED, drop original + append regression for NEW-ISSUE, keep no-entry); reassign fresh IDs each round. Use the shared helpers in `src/audit/verification.ts`.
+**Round N ≥ 2 (verification):** Re-spawn the **planner** (`Agent({ subagent_type: "planner" })` — no `model`) with the canonical list, instructing it to address EACH `[Fn]` finding precisely (no regressions, minimal changes, report per-finding what changed). Then re-spawn the **reviewer** in **verification mode**: pass it the canonical `[Fn]` list + the round number + the revised plan. The reviewer classifies each prior finding as FIXED / PARTIALLY-FIXED / NOT-FIXED / NEW-ISSUE-INTRODUCED and reports only regressions traceable to a specific `[Fn]` fix in `## Findings`. The orchestrator NEVER edits the plan directly — it always re-spawns the planner. Parse the reviewer's verification with `parseVerification` and evolve the canonical list with `evolveCanonical` (drop FIXED, keep PARTIALLY-FIXED/NOT-FIXED, drop original + append regression for NEW-ISSUE, keep no-entry); reassign fresh IDs each round. Use the shared helpers in `src/audit/verification.ts`.
 
 **APPROVED iff** `verificationApproved` is true: every prior BLOCKING (P0/P1/P2) finding is FIXED or NEW-ISSUE-INTRODUCED, AND no new blocking regression. P3 never blocks. On APPROVED → Phase 7.
 

@@ -67,8 +67,8 @@ When the orchestrator re-spawns you with a canonical findings list (each prefixe
 - Read the codebase first to follow existing patterns.
 - Story IDs follow `S-MN{seq}` (M = milestone, N = story index).
 - Do NOT modify files — you produce the plan markdown only.
-- Resolve your own model via the flow config chain (`.pi/sf/flow/config.json`
-  → `SF_FLOW_PLANNER_MODEL` → inherit orchestrator). Do not hardcode a model.
+- Your model is pinned in this `.md` frontmatter (`model:`); if absent you
+  inherit the orchestrator. Never resolve or pass a model at dispatch.
 
 ## Tier-2 group loop (fix phase)
 When dispatched as a fix phase inside a group loop, findings arrive as an

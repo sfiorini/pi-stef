@@ -14,20 +14,16 @@ Flow has **three layers**, kept deliberately separate. Confusing them is the #1 
 
 | Layer | What it is | Where it lives | Who writes it |
 |-------|------------|----------------|---------------|
-| **Agent** | A role's *behavior* — a system prompt + frontmatter (`tools`, `thinking`, …). **Never carries a `model:`** — the model is supplied at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **10 defaults**; you edit/add freely (write-once) |
+| **Agent** | A role's *behavior* — a system prompt + frontmatter (`model:`, `tools`, `thinking`, `isolated`, …). The `.md` is the agent's single definition, model included; flow passes no model at dispatch. | `~/.pi/agent/agents/<name>.md` (global) or `.pi/agents/<name>.md` (project overrides global) | flow ships **10 defaults**; you edit/add freely (write-once) |
 | **Workflow** | *What runs, in what order* — either a built-in skill (Tier 1) or a YAML file (Tier 2). | Tier 1: built-in skills · Tier 2: `~/.pi/sf/flow/workflows/<name>.yaml` (global defaults) or `.pi/sf/flow/workflows/<name>.yaml` (project override) | flow ships skills + **5 example YAMLs** (`/sf-flow-seed`); you add YAMLs |
-| **Config** | *Runtime settings* — which model each agent runs on, audit thresholds, worktree. | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
+| **Config** | *Runtime settings* — audit thresholds + worktree (models live in the agents' `.md` files). | `~/.pi/sf/flow/config.json` (global) + `.pi/sf/flow/config.json` (project) | you (partial is fine) |
 
-> ### ⚠️ Config does NOT define agents or workflows
-> Agents (reviewer, researcher, developer, planner, auditor, synth, designer) are **defined as `.md` files** (`~/.pi/agent/agents/<name>.md`) and **used by** the plan/implement/audit skills. `config.json` only sets **which model** each agent runs on (plus `audit` / `worktree` settings). An agent's *behavior* lives in the `.md` file — config never describes how an agent thinks.
->
-> Concretely: `{"reviewer":{"model":"anthropic/sonnet-4-6"}}` means *"run the reviewer agent (already defined) on Sonnet 4.6"* — it does **not** create the reviewer. The seven model groups (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`) are all optional; an unset model inherits the orchestrator (uniform fallback, no fail-fast).
+> ### ⚠️ Agents are defined in exactly one place: their `.md` file
+> Each agent (reviewer, researcher, developer, planner, auditor, synth, designer, elicitor, notifier, scanner) is **defined as a `.md` file** — frontmatter (`model:`, `tools`, `thinking`, `isolated`, …) plus the body (its system prompt). Discovery: project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`. Neither `config.json` nor workflow YAMLs define agents or their models: config carries only runtime settings (`audit`, `worktree`), and a workflow only *names* the agents its phases use. Set an agent's model by editing its `.md`.
 
-**Where the model comes from, per tier:**
+**Where the model comes from:**
 
-- **Tier 1 skills** (`sf_flow_plan` / `sf_flow_implement` / `sf_flow_audit`) — models **self-resolved** by the skill from `config.json` (project then global → env → inherit orchestrator). The tool pre-resolves + echoes them (visibility only); the skill is the resolver, so a workflow delegating via a `skill:` phase honors config too.
-- **Tier 2 YAML flows** — inline wins; with no inline model, an agent **whose name matches a config group** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`) falls back to `config.json`'s `<name>.model`, else `.md`, else orchestrator.
-
+- **Every agent, in every tier** — its `.md` frontmatter `model:` (project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`); a `.md` with no `model:` inherits the orchestrator. Flow passes no model at dispatch.
 ---
 
 ## Installation
@@ -46,7 +42,7 @@ Flow's skills are discovered natively via `pi.skills`. To author flows that pull
 # 1. Audit your current diff — zero config, runs the 7-angle triad + dual-blind gate
 /sf-flow-audit
 
-# 2. Plan, then implement a feature (reviewer model from config.json)
+# 2. Plan, then implement a feature (agent models come from their .md files)
 /sf-flow-plan add OAuth login
 /sf-flow-implement 2026-07-20-oauth-login
 
@@ -57,7 +53,7 @@ sf_flow_auto code-review "review the auth changes"
 You can also drive everything in natural language:
 
 ```
-"Plan a feature for adding user authentication, use anthropic/sonnet-4-6 as reviewer"
+"Plan a feature for adding user authentication"  # reviewer model: edit reviewer.md
 "Implement the plan in ai_plan/2026-07-20-oauth-login"
 "Run the code-review flow on the staged diff"
 ```
@@ -82,9 +78,9 @@ Ten write-once agent definitions ship in `packages/flow/agents/` and are copied 
 | `notifier` | Notifier — Telegram completion summary (opt-in, Tier-2) | bash | low |
 
 - **Write-once:** flow *never* overwrites an existing agent file, so you can edit any of them freely.
-- **No `model:` in the file:** the model is resolved at dispatch time (Tier 1: from `config.json`; Tier 2: from the YAML's inline `model:`).
+- **Model resolution:** each agent's model comes from its `.md` frontmatter — project `.pi/agents/<name>.md` overrides the global one; a `.md` with no `model:` inherits the orchestrator. Never pass a model at dispatch.
 - **Project overrides global:** a `<repo>/.pi/agents/reviewer.md` shadows the global one (pi-subagents semantics).
-- **Ten agents have config model groups (7 tier-1 + elicitor/notifier/scanner tier-2); inline YAML wins; bundled workflows are now configurable via config.json.** `reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer` have optional `config.json` model groups. `researcher` is dual-purpose: it is the 7th config group AND powers the `research-report` and `deep-research` example flows (the flow's inline `model:` overrides config for that flow). It is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `scanner`, `elicitor`, and `notifier` are config-backed Tier-2 agents whose model resolves **inline YAML → config `<name>.model` → .md → orchestrator** (inline wins) — like all Tier-2 agents with a matching config group. `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
+- **Each agent's model is pinned in its `.md` frontmatter.** All ten agents (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`) ship write-once with no `model:` — an unset model inherits the orchestrator; edit the `.md` to pin one (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — declare it in a workflow's `agents:` block and run it from a final `notify` phase.
 
 **Add a new agent:** just drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` will also write a write-once stub for any agent you declare that doesn't yet exist.
 
@@ -135,9 +131,6 @@ Create a multi-milestone implementation plan with parallel research and iterativ
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `prompt` | No | The task to plan |
-| `reviewer_model` | No | Override reviewer model (else self-resolved from [config](#configuration)) |
-| `researcher_model` | No | Override researcher model (inherits parent if unset) |
-| `designer_model` | No | Override designer model (inherits parent if unset) |
 
 Phases: (1) fan out N researchers in parallel → codebase map; (2) gather requirements one question at a time; (3) design via brainstorming; (4) plan via writing-plans (milestones + `S-MN{seq}` stories); (5) iterative reviewer loop (fix P0/P1/P2, max 10 rounds); (6) write plan files; (7) optional Telegram notify.
 
@@ -148,7 +141,6 @@ Execute an approved plan in **one** worktree (`flow/<slug>`, git-only), TDD per 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `path` | Yes | Plan folder slug or path under `ai_plan/` |
-| `reviewer_model` | No | Override reviewer model |
 
 Per-milestone loop: TDD each story → reviewer loop → commit to the worktree branch → update the tracker. After all milestones: run `sf_flow_audit` on the accumulated diff; on `REVISE` (any P0/P1/P2) loop back to the failing **story** (not the whole plan), bounded by `audit.max_rounds` (default 5). Finish with `sf_flow_finalize` (removes the worktree dir, preserves the `flow/<slug>` branch for a PR).
 
@@ -159,7 +151,6 @@ CodeRabbit-style audit returning P0–P3 findings + a verdict (`APPROVED` / `REV
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `target` | No | Diff target: a git ref range, a file path, or `workdir`. Defaults to `git diff HEAD` (staged + unstaged) |
-| `reviewer_model` | No | Override reviewer model |
 | `apply_fixes` | No | If true, run respond-review to apply must-fix / should-fix |
 
 ### sf_flow_auto
@@ -462,13 +453,13 @@ Both run the same audit triad, so they look interchangeable — but the wrapper 
 |---|---|---|
 | Tier | 1 (built-in skill) | 2 (YAML flow) |
 | What runs | the skill inline, in your current session | a generated pi-dw script that runs the skill phase INLINE — the orchestrator reads + executes the skill file (no nested agent) |
-| Model source | config (`reviewer.model`) | config (`reviewer.model`) — *via the skill* |
+| Model source | agent `.md` frontmatter | agent `.md` frontmatter |
 | Result | findings + verdict into your chat | a flow result — the skill phase's `out` is **opaque** (a placeholder string) |
 | Gated loop | no (one-shot; `apply_fixes` applies once) | **yes** — audit↔fix group loop (auditor gates, developer fixes, re-verify until APPROVED) |
 | Extensible | fixed skill steps | edit the YAML: add phases, chain it, version & share it |
 | Input | `target` (git ref / file / `workdir`) | `prompt` · `md-file` · `prd` · `jira` |
 
-Today `code-review.yaml` is an audit↔fix **group loop**: the auditor agent gates (finds P0-P3 + verdict), the developer agent fixes, and the auditor re-verifies until APPROVED or max_rounds. This gives it a structural advantage over the one-shot skill: findings are addressed and re-verified in a loop. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact with a gated fix loop — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: a flow's **agent** phases get their model from the YAML (`agents.<name>.model`); its **skill** phases inherit the skill's config-driven model.
+Today `code-review.yaml` is an audit↔fix **group loop**: the auditor agent gates (finds P0-P3 + verdict), the developer agent fixes, and the auditor re-verifies until APPROVED or max_rounds. This gives it a structural advantage over the one-shot skill: findings are addressed and re-verified in a loop. **Use the skill** for a quick, zero-overhead audit in your current task. **Use the flow** when you want a reusable, shareable, composable artifact with a gated fix loop — e.g. chain it after plan + implement (that's `ship-feature.yaml`). Remember: every phase's agents get their model from their `.md` files (both tiers).
 
 > **Group loops are the fix mechanism.** The gate phase finds issues → the fix phase modifies code → the gate re-verifies → until APPROVED. Without the fix phase, the gate would see the same artifact each round and the loop could never close.
 
@@ -519,16 +510,10 @@ Plans are consumed by an implementer that may be a weaker model, so `/sf-flow-pl
 
 ## Configuration
 
-Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `~/.pi/sf/flow/config.json`, both over defaults. Partial configs are fine — anything you omit falls back to its default.
+Layered: project `.pi/sf/flow/config.json` over global `~/.pi/sf/flow/config.json` over defaults. Partial configs are fine.
 
 ```json
 {
-  "reviewer": { "model": "anthropic/sonnet-4-6" },
-  "researcher": { "model": "anthropic/haiku-4-5" },
-  "developer": { "model": "anthropic/sonnet-4-6" },
-  "planner": { "model": "anthropic/sonnet-4-6" },
-  "auditor": { "model": "anthropic/sonnet-4-6" },
-  "synth": { "model": "anthropic/haiku-4-5" },
   "audit": { "threshold": 0.94, "max_rounds": 5 },
   "worktree": { "branch_prefix": "flow/" }
 }
@@ -536,62 +521,40 @@ Config is **layered**: project `.pi/sf/flow/config.json` is merged over global `
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `<role>.model` | `string` | — | Model for one of the ten agents with a config group: `reviewer`, `researcher`, `developer`, `planner`, `auditor`, `synth`, `designer`. All optional; unset ⇒ inherits the orchestrator (no fail-fast) |
-| `elicitor.model` | `string` | — | Model for the `elicitor` agent (questions-phase fallback). Inline YAML `model:` wins; config fallback; env; `.md`; orchestrator |
-| `notifier.model` | `string` | — | Model for the `notifier` agent (config-only; no env var). Inline YAML `model:` wins; else config; else `.md`; else orchestrator |
-| `scanner.model` | `string` | — | Model for the `scanner` agent (config-only; no env var). Inline YAML `model:` wins; else config; else `.md`; else orchestrator |
 | `audit.threshold` | `number` | `0.94` | Dual-blind AND-gate pass score |
 | `audit.max_rounds` | `integer` | `5` | Max audit fix-loop iterations |
 | `worktree.branch_prefix` | `string` | `flow/` | Branch prefix for implement worktrees |
+| `freshReviewResetThreshold` | `number` | `0.5` | Reset the delta-review to a fresh comprehensive review when the changed-lines ratio meets/exceeds this |
 
-**Environment variables:** `SF_FLOW_REVIEWER_MODEL`, `SF_FLOW_RESEARCHER_MODEL`, `SF_FLOW_DEVELOPER_MODEL`, `SF_FLOW_PLANNER_MODEL`, `SF_FLOW_AUDITOR_MODEL`, `SF_FLOW_SYNTH_MODEL`, `SF_FLOW_DESIGNER_MODEL`, `SF_FLOW_ELICITOR_MODEL`.
+Models are NOT configured here — each agent's model lives in its `.md` frontmatter
+(see [Model resolution](#model-resolution)). Config files still carrying legacy
+`<role>.model` groups are stripped with a one-time warning.
 
-### Model resolution chain (Tier 1 skills)
+### Model resolution
 
-Tier-1 skills **self-resolve** each agent's model:
+Agents' models are defined in ONE place: each agent's `.md` frontmatter (`model:`).
+Discovery: project `.pi/agents/<name>.md` overrides global `getAgentDir()/agents/<name>.md`
+(default `~/.pi/agent/agents/`); a `.md` with no `model:` inherits the orchestrator.
+Flow passes no model at dispatch — pi-subagents applies the `.md` model natively
+(frontmatter is authoritative), in tier-1 skills and tier-2 workflow agents alike.
 
-1. A model passed in the invocation context (tool echo / workflow hint) — wins.
-2. Config file — `<role>.model` (project, then global).
-3. Environment — `SF_FLOW_<ROLE>_MODEL`.
-4. **Inherit the orchestrator model** (uniform fallback, no fail-fast). At dispatch, an unset model is *omitted* so pi-subagents applies the agent `.md` `model:` (if any) or inherits the orchestrator.
+> **Transitional note:** the workflow YAML's per-agent `model:` field is being removed in
+> favor of the `.md`-only rule; until then an inline YAML `model:` still wins for that
+> workflow's agent. New workflows should pin models in the `.md` files.
 
-> Note: Tier 2 YAML agents use inline `model:` first (inline wins); an agent whose name matches a config group then falls back to `config.json`'s `<name>.model`, else `.md`, else orchestrator.
-
-> **Exception — `questions:`-phase elicitor:** the elicitor agent resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). This is the only Tier-2 agent with an ENV-var fallback (`SF_FLOW_ELICITOR_MODEL`).
-
-### Model precedence
-
-A common question: *if an agent `.md` sets a `model:` and config sets a different one, which wins?* **10-agent model registry** (`reviewer`/`researcher`/`developer`/`planner`/`auditor`/`synth`/`designer`/`elicitor`/`notifier`/`scanner`); each group is `additionalProperties: false`.
-
-| Agent used by | `.md` `model:` | YAML `model:` | config | → Model used |
-|---|---|---|---|---|
-| Tier 1 skill | (applied by pi-subagents only if config/env unset) | — | set | **config** |
-| Tier 1 skill | (applied if unset) | — | unset | **`.md`** → else **orchestrator** (uniform fallback) |
-| Tier 2 flow agent (name-matches-group) | set | set | set | **YAML** (inline wins) |
-| Tier 2 flow agent (name-matches-group) | set | omitted | set | **config** (`<name>.model`) |
-| Tier 2 flow agent (name-matches-group) | set | omitted | unset | **`.md`** → else **orchestrator** |
-| Tier 2 flow agent (no matching group) | set | omitted | — | **`.md`** → else **orchestrator** |
-| `questions:` elicitor | set | set | (no effect) | **YAML** (inline wins) |
-| `questions:` elicitor | (applied if unset) | omitted | set | **config** (`elicitor.model`) |
-| `questions:` elicitor | (applied if unset) | omitted | unset | **`.md`** → else **orchestrator** |
-
-**Why config wins for Tier 1 (when set):** the skill self-resolves + passes the model *explicitly* at dispatch — `Agent({ subagent_type: "reviewer", model: "<from config>" })` — overriding the `.md`. If config/env are both unset, the model is omitted so pi-subagents falls back to the `.md` `model:` (if any), else the orchestrator. The seven default agents ship with no `model:` — so an unset config simply inherits the orchestrator (no error).
-
-**Why YAML wins for Tier 2:** `agentOpts` resolves `def?.model ?? configModel ?? undefined` — inline YAML `model:` always wins. With no inline model, an agent whose name matches a config group (resolved via `configModelFor`) gets the config `<name>.model` baked in; otherwise the model is omitted so pi-subagents falls back to the `.md`'s `model:` (else the orchestrator).
-
-**Exception — the elicitor agent** (used by `questions:` phases) is the one Tier-2 agent with an ENV-var fallback (`SF_FLOW_ELICITOR_MODEL`): its model resolves inline YAML `model:` → `config.json` `elicitor.model` → env `SF_FLOW_ELICITOR_MODEL` → `.md` → orchestrator (inline YAML wins). A present-but-malformed `elicitor.model` normalizes to `null` and blocks the env fallback (mirrors tier-1 config-present semantics).
-
----
+> The old model channels — `config.json` model groups, `SF_FLOW_<ROLE>_MODEL` env vars,
+> and the `*_model` tool params — were removed. Config carrying them is stripped with a
+> one-time warning; set the model in the agent's `.md` instead.
 
 ## Architecture
 
 ### Skill-driven design
 
-The tools are thin: each pre-resolves config + ensures agents exist, then hands off to a `SKILL.md` containing the actual step sequence. The extension provides only config loading, model resolution, write-once agent templates, agent-type resolution, and worktree helpers.
+The tools are thin: each ensures agents exist + reports each agent's `.md` (path + pinned model, read-only), then hands off to a `SKILL.md` containing the actual step sequence. The extension provides only config loading (runtime settings), write-once agent templates, agent-type resolution, and worktree helpers.
 
 ### Model resolution
 
-Tier-1 skills **self-resolve** models from `config.json` (project → global → env → inherit orchestrator); the tools pre-resolve + echo them for visibility. Agent types resolve by `.md` filename match (see [Agent resolution](#agent-resolution)).
+Each agent's model lives in its `.md` frontmatter (project `.pi/agents` overrides global); flow passes no model at dispatch. Agent types resolve by `.md` filename match (see [Agent resolution](#agent-resolution)).
 
 ### Orchestrator-only implement
 

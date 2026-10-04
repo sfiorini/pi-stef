@@ -1,29 +1,7 @@
 import type { FlowYaml, PhaseDef } from "./schema.js";
-import { configModelFor, type ResolvedModels } from "../config/schema.js";
 import { resolveAgentType } from "../agents.js";
 import { skillDocPath } from "../messages.js";
 import { requiredNames } from "./contract.js";
-
-/**
- * Build a baked model-hint clause for a tier-1 skill phase (belt-and-
- * suspenders — the skill self-resolves too). Returns "" when no models are
- * available or the skill names no tier-1 model subset.
- */
-function tier1Hint(skill: string, models: ResolvedModels | null): string {
-  if (!models) return "";
-  const tier1 =
-    skill === "sf-flow-plan" || skill === "sf-flow-implement" || skill === "sf-flow-audit";
-  if (!tier1) return "";
-  const parts: string[] = [];
-  const push = (label: string, m: string | null) => {
-    if (m) parts.push(`${label}=${m}`);
-  };
-  push("reviewer", models.reviewerModel);
-  if (skill === "sf-flow-plan") push("researcher", models.researcherModel);
-  if (skill === "sf-flow-implement") push("developer", models.developerModel);
-  if (skill === "sf-flow-audit") push("auditor", models.auditorModel);
-  return parts.length ? `Models (config; use unless overridden): ${parts.join(", ")}.` : "";
-}
 
 function titleCase(s: string): string {
   return s.replace(/(^|[-_])(\w)/g, (_m, _sep, c) => " " + c.toUpperCase()).trim();
@@ -46,7 +24,6 @@ function agentOpts(
   def: FlowYaml["agents"][string] | undefined,
   phase: string,
   agentType: string,
-  configModel?: string | null,
 ): string {
   const parts: string[] = [
     `label: ${JSON.stringify(name)}`,
@@ -54,8 +31,8 @@ function agentOpts(
     `agentType: ${JSON.stringify(agentType)}`,
   ];
   if (def?.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
-  const resolvedModel = def?.model ?? configModel ?? undefined;
-  if (resolvedModel) parts.push(`model: ${JSON.stringify(resolvedModel)}`);
+  // M3 moves the model to the agent .md; until then the YAML model: still wins.
+  if (def?.model) parts.push(`model: ${JSON.stringify(def.model)}`);
   if (def?.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
   if (def?.isolated) parts.push(`isolated: true`);
   if (def?.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
@@ -193,15 +170,13 @@ function emitCanonicalGroupLoop(
   groupId: string,
   group: { phases: string[] },
   flow: FlowYaml,
-  models: ResolvedModels | null,
 ): string[] {
   const loop = flow.loops?.[groupId];
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
   const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
   const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
-  const gateConfigModel = configModelFor(gatePhase.agent!, models);
-  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType, gateConfigModel);
+  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
   const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
   const maxRounds = loop?.max_rounds ?? 5;
   const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
@@ -246,8 +221,7 @@ function emitCanonicalGroupLoop(
     const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
     const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
     const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
-    const fixConfigModel = configModelFor(fixPhase.agent!, models);
-    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType, fixConfigModel);
+    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
     const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
     lines.push(
       `    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _rendered, ${fixOpts});`,
@@ -271,18 +245,16 @@ function emitGroupLoop(
   groupId: string,
   group: { phases: string[] },
   flow: FlowYaml,
-  models: ResolvedModels | null,
 ): string[] {
   const loop = flow.loops?.[groupId];
   if (loop?.protocol === "canonical-delta") {
-    return emitCanonicalGroupLoop(groupId, group, flow, models);
+    return emitCanonicalGroupLoop(groupId, group, flow);
   }
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
   const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
   const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
-  const gateConfigModel = configModelFor(gatePhase.agent!, models);
-  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType, gateConfigModel);
+  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
   const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
   const maxRounds = loop?.max_rounds ?? 5;
   const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
@@ -316,8 +288,7 @@ function emitGroupLoop(
     const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
     const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
     const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
-    const fixConfigModel = configModelFor(fixPhase.agent!, models);
-    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType, fixConfigModel);
+    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
     const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
     lines.push(
       `    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _findingsJson, ${fixOpts});`,
@@ -339,10 +310,7 @@ function emitGroupLoop(
  * trusts that incompatible loop/phase combos were rejected by validate.ts and
  * hardens itself by throwing if it ever sees one.
  */
-export function generateScript(
-  flow: FlowYaml,
-  genOpts: { models?: ResolvedModels | null } = {},
-): string {
+export function generateScript(flow: FlowYaml): string {
   const phaseTitles = flow.phases.map((p) => `{ title: ${singleQuote(titleCase(p.id))} }`).join(", ");
   const body: string[] = [];
 
@@ -369,7 +337,7 @@ export function generateScript(
       const groupId = phaseToGroup.get(ph.id)!;
       if (!emittedGroups.has(groupId)) {
         emittedGroups.add(groupId);
-        body.push(...emitGroupLoop(groupId, flow.groups![groupId], flow, genOpts.models ?? null));
+        body.push(...emitGroupLoop(groupId, flow.groups![groupId], flow));
       }
       continue;
     }
@@ -389,8 +357,7 @@ export function generateScript(
       const maxRounds = ph.max_rounds ?? 5;
       const qDef = flow.agents[ph.questions];
       const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
-      const qConfigModel = configModelFor(ph.questions, genOpts.models ?? null);
-      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType, qConfigModel);
+      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType);
       const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
         "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
@@ -408,7 +375,6 @@ export function generateScript(
           `phase ${ph.id}: loops are not supported on skill phases (validate.ts should have rejected this)`,
         );
       }
-      const hint = tier1Hint(ph.skill, genOpts.models ?? null);
       const skillPath = skillDocPath(ph.skill);
       const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
@@ -416,14 +382,13 @@ export function generateScript(
         "The orchestrator (YOU) must read and execute the skill file at " + esc(skillPath) + " in full. " +
         "Dispatch role agents directly via the Agent tool (subagent_type per the skill); do NOT write code yourself " +
         "and do NOT spawn a general-purpose subagent for this phase — run it inline. " +
-        "Workflow " + esc(flow.name) + ". args.flow=${args.flow}, args.slug=${args.slug}. " + esc(hint) + "`";
+        "Workflow " + esc(flow.name) + ". args.flow=${args.flow}, args.slug=${args.slug}.`";
       body.push("log(" + directive + ");");
     } else {
       const def = ph.agent ? flow.agents[ph.agent] : undefined;
       if (!ph.agent) throw new Error(`phase ${ph.id} has no resolvable agent`);
       const agentType = resolveAgentType(ph.agent, Object.keys(flow.agents));
-      const agentConfigModel = configModelFor(ph.agent, genOpts.models ?? null);
-      const opts = agentOpts(ph.agent, def, ph.id, agentType, agentConfigModel);
+      const opts = agentOpts(ph.agent, def, ph.id, agentType);
       const promptLit = JSON.stringify(ph.prompt ?? ""); // fanout keeps the raw {{item}} string-replace
       const promptExpr = agentPromptExpr(ph.prompt ?? "", ph);
 

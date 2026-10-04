@@ -64,23 +64,17 @@ describe("generateScript", () => {
     expect(s).toMatch(/agentType:\s*['"]reviewer['"]/);
   });
 
-  it("tier-2 agent phase bakes YAML model verbatim; config never overrides it", () => {
+  it("tier-2 agent phase bakes YAML model verbatim (the config channel is gone)", () => {
     const s = generateScript({
       name: "t", description: "d", input: "prompt",
       agents: { scanner: { model: "haiku" } },
       phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
     });
     expect(s).toMatch(/model:\s*"haiku"/);
-    const s2 = generateScript({
-      name: "t", description: "d", input: "prompt",
-      agents: { scanner: { model: "haiku" } },
-      phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
-    }, { models: { reviewerModel: "config-rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null } });
-    expect(s2).not.toContain("config-rev");
   });
 });
 
-describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
+describe("generateScript skill-phase slug handoff (M5)", () => {
   const skillFlow = {
     name: "ship-feature",
     description: "d",
@@ -92,18 +86,6 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       { id: "other", skill: "some-other-skill" },
     ],
   };
-  const fullModels = {
-    reviewerModel: "rev-model",
-    researcherModel: "rs-model",
-    developerModel: "dev-model",
-    plannerModel: null,
-    auditorModel: "aud-model",
-    synthModel: null,
-    designerModel: null,
-    elicitorModel: null,
-    notifierModel: null,
-    scannerModel: null,
-  };
 
   it("injects args.flow/args.slug into skill-phase prompts (no placeholder const)", () => {
     const s = generateScript(skillFlow);
@@ -112,39 +94,23 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     expect(s).not.toMatch(/const \w+ = "skill:/);
   });
 
-  it("bakes the skill-relevant resolved model hint for tier-1 skills", () => {
-    const s = generateScript(skillFlow, { models: fullModels });
-    // plan phase gets reviewer + researcher
-    expect(s).toContain("reviewer=rev-model");
-    expect(s).toContain("researcher=rs-model");
-    // implement phase gets reviewer + developer
-    expect(s).toContain("developer=dev-model");
-    // auditor is NOT hinted into plan/implement (only into sf-flow-audit)
-    expect(s).not.toContain("auditor=aud-model");
-  });
-
-  it("omits the hint entirely (still compiles) when no models provided", () => {
+  it("emits NO model hints in skill-phase directives (models live in the .md files)", () => {
     const s = generateScript(skillFlow);
+    // The tier1Hint mechanism is gone: directives carry no model prose at all.
     expect(s).toContain("sf-flow-plan");
     expect(s).toContain("some-other-skill");
     expect(s).not.toContain("reviewer=");
-  });
-
-  it("non-tier-1 skill names get NO model hint even when models are provided", () => {
-    const s = generateScript(skillFlow, { models: fullModels });
-    expect(s).toContain("some-other-skill");
-    // the only hints are reviewer/researcher/developer (tier-1); 'some-other-skill'
-    // itself contributes no hint line — confirm no auditor leaked anywhere
     expect(s).not.toContain("auditor=");
-  });
-
-  it("sf-flow-audit phase gets reviewer + auditor hints (no developer/researcher)", () => {
-    const auditFlow = { ...skillFlow, phases: [{ id: "audit", skill: "sf-flow-audit" }] };
-    const s = generateScript(auditFlow, { models: fullModels });
-    expect(s).toContain("reviewer=rev-model");
-    expect(s).toContain("auditor=aud-model");
     expect(s).not.toContain("developer=");
     expect(s).not.toContain("researcher=");
+  });
+
+  it("sf-flow-audit skill phase emits its directive with no model hint", () => {
+    const auditFlow = { ...skillFlow, phases: [{ id: "audit", skill: "sf-flow-audit" }] };
+    const s = generateScript(auditFlow);
+    expect(s).toContain("sf-flow-audit");
+    expect(s).not.toContain("reviewer=");
+    expect(s).not.toContain("auditor=");
   });
 
   it("skill phases emit a log() INLINE directive, NOT a general-purpose twin", () => {
@@ -416,31 +382,18 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
     });
   });
 
-  describe("questions-phase elicitor config fallback (M2)", () => {
-    it("questions-phase bakes elicitorModel from config when no inline model", () => {
-      const qFlow: FlowYaml = {
-        name: "q", description: "d", input: "prompt",
-        agents: { elicitor: { schema: { questions: "array" } } },
-        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
-      };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
-      const s = generateScript(qFlow, { models });
-      expect(s).toMatch(/model:\s*"config\/el"/);
-    });
-
-    it("inline YAML model wins over elicitorModel config", () => {
+  describe("questions-phase elicitor model (M2: inline YAML only until M3)", () => {
+    it("inline YAML model is baked into the questions-phase opts comment", () => {
       const qFlow: FlowYaml = {
         name: "q", description: "d", input: "prompt",
         agents: { elicitor: { model: "yaml-el", schema: { questions: "array" } } },
         phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
       };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
-      const s = generateScript(qFlow, { models });
+      const s = generateScript(qFlow);
       expect(s).toMatch(/model:\s*"yaml-el"/);
-      expect(s).not.toContain("config/el");
     });
 
-    it("no model when both inline and config are absent", () => {
+    it("no model when inline is absent (config/env channels are gone)", () => {
       const qFlow: FlowYaml = {
         name: "q", description: "d", input: "prompt",
         agents: { elicitor: { schema: { questions: "array" } } },
@@ -449,34 +402,18 @@ describe("generateScript skill-phase slug handoff + model hints (M5)", () => {
       const s = generateScript(qFlow);
       expect(s).not.toMatch(/model:\s*"[^"]+"/);
     });
-
-    it("non-questions tier-2 agent does NOT pick up elicitorModel", () => {
-      const flow: FlowYaml = {
-        name: "t", description: "d", input: "prompt",
-        agents: { scanner: {} },
-        phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
-      };
-      const models = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: "config/el", notifierModel: null, scannerModel: null };
-      const s = generateScript(flow, { models });
-      expect(s).not.toContain("config/el");
-    });
   });
 });
 
-describe("tier-2 agent config fallback (M6)", () => {
-  const withScanner = { reviewerModel: null, researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: "config/sc" };
-  const withReviewer = { reviewerModel: "config/rev", researcherModel: null, developerModel: null, plannerModel: null, auditorModel: null, synthModel: null, designerModel: null, elicitorModel: null, notifierModel: null, scannerModel: null };
+describe("tier-2 agent model baking (M2: inline YAML only; config channel removed)", () => {
   const flow = (agents: Record<string, { model?: string }>, agent: string) => ({ name: "t", description: "d", input: "prompt" as const, agents, phases: [{ id: "p", agent, prompt: "go" }] });
-  it("(a) config + no inline → emits config model", () => { expect(generateScript(flow({ scanner: {} }, "scanner"), { models: withScanner })).toMatch(/model:\s*"config\/sc"/); });
-  it("(b) inline wins over config", () => { const s = generateScript(flow({ scanner: { model: "yaml/sc" } }, "scanner"), { models: withScanner }); expect(s).toMatch(/model:\s*"yaml\/sc"/); expect(s).not.toContain("config/sc"); });
-  it("(c) neither → no model emitted", () => { expect(generateScript(flow({ scanner: {} }, "scanner"))).not.toMatch(/model:\s*"[^"]+"/) });
-  it("(c2) models=null → no model", () => { expect(generateScript(flow({ scanner: {} }, "scanner"), { models: null })).not.toMatch(/model:\s*"[^"]+"/); });
-  it("(d) group-loop gate+fix with config → 2 matches", () => {
-    const g = { name: "g", description: "d", input: "prompt" as const, agents: { reviewer: { schema: { verdict: "APPROVED|REVISE" } }, developer: {} }, groups: { review: { phases: ["gate", "fix"] } }, phases: [{ id: "gate", agent: "reviewer", prompt: "r" }, { id: "fix", agent: "reviewer", prompt: "f" }], loops: { review: { until: "approved" as const, fail_on: ["P0"], max_rounds: 5 } } };
-    const s = generateScript(g, { models: withReviewer });
-    expect(s.match(/model:\s*"config\/rev"/g)).toHaveLength(2);
+  it("inline YAML model is baked verbatim", () => { const s = generateScript(flow({ scanner: { model: "yaml/sc" } }, "scanner")); expect(s).toMatch(/model:\s*"yaml\/sc"/); });
+  it("no inline → no model emitted (the .md supplies it)", () => { expect(generateScript(flow({ scanner: {} }, "scanner"))).not.toMatch(/model:\s*"[^"]+"/); });
+  it("group-loop gate+fix bakes the inline model at both call sites", () => {
+    const g = { name: "g", description: "d", input: "prompt" as const, agents: { reviewer: { model: "yaml/rev", schema: { verdict: "APPROVED|REVISE" } }, developer: {} }, groups: { review: { phases: ["gate", "fix"] } }, phases: [{ id: "gate", agent: "reviewer", prompt: "r" }, { id: "fix", agent: "reviewer", prompt: "f" }], loops: { review: { until: "approved" as const, fail_on: ["P0"], max_rounds: 5 } } };
+    const s = generateScript(g);
+    expect(s.match(/model:\s*"yaml\/rev"/g)).toHaveLength(2);
   });
-  it("case-insensitive agent name", () => { expect(generateScript(flow({ Scanner: {} }, "Scanner"), { models: withScanner })).toMatch(/model:\s*"config\/sc"/); });
 
   it("(e) single-phase gate routes through _gateApproved (D4, no permissive tail)", () => {
     const g: FlowYaml = {

@@ -1,481 +1,148 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadConfig, resolveFlowModels } from "../src/config/load.js";
-import { DEFAULT_CONFIG, configModelFor, type FlowConfig, type ResolvedModels } from "../src/config/schema.js";
+import { loadConfig, loadFlowSettingsOrDefaults, hasLegacyModelEnvVars } from "../src/config/load.js";
+import { DEFAULT_CONFIG } from "../src/config/schema.js";
+
+function tempDirs() {
+  const home = mkdtempSync(join(tmpdir(), "flow-home-"));
+  const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+  return { home, root };
+}
+
+function writeProjectConfig(root: string, cfg: unknown) {
+  mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
+  writeFileSync(join(root, ".pi", "sf", "flow", "config.json"), JSON.stringify(cfg));
+}
 
 describe("flow config", () => {
   it("returns DEFAULT_CONFIG when no files exist", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    const cfg = await loadConfig(root, { homeDir: home });
+    const { home, root } = tempDirs();
+    const { legacyModelKeysByFile, ...cfg } = await loadConfig(root, { homeDir: home });
     expect(cfg).toEqual(DEFAULT_CONFIG);
+    expect(legacyModelKeysByFile).toEqual({});
   });
 
   it("freshReviewResetThreshold defaults to 0.5 (D18)", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    const { home, root } = tempDirs();
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.freshReviewResetThreshold).toBe(0.5);
   });
 
   it("freshReviewResetThreshold honors a project override (D18)", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ freshReviewResetThreshold: 0.8 }),
-    );
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { freshReviewResetThreshold: 0.8 });
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.freshReviewResetThreshold).toBe(0.8);
   });
 
   it("layered merge: project overrides global", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
+    const { home, root } = tempDirs();
     mkdirSync(join(home, ".pi", "sf", "flow"), { recursive: true });
     writeFileSync(
       join(home, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({
-        audit: { threshold: 0.9, max_rounds: 5 },
-        worktree: { branch_prefix: "flow/" },
-        reviewer: {},
-        researcher: {},
-      }),
+      JSON.stringify({ audit: { threshold: 0.9, max_rounds: 5 }, worktree: { branch_prefix: "flow/" } }),
     );
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({
-        audit: { threshold: 0.97, max_rounds: 5 },
-        worktree: { branch_prefix: "flow/" },
-        reviewer: {},
-        researcher: {},
-      }),
-    );
+    writeProjectConfig(root, { audit: { threshold: 0.97, max_rounds: 5 } });
     const cfg = await loadConfig(root, { homeDir: home });
     expect(cfg.audit.threshold).toBe(0.97);
+    expect(cfg.worktree.branch_prefix).toBe("flow/"); // from global
   });
 
-  it("accepts a minimal partial config (only reviewer) and fills defaults", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ reviewer: { model: "anthropic/opus" } }),
-    );
+  it("accepts a minimal partial config (only audit) and fills defaults", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { audit: { threshold: 0.9 } });
     const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.reviewer.model).toBe("anthropic/opus");
-    // defaults filled for the absent groups
-    expect(cfg.audit).toEqual({ threshold: 0.94, max_rounds: 5 });
+    expect(cfg.audit).toEqual({ threshold: 0.9, max_rounds: 5 }); // max_rounds default fills in
     expect(cfg.worktree).toEqual({ branch_prefix: "flow/" });
   });
 
-  it("migrates a legacy 'explorer' config key to 'researcher' (pre-validation rename)", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(join(root, ".pi", "sf", "flow", "config.json"), JSON.stringify({ explorer: { model: "legacy/rs" } }));
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.researcher.model).toBe("legacy/rs");
-  });
-
-  it("lets 'researcher' win when both 'explorer' and 'researcher' keys are present", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ explorer: { model: "legacy/rs" }, researcher: { model: "winner/rs" } }),
-    );
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.researcher.model).toBe("winner/rs");
-  });
-});
-
-describe("resolveFlowModels", () => {
-  const ROLES = ["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"] as const;
-  const envNames = [...ROLES.map((r) => `SF_FLOW_${r.toUpperCase()}_MODEL`), "SF_FLOW_ELICITOR_MODEL"];
-  const origEnv: Record<string, string | undefined> = {};
-  beforeEach(() => {
-    for (const name of envNames) {
-      origEnv[name] = process.env[name];
-      delete process.env[name];
-    }
-  });
-  afterEach(() => {
-    for (const name of envNames) {
-      if (origEnv[name]) process.env[name] = origEnv[name];
-      else delete process.env[name];
-    }
-  });
-
-  it("returns all 10 model fields, all null when nothing is set (no throw)", () => {
-    expect(resolveFlowModels(DEFAULT_CONFIG)).toEqual({
-      reviewerModel: null,
-      researcherModel: null,
-      developerModel: null,
-      plannerModel: null,
-      auditorModel: null,
-      synthModel: null,
-      designerModel: null,
-      elicitorModel: null,
-      notifierModel: null,
-      scannerModel: null,
+  it("strips legacy model-group keys and reports them (models now live in .md files)", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, {
+      reviewer: { model: "anthropic/opus" },
+      scanner: { model: "haiku" },
+      audit: { threshold: 0.95 },
     });
+    const cfg = await loadConfig(root, { homeDir: home });
+    // audit SURVIVES alongside stripped legacy keys
+    expect(cfg.audit.threshold).toBe(0.95);
+    expect(cfg.legacyModelKeysByFile["project config.json"]).toEqual(["reviewer", "scanner"]);
   });
 
-  it("override wins over config + env", () => {
-    const cfg = { ...DEFAULT_CONFIG, reviewer: { model: "config/r" } };
-    process.env.SF_FLOW_REVIEWER_MODEL = "env/r";
-    expect(resolveFlowModels(cfg, { reviewer: "override/r" }).reviewerModel).toBe("override/r");
+  it("strips the pre-0.4 'explorer' legacy key too", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { explorer: { model: "x/y" }, worktree: { branch_prefix: "ft/" } });
+    const cfg = await loadConfig(root, { homeDir: home });
+    expect(cfg.worktree.branch_prefix).toBe("ft/");
+    expect(cfg.legacyModelKeysByFile["project config.json"]).toEqual(["explorer"]);
   });
 
-  it("config group wins when no override", () => {
-    process.env.SF_FLOW_DEVELOPER_MODEL = "env/d";
-    expect(
-      resolveFlowModels({ ...DEFAULT_CONFIG, developer: { model: "config/d" } }).developerModel,
-    ).toBe("config/d");
+  it("still rejects unknown top-level keys (additionalProperties: false)", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { bogus: { model: "x" } });
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow(/bogus/);
   });
 
-  it("env wins when no override/config", () => {
-    process.env.SF_FLOW_PLANNER_MODEL = "env/p";
-    expect(resolveFlowModels(DEFAULT_CONFIG).plannerModel).toBe("env/p");
+  it("still rejects bogus properties inside the audit group", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { audit: { threshold: 0.9, bogus: 1 } });
+    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow(/audit/);
   });
+});
 
-  it("null when nothing set for any role (uniform fallback, no fail-fast)", () => {
-    const m = resolveFlowModels(DEFAULT_CONFIG);
-    expect(m.reviewerModel).toBeNull();
-    expect(m.developerModel).toBeNull();
-    expect(m.auditorModel).toBeNull();
-    expect(m.synthModel).toBeNull();
-    expect(m.designerModel).toBeNull();
-  });
-
-  it("resolves every role independently from its config group", () => {
-    // Values are well-formed bare aliases (>= 2 chars) so they pass the
-    // normalizeModelSpec chokepoint verbatim; each role is independent.
-    const cfg: FlowConfig = {
-      reviewer: { model: "rev" },
-      researcher: { model: "res" },
-      developer: { model: "dev" },
-      planner: { model: "pln" },
-      auditor: { model: "aud" },
-      synth: { model: "syn" },
-      designer: { model: "des" },
-      notifier: {},
-      scanner: {},
-      audit: { threshold: 0.94, max_rounds: 5 },
-      worktree: { branch_prefix: "flow/" },
-    };
-    expect(resolveFlowModels(cfg)).toEqual({
-      reviewerModel: "rev",
-      researcherModel: "res",
-      developerModel: "dev",
-      plannerModel: "pln",
-      auditorModel: "aud",
-      synthModel: "syn",
-      designerModel: "des",
-      elicitorModel: null,
-      notifierModel: null,
-      scannerModel: null,
+describe("loadFlowSettingsOrDefaults (tolerant loader + warnings)", () => {
+  it("warns once per file carrying legacy model groups", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { reviewer: { model: "a/b" }, audit: { threshold: 0.96 } });
+    const warnings: string[] = [];
+    const cfg = await loadFlowSettingsOrDefaults(root, {
+      homeDir: home,
+      notify: (msg) => warnings.push(msg),
     });
+    expect(cfg.audit.threshold).toBe(0.96);
+    expect(warnings.some((w) => w.includes("project config.json") && w.includes("reviewer"))).toBe(true);
   });
 
-  it("env var names follow SF_FLOW_<ROLE>_MODEL", () => {
-    process.env.SF_FLOW_AUDITOR_MODEL = "env/a";
-    process.env.SF_FLOW_SYNTH_MODEL = "env/s";
-    const m = resolveFlowModels(DEFAULT_CONFIG);
-    expect(m.auditorModel).toBe("env/a");
-    expect(m.synthModel).toBe("env/s");
-  });
-
-  it("malformed override/config/env resolve to null (omit); well-formed passes through", () => {
-    // A malformed override (empty id segment) and malformed env both atomically
-    // become null (omit at dispatch) instead of a broken/hybrid spec.
-    process.env.SF_FLOW_DEVELOPER_MODEL = "/bogus"; // malformed env (empty provider)
-    const m = resolveFlowModels(DEFAULT_CONFIG, { reviewer: "anthropic/" });
-    expect(m.reviewerModel).toBeNull(); // malformed override → omit
-    expect(m.developerModel).toBeNull(); // malformed env → omit
-    // well-formed override resolves verbatim
-    const m2 = resolveFlowModels(DEFAULT_CONFIG, { reviewer: "anthropic/opus" });
-    expect(m2.reviewerModel).toBe("anthropic/opus");
+  it("falls back to defaults on a config error, with a warning", async () => {
+    const { home, root } = tempDirs();
+    writeProjectConfig(root, { not_a_real_key: true });
+    const warnings: string[] = [];
+    const cfg = await loadFlowSettingsOrDefaults(root, {
+      homeDir: home,
+      notify: (msg) => warnings.push(msg),
+    });
+    expect(cfg).toEqual(DEFAULT_CONFIG);
+    expect(warnings.some((w) => w.includes("falling back to built-in defaults"))).toBe(true);
   });
 });
 
-describe("resolution parity: tool front-end == skill's documented chain (M5)", () => {
-  // The tool computes models via resolveFlowModels(loadConfig(...)). The tier-1
-  // skills document the SAME chain (project config -> global config -> env ->
-  // null; unset => inherit orchestrator). This test exercises the deterministic
-  // front-end against real fixture FILES so the direct (tool) path and the
-  // delegated (workflow skill) path provably agree. (The .md/orchestrator
-  // inherit step is uniformly pi-subagents' concern, not compared here.)
-  const ROLE_ENVS = [
-    ...["reviewer", "researcher", "developer", "planner", "auditor", "synth", "designer"].map(
-      (r) => `SF_FLOW_${r.toUpperCase()}_MODEL`,
-    ),
-    "SF_FLOW_ELICITOR_MODEL",
-  ];
-  const orig: Record<string, string | undefined> = {};
+describe("hasLegacyModelEnvVars (removed channel warning)", () => {
+  const saved: Record<string, string | undefined> = {};
   beforeEach(() => {
-    for (const n of ROLE_ENVS) {
-      orig[n] = process.env[n];
-      delete process.env[n];
+    for (const k of Object.keys(process.env)) {
+      if (k.startsWith("SF_FLOW_") && k.endsWith("_MODEL")) {
+        saved[k] = process.env[k];
+        delete process.env[k];
+      }
     }
   });
   afterEach(() => {
-    for (const n of ROLE_ENVS) {
-      if (orig[n]) process.env[n] = orig[n];
-      else delete process.env[n];
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+      delete saved[k];
     }
   });
 
-  it("project beats global; global-only wins when project absent; env wins when no config; null when nothing set", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-parity-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-parity-root-"));
-    mkdirSync(join(home, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(home, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ reviewer: { model: "global/rev" }, developer: { model: "global/dev" } }),
-    );
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ reviewer: { model: "project/rev" }, researcher: { model: "project/rs" } }),
-    );
-    process.env.SF_FLOW_AUDITOR_MODEL = "env/aud";
-
-    const cfg = await loadConfig(root, { homeDir: home });
-    const m = resolveFlowModels(cfg);
-    expect(m.reviewerModel).toBe("project/rev"); // project beats global
-    expect(m.researcherModel).toBe("project/rs"); // project-only
-    expect(m.developerModel).toBe("global/dev"); // global-only (project absent)
-    expect(m.auditorModel).toBe("env/aud"); // env (no config group)
-    expect(m.plannerModel).toBeNull(); // nothing set
-    expect(m.synthModel).toBeNull(); // nothing set
-    expect(m.designerModel).toBeNull(); // nothing set
-    expect(m.elicitorModel).toBeNull(); // nothing set
-  });
-});
-
-describe("resolveFlowModels elicitor", () => {
-  const orig: Record<string, string | undefined> = {};
-  beforeEach(() => {
-    orig["SF_FLOW_ELICITOR_MODEL"] = process.env.SF_FLOW_ELICITOR_MODEL;
-    delete process.env.SF_FLOW_ELICITOR_MODEL;
-  });
-  afterEach(() => {
-    if (orig["SF_FLOW_ELICITOR_MODEL"]) process.env.SF_FLOW_ELICITOR_MODEL = orig["SF_FLOW_ELICITOR_MODEL"];
-    else delete process.env.SF_FLOW_ELICITOR_MODEL;
+  it("returns [] when no SF_FLOW_*_MODEL vars are set", () => {
+    expect(hasLegacyModelEnvVars()).toEqual([]);
   });
 
-  it("resolves elicitor model from config elicitor.model", () => {
-    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "config/el" } };
-    expect(resolveFlowModels(cfg).elicitorModel).toBe("config/el");
-  });
-
-  it("resolves elicitor model from env SF_FLOW_ELICITOR_MODEL", () => {
-    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
-    expect(resolveFlowModels(DEFAULT_CONFIG).elicitorModel).toBe("env/el");
-  });
-
-  it("config elicitor.model wins over env SF_FLOW_ELICITOR_MODEL", () => {
-    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
-    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "config/el" } };
-    expect(resolveFlowModels(cfg).elicitorModel).toBe("config/el");
-  });
-
-  it("malformed config elicitor.model blocks env (null + env set → null)", () => {
-    process.env.SF_FLOW_ELICITOR_MODEL = "env/el";
-    // "/bogus" is malformed (empty provider segment)
-    const cfg = { ...DEFAULT_CONFIG, elicitor: { model: "/bogus" } };
-    // Config present but malformed → null, does NOT fall through to env
-    expect(resolveFlowModels(cfg).elicitorModel).toBeNull();
-  });
-});
-
-describe("loadConfig elicitor group", () => {
-  it("accepts an elicitor config group", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ elicitor: { model: "anthropic/opus" } }),
-    );
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.elicitor.model).toBe("anthropic/opus");
-  });
-
-  it("rejects unknown top-level keys (additionalProperties: false)", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ bogus: { model: "x" } }),
-    );
-    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
-  });
-
-  it("rejects bogus property inside elicitor group", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ elicitor: { model: "ok", bogus: true } }),
-    );
-    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
-  });
-
-  it("backward-compat: no elicitor in config → elicitor defaults to {}", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.elicitor).toEqual({});
-  });
-});
-
-describe("configModelFor", () => {
-  const models: ResolvedModels = {
-    reviewerModel: "reviewer-m",
-    researcherModel: "researcher-m",
-    developerModel: "developer-m",
-    plannerModel: "planner-m",
-    auditorModel: "auditor-m",
-    synthModel: "synth-m",
-    designerModel: "designer-m",
-    elicitorModel: "elicitor-m",
-    notifierModel: "notifier-m",
-    scannerModel: "scanner-m",
-  };
-
-  it("returns the correct model for all 10 agent names", () => {
-    expect(configModelFor("reviewer", models)).toBe("reviewer-m");
-    expect(configModelFor("researcher", models)).toBe("researcher-m");
-    expect(configModelFor("developer", models)).toBe("developer-m");
-    expect(configModelFor("planner", models)).toBe("planner-m");
-    expect(configModelFor("auditor", models)).toBe("auditor-m");
-    expect(configModelFor("synth", models)).toBe("synth-m");
-    expect(configModelFor("designer", models)).toBe("designer-m");
-    expect(configModelFor("elicitor", models)).toBe("elicitor-m");
-    expect(configModelFor("notifier", models)).toBe("notifier-m");
-    expect(configModelFor("scanner", models)).toBe("scanner-m");
-  });
-
-  it("is case-insensitive (Scanner, NOTIFIER, Elicitor)", () => {
-    expect(configModelFor("Scanner", models)).toBe("scanner-m");
-    expect(configModelFor("NOTIFIER", models)).toBe("notifier-m");
-    expect(configModelFor("Elicitor", models)).toBe("elicitor-m");
-  });
-
-  it("returns null for unknown agent names", () => {
-    expect(configModelFor("unknown", models)).toBeNull();
-    expect(configModelFor("", models)).toBeNull();
-  });
-
-  it("returns null when models is null", () => {
-    expect(configModelFor("reviewer", null)).toBeNull();
-    expect(configModelFor("scanner", null)).toBeNull();
-  });
-
-  it("returns null when the matching field is null", () => {
-    const m2 = { ...models, reviewerModel: null };
-    expect(configModelFor("reviewer", m2)).toBeNull();
-    expect(configModelFor("scanner", m2)).toBe("scanner-m");
-  });
-});
-
-describe("resolveFlowModels notifier + scanner", () => {
-  const envVars = ["SF_FLOW_NOTIFIER_MODEL", "SF_FLOW_SCANNER_MODEL"];
-  const origEnv: Record<string, string | undefined> = {};
-  beforeEach(() => {
-    for (const name of envVars) {
-      origEnv[name] = process.env[name];
-      delete process.env[name];
-    }
-  });
-  afterEach(() => {
-    for (const name of envVars) {
-      if (origEnv[name]) process.env[name] = origEnv[name];
-      else delete process.env[name];
-    }
-  });
-
-  it("resolves notifier/scanner model from config", () => {
-    const cfg = { ...DEFAULT_CONFIG, notifier: { model: "config/nt" }, scanner: { model: "config/sc" } };
-    const m = resolveFlowModels(cfg);
-    expect(m.notifierModel).toBe("config/nt");
-    expect(m.scannerModel).toBe("config/sc");
-  });
-
-  it("returns null when notifier/scanner config absent", () => {
-    const m = resolveFlowModels(DEFAULT_CONFIG);
-    expect(m.notifierModel).toBeNull();
-    expect(m.scannerModel).toBeNull();
-  });
-
-  it("NO env fallback — env vars SF_FLOW_NOTIFIER_MODEL / SF_FLOW_SCANNER_MODEL are ignored", () => {
-    process.env.SF_FLOW_NOTIFIER_MODEL = "env/nt";
-    process.env.SF_FLOW_SCANNER_MODEL = "env/sc";
-    const m = resolveFlowModels(DEFAULT_CONFIG);
-    expect(m.notifierModel).toBeNull();
-    expect(m.scannerModel).toBeNull();
-  });
-
-  it("malformed config value resolves to null", () => {
-    const cfg = { ...DEFAULT_CONFIG, notifier: { model: "/bogus" }, scanner: { model: "/bogus" } };
-    const m = resolveFlowModels(cfg);
-    expect(m.notifierModel).toBeNull();
-    expect(m.scannerModel).toBeNull();
-  });
-});
-
-describe("loadConfig notifier + scanner groups", () => {
-  it("accepts notifier + scanner config groups", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ notifier: { model: "anthropic/opus" }, scanner: { model: "anthropic/haiku" } }),
-    );
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.notifier.model).toBe("anthropic/opus");
-    expect(cfg.scanner.model).toBe("anthropic/haiku");
-  });
-
-  it("rejects bogus property inside notifier group", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ notifier: { model: "ok", bogus: true } }),
-    );
-    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
-  });
-
-  it("rejects bogus property inside scanner group", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    mkdirSync(join(root, ".pi", "sf", "flow"), { recursive: true });
-    writeFileSync(
-      join(root, ".pi", "sf", "flow", "config.json"),
-      JSON.stringify({ scanner: { model: "ok", bogus: true } }),
-    );
-    await expect(loadConfig(root, { homeDir: home })).rejects.toThrow();
-  });
-
-  it("backward-compat: no notifier/scanner in config → defaults to {}", async () => {
-    const home = mkdtempSync(join(tmpdir(), "flow-home-"));
-    const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    const cfg = await loadConfig(root, { homeDir: home });
-    expect(cfg.notifier).toEqual({});
-    expect(cfg.scanner).toEqual({});
+  it("lists the legacy vars (sorted) when set", () => {
+    process.env.SF_FLOW_REVIEWER_MODEL = "a/b";
+    process.env.SF_FLOW_AUDITOR_MODEL = "c/d";
+    expect(hasLegacyModelEnvVars()).toEqual(["SF_FLOW_AUDITOR_MODEL", "SF_FLOW_REVIEWER_MODEL"]);
   });
 });

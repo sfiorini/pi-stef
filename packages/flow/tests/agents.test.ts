@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
+import { mkdtempSync, readFileSync, existsSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -16,24 +16,42 @@ const FLOW_AGENTS = [
   "synth.md",
   "scanner.md",
   "researcher.md",
+  "elicitor.md",
+  "notifier.md",
 ];
 
 describe("ensureAgentFiles", () => {
+  const originalEnv = process.env.PI_CODING_AGENT_DIR;
+  let agentDirHome = "";
+
+  beforeEach(() => {
+    agentDirHome = mkdtempSync(join(tmpdir(), "flow-agentdir-"));
+    // The seed target is getAgentDir()-based (honors PI_CODING_AGENT_DIR), so
+    // each test drives it at a temp agent-dir instead of the real ~/.pi.
+    process.env.PI_CODING_AGENT_DIR = agentDirHome;
+  });
+
+  afterEach(() => {
+    if (originalEnv === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = originalEnv;
+    rmSync(agentDirHome, { recursive: true, force: true });
+  });
+
   it("writes all bundled agents when absent", async () => {
     const home = mkdtempSync(join(tmpdir(), "flow-agents-"));
     const root = mkdtempSync(join(tmpdir(), "flow-root-"));
     const res = await ensureAgentFiles(home, root);
     expect(res.warnings).toEqual([]);
     for (const f of FLOW_AGENTS) {
-      expect(existsSync(join(home, ".pi", "agent", "agents", f))).toBe(true);
+      expect(existsSync(join(agentDirHome, "agents", f))).toBe(true);
     }
   });
 
   it("is write-once: existing files are not clobbered", async () => {
     const home = mkdtempSync(join(tmpdir(), "flow-agents-"));
     const root = mkdtempSync(join(tmpdir(), "flow-root-"));
-    const target = join(home, ".pi", "agent", "agents", "reviewer.md");
-    mkdirSync(join(home, ".pi", "agent", "agents"), { recursive: true });
+    const target = join(agentDirHome, "agents", "reviewer.md");
+    mkdirSync(join(agentDirHome, "agents"), { recursive: true });
     writeFileSync(target, "USER-EDITED");
     await ensureAgentFiles(home, root);
     expect(readFileSync(target, "utf8")).toBe("USER-EDITED");

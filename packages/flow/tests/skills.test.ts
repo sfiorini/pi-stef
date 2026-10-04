@@ -81,16 +81,18 @@ describe("flow skills", () => {
     expect(reviewer).toContain("HARD GATE");
   });
 
-  it("tier-1 skills carry the self-resolution + agent-type-resolution instructions (M5)", () => {
-    // Real-shipped-file regression: the model self-resolution preamble + the
+  it("tier-1 skills carry the .md-model preamble + agent-type-resolution instructions (M5)", () => {
+    // Real-shipped-file regression: the models-from-.md preamble + the
     // agent-type resolution section must remain in every tier-1 skill so that a
-    // workflow `skill:` phase (which cannot call the sf_flow_* tool) still honors
-    // config.json + spawns the right agent type.
+    // workflow `skill:` phase (which cannot call the sf_flow_* tool) still
+    // spawns the right agent type and never passes a model at dispatch.
+    // NOTE: assert the NEW preamble markers, not "config.json" — sf-flow-audit
+    // still mentions config.json via the audit.threshold line.
     for (const dir of ["sf-flow-plan", "sf-flow-implement", "sf-flow-audit"]) {
       const raw = readFileSync(join(skillsDir, dir, "SKILL.md"), "utf8");
-      // model self-resolution preamble
-      expect(raw, `${dir} lacks self-resolve preamble`).toContain("self-resolve");
-      expect(raw, `${dir} lacks config.json reference`).toContain("config.json");
+      // models-from-.md preamble (frontmatter is the source; never pass model)
+      expect(raw, `${dir} lacks .md frontmatter preamble`).toContain("`.md` frontmatter");
+      expect(raw, `${dir} lacks NEVER-pass-model directive`).toContain("NEVER pass `model` at dispatch");
       expect(raw, `${dir} lacks inherit-orchestrator clause`).toContain("inherits the orchestrator");
       // agent-type resolution section + the Explore anti-guard
       expect(raw, `${dir} lacks Agent resolution section`).toContain("Agent resolution");
