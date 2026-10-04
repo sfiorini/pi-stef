@@ -170,14 +170,14 @@ The auto-proceed directive is built into the tool's ready message — the orches
 
 ### sf_flow_create_workflow
 
-Adaptive wizard that consults local bundled example workflows to suggest building blocks by task archetype. Validates each section incrementally (partial) or full cross-field (complete). Writes YAML + agent stubs, registers `/<name>`.
+Adaptive wizard that consults local bundled example workflows to suggest building blocks by task archetype. Validates each section incrementally (partial) or full cross-field (complete). Writes the YAML + registers `/<name>` (the interview also emits write-once agent stubs for any agent without an .md).
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `name` | No | kebab-case flow name |
 | `description` | No | One-liner |
 | `input` | No | `prompt` / `md-file` / `prd` / `jira` |
-| `agents_yaml` | No | Pre-formed agents YAML to skip the interview |
+| `agents_yaml` | No | Pre-formed agents YAML to skip the interview — a LIST of names (e.g. `- scanner\n- auditor`) |
 | `phases_yaml` | No | Pre-formed phases YAML |
 | `loops_yaml` | No | Pre-formed loops YAML |
 | `groups_yaml` | No | Pre-formed groups YAML |
@@ -383,7 +383,7 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 | 21 | `worktree: finalize` requires a preceding `worktree: prepare` phase |
 | 22 | artifact `template` refs must resolve (`@flow/…` or an existing path) |
 | 23 | `publish` names must be valid identifiers; `{{slug}}`/`{{dir}}` require `outputs.slug`/`outputs.dir`; a bare value must be the phase `out` or a `require`d input (else it would emit an undefined ref) |
-| 24 | `protocol: canonical-delta` requires a group loop, `until: approved`, and the gate agent's `findings` schema |
+| 24 | `protocol: canonical-delta` requires a group loop, `until: approved`, and the gate PHASE's `findings` schema |
 
 > **Caveat (rule 19a):** the guard checks `schema.verdict` presence only. An agent that declares a verdict schema but has no finding-capable tools (e.g. read-only with no analysis prompt) will always `APPROVE` — this is not structurally detectable.
 

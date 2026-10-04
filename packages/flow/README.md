@@ -80,7 +80,7 @@ Twelve write-once agent definitions ship in `packages/flow/agents/` and are copi
 - **Project overrides global:** `<repo>/.pi/agents/reviewer.md` shadows the global one.
 - **Every shipped `.md` pins `model: anthropic/claude-sonnet-5-5`** — an explicit, **user-editable default** (full `provider/modelId`; never a bare alias, which one pi-subagents spawn path silently drops). Change it to your preferred model before your first run; flow never passes a model at dispatch (see [Model resolution](#model-resolution)). `researcher` is the **only** agent with `isolated: false` and `extensions: [web, atlassian]` (declared in its `.md` frontmatter) — see [Agent Isolation & Auth](https://sfiorini.github.io/pi-stef/guides/agent-isolation-and-auth). `notifier` is an opt-in agent that sends a one-line completion summary via the bundled `notify-telegram.sh` when `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are set (returns `skipped` silently otherwise) — name it in a workflow's `agents:` block and run it from a final `notify` phase. `explorer` + `analyst` power the `deep-research` flow (bound via `agentType`).
 
-**Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. `sf_flow_create_workflow` also writes a write-once stub for any declared agent that doesn't yet exist.
+**Add a new agent:** drop a `<name>.md` at `~/.pi/agent/agents/` (global) or `.pi/agents/` (project), then reference it by name in a workflow's `agents:` block. The `/sf-flow-create-workflow` interview also emits a write-once stub for any named agent that doesn't yet exist (the interview writes it; the tool itself only writes the YAML + registers).
 
 ---
 
@@ -160,14 +160,14 @@ Run a defined flow end-to-end with **no human gates**.
 
 ### sf_flow_create_workflow
 
-Adaptive wizard that consults local bundled example workflows to suggest building blocks by task archetype. Validates each section incrementally (partial) or full cross-field (complete). Writes YAML + agent stubs, registers `/<name>`.
+Adaptive wizard that consults local bundled example workflows to suggest building blocks by task archetype. Validates each section incrementally (partial) or full cross-field (complete). Writes the YAML + registers `/<name>` (the interview also emits write-once agent stubs for any agent without an .md).
 
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `name` | No | kebab-case flow name |
 | `description` | No | One-liner |
 | `input` | No | `prompt` / `md-file` / `prd` / `jira` |
-| `agents_yaml` | No | Pre-formed agents YAML to skip the interview |
+| `agents_yaml` | No | Pre-formed agents YAML to skip the interview — a LIST of names (e.g. `- scanner\n- auditor`) |
 | `phases_yaml` | No | Pre-formed phases YAML |
 | `loops_yaml` | No | Pre-formed loops YAML |
 | `groups_yaml` | No | Pre-formed groups YAML |
@@ -286,7 +286,7 @@ A map of phase-id → loop. Two kinds:
 | `until` | gate | `until: approved` — run until `schema.verdict` is `APPROVED`. **Requires a verdict `schema`** |
 | `fail_on` | gate | Severities that block, e.g. `[P0, P1, P2]` |
 | `max_rounds` | both | Bound on iterations |
-| `protocol` | gate | `raw` (default — fresh review each round) · `canonical-delta` (carry `[Fn]`-numbered findings across rounds and AND-gate via verification each round ≥2; group-only, requires the gate agent's `findings` schema + `until: approved`) |
+| `protocol` | gate | `raw` (default — fresh review each round) · `canonical-delta` (carry `[Fn]`-numbered findings across rounds and AND-gate via verification each round ≥2; group-only, requires the gate PHASE's `findings` schema + `until: approved`) |
 
 ### Knob — `groups` (optional)
 
@@ -328,7 +328,7 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 | 21 | `worktree: finalize` requires a preceding `worktree: prepare` phase |
 | 22 | artifact `template` refs must resolve (`@flow/…` or an existing path) |
 | 23 | `publish` names must be valid identifiers; `{{slug}}`/`{{dir}}` require `outputs.slug`/`outputs.dir`; a bare value must be the phase `out` or a `require`d input (else it would emit an undefined ref) |
-| 24 | `protocol: canonical-delta` requires a group loop, `until: approved`, and the gate agent's `findings` schema |
+| 24 | `protocol: canonical-delta` requires a group loop, `until: approved`, and the gate PHASE's `findings` schema |
 
 > **Caveat (rule 19a):** the guard checks `schema.verdict` presence only. An agent that declares a verdict schema but has no finding-capable tools (e.g. read-only with no analysis prompt) will always `APPROVE` — this is not structurally detectable.
 

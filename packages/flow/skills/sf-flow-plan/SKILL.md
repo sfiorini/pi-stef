@@ -40,8 +40,8 @@ Fan out N `researcher` agents via pi-dynamic-workflows `parallel()`, one per sub
 ### Phase 2: Gather Requirements
 Ask clarifying questions ONE AT A TIME (AskUserQuestion) until the user says ready.
 
-### Phase 3: Resolve Reviewer Model
-(Already resolved by the tool.)
+### Phase 3: Reviewer agent confirmed
+(Ensured at `getAgentDir()/agents/reviewer.md` — its model comes from the `.md`; never pass one at dispatch.)
 
 ### Phase 4: Design (designer agent)
 Dispatch the **designer** agent to produce the design via an interactive loop that YOU (the orchestrator) relay to the user. The designer is a subagent and cannot talk to the user directly.

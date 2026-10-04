@@ -14,7 +14,7 @@ const baseFlow = {
 };
 
 describe("canonical-delta validation (M6)", () => {
-  it("accepts a canonical-delta group loop whose gate agent declares verdict + findings", () => {
+  it("accepts a canonical-delta group loop whose gate PHASE declares verdict + findings", () => {
     const r = validateFlowYaml({ ...baseFlow, loops: { review: { ...baseFlow.loops.review, protocol: "canonical-delta" } } });
     expect(r.ok).toBe(true);
   });

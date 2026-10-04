@@ -157,4 +157,29 @@ describe("flow skills", () => {
       expect(raw, `${dir} lacks the export PATH= form`).toMatch(/export\s+PATH=.*\.bin/);
     }
   });
+
+  it("create-workflow wizard is .md-first: names-only interview, sonnet-5-5 stubs, gate-PHASE rules (M5)", () => {
+    const raw = readFileSync(join(skillsDir, "sf-flow-create-workflow", "SKILL.md"), "utf8");
+    // Agents are NAMES; the .md carries the definition
+    expect(raw).toContain("just the NAMES this flow uses");
+    expect(raw).toContain("agents are DEFINED in their `.md` files");
+    // agents_yaml documented as a list
+    expect(raw).toContain("LIST of names");
+    // stubs pin the uniform editable default
+    expect(raw).toContain("model: anthropic/claude-sonnet-5-5");
+    expect(raw).toContain("CHANGE the model");
+    // schemas are phase contracts (gate-phase rule)
+    expect(raw).toContain("GATE PHASE to declare a `schema.verdict`");
+    // never overwrite (write-once)
+    expect(raw).toContain("**Never overwrite**");
+    // NO per-agent tools/model/thinking interview question
+    expect(raw).not.toMatch(/for each agent: name, tools, model, thinking, isolated/);
+  });
+
+  it("sf-flow-plan Phase 3 no longer references a model resolution (M5)", () => {
+    const raw = readFileSync(join(skillsDir, "sf-flow-plan", "SKILL.md"), "utf8");
+    expect(raw).not.toContain("Resolve Reviewer Model");
+    expect(raw).not.toContain("Already resolved by the tool");
+    expect(raw).toContain("Reviewer agent confirmed");
+  });
 });

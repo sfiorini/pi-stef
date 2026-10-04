@@ -9,6 +9,8 @@ description: Adaptive wizard that consults local bundled examples, suggests buil
 
 Turn a user's intent into a validated `.pi/sf/flow/workflows/<name>.yaml` and register it as `/<name>`. The **tool** now handles validation, writing, and registration; the **agent's** job is the interview — guiding the user through adaptive suggestions derived from local bundled examples.
 
+**Core principle: agents are DEFINED in their `.md` files** (project `.pi/agents/<name>.md` overrides global `getAgentDir()/agents/<name>.md`, default `~/.pi/agent/agents/`). A workflow only NAMES the agents its phases use — it never defines an agent or its model/tools/thinking/isolation. The agent stubs you emit in Phase 2.5 carry those properties; the user edits them freely.
+
 ## Tool parameters
 
 | Parameter | Required | Description |
@@ -16,7 +18,7 @@ Turn a user's intent into a validated `.pi/sf/flow/workflows/<name>.yaml` and re
 | `name` | No | kebab-case flow name |
 | `description` | No | One-liner describing the flow |
 | `input` | No | `prompt` / `md-file` / `prd` / `jira` |
-| `agents_yaml` | No | Pre-formed agents YAML section |
+| `agents_yaml` | No | Pre-formed agents YAML — a LIST of names (e.g. `- scanner\n- auditor`) |
 | `phases_yaml` | No | Pre-formed phases YAML section |
 | `loops_yaml` | No | Pre-formed loops YAML section |
 | `groups_yaml` | No | Pre-formed groups YAML section |
@@ -24,7 +26,7 @@ Turn a user's intent into a validated `.pi/sf/flow/workflows/<name>.yaml` and re
 
 **Path selection** (determined by which params are present):
 
-- **Path A — assemble → validate → write → register:** `name` + `description` + `input` + `agents_yaml` + `phases_yaml` (and optionally `loops_yaml`, `groups_yaml`). Tool runs full cross-field validation, writes the YAML, emits agent stubs, and registers `/<name>`.
+- **Path A — assemble → validate → write → register:** `name` + `description` + `input` + `agents_yaml` + `phases_yaml` (and optionally `loops_yaml`, `groups_yaml`). Tool runs full cross-field validation, writes the YAML, and registers `/<name>`.
 - **Path B — validate sections only:** some `*_yaml` params present but not enough for Path A. Tool validates each supplied section and reports what's missing.
 - **Path C — wizard:** no params at all. Tool enters interactive wizard mode.
 
@@ -55,7 +57,7 @@ Match the user's intent to the closest archetype and suggest building blocks:
 
 | Intent / Archetype | Closest example | Key building blocks |
 |---------------------|-----------------|---------------------|
-| Audit-then-fix (review, find issues, fix, iterate) | `code-review` | `groups` + `until:approved` + gate verdict `schema` |
+| Audit-then-fix (review, find issues, fix, iterate) | `code-review` | `groups` + `until:approved` + gate verdict `schema` on the gate PHASE |
 | Batch scan / discovery (scan many files, aggregate) | `auth-audit` | `fanout` + `until_dry` + fanout `out` |
 | Ambiguous requirements (need to clarify before building) | `ship-feature` | `questions` phase as first phase |
 | Full lifecycle (plan → implement → review → ship) | `ship-feature` | multi-group, `questions` + `groups` + loops |
@@ -67,7 +69,7 @@ Present the suggested archetype and explain which building blocks apply. Let the
 ### 1c. Phase kinds reminder
 
 Each phase runs **exactly one** of:
-- `agent` — a named agent with tools/model/thinking
+- `agent` — a named agent (defined in its `.md`; the phase may carry a `schema` contract)
 - `skill` — a registered skill by name
 - `raw` — a raw phase expression (e.g. `agent()` inline)
 - `questions` — an interview loop with a named agent
@@ -79,14 +81,14 @@ Ask **one at a time** (not all at once):
 1. **Name** — kebab-case (e.g. `security-audit`)
 2. **Description** — one-liner
 3. **Input** — `prompt` / `md-file` / `prd` / `jira`
-4. **Agents** — for each agent: name, tools, model, thinking, isolated, and whether it needs a `schema` (e.g. verdict)
-5. **Phases** — for each phase: id, run type (`agent`/`skill`/`raw`/`questions`), prompt, and any `fanout`/`verify`/`in`/`out`. For `questions` phases: the agent name (must be declared) and optional `max_rounds` (default 5)
+4. **Agents** — just the NAMES this flow uses (existing `.md`-defined agents like `reviewer`/`auditor`/`developer`/`researcher`/`synth`/`scanner`/`elicitor`/`notifier`, or new ones you'll stub in Phase 2.5). For each NEW agent: what it does (drives the stub's role, `tools`, and `thinking`), and which phases need a structured-output `schema` (e.g. a gate phase's `verdict`)
+5. **Phases** — for each phase: id, run type (`agent`/`skill`/`raw`/`questions`), prompt, any `fanout`/`verify`/`in`/`out`, and its `schema` when the result is gated or consumed (gates: `{ verdict: APPROVED|REVISE, findings: array }`; elicitors: `{ questions: array }`). For `questions` phases: the agent name (must be named in `agents`) and optional `max_rounds` (default 5)
 6. **Loops** — for any phase or group: `until_dry` or `until:approved` (+ `fail_on` + `max_rounds`). Loop keys resolve group-first
 7. **Groups** — optional: for each group, the gate phase id (first) + fix phase ids (rest, ≥2 total); all must be agent phases; the group name must have a matching `loops` entry
 
 ## Phase 2: Assemble + invoke the tool
 
-Assemble the collected parameters and call `sf_flow_create_workflow`. Handle the result:
+Assemble the collected parameters — `agents_yaml` as a YAML list of names — and call `sf_flow_create_workflow`. Handle the result:
 
 | Result | Meaning | Action |
 |--------|---------|--------|
@@ -99,12 +101,12 @@ Assemble the collected parameters and call `sf_flow_create_workflow`. Handle the
 
 ## Phase 2.5: Emit write-once agent stubs
 
-For each agent in the flow definition **without** an existing `.md` file (check `~/.pi/agent/agents/<name>.md` first, then `<cwd>/.pi/agents/<name>.md`):
+For each agent NAMED in the flow **without** an existing `.md` file (check the project `<cwd>/.pi/agents/<name>.md` first — it overrides — then the global `getAgentDir()/agents/<name>.md`, default `~/.pi/agent/agents/`), write the stub to the **project** dir `<cwd>/.pi/agents/<name>.md` (project definitions are the natural home for a flow-specific agent; the user can move it to the global dir later to share it):
 
-- **Frontmatter:** `tools`, `model`, `thinking`, `isolated` from the YAML
-- **Body:** one-line description derived from the agent name + the phase prompts that reference it
+- **Frontmatter:** `description` (the role), `tools`, `thinking`, `isolated` per the interview, and `model: anthropic/claude-sonnet-5-5` — flow's uniform default. Tell the user to CHANGE the model to their preferred one (full `provider/modelId`) — it is an explicit starting point, not a recommendation.
+- **Body:** the agent's system prompt, derived from the interview (what it does) + the phase prompts that reference it.
 
-**Never overwrite** an existing agent file. This is write-once — the user edits these freely.
+**Never overwrite** an existing agent file. This is write-once — the user edits these freely. The workflow references the agent by NAME only; all definition lives in the `.md`.
 
 ## Phase 5: Confirm
 
@@ -118,11 +120,11 @@ Tell the user:
 Enforced by `validateFlowYaml` in the tool. These are documented here so the agent can explain them to the user:
 
 - Each phase must set **exactly one** of `agent` / `skill` / `raw` / `questions`
-- `questions` must reference a name declared in `agents`
+- `agents` is a **list of names** — declare each agent once; every phase `agent`/`questions` must be in it
 - `questions` and `fanout`/`verify` are **mutually exclusive**
 - `fanout` is only supported on `agent` phases and requires the phase to declare `out`
 - `until_dry` requires the phase to set `fanout`
-- `until: approved` requires the phase's agent to declare a verdict `schema`
+- `until: approved` requires the GATE PHASE to declare a `schema.verdict` (and `schema.findings` for `protocol: canonical-delta`) — the schema is a phase property, not an agent's
 - Loops are **not** supported on `skill` / `raw` / `questions` phases (questions has a built-in follow-up loop)
 - `out` values must be **unique** across phases
 - `groups.<name>.phases` must be ≥2, all agent phases; a phase may belong to at most one group
