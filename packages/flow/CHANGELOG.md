@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-04
+### Changed
+- test(flow): generated-script inspection guards the slim agent() opts
+- docs(flow): centralize agent definitions in docs; add upgrade note
+- feat(flow): rework create-workflow wizard for agent-list schema and .md-first definitions
+- feat(flow): pin shipped agent models; add explorer/analyst; deep-research binds agentTypes
+- feat(flow)!: workflow YAML declares agents as a name list; schema moves to the phase
+- feat(flow)!: agent .md is the model source; config/env/tool-param model channels removed
+- feat(flow): add agent .md discovery helper
+
+
 ## [0.11.4] - 2026-10-02
 ### Changed
 - fix(deps): declare host-provided @sinclair/typebox in peerDependencies, not dependencies
