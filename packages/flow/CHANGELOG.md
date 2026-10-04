@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+## [0.12.1] - 2026-10-04
+### Changed
+- feat(flow): refine agent prompt bodies from published research; ship tier-commented model hints
+
+
 ## [0.12.0] - 2026-10-04
 ### Changed
 - test(flow): generated-script inspection guards the slim agent() opts
