@@ -1,26 +1,5 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-export const AgentDef = Type.Object(
-  {
-    tools: Type.Optional(Type.Array(Type.String())),
-    model: Type.Optional(Type.String()),
-    thinking: Type.Optional(
-      Type.Union([
-        Type.Literal("off"),
-        Type.Literal("minimal"),
-        Type.Literal("low"),
-        Type.Literal("medium"),
-        Type.Literal("high"),
-        Type.Literal("xhigh"),
-        Type.Literal("max"),
-      ]),
-    ),
-    isolated: Type.Optional(Type.Boolean()),
-    schema: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  },
-  { additionalProperties: false },
-);
-
 export const ArtifactSpec = Type.Object(
   { file: Type.String(), template: Type.Optional(Type.String()) },
   { additionalProperties: false },
@@ -67,6 +46,10 @@ export const PhaseDef = Type.Object(
     out: Type.Optional(Type.String()),
     questions: Type.Optional(Type.String()),
     max_rounds: Type.Optional(Type.Integer()),
+    /** Structured-output contract for the phase's agent call (verdict/findings
+     *  for gate phases, questions for elicitors). A PHASE property — the same
+     *  agent can gate in one phase and return prose in another. */
+    schema: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
     // Contract layer (spec §5): declarative per-phase I/O the engine enforces.
     inputs: Type.Optional(PhaseInputs),
     outputs: Type.Optional(PhaseOutputs),
@@ -117,7 +100,11 @@ export const FlowYamlSchema = Type.Object(
       Type.Literal("prd"),
       Type.Literal("jira"),
     ]),
-    agents: Type.Record(Type.String(), AgentDef),
+    /** The agents this workflow USES, by name only. Agents are DEFINED in their
+     *  .md files (pi-subagents' native mechanism: project .pi/agents overrides
+     *  global getAgentDir()/agents) — a workflow never defines an agent or its
+     *  model/tools/thinking/isolation. */
+    agents: Type.Array(Type.String()),
     phases: Type.Array(PhaseDef, { minItems: 1 }),
     loops: Type.Optional(Type.Record(Type.String(), LoopDef)),
     groups: Type.Optional(Type.Record(Type.String(), GroupDef)),

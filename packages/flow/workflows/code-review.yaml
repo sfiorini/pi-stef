@@ -1,27 +1,19 @@
 # code-review: audit ↔ fix group loop.
 # auditor gates (finds P0-P3), developer fixes, auditor re-verifies until APPROVED or max_rounds.
+# Agents are defined in their .md files; this workflow only NAMES them.
 name: code-review
 description: Audit ↔ fix loop (auditor gates, developer fixes, re-verify)
 input: prompt
-agents:
-  auditor:
-    tools: [read, grep, find, ls]
-    model: sonnet
-    thinking: high
-    isolated: true
-    schema:
-      verdict: APPROVED|REVISE
-      findings: array
-  developer:
-    tools: [read, grep, find, ls, write, bash]
-    model: sonnet
-    thinking: medium
+agents: [auditor, developer]
 groups:
   review:
     phases: [review, fix]
 phases:
   - id: review
     agent: auditor
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
     prompt: "Audit the diff for correctness, security, performance, and clarity. Return findings P0-P3 + verdict."
   - id: fix
     agent: developer

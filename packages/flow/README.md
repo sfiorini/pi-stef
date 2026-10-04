@@ -194,14 +194,11 @@ phase's required inputs → a concrete `blocked` state, never a silent skip.
 name: auth-audit
 description: Audit auth coverage across route files
 input: prompt
-agents:
-  scanner: { tools: [read, grep, find], model: haiku, thinking: low }
-  auditor: { tools: [read, grep, find], model: sonnet, thinking: high, isolated: true,
-             schema: { verdict: "APPROVED|REVISE" } }
-  synth:   { tools: [read, write], model: sonnet }
+agents: [scanner, auditor, synth]        # names only — the .md files define the agents
 phases:
   - { id: scan,   agent: scanner,  prompt: "List every route file under src/routes/.", out: files }
-  - { id: audit,  agent: auditor,  fanout: files, prompt: "Audit {{item}} for missing auth checks.", out: findings }
+  - { id: audit,  agent: auditor,  fanout: files, prompt: "Audit {{item}} for missing auth checks.",
+      schema: { verdict: "APPROVED|REVISE" }, out: findings }
   - { id: verify, agent: auditor,  verify: findings, threshold: 0.66, out: confirmed }
   - { id: report, agent: synth,    in: confirmed, prompt: "Write a cited report from these findings." }
 loops:
@@ -212,15 +209,7 @@ Run it: `sf_flow_auto auth-audit "check the API routes"`.
 
 ### Knob 1 — `agents`
 
-A map of agent-name → definition. The agent's *behavior* comes from its `.md` file; the YAML only adds runtime config:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `tools` | `string[]` | Tools the agent may use |
-| `model` | `string` | Fuzzy model alias (`haiku`, `sonnet`, …). **Independent of `config.json`** |
-| `thinking` | `enum` | `off` · `minimal` · `low` · `medium` · `high` · `xhigh` · `max` |
-| `isolated` | `boolean` | Spawn in a fresh context |
-| `schema` | `object` | Structured output contract (required for `until: approved`) |
+A **list of agent names** — just the names this flow uses. The agents themselves (system prompt, `model:`, `tools`, `thinking`, `isolated` — everything) are **defined in their `.md` files** (project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`); a workflow never defines an agent or its model. To change an agent's model or tools, edit its `.md`.
 
 ### Knob 2 — `phases`
 
@@ -229,7 +218,7 @@ An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw` / 
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | `string` | Phase identifier (referenced by `loops`) |
-| `agent` | `string` | Run an agent (must be declared in `agents`) |
+| `agent` | `string` | Run an agent (must be named in `agents`) |
 | `skill` | `string` | Run a built-in skill (e.g. `sf-flow-audit`) — opaque |
 | `raw` | `string` | Run a raw pi-dw snippet — opaque |
 | `questions` | `string` | Run an elicitor agent with a built-in clarifying-questions follow-up loop |
@@ -240,6 +229,7 @@ An ordered list. **Each phase runs exactly one of** `agent` / `skill` / `raw` / 
 | `threshold` | `number` | Verify pass ratio |
 | `in` | `string \| string[]` | Feed prior `out`(s) in (shorthand for `inputs.require` + inject) |
 | `out` | `string` | Name this phase's output |
+| `schema` | `object` | The PHASE's structured-output contract (e.g. `{ verdict: APPROVED\|REVISE, findings: array }`); required on gate phases for `until: approved` (+ `findings` for `canonical-delta`), `{ questions: array }` on elicitor phases |
 | `inputs` | `object` | Contract inputs: `{ require: [name…], inject: ["… {{name}} …"] }` |
 | `outputs` | `object` | Contract outputs (see below) |
 | `worktree` | `enum` | `none` · `prepare` · `finalize` — engine-owned worktree lifecycle |
@@ -325,13 +315,13 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 | 11 | A phase may belong to **at most one** group |
 | 12 | Every `groups.<name>` must have a matching `loops.<name>` |
 | 13 | `loops.<key>` that matches a group: `until_dry` is not allowed (use `until: approved`) |
-| 14 | `loops.<key>` that matches a group with `until: approved`: the gate phase's agent must declare a `schema.verdict` |
+| 14 | `loops.<key>` that matches a group with `until: approved`: the GATE PHASE must declare a `schema.verdict` |
 | 15 | `loops.<key>` that matches a phase: must reference an existing phase |
 | 16 | Loops are **not** allowed on `skill` phases |
 | 17 | Loops are **not** allowed on `raw` phases |
 | 18 | Loops are **not** allowed on `questions` phases (the follow-up loop is built-in) |
 | 19 | `until_dry` **requires** the phase to set `fanout` |
-| 19a | `until: approved` on a phase loop **requires** the phase agent to declare a `schema.verdict` |
+| 19a | `until: approved` on a phase loop **requires** the gate PHASE to declare a `schema.verdict` |
 | 20 | `inputs.require` names must resolve to a prior `out`/`publish` or a built-in (`input`/`flow`) — else unresolved |
 | 21 | `worktree: finalize` requires a preceding `worktree: prepare` phase |
 | 22 | artifact `template` refs must resolve (`@flow/…` or an existing path) |
@@ -347,16 +337,25 @@ Loop keys resolve **group-first**: if a `loops` key matches both a group name an
 - **Wizard** — `/sf-flow-create-workflow` (adaptive: suggests building blocks from local examples, validates sections incrementally, writes YAML + agent stubs, registers `/<name>`).
 - **By hand** — create `.pi/sf/flow/workflows/<name>.yaml` (project) or `~/.pi/sf/flow/workflows/<name>.yaml` (global), then `sf_flow_auto <name> <input>` (validates + generates eagerly).
 
+### Upgrading from the old format (≤ v0.11)
+
+Workflow YAMLs written before the agents-as-definitions change **fail validation** at registration with a warning explaining the new shape. Migrate by hand:
+
+1. **`agents:` is now a list of names.** `agents: { scanner: { tools: [...], model: haiku } }` → `agents: [scanner]`. Delete every per-agent field (`tools`, `model`, `thinking`, `isolated`, `schema`) from the YAML.
+2. **Move each agent's `schema` onto the phase(s) that need it** — a gate phase's `verdict`/`findings` contract is a property of the *phase*, not the agent (the same agent can gate in one phase and return prose in another). An elicitor phase carries `{ questions: array }`.
+3. **Move `tools`/`model`/`thinking`/`isolated` into the agent's `.md` frontmatter** (project `.pi/agents/<name>.md` overrides global `~/.pi/agent/agents/<name>.md`). To pin a model, set `model: provider/modelId` in the `.md`.
+4. **Config model groups are gone** — a `config.json` carrying `<role>.model` groups still loads (they are stripped with a one-time warning); move those models into the `.md` files.
+5. **`SF_FLOW_<ROLE>_MODEL` env vars and the `*_model` tool params are gone** — set the model in the agent's `.md` instead.
+6. **`raw:` phases:** inline `model:`/`tools:`/`thinking:`/`isolated:` in `agent()` calls still work but duplicate the `.md` definitions — bind calls with `{ label, phase, agentType }` (+ `schema` when the result is consumed) so the `.md` drives everything.
+
+Run `/sf-flow-seed` to copy the new-format bundled examples beside your existing files (as `<name>.new`) for side-by-side migration.
+
 ### Notifications in custom workflows (Tier-2, opt-in)
 
-Flow ships an opt-in **notifier** agent that sends a one-line completion summary to Telegram via the bundled `notify-telegram.sh` script. It is a normal Tier-2 agent — declare it and run it from a final phase in any custom workflow:
+Flow ships an opt-in **notifier** agent that sends a one-line completion summary to Telegram via the bundled `notify-telegram.sh` script. It is a normal Tier-2 agent — name it and run it from a final phase in any custom workflow (its tools/thinking/isolation live in `notifier.md`):
 
 ```yaml
-agents:
-  notifier:
-    tools: [bash]
-    thinking: low
-    isolated: true
+agents: [notifier]
 phases:
   - id: notify
     agent: notifier
@@ -464,13 +463,10 @@ Discovery: project `.pi/agents/<name>.md` overrides global `getAgentDir()/agents
 Flow passes no model at dispatch — pi-subagents applies the `.md` model natively
 (frontmatter is authoritative), in tier-1 skills and tier-2 workflow agents alike.
 
-> **Transitional note:** the workflow YAML's per-agent `model:` field (see [Knob 1](#knob-1--agents)) is
-> being removed in favor of the `.md`-only rule; until then an inline YAML `model:` still wins for that
-> workflow's agent. New workflows should pin models in the `.md` files.
-
 > The old model channels — `config.json` model groups, `SF_FLOW_<ROLE>_MODEL` env vars,
-> and the `*_model` tool params — were removed. Config carrying them is stripped with a
-> one-time warning; set the model in the agent's `.md` instead.
+> the `*_model` tool params, and the workflow YAML's per-agent `model:` field — were
+> removed. Config carrying model groups is stripped with a one-time warning; set the
+> model in the agent's `.md` instead.
 
 ## Architecture
 
@@ -504,7 +500,7 @@ ai_plan/YYYY-MM-DD-<slug>/
 
 ## Agent isolation
 
-Agents spawn either isolated (`isolated: true`: fresh context, extensions/`ext:*` tools stripped) or un-isolated (`isolated: false`: inherits parent, extensions loaded per `extensions:` frontmatter). Among the built-ins, **only `researcher` is un-isolated**; everything else stays isolated. The agent `.md` frontmatter is authoritative — a flow YAML can only flip `isolated:`, not grant extensions (edit the `.md` for that).
+Agents spawn either isolated (`isolated: true`: fresh context, extensions/`ext:*` tools stripped) or un-isolated (`isolated: false`: inherits parent, extensions loaded per `extensions:` frontmatter). Among the built-ins, **only `researcher` is un-isolated**; everything else stays isolated. The agent `.md` frontmatter is authoritative — a flow YAML only NAMES agents; isolation, tools, and extensions are all `.md`-only (edit the `.md` to change them).
 
 ## Authenticated source access
 

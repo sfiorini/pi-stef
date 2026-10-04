@@ -15,7 +15,7 @@ When an agent is spawned with `isolated: true`, pi-subagents starts it in a **fr
 | `true` (default for most) | fresh, no parent | **forced off** (`extensions: false`) | off | stripped — unavailable even if listed in `tools:` |
 | `false` | inherits parent | loaded per frontmatter `extensions:` | per frontmatter `skills:` | available (when the extension is installed) |
 
-> ⚠️ **The `.md` frontmatter is authoritative and "sticky."** Declaring `extensions: [web, atlassian]` in an agent's `.md` frontmatter loads those extensions **whenever that agent is spawned** — including from a workflow's inline `agent()` call or the plan/implement skills. A workflow YAML cannot add an `extensions:` field (the flow `AgentDef` schema has none); it can only flip `isolated:` and set advisory `tools:`. To grant an extension, edit the agent `.md`.
+> ⚠️ **The `.md` frontmatter is authoritative and "sticky."** Declaring `extensions: [web, atlassian]` in an agent's `.md` frontmatter loads those extensions **whenever that agent is spawned** — including from a workflow's inline `agent()` call or the plan/implement skills. A workflow YAML only NAMES agents (no `extensions:`/`isolated:`/`tools:` fields exist in the flow schema); to grant an extension, edit the agent `.md`.
 
 There is **no allowlist variant** of isolation (no "isolated but keep one extension"). To grant selective access, set `extensions:` to the packages you want and use the `tools:` / `exclude_extensions:` selectors to narrow what surfaces.
 

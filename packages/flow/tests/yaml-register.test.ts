@@ -11,7 +11,7 @@ const validFlow: FlowYaml = {
   name: "auth-audit",
   description: "d",
   input: "prompt",
-  agents: {},
+  agents: [],
   phases: [{ id: "p", skill: "sf-flow-plan", out: "x" }],
 };
 
@@ -99,7 +99,7 @@ describe("registerGeneratedFlow", () => {
 
 describe("registerDiscoveredFlows", () => {
   const VALID = (name: string, desc: string) =>
-    `name: ${name}\ndescription: ${desc}\ninput: prompt\nagents:\n  worker: {}\nphases:\n  - id: do\n    agent: worker\n`;
+    `name: ${name}\ndescription: ${desc}\ninput: prompt\nagents: [worker]\nphases:\n  - id: do\n    agent: worker\n`;
 
   function fakePi() {
     const registered: { name: string; description: string }[] = [];
@@ -142,12 +142,49 @@ describe("registerDiscoveredFlows", () => {
     const dir = globalWorkflowsDir(home);
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "good.yaml"), VALID("good-flow", "ok"));
-    writeFileSync(join(dir, "bad.yaml"), "name: bad\ndescription: d\ninput: prompt\nagents: {}\nphases: []\n");
+    writeFileSync(join(dir, "bad.yaml"), "name: bad\ndescription: d\ninput: prompt\nagents: []\nphases: []\n");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const { pi, registered } = fakePi();
     await registerDiscoveredFlows(pi, { repoRoot: repo, home });
     expect(registered.map((r) => r.name)).toEqual(["good-flow"]);
     expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("explains the v2 agents-list format when an OLD-map workflow fails validation", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    const dir = globalWorkflowsDir(home);
+    mkdirSync(dir, { recursive: true });
+    // Old format: agents as a map of definitions (removed by the centralization)
+    writeFileSync(join(dir, "old-format.yaml"),
+      "name: old\ndescription: d\ninput: prompt\nagents:\n  worker:\n    model: haiku\nphases:\n  - id: do\n    agent: worker\n");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered).toEqual([]);
+    const warned = warn.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(warned).toContain("LIST of names");
+    expect(warned).toContain("/sf-flow-seed");
+    warn.mockRestore();
+  });
+
+  it("does NOT add the migration hint to a typo'd agent reference (valid new-format shape)", async () => {
+    const home = mkdtempSync(join(tmpdir(), "disc-h-"));
+    const repo = mkdtempSync(join(tmpdir(), "disc-r-"));
+    const dir = globalWorkflowsDir(home);
+    mkdirSync(dir, { recursive: true });
+    // Valid list shape, but the phase references an undeclared agent — a cross-field
+    // error mentioning "agents" that must NOT trigger the format-migration hint.
+    writeFileSync(join(dir, "typo.yaml"),
+      "name: typo\ndescription: d\ninput: prompt\nagents: [worker]\nphases:\n  - id: do\n    agent: ghost\n");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { pi, registered } = fakePi();
+    await registerDiscoveredFlows(pi, { repoRoot: repo, home });
+    expect(registered).toEqual([]);
+    const warned = warn.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(warned).toContain('agent "ghost" not defined in agents');
+    expect(warned).not.toContain("LIST of names");
     warn.mockRestore();
   });
 

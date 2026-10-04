@@ -4,10 +4,10 @@ import { validateFlowYaml } from "../src/yaml/validate.js";
 
 const baseFlow = {
   name: "g", description: "d", input: "prompt" as const,
-  agents: { reviewer: { model: "sonnet", schema: { verdict: "APPROVED|REVISE", findings: "array" } }, dev: { model: "sonnet" } },
+  agents: ["reviewer", "dev"],
   groups: { review: { phases: ["gate", "fix"] } },
   phases: [
-    { id: "gate", agent: "reviewer", prompt: "review" },
+    { id: "gate", agent: "reviewer", schema: { verdict: "APPROVED|REVISE", findings: "array" }, prompt: "review" },
     { id: "fix", agent: "dev", prompt: "fix" },
   ],
   loops: { review: { until: "approved" as const, fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
@@ -19,10 +19,13 @@ describe("canonical-delta validation (M6)", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("rejects canonical-delta when the gate agent lacks a findings schema", () => {
+  it("rejects canonical-delta when the gate PHASE lacks a findings schema", () => {
     const noFindings = {
       ...baseFlow,
-      agents: { reviewer: { model: "sonnet", schema: { verdict: "APPROVED|REVISE" } }, dev: { model: "sonnet" } },
+      phases: [
+        { id: "gate", agent: "reviewer", schema: { verdict: "APPROVED|REVISE" }, prompt: "review" },
+        { id: "fix", agent: "dev", prompt: "fix" },
+      ],
       loops: { review: { ...baseFlow.loops.review, protocol: "canonical-delta" as const } },
     };
     const r = validateFlowYaml(noFindings);
@@ -33,8 +36,8 @@ describe("canonical-delta validation (M6)", () => {
   it("rejects canonical-delta on a single-phase loop (group-only)", () => {
     const single: any = {
       name: "s", description: "d", input: "prompt",
-      agents: { reviewer: { schema: { verdict: "APPROVED|REVISE", findings: "array" } } },
-      phases: [{ id: "rev", agent: "reviewer", prompt: "review", out: "v" }],
+      agents: ["reviewer"],
+      phases: [{ id: "rev", agent: "reviewer", schema: { verdict: "APPROVED|REVISE", findings: "array" }, prompt: "review", out: "v" }],
       loops: { rev: { until: "approved", fail_on: ["P0"], max_rounds: 3, protocol: "canonical-delta" } },
     };
     const r = validateFlowYaml(single);

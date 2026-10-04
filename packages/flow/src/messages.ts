@@ -52,10 +52,6 @@ export function summarizePhaseModels(flow: FlowYaml, agentInfo: AgentInfoMap): P
     if (info.frontmatter.model) return { model: info.frontmatter.model, source: `.md (${info.source})` };
     return { model: null, source: `.md (${info.source}) — no model, inherits orchestrator` };
   };
-  // Until M3 removes the YAML model field, an inline YAML model: still wins at
-  // codegen (agentOpts bakes def?.model) — the report must reflect that.
-  const yamlModelFor = (name: string | undefined): string | null =>
-    (name ? (flow.agents as Record<string, { model?: string } | undefined>)[name]?.model : undefined) ?? null;
   return flow.phases.map((ph) => {
     if (ph.skill) {
       const role = TIER1_ROLE[ph.skill];
@@ -80,16 +76,6 @@ export function summarizePhaseModels(flow: FlowYaml, agentInfo: AgentInfoMap): P
       };
     }
     const agentName = ph.questions ?? ph.agent;
-    const yamlModel = yamlModelFor(agentName);
-    if (yamlModel) {
-      return {
-        phase: ph.id,
-        kind: ph.questions ? ("tier2-elicitor" as const) : ("tier2-agent" as const),
-        agent: agentName,
-        model: yamlModel,
-        source: "YAML agents.<name>.model (moves to the .md in the next release)",
-      };
-    }
     const md = agentName ? mdModelFor(agentName) : null;
     return {
       phase: ph.id,

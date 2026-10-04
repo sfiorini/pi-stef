@@ -1,21 +1,11 @@
+# auth-audit: scan → fanout audit → re-verify → report.
+# Agents are defined in their .md files (project .pi/agents overrides global
+# getAgentDir()/agents); this workflow only NAMES them. Phase schemas live on
+# the phases (a phase contract, not an agent property).
 name: auth-audit
 description: Audit auth coverage across route files
 input: prompt
-agents:
-  scanner:
-    tools: [read, grep, find]
-    model: haiku
-    thinking: low
-  auditor:
-    tools: [read, grep, find]
-    model: sonnet
-    thinking: high
-    isolated: true
-    schema:
-      verdict: "APPROVED|REVISE"
-  synth:
-    tools: [read, write]
-    model: sonnet
+agents: [scanner, auditor, synth]
 phases:
   - id: scan
     agent: scanner
@@ -24,10 +14,14 @@ phases:
   - id: audit
     agent: auditor
     fanout: files
+    schema:
+      verdict: "APPROVED|REVISE"
     prompt: "Audit {{item}} for missing auth checks. Return findings."
     out: findings
   - id: verify
     agent: auditor
+    schema:
+      verdict: "APPROVED|REVISE"
     verify: findings
     threshold: 0.66
     out: confirmed

@@ -1,7 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import { existsSync } from "node:fs";
-import { FlowYamlSchema, AgentDef, PhaseDef, LoopDef, GroupDef, type FlowYaml } from "./schema.js";
+import { FlowYamlSchema, PhaseDef, LoopDef, GroupDef, type FlowYaml } from "./schema.js";
 import { requiredNames, availableBefore } from "./contract.js";
 import { resolveTemplate } from "../paths.js";
 
@@ -51,7 +51,11 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       `name "${flow.name}": must be kebab-case (lowercase alphanumeric and hyphens, starting alphanumeric — no slashes, dots, or path traversal)`,
     );
   }
-  const agentNames = new Set(Object.keys(flow.agents));
+  const agentNames = new Set(flow.agents);
+  for (const [i, name] of flow.agents.entries()) {
+    if (flow.agents.indexOf(name) !== i)
+      errors.push(`agents: duplicate name "${name}" (declare each agent once)`);
+  }
   const outs = new Set<string>();
 
   for (const ph of flow.phases) {
@@ -171,11 +175,11 @@ export function validateFlowYaml(input: unknown): ValidationResult {
           errors.push(`loops.${key}: protocol:canonical-delta requires until: approved (the canonical path gates on verification each round)`);
         if (loop.until === "approved") {
           const gatePhase = flow.phases.find((p) => p.id === group.phases[0]);
-          const gateAgent = gatePhase?.agent ? flow.agents[gatePhase.agent] : undefined;
-          if (!gateAgent?.schema || !(gateAgent.schema as Record<string, unknown>).verdict)
-            errors.push(`loops.${key}: until:approved requires the gate phase's agent ("${gatePhase?.agent}") to declare a verdict schema`);
-          if (loop.protocol === "canonical-delta" && gateAgent?.schema && !(gateAgent.schema as Record<string, unknown>).findings)
-            errors.push(`loops.${key}: protocol:canonical-delta requires the gate phase's agent ("${gatePhase?.agent}") to declare a findings schema`);
+          const gateSchema = gatePhase?.schema as Record<string, unknown> | undefined;
+          if (!gateSchema?.verdict)
+            errors.push(`loops.${key}: until:approved requires the gate phase ("${gatePhase?.id}") to declare a verdict schema`);
+          if (loop.protocol === "canonical-delta" && gateSchema && !gateSchema.findings)
+            errors.push(`loops.${key}: protocol:canonical-delta requires the gate phase ("${gatePhase?.id}") to declare a findings schema`);
         }
         continue;
       }
@@ -188,9 +192,8 @@ export function validateFlowYaml(input: unknown): ValidationResult {
       if (loop.protocol === "canonical-delta")
         errors.push(`loops.${key}: protocol:canonical-delta is only valid on a group loop (a single-phase gate has no fix phases to evolve the canonical list against)`);
       if (loop.until === "approved") {
-        const ag = phase?.agent ? flow.agents[phase.agent] : undefined;
-        if (!ag?.schema || !(ag.schema as Record<string, unknown>).verdict)
-          errors.push(`loops.${key}: until:approved requires phase agent to declare a verdict schema`);
+        if (!phase.schema || !(phase.schema as Record<string, unknown>).verdict)
+          errors.push(`loops.${key}: until:approved requires the gate phase ("${phase.id}") to declare a verdict schema`);
       }
     }
   }
@@ -224,7 +227,7 @@ export function validateStrictProfile(flow: FlowYaml): string[] {
 export type FlowSection = "agents" | "phases" | "loops" | "groups";
 
 const SECTION_SCHEMAS = {
-  agents: Type.Record(Type.String(), AgentDef),
+  agents: Type.Array(Type.String()),
   phases: Type.Array(PhaseDef, { minItems: 1 }),
   loops: Type.Record(Type.String(), LoopDef),
   groups: Type.Record(Type.String(), GroupDef),

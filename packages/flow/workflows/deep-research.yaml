@@ -1,37 +1,11 @@
 name: deep-research
 description: Clarify scope through a reusable research brief, then run targeted parallel research and write a detailed Markdown report.
 input: prompt
-agents:
-  # NOTE: this workflow runs a single raw: phase; the inline agent() calls below set their own model/thinking/isolated, so these per-agent fields are advisory documentation (researcher.isolated:false mirrors agents/researcher.md).
-  explorer:
-    tools: [read, grep, find, ls]
-    model: cursor/gpt-5.6-sol
-    thinking: high
-    isolated: true
-  researcher:
-    # extensions:[web,atlassian] are declared in agents/researcher.md frontmatter (authoritative); this YAML carries advisory tools + isolated:false.
-    tools: [read, grep, find, ls, bash, sf_web_search, sf_web_fetch, confluence_page, confluence_get_page, jira_issue, jira_get_issue, story_context]
-    model: cursor/claude-opus-5
-    thinking: high
-    isolated: false
-  analyst:
-    tools: [read, write, bash]
-    model: cursor/gpt-5.6-terra
-    thinking: high
-    isolated: true
-    schema:
-      status: QUESTIONS_NEEDED|READY
-      slug: string
-      briefPath: string
-      researchPlan: array
-      questions: array
-  notifier:
-    tools: [bash]
-    thinking: low
-    isolated: true
-    schema:
-      status: sent|skipped|failed
-      detail: string?
+# Agents are DEFINED in their .md files (project .pi/agents overrides global
+# getAgentDir()/agents — tools, models, thinking, isolation, prompts); this
+# workflow only NAMES the agents its phases use. explorer/analyst ship as
+# bundled agent .md files (deep-research binds them via agentType below).
+agents: [explorer, researcher, analyst, notifier]
 phases:
   - id: orchestrate-deep-research
     raw: |

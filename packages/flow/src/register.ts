@@ -71,7 +71,7 @@ export function registerSfFlow(pi: ExtensionAPI): void {
             Type.Literal("jira"),
           ]),
         ),
-        agents_yaml: Type.Optional(Type.String({ description: "Pre-formed agents YAML to skip the interview." })),
+        agents_yaml: Type.Optional(Type.String({ description: "Pre-formed agents YAML to skip the interview — a LIST of agent names (e.g. '- scanner\\n- auditor'); agents are defined in their .md files, never here." })),
         phases_yaml: Type.Optional(Type.String()),
         loops_yaml: Type.Optional(Type.String()),
         groups_yaml: Type.Optional(Type.String()),

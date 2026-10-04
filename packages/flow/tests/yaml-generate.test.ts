@@ -6,10 +6,7 @@ const flow = {
   name: "auth-audit",
   description: "Audit auth",
   input: "prompt" as const,
-  agents: {
-    scanner: { tools: ["read", "grep", "find"], model: "haiku" },
-    auditor: { model: "sonnet", schema: { verdict: "APPROVED|REVISE" } },
-  },
+  agents: ["scanner", "auditor"],
   phases: [
     { id: "scan", agent: "scanner", prompt: "List routes.", out: "files" },
     { id: "audit", agent: "auditor", fanout: "files", prompt: "Audit {{item}}.", out: "findings" },
@@ -45,32 +42,44 @@ describe("generateScript", () => {
   });
 
   it("resolves an undeclared reviewer phase to the built-in Reviewer agent", () => {
-    const s = generateScript({ ...flow, agents: {}, phases: [{ id: "rev", agent: "reviewer", prompt: "Review it." }] });
+    const s = generateScript({ ...flow, agents: [], phases: [{ id: "rev", agent: "reviewer", prompt: "Review it." }] });
     expect(s).toMatch(/agentType:\s*['"]Reviewer['"]/);
   });
 
   it("resolves an undeclared planner phase to the built-in Plan agent", () => {
-    const s = generateScript({ ...flow, agents: {}, phases: [{ id: "plan", agent: "planner", prompt: "Plan it." }] });
+    const s = generateScript({ ...flow, agents: [], phases: [{ id: "plan", agent: "planner", prompt: "Plan it." }] });
     expect(s).toMatch(/agentType:\s*['"]Plan['"]/);
   });
 
   it("resolves any other undeclared agent to general-purpose", () => {
-    const s = generateScript({ ...flow, agents: {}, phases: [{ id: "x", agent: "custom", prompt: "Do it." }] });
+    const s = generateScript({ ...flow, agents: [], phases: [{ id: "x", agent: "custom", prompt: "Do it." }] });
     expect(s).toMatch(/agentType:\s*['"]general-purpose['"]/);
   });
 
   it("a declared agent spawns by name (not the built-in fallback)", () => {
-    const s = generateScript({ ...flow, agents: { reviewer: { model: "sonnet" } }, phases: [{ id: "rev", agent: "reviewer", prompt: "Review." }] });
+    const s = generateScript({ ...flow, agents: ["reviewer"], phases: [{ id: "rev", agent: "reviewer", prompt: "Review." }] });
     expect(s).toMatch(/agentType:\s*['"]reviewer['"]/);
   });
 
-  it("tier-2 agent phase bakes YAML model verbatim (the config channel is gone)", () => {
+  it("agent() opts carry ONLY {label, phase, agentType, schema?} — never model/tools/thinking/isolated", () => {
+    // THE centralization invariant: the .md (bound via agentType) supplies
+    // tools/model/thinking/isolation; the phase supplies the schema.
     const s = generateScript({
       name: "t", description: "d", input: "prompt",
-      agents: { scanner: { model: "haiku" } },
-      phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
+      agents: ["scanner"],
+      phases: [
+        { id: "scan", agent: "scanner", prompt: "go" },
+        { id: "check", agent: "scanner", schema: { verdict: "APPROVED|REVISE" }, prompt: "verify" },
+      ],
     });
-    expect(s).toMatch(/model:\s*"haiku"/);
+    expect(s).not.toMatch(/\bmodel:/);
+    expect(s).not.toMatch(/\btools:/);
+    expect(s).not.toMatch(/\bthinking:/);
+    expect(s).not.toMatch(/\bisolated:/);
+    // the phase schema IS baked
+    expect(s).toMatch(/schema:\s*\{\s*"verdict":\s*"APPROVED\|REVISE"\s*\}/);
+    // and the identity opts are present
+    expect(s).toMatch(/agentType:\s*['"]scanner['"]/);
   });
 });
 
@@ -79,7 +88,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
     name: "ship-feature",
     description: "d",
     input: "prompt" as const,
-    agents: {},
+    agents: [],
     phases: [
       { id: "plan", skill: "sf-flow-plan" },
       { id: "implement", skill: "sf-flow-implement" },
@@ -139,7 +148,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
       name: "na`me${x}",
       description: "d",
       input: "prompt",
-      agents: {},
+      agents: [],
       phases: [{ id: "p", skill: "sf-flow-plan" }],
       loops: {},
     };
@@ -157,8 +166,8 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
   it("emits QUESTIONS PHASE directive for a questions phase", () => {
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { elicitor: { model: "haiku", thinking: "high", isolated: true, schema: { questions: "array" } } },
-      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
+      agents: ["elicitor"],
+      phases: [{ id: "clarify", questions: "elicitor", schema: { questions: "array" }, max_rounds: 5, out: "reqs" }],
     };
     const s = generateScript(qFlow);
     expect(s).toContain("QUESTIONS PHASE: elicitor");
@@ -171,7 +180,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
   it("defaults max_rounds to 5 when omitted", () => {
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { elicitor: { model: "haiku" } },
+      agents: ["elicitor"],
       phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
     };
     const s = generateScript(qFlow);
@@ -181,8 +190,8 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
   it("questions branch is deterministic and idempotent", () => {
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { elicitor: { model: "haiku", thinking: "high", isolated: true, schema: { questions: "array" } } },
-      phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+      agents: ["elicitor"],
+      phases: [{ id: "clarify", questions: "elicitor", schema: { questions: "array" }, max_rounds: 3, out: "reqs" }],
     };
     const a = generateScript(qFlow);
     const b = generateScript(qFlow);
@@ -192,7 +201,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
   it("mentions args.flow and args.slug in the QUESTIONS PHASE directive", () => {
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { elicitor: { model: "haiku" } },
+      agents: ["elicitor"],
       phases: [{ id: "clarify", questions: "elicitor", out: "reqs" }],
     };
     const s = generateScript(qFlow);
@@ -205,7 +214,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
     const dangerousKey = "my`bot${1}";
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { [dangerousKey]: { model: "haiku" } },
+      agents: [dangerousKey],
       phases: [{ id: "clarify", questions: dangerousKey, out: "reqs" }],
     };
     // Must not throw — generation succeeds
@@ -217,17 +226,15 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
     // CRITICAL: the subagent_type value in the directive must also be escaped
     // (otherwise the raw backtick in qAgentType would break the template literal)
     expect(s).toContain("subagent_type: my\\`bot\\${1}");
-    // The opts line still has the raw value in the comment (not in the directive)
-    expect(s).toContain("// elicitor agent opts:");
   });
 
   it("grouped phases are skipped (group emitted once, individual phases suppressed)", () => {
     const gFlow: FlowYaml = {
       name: "g", description: "d", input: "prompt",
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      agents: ["a"],
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "review" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "review" },
         { id: "fix", agent: "a", prompt: "fix" },
       ],
       loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
@@ -246,7 +253,7 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
       name: "ship-x",
       description: "d",
       input: "prompt" as const,
-      agents: {},
+      agents: [],
       phases: [
         {
           id: "plan",
@@ -273,10 +280,10 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
   describe("emitGroupLoop (group loops)", () => {
     const groupFlow: FlowYaml = {
       name: "g", description: "d", input: "prompt",
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      agents: ["a"],
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "review it" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "review it" },
         { id: "fix", agent: "a", prompt: "fix it" },
       ],
       loops: { review: { until: "approved", fail_on: ["P0", "P1", "P2"], max_rounds: 5 } },
@@ -352,15 +359,15 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
     it("two groups get separate block scopes with no variable collision", () => {
       const multiFlow: FlowYaml = {
         name: "mg", description: "d", input: "prompt",
-        agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+        agents: ["a"],
         groups: {
           loop1: { phases: ["g1", "f1"] },
           loop2: { phases: ["g2", "f2"] },
         },
         phases: [
-          { id: "g1", agent: "a", prompt: "review 1" },
+          { id: "g1", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "review 1" },
           { id: "f1", agent: "a", prompt: "fix 1" },
-          { id: "g2", agent: "a", prompt: "review 2" },
+          { id: "g2", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "review 2" },
           { id: "f2", agent: "a", prompt: "fix 2" },
         ],
         loops: {
@@ -382,44 +389,37 @@ describe("generateScript skill-phase slug handoff (M5)", () => {
     });
   });
 
-  describe("questions-phase elicitor model (M2: inline YAML only until M3)", () => {
-    it("inline YAML model is baked into the questions-phase opts comment", () => {
+  describe("questions-phase (M3: agent list + phase schema; no model anywhere)", () => {
+    it("emits the QUESTIONS directive naming the agent; no model/tools/thinking/isolated opts comment", () => {
       const qFlow: FlowYaml = {
         name: "q", description: "d", input: "prompt",
-        agents: { elicitor: { model: "yaml-el", schema: { questions: "array" } } },
-        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
+        agents: ["elicitor"],
+        phases: [{ id: "clarify", questions: "elicitor", schema: { questions: "array" }, max_rounds: 3, out: "reqs" }],
       };
       const s = generateScript(qFlow);
-      expect(s).toMatch(/model:\s*"yaml-el"/);
-    });
-
-    it("no model when inline is absent (config/env channels are gone)", () => {
-      const qFlow: FlowYaml = {
-        name: "q", description: "d", input: "prompt",
-        agents: { elicitor: { schema: { questions: "array" } } },
-        phases: [{ id: "clarify", questions: "elicitor", max_rounds: 3, out: "reqs" }],
-      };
-      const s = generateScript(qFlow);
-      expect(s).not.toMatch(/model:\s*"[^"]+"/);
+      expect(s).toContain("QUESTIONS PHASE: elicitor");
+      expect(s).toContain("questions: string[]");
+      expect(s).not.toMatch(/\bmodel:/);
+      expect(s).not.toContain("// elicitor agent opts:");
     });
   });
 });
 
-describe("tier-2 agent model baking (M2: inline YAML only; config channel removed)", () => {
-  const flow = (agents: Record<string, { model?: string }>, agent: string) => ({ name: "t", description: "d", input: "prompt" as const, agents, phases: [{ id: "p", agent, prompt: "go" }] });
-  it("inline YAML model is baked verbatim", () => { const s = generateScript(flow({ scanner: { model: "yaml/sc" } }, "scanner")); expect(s).toMatch(/model:\s*"yaml\/sc"/); });
-  it("no inline → no model emitted (the .md supplies it)", () => { expect(generateScript(flow({ scanner: {} }, "scanner"))).not.toMatch(/model:\s*"[^"]+"/); });
-  it("group-loop gate+fix bakes the inline model at both call sites", () => {
-    const g = { name: "g", description: "d", input: "prompt" as const, agents: { reviewer: { model: "yaml/rev", schema: { verdict: "APPROVED|REVISE" } }, developer: {} }, groups: { review: { phases: ["gate", "fix"] } }, phases: [{ id: "gate", agent: "reviewer", prompt: "r" }, { id: "fix", agent: "reviewer", prompt: "f" }], loops: { review: { until: "approved" as const, fail_on: ["P0"], max_rounds: 5 } } };
+describe("tier-2 agent emission (M3: no model from YAML — the .md supplies it)", () => {
+  const flow = (agents: string[], agent: string) => ({ name: "t", description: "d", input: "prompt" as const, agents, phases: [{ id: "p", agent, prompt: "go" }] });
+  it("no model ever emitted (the .md supplies it via agentType)", () => { expect(generateScript(flow(["scanner"], "scanner"))).not.toMatch(/\bmodel:/); });
+  it("group-loop gate+fix bakes the phase schema at the gate call site, no model anywhere", () => {
+    const g = { name: "g", description: "d", input: "prompt" as const, agents: ["reviewer", "developer"], groups: { review: { phases: ["gate", "fix"] } }, phases: [{ id: "gate", agent: "reviewer", schema: { verdict: "APPROVED|REVISE" }, prompt: "r" }, { id: "fix", agent: "reviewer", prompt: "f" }], loops: { review: { until: "approved" as const, fail_on: ["P0"], max_rounds: 5 } } };
     const s = generateScript(g);
-    expect(s.match(/model:\s*"yaml\/rev"/g)).toHaveLength(2);
+    expect(s).not.toMatch(/\bmodel:/);
+    expect(s.match(/schema:\s*\{\s*"verdict":\s*"APPROVED\|REVISE"\s*\}/g)).toHaveLength(1);
   });
 
   it("(e) single-phase gate routes through _gateApproved (D4, no permissive tail)", () => {
     const g: FlowYaml = {
       name: "sg", description: "d", input: "prompt",
-      agents: { reviewer: { schema: { verdict: "APPROVED|REVISE" } } },
-      phases: [{ id: "rev", agent: "reviewer", prompt: "review", out: "verdict" }],
+      agents: ["reviewer"],
+      phases: [{ id: "rev", agent: "reviewer", schema: { verdict: "APPROVED|REVISE" }, prompt: "review", out: "verdict" }],
       loops: { rev: { until: "approved", fail_on: ["P0"], max_rounds: 3 } },
     };
     const s = generateScript(g);
@@ -434,7 +434,7 @@ describe("generateScript contract envelope (M3)", () => {
   it("emits the contract envelope with destructured inputs + resolved placeholders (S-M3-2)", () => {
     const flow = {
       name: "demo", description: "d", input: "prompt",
-      agents: { planner: {} },
+      agents: ["planner"],
       phases: [{
         id: "plan", agent: "planner", out: "plan_doc",
         prompt: "Produce the plan.",
@@ -469,7 +469,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("resurrects the dead in: shorthand by destructuring + injecting the value (S-M3-2)", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [
         { id: "p1", agent: "a", out: "doc", prompt: "make doc" },
         { id: "p2", agent: "a", in: "doc", prompt: "use doc" },
@@ -482,7 +482,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("phases without contracts emit no prologue noise but still complete (resume marker)", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "go" }],
     };
     const s = generateScript(flow as any);
@@ -493,7 +493,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("a blocked load-required returns a blocked terminal naming the phase", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [{ id: "p", agent: "a", inputs: { require: ["missing"] }, prompt: "go" }],
     };
     const s = generateScript(flow as any);
@@ -503,7 +503,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("skill phase emits the assert envelope around the INLINE directive (S-M3-3)", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: {},
+      name: "demo", description: "d", input: "prompt", agents: [],
       phases: [{
         id: "plan", skill: "sf-flow-plan",
         outputs: {
@@ -522,7 +522,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("emits a structured terminal result reading load-all (S-M3-4)", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "go" }],
     };
     const s = generateScript(flow as any);
@@ -537,7 +537,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("worktree:prepare publishes the handle; worktree:finalize recovers it", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [
         { id: "impl", agent: "a", worktree: "prepare", prompt: "build", out: "impl_result",
           outputs: { publish: { impl_result: "impl_result" } } },
@@ -554,7 +554,7 @@ describe("generateScript contract envelope (M3)", () => {
   it("questions/skill phases with out but no publish do NOT auto-publish an undefined ref (M3 P2)", () => {
     const flow = {
       name: "demo", description: "d", input: "prompt",
-      agents: { elicitor: { model: "haiku" } },
+      agents: ["elicitor"],
       phases: [{ id: "clarify", questions: "elicitor", out: "reqs", max_rounds: 3 }],
     };
     const s = generateScript(flow as any);
@@ -566,7 +566,7 @@ describe("generateScript contract envelope (M3)", () => {
 
   it("empty complete emits outputs: {} (no stray identifier)", () => {
     const flow = {
-      name: "demo", description: "d", input: "prompt", agents: { a: {} },
+      name: "demo", description: "d", input: "prompt", agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "go" }],
     };
     const s = generateScript(flow as any);
@@ -578,9 +578,8 @@ describe("generateScript contract envelope (M3)", () => {
 describe("notifier agent phase (Tier-2 send mechanism)", () => {
   const notifierFlow = {
     name: "ping", description: "notify on done", input: "prompt" as const,
-    agents: { notifier: { tools: ["bash"], thinking: "low", isolated: true,
-      schema: { status: "sent|skipped|failed", detail: "string?" } } },
-    phases: [{ id: "notify", agent: "notifier", prompt: "Flow complete", out: "notify_result" }],
+    agents: ["notifier"],
+    phases: [{ id: "notify", agent: "notifier", schema: { status: "sent|skipped|failed", detail: "string?" }, prompt: "Flow complete", out: "notify_result" }],
   };
 
   it("validates cleanly", () => {
@@ -588,17 +587,13 @@ describe("notifier agent phase (Tier-2 send mechanism)", () => {
     expect(result).toEqual({ ok: true, errors: [] });
   });
 
-  it("generates agentType, tools, isolated, thinking", () => {
+  it("generates agentType + the phase schema; never tools/thinking/isolated (the .md supplies those)", () => {
     const s = generateScript(notifierFlow);
     expect(s).toMatch(/agentType:\s*["']notifier["']/);
-    expect(s).toContain('["bash"]');
-    expect(s).toContain('isolated: true');
-    expect(s).toMatch(/thinking:\s*["']low["']/);
-  });
-
-  it("emits the status schema verbatim", () => {
-    const s = generateScript(notifierFlow);
     expect(s).toContain("sent|skipped|failed");
+    expect(s).not.toMatch(/\btools:/);
+    expect(s).not.toMatch(/\bthinking:/);
+    expect(s).not.toMatch(/\bisolated:/);
   });
 
   it("emits plain await agent() with no loopUntilDry/parallel/gate", () => {

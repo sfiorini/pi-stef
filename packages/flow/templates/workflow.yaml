@@ -1,24 +1,17 @@
 # flow template — 4 knobs (agents, phases, loops, groups) + phase contracts (inputs/outputs/worktree)
 # Edit and save as .pi/workflows/<name>.yaml, then run: sf_flow_auto <name> <input>
+#
+# Agents are DEFINED in their .md files (project .pi/agents/<name>.md overrides
+# global getAgentDir()/agents/<name>.md — model, tools, thinking, isolation, and
+# the system prompt all live there). A workflow only NAMES the agents its phases
+# use; it never defines an agent or its model. To pin a model: edit the .md.
 name: my-flow
 description: One-line description of what this flow does
 input: prompt   # prompt | md-file | prd | jira
 
-agents:          # KNOB 1 — declare agents + tools, model, thinking, schema
-  worker:
-    tools: [read, grep, find]
-    model: haiku
-    thinking: low
-  # elicitor:                                       # questions-phase agent
-  #   tools: [read, grep, find, ls]
-  #   thinking: high
-  #   isolated: true
-  #   schema:
-  #     questions: array                            # MUST declare questions schema
-  # notifier:                                      # Tier-2 opt-in: send a Telegram message
-  #   tools: [bash]
-  #   thinking: low
-  #   isolated: true
+agents: [worker]   # KNOB 1 — the agent NAMES this flow uses (defined in their .md files)
+  # - elicitor                                      # questions-phase agent
+  # - notifier                                      # Tier-2 opt-in: send a Telegram message
 
 groups:          # KNOB 4 (optional) — named find→fix→re-verify loops
   # review:                                         # group name = loop key
@@ -29,6 +22,9 @@ phases:          # KNOB 2 — each phase runs one of: agent / skill / raw / ques
     agent: worker
     prompt: "Describe the task for the worker."
     out: result
+    # schema:                                       # PHASE contract (not an agent property):
+    #   verdict: APPROVED|REVISE                    #   what the phase's agent must return
+    #   findings: array                            #   (required on gate phases for until: approved)
   # ── Phase contract example (inputs/outputs/worktree) ──────────────────────────
   # A contract makes the phase self-enforcing: required inputs are loaded (a missing
   # one BLOCKS the phase), outputs are materialized + asserted, and the phase atomically
@@ -61,21 +57,22 @@ phases:          # KNOB 2 — each phase runs one of: agent / skill / raw / ques
   #   agent: notifier
   #   prompt: "Flow complete"                       # STATIC message (literal — not interpolated)
   #   out: notify_result
-  # - id: clarify                                   # questions phase (4th kind)
-  #   questions: elicitor                           # must reference an agent in agents:
+  # - id: clarify                                  # questions phase (4th kind)
+  #   questions: elicitor                          # must name an agent in agents:
+  #   schema: { questions: array }                 # the phase's structured-output contract
   #   prompt: "Identify what is unclear…"
-  #   max_rounds: 5                                 # default 5; empty questions → no-op pass-through
-  #   out: requirements
-  # - id: review                                    # gate phase (first in group)
+  #   max_rounds: 5                               # default 5; empty questions → no-op pass-through
+  # - id: review                                   # gate phase (first in group)
   #   agent: auditor
+  #   schema: { verdict: APPROVED|REVISE, findings: array }   # gates MUST declare verdict (+findings for canonical-delta)
   #   prompt: "Review for correctness…"
-  # - id: fix                                       # fix phase (rest of group)
+  # - id: fix                                      # fix phase (rest of group)
   #   agent: developer
   #   prompt: "Fix the findings…"
 
 loops:           # KNOB 3 (optional) — loop key is a phase id OR group name
   # review:                                        # group name → group loop (find→fix→re-verify)
-  #   until: approved                               # gate agent verdict
+  #   until: approved                              # gate agent verdict
   #   fail_on: [P0, P1, P2]
   #   max_rounds: 5
   #   protocol: canonical-delta                     # carry [Fn] findings across rounds, AND-gate via verification (raw = default)

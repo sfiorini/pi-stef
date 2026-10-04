@@ -1,14 +1,9 @@
+# research-report: parallel research + synthesis.
+# Agents are defined in their .md files; this workflow only NAMES them.
 name: research-report
 description: Multi-perspective research with cross-checking and synthesis
 input: prompt
-agents:
-  researcher:
-    tools: [read, grep, find, ls, bash]
-    model: sonnet
-    thinking: medium
-  synth:
-    tools: [read, write]
-    model: sonnet
+agents: [researcher, synth]
 phases:
   - id: gather
     agent: researcher

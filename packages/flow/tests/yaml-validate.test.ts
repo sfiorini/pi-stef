@@ -5,7 +5,7 @@ const base = {
   name: "x",
   description: "d",
   input: "prompt",
-  agents: { a: { model: "haiku" } },
+  agents: ["a"],
   phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
 };
 
@@ -41,6 +41,11 @@ describe("validateFlowYaml", () => {
   it("rejects phase.agent not in agents", () => {
     expect(validateFlowYaml({ ...base, phases: [{ id: "p", agent: "ghost", prompt: "do" }] }).ok).toBe(false);
   });
+  it("rejects duplicate agent names in the list", () => {
+    const r = validateFlowYaml({ ...base, agents: ["a", "a"] });
+    expect(r.ok).toBe(false);
+    expect(r.errors).toContain('agents: duplicate name "a" (declare each agent once)');
+  });
   it("rejects a fanout phase that declares no out", () => {
     expect(
       validateFlowYaml({ ...base, phases: [{ id: "p", agent: "a", fanout: "missing", prompt: "do" }] }).ok,
@@ -51,10 +56,10 @@ describe("validateFlowYaml", () => {
       validateFlowYaml({ ...base, loops: { p: { until: "approved", fail_on: ["P0"], max_rounds: 5 } } }).ok,
     ).toBe(false);
   });
-  it("accepts loops.until:approved when agent has verdict schema", () => {
+  it("accepts loops.until:approved when the gate PHASE declares a verdict schema", () => {
     const withVerdict = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
+      phases: [{ id: "p", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "do", out: "o" }],
       loops: { p: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
     };
     expect(validateFlowYaml(withVerdict).ok).toBe(true);
@@ -118,7 +123,7 @@ describe("validateFlowYaml", () => {
     expect(
       validateFlowYaml({
         ...base,
-        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        agents: [...base.agents, "elicitor"],
         phases: [{ id: "clarify", questions: "ghost", max_rounds: 5, out: "reqs" }],
       }).errors,
     ).toContain('phase "clarify": questions "ghost" not defined in agents');
@@ -127,7 +132,7 @@ describe("validateFlowYaml", () => {
     expect(
       validateFlowYaml({
         ...base,
-        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        agents: [...base.agents, "elicitor"],
         phases: [{ id: "clarify", questions: "elicitor", fanout: "items", max_rounds: 5, out: "reqs" }],
       }).errors,
     ).toContain('phase "clarify": questions and fanout are mutually exclusive');
@@ -136,7 +141,7 @@ describe("validateFlowYaml", () => {
     expect(
       validateFlowYaml({
         ...base,
-        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        agents: [...base.agents, "elicitor"],
         phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
       }),
     ).toEqual({ ok: true, errors: [] });
@@ -147,7 +152,7 @@ describe("validateFlowYaml", () => {
     expect(
       validateFlowYaml({
         ...base,
-        agents: { ...base.agents, elicitor: { model: "haiku" } },
+        agents: [...base.agents, "elicitor"],
         phases: [{ id: "clarify", questions: "elicitor", verify: "someOut", max_rounds: 5, out: "reqs" }],
       }).errors,
     ).toContain('phase "clarify": questions and verify are mutually exclusive');
@@ -173,10 +178,9 @@ describe("validateFlowYaml", () => {
   it("accepts a valid group with matching loop", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "review" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "review" },
         { id: "fix", agent: "a", prompt: "fix" },
       ],
       loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
@@ -197,13 +201,12 @@ describe("validateFlowYaml", () => {
   it("rejects a phase belonging to two groups", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
       groups: {
         g1: { phases: ["p", "fix1"] },
         g2: { phases: ["p", "fix2"] },
       },
       phases: [
-        { id: "p", agent: "a", prompt: "gate", out: "o" },
+        { id: "p", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "gate", out: "o" },
         { id: "fix1", agent: "a", prompt: "f1" },
         { id: "fix2", agent: "a", prompt: "f2" },
       ],
@@ -230,10 +233,9 @@ describe("validateFlowYaml", () => {
   it("rejects a group with no matching loop", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "r" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "r" },
         { id: "fix", agent: "a", prompt: "f" },
       ],
     };
@@ -246,10 +248,9 @@ describe("validateFlowYaml", () => {
   it("rejects until_dry on a group loop", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "r" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "r" },
         { id: "fix", agent: "a", prompt: "f" },
       ],
       loops: { review: { until_dry: true, max_rounds: 3 } },
@@ -258,10 +259,9 @@ describe("validateFlowYaml", () => {
       'loops.review: until_dry is not valid on a group loop (use until: approved)',
     );
   });
-  it("rejects until:approved on group when gate agent lacks verdict schema", () => {
+  it("rejects until:approved on group when the gate PHASE lacks a verdict schema", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku" } },
       groups: { review: { phases: ["gate", "fix"] } },
       phases: [
         { id: "gate", agent: "a", prompt: "r" },
@@ -270,13 +270,13 @@ describe("validateFlowYaml", () => {
       loops: { review: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
     };
     expect(validateFlowYaml(flow).errors).toContain(
-      `loops.review: until:approved requires the gate phase's agent ("a") to declare a verdict schema`,
+      `loops.review: until:approved requires the gate phase ("gate") to declare a verdict schema`,
     );
   });
   it("rejects a loop on a questions phase", () => {
     const flow = {
       ...base,
-      agents: { ...base.agents, elicitor: { model: "haiku" } },
+      agents: [...base.agents, "elicitor"],
       phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
       loops: { clarify: { until: "approved", fail_on: ["P0"], max_rounds: 5 } },
     };
@@ -287,10 +287,9 @@ describe("validateFlowYaml", () => {
   it("group takes precedence on loop key collision (phase id == group name)", () => {
     const flow = {
       ...base,
-      agents: { a: { model: "haiku", schema: { verdict: "APPROVED|REVISE" } } },
       groups: { gate: { phases: ["gate", "fix"] } },
       phases: [
-        { id: "gate", agent: "a", prompt: "r" },
+        { id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" }, prompt: "r" },
         { id: "fix", agent: "a", prompt: "f" },
       ],
       loops: { gate: { until_dry: true, max_rounds: 3 } },
@@ -306,7 +305,7 @@ describe("validateFlowYaml", () => {
 describe("contract graph validation", () => {
   const base = (phases: any[]) => ({
     name: "demo", description: "d", input: "prompt",
-    agents: { a: {} }, phases,
+    agents: ["a"], phases,
   });
 
   it("rejects an unresolved inputs.require", () => {
@@ -447,7 +446,7 @@ describe("contract graph validation", () => {
 describe("validateStrictProfile (ship-feature)", () => {
   const ship = (phases: any[]) => ({
     name: "ship-feature", description: "d", input: "prompt",
-    agents: { a: {} }, phases,
+    agents: ["a"], phases,
   });
 
   it("is a no-op for a non-ship-feature flow", () => {
@@ -479,23 +478,33 @@ describe("validateStrictProfile (ship-feature)", () => {
     // current (pre-migration) ship-feature has no outputs -> strict profile skipped
     const r = validateFlowYaml({
       name: "ship-feature", description: "d", input: "prompt",
-      agents: { a: {} }, phases: [{ id: "plan", agent: "a", prompt: "p" }],
+      agents: ["a"], phases: [{ id: "plan", agent: "a", prompt: "p" }],
     });
     expect(r.errors).toEqual([]);
   });
 });
 
 describe("validateSection", () => {
-  it("accepts valid agents section", () => {
-    expect(validateSection("agents", { worker: { model: "haiku" } })).toEqual({ ok: true, errors: [] });
+  it("accepts a valid agents section (a list of names)", () => {
+    expect(validateSection("agents", ["worker", "auditor"])).toEqual({ ok: true, errors: [] });
+  });
+
+  it("rejects the OLD agents-as-map section shape", () => {
+    const result = validateSection("agents", { worker: { model: "haiku" } });
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]).toMatch(/^agents\./);
   });
 
   it("accepts valid phases section", () => {
     expect(validateSection("phases", [{ id: "p", agent: "a", prompt: "do", out: "o" }])).toEqual({ ok: true, errors: [] });
   });
 
-  it("rejects agents section with invalid field", () => {
-    const result = validateSection("agents", { worker: { bogus_field: true } });
+  it("accepts a phase declaring a schema (the phase contract)", () => {
+    expect(validateSection("phases", [{ id: "gate", agent: "a", schema: { verdict: "APPROVED|REVISE" } }])).toEqual({ ok: true, errors: [] });
+  });
+
+  it("rejects non-string agents entries", () => {
+    const result = validateSection("agents", ["ok", 42]);
     expect(result.ok).toBe(false);
     expect(result.errors[0]).toMatch(/^agents\./);
   });

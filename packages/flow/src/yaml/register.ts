@@ -94,7 +94,15 @@ export async function registerDiscoveredFlows(
         map.set(flow.name, flow);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`flow: skipping workflow ${file}: ${msg}`);
+        // Old-format workflows (agents: as a map of definitions) fail validation
+        // with a type error on the agents KEY — explain the v2 shape so the user
+        // can migrate. Anchored to the TypeBox agents path/key so unrelated
+        // errors (e.g. `agent "ghost" not defined in agents`) don't get the hint.
+        const isAgentsFormatError = /(?:^|\/)agents\b|\bagents\b.*expected/i.test(msg);
+        const agentsHint = isAgentsFormatError
+          ? ` — since the agents-as-definitions change, the agents: section is a LIST of names (e.g. agents: [scanner, auditor]); agents (including their models) are defined in their .md files. Run /sf-flow-seed to copy the new-format examples, and see the README "Upgrading from the old format" section.`
+          : "";
+        console.warn(`flow: skipping workflow ${file}: ${msg}${agentsHint}`);
       }
     }
   }

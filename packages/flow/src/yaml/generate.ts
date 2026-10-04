@@ -19,23 +19,21 @@ function blockedReturn(flowName: string, phaseId: string): string {
   return `return { name: ${JSON.stringify(flowName)}, status: "blocked", finalPhase: ${JSON.stringify(phaseId)}, resumeState: { stateFile: \`ai_plan/\${args.slug}/.flow-state.json\` } };`;
 }
 
-function agentOpts(
-  name: string,
-  def: FlowYaml["agents"][string] | undefined,
-  phase: string,
-  agentType: string,
-): string {
+/**
+ * The agent() call options flow bakes: the agent's identity (agentType binds the
+ * .md — its tools, model, and role prompt) plus the phase's structured-output
+ * contract when declared. NEVER tools/model/thinking/isolated — those live in
+ * the agent .md (pi-dw applies them via agentType; pi-subagents via its own
+ * Agent tool). This slim shape IS the centralization invariant; a test asserts
+ * nothing else is ever emitted here.
+ */
+function agentOpts(name: string, phase: string, agentType: string, schema?: PhaseDef["schema"]): string {
   const parts: string[] = [
     `label: ${JSON.stringify(name)}`,
     `phase: ${JSON.stringify(phase)}`,
     `agentType: ${JSON.stringify(agentType)}`,
   ];
-  if (def?.tools) parts.push(`tools: ${JSON.stringify(def.tools)}`);
-  // M3 moves the model to the agent .md; until then the YAML model: still wins.
-  if (def?.model) parts.push(`model: ${JSON.stringify(def.model)}`);
-  if (def?.thinking) parts.push(`thinking: ${JSON.stringify(def.thinking)}`);
-  if (def?.isolated) parts.push(`isolated: true`);
-  if (def?.schema) parts.push(`schema: ${JSON.stringify(def.schema)}`);
+  if (schema) parts.push(`schema: ${JSON.stringify(schema)}`);
   return `{ ${parts.join(", ")} }`;
 }
 
@@ -174,9 +172,8 @@ function emitCanonicalGroupLoop(
   const loop = flow.loops?.[groupId];
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
-  const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
-  const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
-  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
+  const gateAgentType = resolveAgentType(gatePhase.agent!, flow.agents);
+  const gateOpts = agentOpts(gatePhase.agent!, groupId, gateAgentType, gatePhase.schema);
   const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
   const maxRounds = loop?.max_rounds ?? 5;
   const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
@@ -219,9 +216,8 @@ function emitCanonicalGroupLoop(
   lines.push(`    }`);
   for (let i = 1; i < group.phases.length; i++) {
     const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
-    const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
-    const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
-    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
+    const fixAgentType = resolveAgentType(fixPhase.agent!, flow.agents);
+    const fixOpts = agentOpts(fixPhase.agent!, groupId, fixAgentType, fixPhase.schema);
     const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
     lines.push(
       `    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _rendered, ${fixOpts});`,
@@ -252,9 +248,8 @@ function emitGroupLoop(
   }
   const gatePhaseId = group.phases[0];
   const gatePhase = flow.phases.find((p) => p.id === gatePhaseId)!;
-  const gateDef = gatePhase.agent ? flow.agents[gatePhase.agent] : undefined;
-  const gateAgentType = resolveAgentType(gatePhase.agent!, Object.keys(flow.agents));
-  const gateOpts = agentOpts(gatePhase.agent!, gateDef, groupId, gateAgentType);
+  const gateAgentType = resolveAgentType(gatePhase.agent!, flow.agents);
+  const gateOpts = agentOpts(gatePhase.agent!, groupId, gateAgentType, gatePhase.schema);
   const gatePromptLit = JSON.stringify(gatePhase.prompt ?? "");
   const maxRounds = loop?.max_rounds ?? 5;
   const failOn = JSON.stringify(loop?.fail_on ?? ["P0", "P1", "P2"]);
@@ -286,9 +281,8 @@ function emitGroupLoop(
   lines.push(`    const _findingsJson = JSON.stringify(_findings);`);
   for (let i = 1; i < group.phases.length; i++) {
     const fixPhase = flow.phases.find((p) => p.id === group.phases[i])!;
-    const fixDef = fixPhase.agent ? flow.agents[fixPhase.agent] : undefined;
-    const fixAgentType = resolveAgentType(fixPhase.agent!, Object.keys(flow.agents));
-    const fixOpts = agentOpts(fixPhase.agent!, fixDef, groupId, fixAgentType);
+    const fixAgentType = resolveAgentType(fixPhase.agent!, flow.agents);
+    const fixOpts = agentOpts(fixPhase.agent!, groupId, fixAgentType, fixPhase.schema);
     const fixPromptLit = JSON.stringify(fixPhase.prompt ?? "");
     lines.push(
       `    await agent(${fixPromptLit} + "\\n\\nCanonical findings to address:\\n" + _findingsJson, ${fixOpts});`,
@@ -355,20 +349,17 @@ export function generateScript(flow: FlowYaml): string {
 
     if (ph.questions) {
       const maxRounds = ph.max_rounds ?? 5;
-      const qDef = flow.agents[ph.questions];
-      const qAgentType = resolveAgentType(ph.questions, Object.keys(flow.agents));
-      const qOpts = agentOpts(ph.questions, qDef, ph.id, qAgentType);
+      const qAgentType = resolveAgentType(ph.questions, flow.agents);
       const esc = (s: string): string => s.replace(/`/g, "\\`").replace(/\$\{/g, "\\${");
       const directive =
         "`QUESTIONS PHASE: " + esc(ph.questions) + " (max " + maxRounds + " rounds). " +
         "The orchestrator (YOU) must run a clarifying-questions follow-up loop. " +
         "Dispatch the " + esc(ph.questions) + " agent via the Agent tool (subagent_type: " + esc(qAgentType) + "). " +
-        "It returns { questions: string[] }. If NON-EMPTY: present each via AskUserQuestion (one at a time, " +
+        "It returns { questions: string[] } (the questions contract; a schema declared on this phase documents the expected shape). If NON-EMPTY: present each via AskUserQuestion (one at a time, " +
         "multiple-choice when possible), collect answers, RE-DISPATCH with prior context + questions + answers. " +
         "Repeat until EMPTY or " + maxRounds + " rounds. If unattended (no user): answer with sensible defaults " +
         "and proceed (do not block). args.flow=${args.flow}, args.slug=${args.slug}.`";
       body.push("log(" + directive + ");");
-      body.push("// elicitor agent opts: " + qOpts);
     } else if (ph.skill) {
       if (loop) {
         throw new Error(
@@ -385,10 +376,9 @@ export function generateScript(flow: FlowYaml): string {
         "Workflow " + esc(flow.name) + ". args.flow=${args.flow}, args.slug=${args.slug}.`";
       body.push("log(" + directive + ");");
     } else {
-      const def = ph.agent ? flow.agents[ph.agent] : undefined;
       if (!ph.agent) throw new Error(`phase ${ph.id} has no resolvable agent`);
-      const agentType = resolveAgentType(ph.agent, Object.keys(flow.agents));
-      const opts = agentOpts(ph.agent, def, ph.id, agentType);
+      const agentType = resolveAgentType(ph.agent, flow.agents);
+      const opts = agentOpts(ph.agent, ph.id, agentType, ph.schema);
       const promptLit = JSON.stringify(ph.prompt ?? ""); // fanout keeps the raw {{item}} string-replace
       const promptExpr = agentPromptExpr(ph.prompt ?? "", ph);
 

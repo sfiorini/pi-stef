@@ -70,7 +70,7 @@ describe("sf_flow_create_workflow execute", () => {
         name: "my-flow",
         description: "A test flow",
         input: "prompt",
-        agents_yaml: "worker:\n  model: haiku",
+        agents_yaml: "- worker",
         phases_yaml: '- id: scan\n  agent: worker\n  prompt: "do stuff"\n  out: results',
       },
       undefined,
@@ -99,7 +99,7 @@ describe("sf_flow_create_workflow execute", () => {
         name: "bad-flow",
         description: "A bad flow",
         input: "prompt",
-        agents_yaml: "worker:\n  model: haiku",
+        agents_yaml: "- worker",
         phases_yaml: '- id: scan\n  agent: ghost\n  prompt: "do stuff"\n  out: results',
       },
       undefined,
@@ -121,7 +121,7 @@ describe("sf_flow_create_workflow execute", () => {
     const result = (await tool.execute(
       "id",
       {
-        agents_yaml: "worker:\n  model: haiku",
+        agents_yaml: "- worker",
         phases_yaml: '- id: scan\n  agent: worker\n  prompt: "do stuff"\n  out: results',
       },
       undefined,
@@ -144,7 +144,7 @@ describe("sf_flow_create_workflow execute", () => {
     const result = (await tool.execute(
       "id",
       {
-        agents_yaml: "worker:\n  bogus_field: true",
+        agents_yaml: "- worker\n- 42",
       },
       undefined,
       undefined,
@@ -186,7 +186,7 @@ describe("sf_flow_create_workflow execute", () => {
         name: "existing",
         description: "Clash",
         input: "prompt",
-        agents_yaml: "w:\n  model: haiku",
+        agents_yaml: "- w",
         phases_yaml: '- id: p\n  agent: w\n  prompt: "d"\n  out: o',
       },
       undefined,
@@ -212,7 +212,7 @@ describe("sf_flow_create_workflow execute", () => {
         name: "existing",
         description: "Overwritten flow",
         input: "prompt",
-        agents_yaml: "w:\n  model: haiku",
+        agents_yaml: "- w",
         phases_yaml: '- id: p\n  agent: w\n  prompt: "d"\n  out: o',
         overwrite: true,
       },

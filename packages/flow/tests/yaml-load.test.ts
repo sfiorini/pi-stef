@@ -10,8 +10,7 @@ const pkgRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const VALID = `name: demo
 description: demo flow
 input: prompt
-agents:
-  worker: {}
+agents: [worker]
 phases:
   - id: do
     agent: worker
@@ -33,7 +32,14 @@ describe("loadFlowYaml", () => {
   });
 
   it("rejects a structurally invalid flow (empty phases -> minItems)", async () => {
-    const file = writeTmp(`name: bad\ndescription: d\ninput: prompt\nagents: {}\nphases: []\n`);
+    const file = writeTmp(`name: bad\ndescription: d\ninput: prompt\nagents: []\nphases: []\n`);
+    await expect(loadFlowYaml(file)).rejects.toBeInstanceOf(FlowYamlLoadError);
+  });
+
+  it("rejects the OLD agents-as-map shape (agents must be a name list)", async () => {
+    const file = writeTmp(
+      "name: old\ndescription: d\ninput: prompt\nagents:\n  worker:\n    model: haiku\nphases:\n  - id: do\n    agent: worker\n",
+    );
     await expect(loadFlowYaml(file)).rejects.toBeInstanceOf(FlowYamlLoadError);
   });
 

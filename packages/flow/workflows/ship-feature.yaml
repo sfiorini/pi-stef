@@ -3,48 +3,13 @@
 # publishes {slug, plan_dir, plan_doc}; implement requires the slug, prepares a
 # worktree, and asserts the tracker advanced; the audit loop runs canonical-delta.
 # args.flow + args.slug are passed by sf_flow_auto; every checkpoint uses ai_plan/${args.slug}.
+# Agents are defined in their .md files; this workflow only NAMES them. Phase schemas
+# (verdict/findings for gates, questions for elicitors, status for the notifier) live
+# on the phases — a phase contract, not an agent property.
 name: ship-feature
 description: Clarify, design, plan, implement, and audit a feature end-to-end
 input: prompt
-agents:
-  elicitor:
-    tools: [read, grep, find, ls]
-    thinking: high
-    isolated: true
-    schema:
-      questions: array
-  designer:
-    tools: [read, grep, find, ls]
-    thinking: high
-    isolated: true
-  planner:
-    tools: [read, grep, find, ls, write]
-    thinking: medium
-    isolated: true
-  developer:
-    tools: [read, grep, find, ls, write, bash]
-    thinking: medium
-  reviewer:
-    tools: [read, grep, find, ls]
-    thinking: high
-    isolated: true
-    schema:
-      verdict: APPROVED|REVISE
-      findings: array
-  auditor:
-    tools: [read, grep, find, ls]
-    thinking: high
-    isolated: true
-    schema:
-      verdict: APPROVED|REVISE
-      findings: array
-  notifier:
-    tools: [bash]
-    thinking: low
-    isolated: true
-    schema:
-      status: sent|skipped|failed
-      detail: string?
+agents: [elicitor, designer, planner, developer, reviewer, auditor, notifier]
 groups:
   plan-review:
     phases: [review-plan, fix-plan]
@@ -55,6 +20,8 @@ groups:
 phases:
   - id: clarify
     questions: elicitor
+    schema:
+      questions: array
     prompt: "Given this feature request, identify what is unclear about scope, constraints, success criteria, and edge cases. Return a questions array — empty if the task is clear enough to design."
     max_rounds: 5
   - id: design
@@ -81,6 +48,9 @@ phases:
   - id: review-plan
     agent: reviewer
     in: plan_doc
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
     prompt: "Review the plan for completeness, correctness, and risk. Return findings P0-P3 + verdict."
   - id: fix-plan
     agent: planner
@@ -100,6 +70,9 @@ phases:
   - id: review-impl
     agent: reviewer
     in: impl_result
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
     prompt: "Review the implementation diff against the plan. Return findings P0-P3 + verdict."
   - id: fix-impl
     agent: developer
@@ -108,6 +81,9 @@ phases:
   - id: review-audit
     agent: auditor
     in: impl_result
+    schema:
+      verdict: APPROVED|REVISE
+      findings: array
     prompt: "Audit the implementation for correctness, security, performance, and clarity. Return findings P0-P3 + verdict. Round >=2: verify each prior [Fn] as FIXED/PARTIALLY-FIXED/NOT-FIXED/NEW-ISSUE-INTRODUCED."
   - id: fix-audit
     agent: developer
@@ -116,6 +92,9 @@ phases:
   - id: notify
     agent: notifier
     worktree: finalize
+    schema:
+      status: sent|skipped|failed
+      detail: string?
     prompt: "ship-feature complete"
     out: notify_result
 loops:

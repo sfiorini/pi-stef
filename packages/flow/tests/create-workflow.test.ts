@@ -14,7 +14,7 @@ describe("writeFlowYaml", () => {
       name: "demo",
       description: "d",
       input: "prompt",
-      agents: { a: { model: "haiku" } },
+      agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
     };
     const path = writeFlowYaml(dir, flow);
@@ -32,7 +32,7 @@ describe("writeFlowYaml", () => {
       name: "ship-feature",
       description: "d",
       input: "prompt",
-      agents: { a: { model: "haiku" } },
+      agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
     });
     expect(path).toBe(join(dir, "ship-feature.yaml"));
@@ -44,7 +44,7 @@ describe("writeFlowYaml", () => {
       name: "async-demo",
       description: "d",
       input: "prompt",
-      agents: { a: { model: "haiku" } },
+      agents: ["a"],
       phases: [{ id: "p", agent: "a", prompt: "do", out: "o" }],
     });
     expect(path).toBe(join(dir, "async-demo.yaml"));

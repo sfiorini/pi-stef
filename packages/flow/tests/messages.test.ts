@@ -148,26 +148,25 @@ describe("summarizePhaseModels", () => {
     expect(summary[0]).toMatchObject({ phase: "scan", kind: "tier2-agent", agent: "scanner", model: "haiku", source: ".md (project)" });
   });
 
-  it("YAML model wins over the .md while the YAML field still exists (M2 transitional)", () => {
-    // Differing values on purpose — catches the masked-precedence gap the
-    // reviewer found (codegen still bakes def?.model until M3).
+  it("reports the .md model — the YAML model field no longer exists (M3)", () => {
+    // The workflow YAML carries only agent NAMES; the .md is the single source.
     const flow: FlowYaml = {
       name: "t", description: "d", input: "prompt",
-      agents: { scanner: { model: "yaml/sc" } },
+      agents: ["scanner"],
       phases: [{ id: "scan", agent: "scanner", prompt: "go" }],
     };
     const info: AgentInfoMap = new Map([
       ["scanner", fakeInfo({ frontmatter: { model: "md/sc" } })],
     ]);
     const summary = summarizePhaseModels(flow, info);
-    expect(summary[0].model).toBe("yaml/sc");
-    expect(summary[0].source).toContain("YAML agents.<name>.model");
+    expect(summary[0].model).toBe("md/sc");
+    expect(summary[0].source).toContain(".md");
   });
 
   it("classifies a questions phase as tier2-elicitor with the questions agent name", () => {
     const qFlow: FlowYaml = {
       name: "q", description: "d", input: "prompt",
-      agents: { elicitor: {} },
+      agents: ["elicitor"],
       phases: [{ id: "clarify", questions: "elicitor", max_rounds: 5, out: "reqs" }],
     };
     const info: AgentInfoMap = new Map([
@@ -180,7 +179,7 @@ describe("summarizePhaseModels", () => {
   it("reports inherit-the-orchestrator for an agent with no .md", () => {
     const flow: FlowYaml = {
       name: "t", description: "d", input: "prompt",
-      agents: { custom: {} },
+      agents: ["custom"],
       phases: [{ id: "x", agent: "custom", prompt: "go" }],
     };
     const summary = summarizePhaseModels(flow, emptyInfo);
@@ -191,7 +190,7 @@ describe("summarizePhaseModels", () => {
   it("reports inherit-the-orchestrator for a .md with no model field", () => {
     const flow: FlowYaml = {
       name: "t", description: "d", input: "prompt",
-      agents: { planner: {} },
+      agents: ["planner"],
       phases: [{ id: "plan", agent: "planner", prompt: "go" }],
     };
     const info: AgentInfoMap = new Map([
@@ -205,7 +204,7 @@ describe("summarizePhaseModels", () => {
   it("surfaces a disabled .md as DISABLED", () => {
     const flow: FlowYaml = {
       name: "t", description: "d", input: "prompt",
-      agents: { reviewer: {} },
+      agents: ["reviewer"],
       phases: [{ id: "rev", agent: "reviewer", prompt: "go" }],
     };
     const info: AgentInfoMap = new Map([
