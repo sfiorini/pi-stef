@@ -1,5 +1,11 @@
 # @pi-stef/qwen-proxy
 
+> **⚠️ RETIRED — 2026-10-20.** This package is no longer maintained or
+> supported. Upstream guest access to chat.qwen.ai has been withdrawn — guest
+> mode now redirects to a login wall with no guest option — so the guest-mode
+> scraping approach this proxy is built on no longer works. The package remains
+> published for historical reference — **do not deploy it.**
+
 Guest-mode proxy for [chat.qwen.ai](https://chat.qwen.ai) with OpenAI + Anthropic compatibility. No Qwen account required — the proxy handles Baxia anti-bot tokens via headless Chromium (Chrome CDP).
 
 ---

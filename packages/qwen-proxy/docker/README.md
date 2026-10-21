@@ -1,5 +1,10 @@
 # qwen-proxy Docker
 
+> **⚠️ RETIRED — 2026-10-20.** This package is no longer maintained or
+> supported — upstream guest access to chat.qwen.ai has been withdrawn
+> (guest mode redirects to a login wall with no guest option). **Do not
+> deploy it.**
+
 The `@pi-stef/qwen-proxy` service is published as a multi-arch Docker image to the GitHub Container Registry.
 
 ## Quick start
